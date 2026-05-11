@@ -18,6 +18,14 @@ const OPERATIONAL_TABLES: string[] = [
   "coznt.automation_logs",
 ];
 
+const CRON_JOB_PREFIX = "coznt:";
+
+function getAdminUrl(): string {
+  const url = new URL(process.env.DATABASE_URL!);
+  url.pathname = "/postgres";
+  return url.toString();
+}
+
 async function confirmPrompt(): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -31,6 +39,27 @@ async function confirmPrompt(): Promise<boolean> {
   });
 }
 
+async function unschedulePgCronJobs() {
+  const adminClient = new pg.Client({ connectionString: getAdminUrl() });
+  await adminClient.connect();
+  try {
+    const result = await adminClient.query(
+      `SELECT cron.unschedule(jobname) FROM cron.job WHERE jobname LIKE $1`,
+      [`${CRON_JOB_PREFIX}%`],
+    );
+    if (result.rowCount && result.rowCount > 0) {
+      console.log(`Unscheduled ${result.rowCount} pg_cron job(s) with prefix '${CRON_JOB_PREFIX}'.`);
+    }
+  } catch (err) {
+    // pg_cron may not be installed in postgres yet — that's fine on first reset.
+    if (!/relation "cron\.job" does not exist/.test((err as Error).message)) {
+      console.log(`(skipping cron unschedule: ${(err as Error).message})`);
+    }
+  } finally {
+    await adminClient.end();
+  }
+}
+
 async function main() {
   const skipConfirm = process.argv.includes("--confirm");
 
@@ -41,6 +70,8 @@ async function main() {
       process.exit(0);
     }
   }
+
+  await unschedulePgCronJobs();
 
   if (OPERATIONAL_TABLES.length === 0) {
     console.log("No operational tables registered yet.");

@@ -82,12 +82,8 @@ async function initExtensionsAndSchemas() {
 
     await pool.query(`CREATE EXTENSION IF NOT EXISTS pgmq;`);
     console.log("  + pgmq extension");
-    if (dbName === "coznt") {
-      await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_cron;`);
-      console.log("  + pg_cron extension");
-    } else {
-      console.log("  - pg_cron skipped (only available in coznt database)");
-    }
+    // pg_cron lives in the cluster's `postgres` database (cron.database_name=postgres).
+    // It's bootstrapped + populated in setupCronJobs() below, not here.
     await pool.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
     console.log("  + vector extension");
     await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
@@ -235,23 +231,50 @@ async function markMigrationsApplied() {
   }
 }
 
-async function setupCronJobs() {
-  if (dbName !== "coznt") {
-    console.log("-> Skipping pg_cron jobs (only available in coznt database)");
-    return;
-  }
+const CRON_JOB_PREFIX = "coznt:";
 
+async function setupCronJobs() {
+  // pg_cron is centralized in the cluster's `postgres` database. Project setup
+  // connects there, ensures the extension is installed, wipes any stale jobs
+  // for this project, and re-schedules the current set targeting our own DB.
   const { Pool } = await import("pg");
-  const pool = new Pool({ connectionString: DATABASE_URL });
+  const adminPool = new Pool({ connectionString: getAdminUrl() });
 
   try {
-    console.log("-> Scheduling pg_cron jobs...");
+    console.log("-> Bootstrapping pg_cron in postgres database...");
+    try {
+      await adminPool.query(`CREATE EXTENSION IF NOT EXISTS pg_cron;`);
+      console.log("  + pg_cron available in postgres");
+    } catch (err) {
+      console.log(`  - pg_cron unavailable: ${(err as Error).message}`);
+      console.log("    (Postgres image not built with pg_cron — scheduled jobs disabled)");
+      return;
+    }
 
-    // No scheduled jobs registered yet. Add SDLC-specific cron jobs here
-    // (e.g. nightly metrics rollup, stale-plan reminders) as features land.
+    // Clean slate: drop any existing jobs registered by this project so re-runs
+    // never accumulate stale schedules.
+    await adminPool.query(
+      `SELECT cron.unschedule(jobname) FROM cron.job WHERE jobname LIKE $1`,
+      [`${CRON_JOB_PREFIX}%`],
+    );
+
+    console.log("-> Scheduling pg_cron jobs...");
+    // Add SDLC-specific cron jobs here as features land. Pattern:
+    //
+    //   await adminPool.query(`
+    //     SELECT cron.schedule_in_database(
+    //       '${CRON_JOB_PREFIX}nightly-metrics-rollup',
+    //       '0 3 * * *',
+    //       $$INSERT INTO coznt.metric_rollups SELECT ...$$,
+    //       $1
+    //     )
+    //   `, [dbName]);
+    //
+    // Job names MUST start with the project prefix so reset/teardown can find
+    // them without touching jobs owned by other projects on the cluster.
     console.log("  (no scheduled jobs configured)");
   } finally {
-    await pool.end();
+    await adminPool.end();
   }
 }
 
