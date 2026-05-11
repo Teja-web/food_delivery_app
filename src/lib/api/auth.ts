@@ -98,6 +98,7 @@ export async function handleApi<T>(
     }
     const msg = err instanceof Error ? err.message : "Internal error";
     const status = (err as { status?: number })?.status ?? 500;
-    return Response.json({ error: msg }, { status });
+    const details = (err as { details?: unknown })?.details;
+    return Response.json(details ? { error: msg, details } : { error: msg }, { status });
   }
 }

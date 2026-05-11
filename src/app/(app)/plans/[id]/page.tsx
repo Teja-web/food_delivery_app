@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPlan } from "@/actions/plans";
 import { listCommentsForPlan, createComment } from "@/actions/comments";
-import { listApprovalsForPlan, createApproval } from "@/actions/approvals";
+import { listApprovalsForPlan, requestPlanApproval } from "@/actions/approvals";
 import { listPlanRevisions } from "@/operations/plans";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,13 +22,7 @@ async function addComment(planId: string, formData: FormData) {
 
 async function requestApproval(planId: string) {
   "use server";
-  const { currentUser } = await getCurrentUser();
-  if (!currentUser) return;
-  await createApproval({
-    planId,
-    requestedById: currentUser.id,
-    requestedByName: currentUser.name,
-  });
+  await requestPlanApproval(planId);
 }
 
 export default async function PlanDetailPage({ params }: { params: Promise<{ id: string }> }) {

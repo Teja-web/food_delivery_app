@@ -1,31 +1,37 @@
 /**
- * Approval — a gate request against a plan.
+ * Approval — a gate request against any entity.
  *
- * A plan transitions `draft → in_review` by creating an approval. The
- * approval resolves to `approved` or `rejected`; the plan's status moves
- * accordingly. Multiple approvers can be required (gathered via app config).
+ * Polymorphic: `(entityType, entityId)` targets a `plan`, `phase_gate`,
+ * `release`, `work_item`, or anything else that needs explicit sign-off.
+ * The downstream effect of approving (e.g. moving a plan from `in_review`
+ * to `approved`) is dispatched by `decideApproval` in operations.
  */
 
 import { text, timestamp, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { dillizntSchema } from "./schema";
-import { plans } from "./plan";
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "cancelled"] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+export const APPROVAL_ENTITY_TYPES = ["plan", "phase_gate", "release", "work_item"] as const;
+export type ApprovalEntityType = (typeof APPROVAL_ENTITY_TYPES)[number];
 
 export const approvals = dillizntSchema.table(
   "approvals",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
-    planId: text("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
+
+    entityType: text("entity_type").$type<ApprovalEntityType>().notNull(),
+    entityId: text("entity_id").notNull(),
+    /** Optional phase context (which SDLC phase this approval relates to). */
+    phase: text(),
 
     requestedById: text("requested_by_id").notNull(),
     requestedByName: text("requested_by_name"),
     requesterNote: text("requester_note"),
 
-    /** Users authorized to decide this approval. */
     approverIds: text("approver_ids").array(),
 
     status: text().$type<ApprovalStatus>().notNull().default("pending"),
@@ -38,7 +44,7 @@ export const approvals = dillizntSchema.table(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    index("approvals_plan_idx").on(table.planId, table.status),
+    index("approvals_entity_idx").on(table.entityType, table.entityId, table.status),
     index("approvals_org_idx").on(table.organizationId),
   ],
 );

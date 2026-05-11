@@ -303,7 +303,9 @@ CREATE TABLE "dilliznt"."skills" (
 CREATE TABLE "dilliznt"."approvals" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
-	"plan_id" text NOT NULL,
+	"entity_type" text NOT NULL,
+	"entity_id" text NOT NULL,
+	"phase" text,
 	"requested_by_id" text NOT NULL,
 	"requested_by_name" text,
 	"requester_note" text,
@@ -439,6 +441,35 @@ CREATE TABLE "dilliznt"."api_keys" (
 	CONSTRAINT "api_keys_hash_unique" UNIQUE("key_hash")
 );
 --> statement-breakpoint
+CREATE TABLE "dilliznt"."phase_gates" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"project_id" text NOT NULL,
+	"phase" text NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"type" text NOT NULL,
+	"threshold" double precision,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"approved_by_id" text,
+	"comment" text,
+	"evaluated_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "phase_gates_project_phase_name_unique" UNIQUE("project_id","phase","name")
+);
+--> statement-breakpoint
+CREATE TABLE "dilliznt"."metrics" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"project_id" text,
+	"type" text NOT NULL,
+	"value" double precision NOT NULL,
+	"unit" text,
+	"metadata" jsonb,
+	"recorded_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "auth"."account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth"."invitation" ADD CONSTRAINT "invitation_organizationId_organization_id_fk" FOREIGN KEY ("organizationId") REFERENCES "auth"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth"."invitation" ADD CONSTRAINT "invitation_inviterId_user_id_fk" FOREIGN KEY ("inviterId") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -449,12 +480,13 @@ ALTER TABLE "dilliznt"."plans" ADD CONSTRAINT "plans_project_id_projects_id_fk" 
 ALTER TABLE "dilliznt"."plan_revisions" ADD CONSTRAINT "plan_revisions_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "dilliznt"."plans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."rules" ADD CONSTRAINT "rules_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "dilliznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."skills" ADD CONSTRAINT "skills_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "dilliznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dilliznt"."approvals" ADD CONSTRAINT "approvals_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "dilliznt"."plans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."comments" ADD CONSTRAINT "comments_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "dilliznt"."plans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."work_items" ADD CONSTRAINT "work_items_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "dilliznt"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."work_items" ADD CONSTRAINT "work_items_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "dilliznt"."plans"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."intelligence" ADD CONSTRAINT "intelligence_last_run_id_automation_logs_id_fk" FOREIGN KEY ("last_run_id") REFERENCES "dilliznt"."automation_logs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dilliznt"."api_keys" ADD CONSTRAINT "api_keys_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "dilliznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "dilliznt"."phase_gates" ADD CONSTRAINT "phase_gates_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "dilliznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "dilliznt"."metrics" ADD CONSTRAINT "metrics_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "dilliznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "departments_org_idx" ON "dilliznt"."departments" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "departments_fts_idx" ON "dilliznt"."departments" USING gin (dilliznt.fts_vector("name", "description"));--> statement-breakpoint
 CREATE INDEX "recruit_documents_org_idx" ON "dilliznt"."documents" USING btree ("organization_id");--> statement-breakpoint
@@ -487,7 +519,7 @@ CREATE INDEX "rules_fts_idx" ON "dilliznt"."rules" USING gin (dilliznt.fts_vecto
 CREATE INDEX "skills_org_idx" ON "dilliznt"."skills" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "skills_project_idx" ON "dilliznt"."skills" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "skills_fts_idx" ON "dilliznt"."skills" USING gin (dilliznt.fts_vector("name", "description", "body"));--> statement-breakpoint
-CREATE INDEX "approvals_plan_idx" ON "dilliznt"."approvals" USING btree ("plan_id","status");--> statement-breakpoint
+CREATE INDEX "approvals_entity_idx" ON "dilliznt"."approvals" USING btree ("entity_type","entity_id","status");--> statement-breakpoint
 CREATE INDEX "approvals_org_idx" ON "dilliznt"."approvals" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "comments_plan_idx" ON "dilliznt"."comments" USING btree ("plan_id","created_at");--> statement-breakpoint
 CREATE INDEX "comments_org_idx" ON "dilliznt"."comments" USING btree ("organization_id");--> statement-breakpoint
@@ -507,4 +539,7 @@ CREATE INDEX "notifications_org_idx" ON "dilliznt"."notifications" USING btree (
 CREATE INDEX "events_org_kind_idx" ON "dilliznt"."events" USING btree ("organization_id","kind","created_at");--> statement-breakpoint
 CREATE INDEX "events_entity_idx" ON "dilliznt"."events" USING btree ("entity_type","entity_id","created_at");--> statement-breakpoint
 CREATE INDEX "api_keys_org_idx" ON "dilliznt"."api_keys" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "api_keys_prefix_idx" ON "dilliznt"."api_keys" USING btree ("prefix");
+CREATE INDEX "api_keys_prefix_idx" ON "dilliznt"."api_keys" USING btree ("prefix");--> statement-breakpoint
+CREATE INDEX "phase_gates_project_phase_idx" ON "dilliznt"."phase_gates" USING btree ("project_id","phase","status");--> statement-breakpoint
+CREATE INDEX "metrics_project_type_time_idx" ON "dilliznt"."metrics" USING btree ("project_id","type","recorded_at");--> statement-breakpoint
+CREATE INDEX "metrics_org_time_idx" ON "dilliznt"."metrics" USING btree ("organization_id","recorded_at");

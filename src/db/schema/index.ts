@@ -22,5 +22,7 @@ export * from "./intelligence";
 export * from "./notification";
 export * from "./event";
 export * from "./api-key";
+export * from "./phase-gate";
+export * from "./metric";
 
 export * from "./relations";

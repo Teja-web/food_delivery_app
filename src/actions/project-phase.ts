@@ -6,6 +6,15 @@ import { projects, type ProjectPhase } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
+import { findUnmetGates } from "@/operations/phase-gates";
+
+export class UnmetGatesError extends Error {
+  status = 409;
+  constructor(public readonly unmet: { id: string; name: string; status: string }[]) {
+    super(`Phase cannot advance: ${unmet.length} gate(s) unmet`);
+    this.name = "UnmetGatesError";
+  }
+}
 
 export async function advanceProjectPhase(projectId: string): Promise<{ phase: ProjectPhase }> {
   const ctx = await getActionContext();
@@ -18,11 +27,13 @@ export async function advanceProjectPhase(projectId: string): Promise<{ phase: P
     throw new Error(`Project is already in the final phase (${project.phase}).`);
   }
 
+  const unmet = await findUnmetGates(projectId, project.phase);
+  if (unmet.length > 0) {
+    throw new UnmetGatesError(unmet);
+  }
+
   const phase = nextPhase(project.phase)!;
-  await db
-    .update(projects)
-    .set({ phase, updatedAt: new Date() })
-    .where(eq(projects.id, projectId));
+  await db.update(projects).set({ phase, updatedAt: new Date() }).where(eq(projects.id, projectId));
 
   safeRevalidate(`/projects/${projectId}`);
   safeRevalidate("/projects");

@@ -1,6 +1,12 @@
 "use server";
 
-import { approvalCrud, listApprovalsForPlan, decideApproval } from "@/operations/approvals";
+import {
+  approvalCrud,
+  listApprovalsForPlan,
+  listApprovalsForEntity,
+  decideApproval,
+  requestPlanApproval,
+} from "@/operations/approvals";
 
 export async function listApprovals(opts: { offset?: number; limit?: number } = {}) {
   return approvalCrud.list({ offset: opts.offset ?? 0, limit: opts.limit ?? 25, sortBy: "createdAt", sortOrder: "desc" });
@@ -14,4 +20,4 @@ export async function createApproval(input: Parameters<typeof approvalCrud.creat
   return approvalCrud.create(input);
 }
 
-export { listApprovalsForPlan, decideApproval };
+export { listApprovalsForPlan, listApprovalsForEntity, decideApproval, requestPlanApproval };

@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/api/auth";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
+import { findUnmetGates } from "@/operations/phase-gates";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       err.status = 409;
       throw err;
     }
+
+    const unmet = await findUnmetGates(id, project.phase);
+    if (unmet.length > 0) {
+      const err = new Error("Unmet phase gates") as Error & { status?: number; details?: unknown };
+      err.status = 409;
+      err.details = { unmet };
+      throw err;
+    }
+
     const phase = nextPhase(project.phase)!;
     await db.update(projects).set({ phase, updatedAt: new Date() }).where(eq(projects.id, id));
     return { id, phase };
