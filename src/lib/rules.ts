@@ -9,6 +9,9 @@
  * implemented in `src/automations/tasks/`.
  */
 
+import { processWebhookEvent } from "@/automations/tasks/process-webhook-event";
+import { computeWorkItemLeadTime } from "@/automations/tasks/compute-work-item-lead-time";
+
 export interface CrudEvent {
   entityType: string;
   operation: "insert" | "update" | "delete";
@@ -46,7 +49,24 @@ export function changed(event: CrudEvent, field: string): boolean {
 }
 
 const rules: Rule[] = [
-  // SDLC rules land here as automations/tasks/* files are added.
+  {
+    id: "webhook_event:insert",
+    entityType: "webhook_event",
+    operation: "insert",
+    tasks: [processWebhookEvent],
+  },
+  {
+    id: "work_item:status_terminal",
+    entityType: "work_item",
+    operation: "update",
+    condition: (e) => {
+      const next = (e.newData?.status as string | undefined)?.toLowerCase();
+      const prev = (e.oldData?.status as string | undefined)?.toLowerCase();
+      const TERMINAL = new Set(["done", "closed", "resolved", "merged"]);
+      return !!next && next !== prev && TERMINAL.has(next);
+    },
+    tasks: [computeWorkItemLeadTime],
+  },
 ];
 
 export function matchRules(event: CrudEvent): Rule[] {

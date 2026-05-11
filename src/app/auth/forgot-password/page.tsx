@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
           <img src="/logo.svg" alt="Dilliznt" className="h-8 w-8 shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Dilliznt</p>
-            <p className="text-[10px] uppercase tracking-widest text-amber-400">Talent Intelligence</p>
+            <p className="text-[10px] uppercase tracking-widest text-amber-400">AI powered SDLC</p>
           </div>
         </Link>
 

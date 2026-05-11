@@ -114,7 +114,7 @@ export function UnifiedSignIn() {
           <img src="/logo.svg" alt="Dilliznt" className="h-8 w-8" />
           <div className="leading-tight">
             <div className="text-sm font-semibold tracking-tight">Dilliznt</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-amber-600 font-medium">Talent Intelligence</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-amber-600 font-medium">AI powered SDLC</div>
           </div>
         </Link>
 

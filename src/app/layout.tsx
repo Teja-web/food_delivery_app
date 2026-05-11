@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Dilliznt",
-  description: "Talent Intelligence Platform",
+  description: "AI powered SDLC Platform",
   icons: {
     icon: "/logo.svg",
   },
