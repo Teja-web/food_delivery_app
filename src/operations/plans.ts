@@ -6,6 +6,7 @@ import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, PLAN_PRIORITIES, PLAN_STATUSES, t
 import { planRevisions } from "@/db/schema/plan-revision";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
+import { applyRulesToPlan } from "./rule-engine";
 
 const planSchema = z.object({
   projectId: z.string().min(1),
@@ -34,6 +35,14 @@ export const planCrud = createEntityCrud({
   searchFields: ["title", "summary", "body"],
   getWith: { project: true },
   onMutate: () => safeRevalidate("/plans"),
+  hooks: {
+    afterCreate: async (record) => {
+      await applyRulesToPlan(record);
+    },
+    afterUpdate: async (record) => {
+      await applyRulesToPlan(record);
+    },
+  },
 });
 
 /** List plans for a project, ordered by most recent. */
