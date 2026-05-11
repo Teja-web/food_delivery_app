@@ -175,7 +175,24 @@ function confluenceExternalKey(payload: Json): string | null {
 // Public entrypoint
 // ---------------------------------------------------------------------------
 
-export async function processWebhookEvent(evt: WebhookEvent): Promise<void> {
+import type { TaskParams } from "@/lib/rules";
+
+/**
+ * Worker-facing entrypoint. The rules engine passes a `TaskParams` carrying
+ * the webhook_events row id. We fetch the row and dispatch to per-source
+ * handlers. `_dispatch` is exported for tests / direct calls.
+ */
+export async function processWebhookEvent(params: TaskParams): Promise<void> {
+  const [evt] = await db
+    .select()
+    .from(webhookEvents)
+    .where(eq(webhookEvents.id, params.entityId))
+    .limit(1);
+  if (!evt || evt.processedAt) return;
+  await dispatchWebhookEvent(evt);
+}
+
+export async function dispatchWebhookEvent(evt: WebhookEvent): Promise<void> {
   try {
     switch (evt.source) {
       case "github":
