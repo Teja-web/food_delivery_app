@@ -247,33 +247,9 @@ async function setupCronJobs() {
   try {
     console.log("-> Scheduling pg_cron jobs...");
 
-    // Daily recruiter triage at 7am UTC (explicitly run in dilliznt database)
-    await pool.query(`
-      SELECT cron.schedule_in_database(
-        'daily-recruiter-triage',
-        '0 7 * * *',
-        $$SELECT pgmq.send('recruit_events',
-          '{"entityType":"scheduled","operation":"insert","entityId":"daily-triage","organizationId":"*"}'::jsonb
-        )$$,
-        'dilliznt'
-      )
-    `).catch(async () => {
-      // Job may already exist — unschedule and reschedule
-      await pool.query(`SELECT cron.unschedule('daily-recruiter-triage')`).catch(() => {});
-      await pool.query(`
-        SELECT cron.schedule_in_database(
-          'daily-recruiter-triage',
-          '0 7 * * *',
-          $$SELECT pgmq.send('recruit_events',
-            '{"entityType":"scheduled","operation":"insert","entityId":"daily-triage","organizationId":"*"}'::jsonb
-          )$$,
-          'dilliznt'
-        )
-      `);
-    });
-
-    console.log("  + daily-recruiter-triage (7am UTC)");
-    console.log("+ Scheduled jobs configured");
+    // No scheduled jobs registered yet. Add SDLC-specific cron jobs here
+    // (e.g. nightly metrics rollup, stale-plan reminders) as features land.
+    console.log("  (no scheduled jobs configured)");
   } finally {
     await pool.end();
   }

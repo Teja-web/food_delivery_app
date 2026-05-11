@@ -1,5 +1,5 @@
 /**
- * Recruit schema context for NL → SQL generation.
+ * Dilliznt schema context for NL → SQL generation.
  * Static — no runtime introspection.
  */
 

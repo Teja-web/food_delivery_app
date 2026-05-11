@@ -1,5 +1,5 @@
 /**
- * Recruit AI — simplified generate() wrapper.
+ * Dilliznt AI — simplified generate() wrapper.
  */
 
 import { generateText as aiGenerateText, Output, NoObjectGeneratedError } from "ai";

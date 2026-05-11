@@ -58,22 +58,3 @@ export const orgIdentity = dillizntSchema.table("org_identities", {
 
 export type OrgIdentity = typeof orgIdentity.$inferSelect;
 export type NewOrgIdentity = typeof orgIdentity.$inferInsert;
-
-// -- Member Profiles ---------------------------------------------------
-
-export const recruitRoleEnum = ["hiring_manager", "recruiter"] as const;
-export type RecruitRole = (typeof recruitRoleEnum)[number];
-
-export const memberProfiles = dillizntSchema.table("member_profiles", {
-  id: text("id").primaryKey().$defaultFn(() => nanoid()),
-  organizationId: text("organization_id").notNull(),
-  userId: text("user_id").notNull(),
-  recruitRole: text("recruit_role").$type<RecruitRole>().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  unique("member_profiles_org_user_unique").on(table.organizationId, table.userId),
-]);
-
-export type MemberProfile = typeof memberProfiles.$inferSelect;
-export type NewMemberProfile = typeof memberProfiles.$inferInsert;

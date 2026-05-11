@@ -1,5 +1,5 @@
 /**
- * Recruit Worker — thin entrypoint.
+ * Dilliznt Worker — thin entrypoint.
  *
  * Configures app-specific concerns (event listeners, error notifier),
  * then starts the shared poll loop with a message handler.
@@ -17,8 +17,8 @@ import { createJobErrorNotifier } from "../src/lib/error-notifier";
 import { startEventListener } from "../src/lib/events/listener";
 import { createLogger } from "../src/lib/logger";
 
-const APP_ID = "recruit";
-const QUEUE_NAME = "recruit_events";
+const APP_ID = "dilliznt";
+const QUEUE_NAME = "dilliznt_events";
 const log = createLogger(`${APP_ID}:worker`);
 
 async function handleMessage(raw: unknown): Promise<void> {

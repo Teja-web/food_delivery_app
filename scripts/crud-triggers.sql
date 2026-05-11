@@ -1,9 +1,9 @@
--- CRUD Triggers for Recruit
--- Fires on INSERT/UPDATE/DELETE → pgmq message to recruit_events queue.
+-- CRUD Triggers for dilliznt
+-- Fires on INSERT/UPDATE/DELETE → pgmq message to dilliznt_events queue.
 -- Each message contains: entityType, operation, entityId, organizationId, oldData, newData.
 
 -- Ensure queue exists
-SELECT pgmq.create_non_partitioned('recruit_events');
+SELECT pgmq.create_non_partitioned('dilliznt_events');
 
 -- Generic trigger function
 CREATE OR REPLACE FUNCTION dilliznt.emit_crud_event()
@@ -18,7 +18,6 @@ DECLARE
   user_id TEXT;
   user_name TEXT;
 BEGIN
-  -- Derive entity type from table name
   entity_type := TG_ARGV[0];
   op := lower(TG_OP);
 
@@ -34,7 +33,6 @@ BEGIN
     org_id := NEW.organization_id;
     old_data := NULL;
     new_data := to_jsonb(NEW);
-    -- Use jsonb lookup so tables without audit columns don't error
     user_id := new_data->>'created_by_id';
     user_name := new_data->>'created_by_name';
   ELSE -- update
@@ -46,9 +44,8 @@ BEGIN
     user_name := new_data->>'updated_by_name';
   END IF;
 
-  -- Send to pgmq (worker consumption)
   PERFORM pgmq.send(
-    'recruit_events',
+    'dilliznt_events',
     jsonb_build_object(
       'entityType', entity_type,
       'operation', op,
@@ -61,8 +58,7 @@ BEGIN
     )
   );
 
-  -- Notify for SSE (lightweight, no payload bloat)
-  PERFORM pg_notify('recruit_crud_events', jsonb_build_object(
+  PERFORM pg_notify('dilliznt_crud_events', jsonb_build_object(
     'entityType', entity_type,
     'operation', op,
     'entityId', entity_id,
@@ -73,7 +69,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply triggers to all dilliznt entity tables
+-- Apply triggers to dilliznt entity tables.
+-- Populate as SDLC entities land in src/db/schema/.
 DO $$
 DECLARE
   tbl RECORD;
@@ -81,20 +78,6 @@ DECLARE
 BEGIN
   FOR tbl IN
     SELECT * FROM (VALUES
-      ('candidates', 'candidate'),
-      ('roles', 'role'),
-      ('applications', 'application'),
-      ('interviews', 'interview'),
-      ('interview_scorecards', 'scorecard'),
-      ('offers', 'offer'),
-      ('pools', 'pool'),
-      ('pool_members', 'pool_member'),
-      ('assessments', 'assessment'),
-      ('assessment_attempts', 'assessmentAttempt'),
-      ('engagements', 'engagement'),
-      ('triage_items', 'triageItem'),
-      ('matches', 'match'),
-      ('interview_intelligence', 'interviewIntelligence'),
       ('entity_notes', 'entityNote')
     ) AS t(table_name, entity_type)
   LOOP

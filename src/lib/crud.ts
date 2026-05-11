@@ -374,7 +374,7 @@ export function createEntityCrud(config: EntityCrudConfig) {
         const author = n.createdByName ?? "Team member";
         return `- [${date}] ${author}: ${n.body}`;
       });
-      return `${context}\n\n### Recruiter Notes\n${noteLines.join("\n")}`;
+      return `${context}\n\n### Notes\n${noteLines.join("\n")}`;
     },
   };
 }

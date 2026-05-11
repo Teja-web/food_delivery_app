@@ -7,7 +7,7 @@
     "lint": "eslint src/",
     "dev": "next dev -H 0.0.0.0 --port 3029",
     "build": "next build",
-    "start": "concurrently --kill-others --names web,worker,voice --prefix-colors blue,green,magenta \"next start --port 3029\" \"node --import tsx scripts/worker.ts\" \"node --import tsx scripts/voice-worker.ts start\"",
+    "start": "concurrently --kill-others --names web,worker --prefix-colors blue,green \"next start --port 3029\" \"node --import tsx scripts/worker.ts\"",
     "start:server": "next start --port 3029",
     "start:worker": "node --import tsx --env-file=.env scripts/worker.ts",
     "type-check": "tsc --noEmit",
@@ -23,9 +23,7 @@
     "db:onboard": "tsx scripts/db-onboard.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui",
-    "bridge": "tsx scripts/voice-bridge.ts",
-    "start:voice": "node --import tsx --env-file=.env scripts/voice-worker.ts start"
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@ai-sdk/groq": "^3.0.33",

@@ -1,5 +1,5 @@
 /**
- * Recruit Seed — standalone, no core imports.
+ * Dilliznt Seed — standalone, no core imports.
  *
  * CRUD triggers are already applied by db-setup.ts.
  * Agents are plain objects in code — no DB seeding needed.
@@ -28,11 +28,11 @@ async function seed(databaseUrl: string) {
     // Verify pgmq queue exists
     try {
       const queueCheck = await pool.query(`
-        SELECT * FROM pgmq.metrics('recruit_events')
+        SELECT * FROM pgmq.metrics('dilliznt_events')
       `);
-      console.log(`  recruit_events queue: ${queueCheck.rows[0]?.queue_length ?? 0} messages`);
+      console.log(`  dilliznt_events queue: ${queueCheck.rows[0]?.queue_length ?? 0} messages`);
     } catch {
-      console.log("  recruit_events queue not found — run db:setup first");
+      console.log("  dilliznt_events queue not found — run db:setup first");
     }
 
     console.log("Seed complete!");
