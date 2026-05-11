@@ -29,6 +29,13 @@
       "when": 1778490792176,
       "tag": "0003_thick_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778491917671,
+      "tag": "0004_skill_autonomy_ledger",
+      "breakpoints": true
     }
   ]
 }
