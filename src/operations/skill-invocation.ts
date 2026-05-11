@@ -24,6 +24,7 @@ import { automationLog } from "@/db/schema/automation-log";
 import { intelligence } from "@/db/schema/intelligence";
 import { generate, DEFAULT_MODEL, type ModelId } from "@/lib/ai";
 import { getActionContext } from "@/lib/auth/context";
+import { applyActionPolicyRules } from "./rule-engine";
 
 export interface SkillInvocationRequest {
   slug: string;
@@ -85,6 +86,26 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
   const runId = nanoid();
   const startedAt = new Date();
   const traceId = nanoid();
+
+  // Action-policy enforcement. See docs/borrowings-from-ai-sdlc-framework.md
+  // section 2. Skills don't yet know their full action set at invocation
+  // time, so we pass the skill slug as `command` and `skill.body` line count
+  // as a coarse proxy for change scope.
+  //
+  // TODO: as we add file-mutating skills, expand `ProposedAction` with the
+  // real list of paths the skill will touch, an `hasTests` signal derived
+  // from the invocation input, and the concrete shell commands the skill
+  // intends to run. The validator already supports those fields — they're
+  // simply unknown at this layer today.
+  const bodyLineCount = skill.body.split("\n").length;
+  await applyActionPolicyRules(
+    "skill",
+    {
+      command: skill.slug,
+      fileCount: bodyLineCount,
+    },
+    { organizationId: ctx.organizationId, projectId: ctx.projectId ?? skill.projectId ?? null },
+  );
 
   try {
     const result = await generate({
