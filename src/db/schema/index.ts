@@ -13,6 +13,8 @@ export * from "./plan";
 export * from "./plan-revision";
 export * from "./rule";
 export * from "./skill";
+export * from "./skill-outcome";
+export * from "./skill-autonomy";
 export * from "./approval";
 export * from "./comment";
 export * from "./work-item";

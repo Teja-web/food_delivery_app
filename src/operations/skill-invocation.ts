@@ -24,6 +24,12 @@ import { automationLog } from "@/db/schema/automation-log";
 import { intelligence } from "@/db/schema/intelligence";
 import { generate, DEFAULT_MODEL, type ModelId } from "@/lib/ai";
 import { getActionContext } from "@/lib/auth/context";
+// === autonomy ledger (Gap #6 / borrowing #3) ============================
+// Outcome emission for the progressive-autonomy ledger. Kept here as a
+// surgical hook so the merge against the action-policy work (Gap #5) stays
+// clean. See src/operations/skill-autonomy.ts.
+import { recordSkillOutcome } from "@/operations/skill-autonomy";
+// ========================================================================
 
 export interface SkillInvocationRequest {
   slug: string;
@@ -147,6 +153,16 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
       })
       .returning({ id: intelligence.id });
 
+    // === autonomy ledger ================================================
+    // Successful invocation → "success" verdict. Best-effort: failures here
+    // must not poison the invocation result.
+    try {
+      await recordSkillOutcome({ skillId: skill.id, invocationId: runId, verdict: "success" });
+    } catch {
+      // swallow — ledger is observability, not load-bearing for the call
+    }
+    // ====================================================================
+
     return {
       skillId: skill.id,
       runId,
@@ -172,6 +188,21 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
       createdAt: startedAt,
       completedAt: new Date(),
     });
+
+    // === autonomy ledger ================================================
+    // Thrown LLM error → "incident" at severity "high". Best-effort.
+    try {
+      await recordSkillOutcome({
+        skillId: skill.id,
+        invocationId: runId,
+        verdict: "incident",
+        severity: "high",
+      });
+    } catch {
+      // swallow
+    }
+    // ====================================================================
+
     throw err;
   }
 }

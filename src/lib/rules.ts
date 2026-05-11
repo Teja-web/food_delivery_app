@@ -45,8 +45,19 @@ export function changed(event: CrudEvent, field: string): boolean {
   return event.oldData?.[field] !== event.newData?.[field];
 }
 
+import { recomputeSkillAutonomyTask } from "@/automations/tasks/recompute-skill-autonomy";
+
 const rules: Rule[] = [
   // SDLC rules land here as automations/tasks/* files are added.
+  {
+    // Each new skill_outcomes row recomputes the autonomy ledger for its
+    // skill. The task itself looks up the row to discover skillId; see
+    // src/automations/tasks/recompute-skill-autonomy.ts for the lookup note.
+    id: "skill_outcome:insert",
+    entityType: "skill_outcome",
+    operation: "insert",
+    tasks: [recomputeSkillAutonomyTask],
+  },
 ];
 
 export function matchRules(event: CrudEvent): Rule[] {
