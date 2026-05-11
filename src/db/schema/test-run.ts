@@ -8,14 +8,14 @@
 
 import { text, integer, timestamp, doublePrecision, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 import { plans } from "./plan";
 
 export const TEST_RUN_STATUSES = ["passed", "failed", "errored", "skipped"] as const;
 export type TestRunStatus = (typeof TEST_RUN_STATUSES)[number];
 
-export const testRuns = dillizntSchema.table(
+export const testRuns = cozntSchema.table(
   "test_runs",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

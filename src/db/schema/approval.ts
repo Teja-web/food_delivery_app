@@ -9,7 +9,7 @@
 
 import { text, timestamp, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "cancelled"] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
@@ -17,7 +17,7 @@ export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 export const APPROVAL_ENTITY_TYPES = ["plan", "phase_gate", "release", "work_item"] as const;
 export type ApprovalEntityType = (typeof APPROVAL_ENTITY_TYPES)[number];
 
-export const approvals = dillizntSchema.table(
+export const approvals = cozntSchema.table(
   "approvals",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

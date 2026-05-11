@@ -1,12 +1,12 @@
--- CRUD Triggers for dilliznt
--- Fires on INSERT/UPDATE/DELETE → pgmq message to dilliznt_events queue.
+-- CRUD Triggers for coznt
+-- Fires on INSERT/UPDATE/DELETE → pgmq message to coznt_events queue.
 -- Each message contains: entityType, operation, entityId, organizationId, oldData, newData.
 
 -- Ensure queue exists
-SELECT pgmq.create_non_partitioned('dilliznt_events');
+SELECT pgmq.create_non_partitioned('coznt_events');
 
 -- Generic trigger function
-CREATE OR REPLACE FUNCTION dilliznt.emit_crud_event()
+CREATE OR REPLACE FUNCTION coznt.emit_crud_event()
 RETURNS TRIGGER AS $$
 DECLARE
   entity_type TEXT;
@@ -45,7 +45,7 @@ BEGIN
   END IF;
 
   PERFORM pgmq.send(
-    'dilliznt_events',
+    'coznt_events',
     jsonb_build_object(
       'entityType', entity_type,
       'operation', op,
@@ -58,7 +58,7 @@ BEGIN
     )
   );
 
-  PERFORM pg_notify('dilliznt_crud_events', jsonb_build_object(
+  PERFORM pg_notify('coznt_crud_events', jsonb_build_object(
     'entityType', entity_type,
     'operation', op,
     'entityId', entity_id,
@@ -69,7 +69,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply triggers to dilliznt entity tables.
+-- Apply triggers to coznt entity tables.
 -- Populate as SDLC entities land in src/db/schema/.
 DO $$
 DECLARE
@@ -84,14 +84,14 @@ BEGIN
     trigger_name := 'trg_crud_' || tbl.table_name;
 
     EXECUTE format(
-      'DROP TRIGGER IF EXISTS %I ON dilliznt.%I',
+      'DROP TRIGGER IF EXISTS %I ON coznt.%I',
       trigger_name, tbl.table_name
     );
 
     EXECUTE format(
       'CREATE TRIGGER %I
-       AFTER INSERT OR UPDATE OR DELETE ON dilliznt.%I
-       FOR EACH ROW EXECUTE FUNCTION dilliznt.emit_crud_event(%L)',
+       AFTER INSERT OR UPDATE OR DELETE ON coznt.%I
+       FOR EACH ROW EXECUTE FUNCTION coznt.emit_crud_event(%L)',
       trigger_name, tbl.table_name, tbl.entity_type
     );
   END LOOP;

@@ -7,9 +7,9 @@
 
 import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
-export const events = dillizntSchema.table(
+export const events = cozntSchema.table(
   "events",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

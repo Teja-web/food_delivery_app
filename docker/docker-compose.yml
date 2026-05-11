@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: postgres.Dockerfile
-    command: postgres -c shared_preload_libraries=pg_cron -c cron.database_name=dilliznt
+    command: postgres -c shared_preload_libraries=pg_cron -c cron.database_name=coznt
     ports:
       - "5432:5432"
     environment:

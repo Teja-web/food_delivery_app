@@ -9,9 +9,9 @@
  */
 
 import { text, integer, timestamp, index } from "drizzle-orm/pg-core";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
-export const rateLimits = dillizntSchema.table(
+export const rateLimits = cozntSchema.table(
   "rate_limits",
   {
     key: text("key").primaryKey(),

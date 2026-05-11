@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Dilliznt Onboarding Script
+ * Coznt Onboarding Script
  *
  * Creates organization, owner account, and data sources.
  *
@@ -90,7 +90,7 @@ async function seedOwner(client: PoolClient, orgId: string, name: string, email:
 async function main() {
   console.log("");
   console.log("=========================================");
-  console.log("    DILLIZNT ONBOARDING");
+  console.log("    COZNT ONBOARDING");
   console.log("=========================================");
   console.log("");
 
@@ -137,7 +137,7 @@ async function main() {
   try {
     await client.query("BEGIN");
 
-    await client.query("CREATE SCHEMA IF NOT EXISTS dilliznt");
+    await client.query("CREATE SCHEMA IF NOT EXISTS coznt");
 
     console.log("\nCreating organization...");
     const orgId = await seedOrganization(client, orgName, orgSlug);
@@ -146,7 +146,7 @@ async function main() {
 
     console.log("Seeding default department...");
     await client.query(`
-      INSERT INTO dilliznt.departments (id, organization_id, name, created_at, updated_at)
+      INSERT INTO coznt.departments (id, organization_id, name, created_at, updated_at)
       VALUES ($1, $2, 'Default', NOW(), NOW())
     `, [generateId("dept"), orgId]);
     console.log("  Default");

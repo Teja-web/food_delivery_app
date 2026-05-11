@@ -8,7 +8,7 @@
 
 import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 import { plans } from "./plan";
 
@@ -21,7 +21,7 @@ export const DEPLOYMENT_STATUSES = [
 ] as const;
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
 
-export const deployments = dillizntSchema.table(
+export const deployments = cozntSchema.table(
   "deployments",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

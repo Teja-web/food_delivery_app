@@ -1,5 +1,5 @@
 /**
- * PG Listener — single LISTEN connection for dilliznt_crud_events.
+ * PG Listener — single LISTEN connection for coznt_crud_events.
  * Parses NOTIFY payload and publishes to EventBus.
  * Exponential backoff reconnection on failure.
  */
@@ -8,7 +8,7 @@ import { Client } from "pg";
 import { eventBus, type CrudEventPayload, type BusEvent } from "./bus";
 
 const GLOBAL_KEY = "__recruit_listener_started__" as const;
-const CHANNEL = "dilliznt_crud_events";
+const CHANNEL = "coznt_crud_events";
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;
 
@@ -29,7 +29,7 @@ function handleNotification(payload: string): void {
     };
     eventBus.publish(event);
   } catch (error) {
-    console.error("[dilliznt:listener] Failed to parse event:", error);
+    console.error("[coznt:listener] Failed to parse event:", error);
   }
 }
 
@@ -69,13 +69,13 @@ export async function startEventListener(
       currentClient = client;
 
       client.on("error", (err) => {
-        console.error("[dilliznt:listener] Client error:", err.message);
+        console.error("[coznt:listener] Client error:", err.message);
         scheduleReconnect();
       });
 
       client.on("end", () => {
         if (!stopped) {
-          console.warn("[dilliznt:listener] Connection ended, reconnecting...");
+          console.warn("[coznt:listener] Connection ended, reconnecting...");
           scheduleReconnect();
         }
       });
@@ -91,9 +91,9 @@ export async function startEventListener(
         }
       });
 
-      console.log(`[dilliznt:listener] Listening on ${CHANNEL}`);
+      console.log(`[coznt:listener] Listening on ${CHANNEL}`);
     } catch (err) {
-      console.error("[dilliznt:listener] Connection failed:", err);
+      console.error("[coznt:listener] Connection failed:", err);
       scheduleReconnect();
     }
   }

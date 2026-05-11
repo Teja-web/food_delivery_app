@@ -74,7 +74,7 @@ export async function withApiContext<T>(
   fn: (ctx: ApiContext) => Promise<T>,
 ): Promise<T> {
   const scoped: ScopedActionContext = {
-    user: { id: `api:${ctx.apiKeyId}`, name: "API client", email: "api@dilliznt" },
+    user: { id: `api:${ctx.apiKeyId}`, name: "API client", email: "api@coznt" },
     organizationId: ctx.organizationId,
     projectId: ctx.projectId,
     userId: `api:${ctx.apiKeyId}`,

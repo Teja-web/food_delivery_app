@@ -1,5 +1,5 @@
 /**
- * Dilliznt AI — simplified generate() wrapper.
+ * Coznt AI — simplified generate() wrapper.
  */
 
 import { generateText as aiGenerateText, Output, NoObjectGeneratedError } from "ai";

@@ -3,13 +3,13 @@
  *
  * `source` says which system (`github`, `jira`, `ado`, `confluence`).
  * `externalId` uniquely identifies the artifact in that system. Optional
- * `planId` links the work item back to the dilliznt plan it implements.
+ * `planId` links the work item back to the coznt plan it implements.
  */
 
 import { text, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 import { plans } from "./plan";
 
@@ -27,7 +27,7 @@ export const WORK_ITEM_KINDS = [
 ] as const;
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
 
-export const workItems = dillizntSchema.table(
+export const workItems = cozntSchema.table(
   "work_items",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
@@ -58,7 +58,7 @@ export const workItems = dillizntSchema.table(
     unique("work_items_source_external_unique").on(table.source, table.externalId),
     index("work_items_fts_idx").using(
       "gin",
-      sql`dilliznt.fts_vector(${table.title}, ${table.description})`,
+      sql`coznt.fts_vector(${table.title}, ${table.description})`,
     ),
   ],
 );

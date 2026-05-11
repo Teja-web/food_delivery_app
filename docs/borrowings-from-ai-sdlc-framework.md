@@ -2,7 +2,7 @@
 
 **Source:** https://github.com/ai-sdlc-framework/ai-sdlc — declarative governance framework for AI-augmented SDLCs.
 
-**Why we care:** same domain as dilliznt, with several abstractions we don't yet have. Their model is a CLI/orchestrator running in a single repo against its backlog; ours is a multi-tenant hosted platform. We borrow **concepts**, not code.
+**Why we care:** same domain as coznt, with several abstractions we don't yet have. Their model is a CLI/orchestrator running in a single repo against its backlog; ours is a multi-tenant hosted platform. We borrow **concepts**, not code.
 
 This doc is the plan for what to bring in, in what order, and why. Nothing here is implemented yet — review and edit before we start.
 
@@ -10,13 +10,13 @@ This doc is the plan for what to bring in, in what order, and why. Nothing here 
 
 ## Top picks (recommended)
 
-These are the three highest-leverage borrowings. Each maps cleanly onto dilliznt's existing shape and unblocks a concrete gap.
+These are the three highest-leverage borrowings. Each maps cleanly onto coznt's existing shape and unblocks a concrete gap.
 
 ### 1. AdapterBinding — `project ↔ external system` mapping
 
 **Borrowed from:** `spec/adapters.md` — `AdapterBinding` resource type.
 
-**Gap it closes:** when a GitHub `deployment_status` webhook arrives at dilliznt, we currently can't tell which dilliznt project it belongs to. Same for Jira issue events, ADO PR events, Confluence page edits. I deferred wiring webhook → `recordDeployment` because of this. AdapterBinding fixes it.
+**Gap it closes:** when a GitHub `deployment_status` webhook arrives at coznt, we currently can't tell which coznt project it belongs to. Same for Jira issue events, ADO PR events, Confluence page edits. I deferred wiring webhook → `recordDeployment` because of this. AdapterBinding fixes it.
 
 **Schema sketch:** new table `adapter_bindings`.
 
@@ -24,7 +24,7 @@ These are the three highest-leverage borrowings. Each maps cleanly onto dilliznt
 |---|---|---|
 | `id` | text PK | nanoid |
 | `organizationId` | text | scoped |
-| `projectId` | text FK projects | the dilliznt project |
+| `projectId` | text FK projects | the coznt project |
 | `provider` | text | `github` / `jira` / `ado` / `confluence` |
 | `externalKey` | text | repo full_name / Jira project key / ADO project / Confluence space |
 | `config` | jsonb | branch filter, label filter, env mapping |
@@ -49,7 +49,7 @@ Unique constraint on `(provider, externalKey, organizationId)`.
 
 **Borrowed from:** their `agent-role.yaml` — `blockedActions`, `blockedPaths`, `requireTests`, `maxFilesPerChange`.
 
-**Gap it closes:** dilliznt rules today only validate plan *content* (keyword-presence). They don't constrain what skills can *do*. As skills become more autonomous, we need declarative guardrails.
+**Gap it closes:** coznt rules today only validate plan *content* (keyword-presence). They don't constrain what skills can *do*. As skills become more autonomous, we need declarative guardrails.
 
 **Approach:** extend the rule frontmatter validator dispatch in `src/operations/rule-engine.ts`. Today only `validator: keyword-presence` is implemented. Add `validator: action-policy` with these fields:
 
@@ -81,7 +81,7 @@ maxFilesPerChange: 15
 
 **Borrowed from:** `spec/autonomy.md` — Intern (0) → Junior (1) → Senior (2) → Principal (3), with promotion criteria and immediate demotion on incidents.
 
-**Gap it closes:** dilliznt has no way to say "this skill has earned the right to auto-merge low-complexity changes." Without it, every approval needs a human, regardless of skill track record.
+**Gap it closes:** coznt has no way to say "this skill has earned the right to auto-merge low-complexity changes." Without it, every approval needs a human, regardless of skill track record.
 
 **Schema sketch:**
 
@@ -118,7 +118,7 @@ maxFilesPerChange: 15
 
 Their resource types all have JSON Schema 2020-12 definitions in `spec/schemas/`. Useful for AI agents introspecting what plans/projects/skills look like.
 
-For dilliznt: derive `zod-to-json-schema` from existing Zod schemas in operations + agent definitions, expose at `/api/v1/schema/{resource}`. Half a day, mostly mechanical.
+For coznt: derive `zod-to-json-schema` from existing Zod schemas in operations + agent definitions, expose at `/api/v1/schema/{resource}`. Half a day, mostly mechanical.
 
 **Why "consider" not "recommend":** speculative until an external agent actually asks for it. Build when the demand surfaces.
 
@@ -126,15 +126,15 @@ For dilliznt: derive `zod-to-json-schema` from existing Zod schemas in operation
 
 Their orchestrator runs every PR through Claude + Codex + Cursor reviewers in parallel. Stronger guarantees than any single agent.
 
-For dilliznt: extend `/api/v1/skills/[slug]/invoke` with a `reviewers: ["agent-a","agent-b","agent-c"]` mode that fans out and aggregates verdicts. Useful when we add an agent-driven plan-approval workflow.
+For coznt: extend `/api/v1/skills/[slug]/invoke` with a `reviewers: ["agent-a","agent-b","agent-c"]` mode that fans out and aggregates verdicts. Useful when we add an agent-driven plan-approval workflow.
 
-**Why later:** dilliznt doesn't yet drive code review through skills — that surface needs to exist first.
+**Why later:** coznt doesn't yet drive code review through skills — that surface needs to exist first.
 
 ### 6. Workflow pattern detection from telemetry
 
 They mine `PostToolUse` JSONL with n-grams (n=3 to 8) and propose new commands/skills/hooks for repeated workflows.
 
-For dilliznt: mine `audit_logs` + `automation_log` for repeated entity-mutation sequences, propose new rules. Mildly nice; not load-bearing.
+For coznt: mine `audit_logs` + `automation_log` for repeated entity-mutation sequences, propose new rules. Mildly nice; not load-bearing.
 
 ---
 
@@ -148,11 +148,11 @@ Strong supply-chain integrity story. Sign every plan revision, deployment, and r
 
 ### 8. Pattern-C worktree isolation
 
-Per-task `.worktrees/<task-id>/` with MCP routing. Solves a problem dilliznt doesn't have — we don't run agents that mutate local repos. Skip.
+Per-task `.worktrees/<task-id>/` with MCP routing. Solves a problem coznt doesn't have — we don't run agents that mutate local repos. Skip.
 
 ### 9. CLI surface (`ai-sdlc tick / start / status`)
 
-Useful for ops in a CLI-first product. Dilliznt is a hosted UI; the equivalent is the `/metrics` and `/projects` pages plus the worker process. Skip unless we ship a CLI for self-hosters.
+Useful for ops in a CLI-first product. Coznt is a hosted UI; the equivalent is the `/metrics` and `/projects` pages plus the worker process. Skip unless we ship a CLI for self-hosters.
 
 ### 10. Conformance test suite
 
@@ -162,7 +162,7 @@ Language-agnostic conformance suite — only meaningful if we publish a spec for
 
 ## Already aligned (no work needed)
 
-| Their concept | Dilliznt equivalent |
+| Their concept | Coznt equivalent |
 |---|---|
 | QualityGate enforcement levels (block / warn / info) | `rules.severity = error / warn / info` |
 | QualityGate | `phase_gates` |

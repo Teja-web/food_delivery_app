@@ -1,5 +1,5 @@
 /**
- * Execution Logger — writes audit entries to dilliznt.automation_log.
+ * Execution Logger — writes audit entries to coznt.automation_log.
  *
  * Every task execution should call `logExecution()` after completing its work.
  * The run reference (outputTable + outputId) ties the log entry to the

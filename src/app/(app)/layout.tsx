@@ -20,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="grid h-dvh grid-cols-[220px_1fr]">
       <aside className="border-r bg-muted/30 px-4 py-6">
         <Link href="/projects" className="mb-6 block text-lg font-semibold">
-          dilliznt
+          coznt
         </Link>
         <nav className="flex flex-col gap-1 text-sm">
           {NAV.map((n) => (

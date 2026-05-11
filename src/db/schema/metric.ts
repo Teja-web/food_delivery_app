@@ -8,7 +8,7 @@
 
 import { text, timestamp, doublePrecision, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 
 export const METRIC_TYPES = [
@@ -23,7 +23,7 @@ export const METRIC_TYPES = [
 ] as const;
 export type MetricType = (typeof METRIC_TYPES)[number];
 
-export const metrics = dillizntSchema.table(
+export const metrics = cozntSchema.table(
   "metrics",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

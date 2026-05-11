@@ -7,12 +7,12 @@
 
 import { text, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 export const WEBHOOK_SOURCES = ["github", "jira", "ado", "confluence"] as const;
 export type WebhookSource = (typeof WEBHOOK_SOURCES)[number];
 
-export const webhookEvents = dillizntSchema.table(
+export const webhookEvents = cozntSchema.table(
   "webhook_events",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

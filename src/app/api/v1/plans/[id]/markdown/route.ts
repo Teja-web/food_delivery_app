@@ -9,8 +9,8 @@ import { serializePlanToMarkdown, planFilePath } from "@/lib/plan/markdown";
  * GET /api/v1/plans/:id/markdown
  *
  * Returns the plan as `text/markdown` ready to drop into the consumer's
- * repo at `.dilliznt/plans/<kind>/<slug>.md`. The relative path is
- * surfaced in `Content-Disposition: filename` and `X-Dilliznt-File-Path`.
+ * repo at `.coznt/plans/<kind>/<slug>.md`. The relative path is
+ * surfaced in `Content-Disposition: filename` and `X-Coznt-File-Path`.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -40,9 +40,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
         "Content-Disposition": `inline; filename="${path.split("/").pop()}"`,
-        "X-Dilliznt-File-Path": path,
-        "X-Dilliznt-Plan-Id": plan.id,
-        "X-Dilliznt-Plan-Updated-At": plan.updatedAt.toISOString(),
+        "X-Coznt-File-Path": path,
+        "X-Coznt-Plan-Id": plan.id,
+        "X-Coznt-Plan-Updated-At": plan.updatedAt.toISOString(),
       },
     });
   });

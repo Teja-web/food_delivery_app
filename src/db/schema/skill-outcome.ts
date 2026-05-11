@@ -12,7 +12,7 @@
 
 import { text, timestamp, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { skills } from "./skill";
 
 export const SKILL_OUTCOME_VERDICTS = ["success", "rolled_back", "incident"] as const;
@@ -21,7 +21,7 @@ export type SkillOutcomeVerdict = (typeof SKILL_OUTCOME_VERDICTS)[number];
 export const SKILL_OUTCOME_SEVERITIES = ["low", "high", "critical"] as const;
 export type SkillOutcomeSeverity = (typeof SKILL_OUTCOME_SEVERITIES)[number];
 
-export const skillOutcomes = dillizntSchema.table(
+export const skillOutcomes = cozntSchema.table(
   "skill_outcomes",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

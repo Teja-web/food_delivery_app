@@ -143,7 +143,7 @@ export function createEntityCrud(config: EntityCrudConfig) {
     if (!tsQuery) return orgWhere;
 
     const concatExpr = cols.map((f) => sql`coalesce(${table[f]}, '')`);
-    const tsvec = sql`dilliznt.fts_vector(${sql.join(concatExpr, sql`, `)})`;
+    const tsvec = sql`coznt.fts_vector(${sql.join(concatExpr, sql`, `)})`;
     const tsq = sql`to_tsquery('english', ${tsQuery})`;
 
     return and(orgWhere, sql`${tsvec} @@ ${tsq}`);
@@ -199,7 +199,7 @@ export function createEntityCrud(config: EntityCrudConfig) {
       if (!tsQuery || cols.length === 0) return { items: [], total: 0 };
 
       const concatExpr = cols.map((f) => sql`coalesce(${table[f]}, '')`);
-      const tsvec = sql`dilliznt.fts_vector(${sql.join(concatExpr, sql`, `)})`;
+      const tsvec = sql`coznt.fts_vector(${sql.join(concatExpr, sql`, `)})`;
       const tsq = sql`to_tsquery('english', ${tsQuery})`;
       const whereClause = and(baseWhere(ctx), sql`${tsvec} @@ ${tsq}`);
 

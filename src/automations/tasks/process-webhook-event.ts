@@ -4,13 +4,13 @@
  *
  * For each unprocessed `webhook_events` row we:
  *   1. Derive an `externalKey` from the payload (provider-specific).
- *   2. Resolve it to a dilliznt projectId via the AdapterBinding table.
+ *   2. Resolve it to a coznt projectId via the AdapterBinding table.
  *   3. Fan out to a per-source handler (e.g. GitHub deployment_status →
  *      `recordDeployment`).
  *   4. Mark `processedAt`, or set `processingError` and leave for triage.
  *
  * AdapterBinding (see `src/db/schema/adapter-binding.ts`) is what lets us
- * map "this GitHub repo" → "this dilliznt project" without hard-coding it
+ * map "this GitHub repo" → "this coznt project" without hard-coding it
  * in the payload.
  */
 

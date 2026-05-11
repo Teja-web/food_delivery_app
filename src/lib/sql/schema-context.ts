@@ -1,21 +1,21 @@
 /**
- * Dilliznt schema context for NL → SQL generation.
+ * Coznt schema context for NL → SQL generation.
  * Static — no runtime introspection.
  */
 
 export const RECRUIT_TABLES = [
-  "dilliznt.candidates",
-  "dilliznt.roles",
-  "dilliznt.applications",
-  "dilliznt.interviews",
-  "dilliznt.offers",
-  "dilliznt.engagements",
+  "coznt.candidates",
+  "coznt.roles",
+  "coznt.applications",
+  "coznt.interviews",
+  "coznt.offers",
+  "coznt.engagements",
 ] as const;
 
 export const RECRUIT_SCHEMA_CONTEXT = `
-SCHEMA: dilliznt (PostgreSQL)
+SCHEMA: coznt (PostgreSQL)
 
-dilliznt.candidates (
+coznt.candidates (
   id TEXT PRIMARY KEY,          -- nanoid
   organization_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -36,7 +36,7 @@ dilliznt.candidates (
   updated_at TIMESTAMPTZ
 )
 
-dilliznt.roles (
+coznt.roles (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -51,11 +51,11 @@ dilliznt.roles (
   updated_at TIMESTAMPTZ
 )
 
-dilliznt.applications (
+coznt.applications (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
-  role_id TEXT REFERENCES dilliznt.roles(id),
-  candidate_id TEXT REFERENCES dilliznt.candidates(id),
+  role_id TEXT REFERENCES coznt.roles(id),
+  candidate_id TEXT REFERENCES coznt.candidates(id),
   stage TEXT NOT NULL,          -- sourced, interview, offer, hired, rejected, withdrawn
   fit_score INTEGER,            -- 0-100
   days_in_stage INTEGER,
@@ -65,12 +65,12 @@ dilliznt.applications (
   updated_at TIMESTAMPTZ
 )
 
-dilliznt.interviews (
+coznt.interviews (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
-  application_id TEXT REFERENCES dilliznt.applications(id),
-  candidate_id TEXT REFERENCES dilliznt.candidates(id),
-  role_id TEXT REFERENCES dilliznt.roles(id),
+  application_id TEXT REFERENCES coznt.applications(id),
+  candidate_id TEXT REFERENCES coznt.candidates(id),
+  role_id TEXT REFERENCES coznt.roles(id),
   interview_type TEXT,          -- phone, technical, behavioral, panel, onsite
   scheduled_at TIMESTAMPTZ,
   duration_mins INTEGER,
@@ -79,12 +79,12 @@ dilliznt.interviews (
   updated_at TIMESTAMPTZ
 )
 
-dilliznt.offers (
+coznt.offers (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
-  application_id TEXT REFERENCES dilliznt.applications(id),
-  candidate_id TEXT REFERENCES dilliznt.candidates(id),
-  role_id TEXT REFERENCES dilliznt.roles(id),
+  application_id TEXT REFERENCES coznt.applications(id),
+  candidate_id TEXT REFERENCES coznt.candidates(id),
+  role_id TEXT REFERENCES coznt.roles(id),
   status TEXT NOT NULL,         -- draft, pending, accepted, declined, expired
   comp_base INTEGER,            -- base salary
   comp_equity INTEGER,          -- equity value
@@ -94,7 +94,7 @@ dilliznt.offers (
   updated_at TIMESTAMPTZ
 )
 
-dilliznt.engagements (
+coznt.engagements (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   recipient_id TEXT,

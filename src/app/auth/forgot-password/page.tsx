@@ -41,9 +41,9 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-6 inline-flex items-center gap-2 ml-1 group">
-          <img src="/logo.svg" alt="Dilliznt" className="h-8 w-8 shrink-0" />
+          <img src="/logo.svg" alt="Coznt" className="h-8 w-8 shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">Dilliznt</p>
+            <p className="text-sm font-semibold text-foreground">Coznt</p>
             <p className="text-[10px] uppercase tracking-widest text-amber-400">AI powered SDLC</p>
           </div>
         </Link>

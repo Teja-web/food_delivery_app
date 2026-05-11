@@ -14,7 +14,7 @@
 
 import { text, timestamp, doublePrecision, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects, type ProjectPhase } from "./project";
 
 export const GATE_TYPES = ["approval", "coverage", "lint", "security", "custom"] as const;
@@ -23,7 +23,7 @@ export type GateType = (typeof GATE_TYPES)[number];
 export const GATE_STATUSES = ["pending", "passed", "failed", "skipped"] as const;
 export type GateStatus = (typeof GATE_STATUSES)[number];
 
-export const phaseGates = dillizntSchema.table(
+export const phaseGates = cozntSchema.table(
   "phase_gates",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

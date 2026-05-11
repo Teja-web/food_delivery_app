@@ -7,12 +7,12 @@
 
 import { text, timestamp, boolean, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 export const NOTIFICATION_CHANNELS = ["in_app", "email"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
-export const notifications = dillizntSchema.table(
+export const notifications = cozntSchema.table(
   "notifications",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

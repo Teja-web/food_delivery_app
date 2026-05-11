@@ -14,8 +14,8 @@ import pg from "pg";
 const OPERATIONAL_TABLES: string[] = [
   // Filled in as SDLC entities land in src/db/schema/.
   // Order: dependents first.
-  "dilliznt.documents",
-  "dilliznt.automation_logs",
+  "coznt.documents",
+  "coznt.automation_logs",
 ];
 
 async function confirmPrompt(): Promise<boolean> {

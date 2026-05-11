@@ -1,4 +1,4 @@
-# Dilliznt
+# Coznt
 
 AI-powered recruiting platform. Candidates and roles are matched automatically, interviews are synthesized, and pipeline intelligence accumulates over time.
 

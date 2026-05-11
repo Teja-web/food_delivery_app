@@ -11,7 +11,7 @@ export interface SearchOptions {
   organizationId?: string;
   limit?: number;
   threshold?: number;
-  /** Additional SQL JOIN clause injected after `FROM dilliznt.documents d` */
+  /** Additional SQL JOIN clause injected after `FROM coznt.documents d` */
   join?: any;
   /** Additional SQL WHERE condition appended to the base filter */
   where?: any;

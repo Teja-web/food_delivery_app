@@ -1,5 +1,5 @@
 /**
- * Dilliznt Auth — standalone better-auth config.
+ * Coznt Auth — standalone better-auth config.
  *
  * Email sender is intentionally a no-op stub for now. Wire a real transport
  * (SES, Resend, Postmark, etc.) before exposing password reset or
@@ -52,7 +52,7 @@ export const auth = betterAuth({
     async sendResetPassword({ user, url }) {
       await sendEmailStub({
         to: user.email,
-        subject: "Reset your Dilliznt password",
+        subject: "Reset your Coznt password",
         body: `Reset link: ${url}`,
       });
     },

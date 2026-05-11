@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Dilliznt Database Setup — fully self-contained.
+ * Coznt Database Setup — fully self-contained.
  * Creates database, extensions, schemas, applies schema, triggers, seeds admin.
  *
  * Usage:
@@ -17,13 +17,13 @@ import { randomBytes } from "crypto";
 const APP_DIR = import.meta.dirname ? join(import.meta.dirname, "..") : process.cwd();
 
 const DATABASE_URL =
-  process.env.DATABASE_URL || "postgres://postgres:password@localhost:5432/dilliznt";
+  process.env.DATABASE_URL || "postgres://postgres:password@localhost:5432/coznt";
 process.env.DATABASE_URL = DATABASE_URL;
 const url = new URL(DATABASE_URL);
 const dbName = url.pathname.slice(1);
 
 const ADMIN_CONFIG = {
-  email: process.env.SEED_ADMIN_EMAIL || "admin@dilliznt.app",
+  email: process.env.SEED_ADMIN_EMAIL || "admin@coznt.app",
   password: process.env.SEED_ADMIN_PASSWORD || "admin123",
   name: process.env.SEED_ADMIN_NAME || "Platform Admin",
 };
@@ -82,30 +82,30 @@ async function initExtensionsAndSchemas() {
 
     await pool.query(`CREATE EXTENSION IF NOT EXISTS pgmq;`);
     console.log("  + pgmq extension");
-    if (dbName === "dilliznt") {
+    if (dbName === "coznt") {
       await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_cron;`);
       console.log("  + pg_cron extension");
     } else {
-      console.log("  - pg_cron skipped (only available in dilliznt database)");
+      console.log("  - pg_cron skipped (only available in coznt database)");
     }
     await pool.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
     console.log("  + vector extension");
     await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
     console.log("  + uuid-ossp extension");
 
-    for (const schema of ["auth", "dilliznt"]) {
+    for (const schema of ["auth", "coznt"]) {
       await pool.query(`CREATE SCHEMA IF NOT EXISTS ${schema};`);
       console.log(`  + ${schema} schema`);
     }
 
     // Immutable wrappers for FTS index expressions (concat_ws and to_tsvector are STABLE, not IMMUTABLE)
     await pool.query(`
-      CREATE OR REPLACE FUNCTION dilliznt.immutable_concat_ws(text, VARIADIC text[])
+      CREATE OR REPLACE FUNCTION coznt.immutable_concat_ws(text, VARIADIC text[])
       RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
       $$SELECT array_to_string($2, $1)$$;
     `);
     await pool.query(`
-      CREATE OR REPLACE FUNCTION dilliznt.fts_vector(VARIADIC text[])
+      CREATE OR REPLACE FUNCTION coznt.fts_vector(VARIADIC text[])
       RETURNS tsvector LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
       $$SELECT to_tsvector('english'::regconfig, array_to_string($1, ' '))$$;
     `);
@@ -236,8 +236,8 @@ async function markMigrationsApplied() {
 }
 
 async function setupCronJobs() {
-  if (dbName !== "dilliznt") {
-    console.log("-> Skipping pg_cron jobs (only available in dilliznt database)");
+  if (dbName !== "coznt") {
+    console.log("-> Skipping pg_cron jobs (only available in coznt database)");
     return;
   }
 
@@ -259,7 +259,7 @@ async function main() {
   const reset = process.argv.includes("--reset");
 
   console.log("===========================================");
-  console.log("       DILLIZNT DATABASE SETUP");
+  console.log("       COZNT DATABASE SETUP");
   if (reset) console.log("           RESET MODE");
   console.log("===========================================");
   console.log(`Database: ${dbName}`);

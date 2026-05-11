@@ -10,10 +10,10 @@
 import { text, timestamp, integer, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { automationLog } from "./automation-log";
 
-export const intelligence = dillizntSchema.table(
+export const intelligence = cozntSchema.table(
   "intelligence",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
@@ -41,7 +41,7 @@ export const intelligence = dillizntSchema.table(
     unique("intelligence_entity_kind_unique").on(table.entityType, table.entityId, table.kind),
     index("intelligence_fts_idx").using(
       "gin",
-      sql`dilliznt.fts_vector(${table.summary}, ${table.body})`,
+      sql`coznt.fts_vector(${table.summary}, ${table.body})`,
     ),
   ],
 );

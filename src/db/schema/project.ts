@@ -8,7 +8,7 @@
 import { text, timestamp, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 export const PROJECT_PHASES = [
   "requirements",
@@ -23,7 +23,7 @@ export type ProjectPhase = (typeof PROJECT_PHASES)[number];
 export const PROJECT_STATUSES = ["active", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
-export const projects = dillizntSchema.table(
+export const projects = cozntSchema.table(
   "projects",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
@@ -53,7 +53,7 @@ export const projects = dillizntSchema.table(
     unique("projects_org_slug_unique").on(table.organizationId, table.slug),
     index("projects_fts_idx").using(
       "gin",
-      sql`dilliznt.fts_vector(${table.name}, ${table.description})`,
+      sql`coznt.fts_vector(${table.name}, ${table.description})`,
     ),
   ],
 );

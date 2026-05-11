@@ -16,10 +16,10 @@
  */
 
 import { text, timestamp, integer } from "drizzle-orm/pg-core";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { skills } from "./skill";
 
-export const skillAutonomy = dillizntSchema.table("skill_autonomy", {
+export const skillAutonomy = cozntSchema.table("skill_autonomy", {
   skillId: text("skill_id")
     .primaryKey()
     .references(() => skills.id, { onDelete: "cascade" }),

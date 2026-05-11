@@ -21,9 +21,9 @@ function getPool() {
       max: 3,
       idleTimeoutMillis: 30_000,
     });
-    // Set search_path so unqualified table names resolve to dilliznt schema
+    // Set search_path so unqualified table names resolve to coznt schema
     pool.on("connect", (client) => {
-      client.query("SET search_path TO dilliznt, public");
+      client.query("SET search_path TO coznt, public");
     });
   }
   return pool;

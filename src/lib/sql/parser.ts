@@ -64,7 +64,7 @@ export interface SQLValidationOptions {
   maxTables?: number;
   /** Whitelist of allowed tables. If set, only these are queryable. */
   allowedTables?: string[];
-  /** Required schema prefix (e.g. "dilliznt") — rejects queries touching other schemas */
+  /** Required schema prefix (e.g. "coznt") — rejects queries touching other schemas */
   requiredSchema?: string;
 }
 

@@ -8,10 +8,10 @@
 
 import { text, timestamp, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 
-export const apiKeys = dillizntSchema.table(
+export const apiKeys = cozntSchema.table(
   "api_keys",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

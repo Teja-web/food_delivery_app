@@ -1,11 +1,11 @@
 import { text, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 // -- Departments -------------------------------------------------------
 
-export const departments = dillizntSchema.table("departments", {
+export const departments = cozntSchema.table("departments", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   organizationId: text("organization_id").notNull(),
   name: text("name").notNull(),
@@ -17,7 +17,7 @@ export const departments = dillizntSchema.table("departments", {
 }, (table) => [
   index("departments_org_idx").on(table.organizationId),
   unique("departments_org_name_unique").on(table.organizationId, table.name),
-  index("departments_fts_idx").using("gin", sql`dilliznt.fts_vector(${table.name}, ${table.description})`),
+  index("departments_fts_idx").using("gin", sql`coznt.fts_vector(${table.name}, ${table.description})`),
 ]);
 
 export type Department = typeof departments.$inferSelect;
@@ -43,7 +43,7 @@ export interface ExtractedIdentity {
   [key: string]: unknown;
 }
 
-export const orgIdentity = dillizntSchema.table("org_identities", {
+export const orgIdentity = cozntSchema.table("org_identities", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   organizationId: text("organization_id").notNull(),
   rawText: text("raw_text"),

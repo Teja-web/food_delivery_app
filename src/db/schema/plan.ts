@@ -12,7 +12,7 @@
 import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 
 export const PLAN_KINDS = [
@@ -49,7 +49,7 @@ export type PlanStatus = (typeof PLAN_STATUSES)[number];
 export const PLAN_PRIORITIES = ["p0", "p1", "p2", "p3"] as const;
 export type PlanPriority = (typeof PLAN_PRIORITIES)[number];
 
-export const plans = dillizntSchema.table(
+export const plans = cozntSchema.table(
   "plans",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
@@ -96,7 +96,7 @@ export const plans = dillizntSchema.table(
     index("plans_kind_status_idx").on(table.kind, table.status),
     index("plans_fts_idx").using(
       "gin",
-      sql`dilliznt.fts_vector(${table.title}, ${table.summary}, ${table.body})`,
+      sql`coznt.fts_vector(${table.title}, ${table.summary}, ${table.body})`,
     ),
   ],
 );

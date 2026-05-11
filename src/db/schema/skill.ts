@@ -8,10 +8,10 @@
 import { text, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 
-export const skills = dillizntSchema.table(
+export const skills = cozntSchema.table(
   "skills",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
@@ -40,7 +40,7 @@ export const skills = dillizntSchema.table(
     index("skills_project_idx").on(table.projectId),
     index("skills_fts_idx").using(
       "gin",
-      sql`dilliznt.fts_vector(${table.name}, ${table.description}, ${table.body})`,
+      sql`coznt.fts_vector(${table.name}, ${table.description}, ${table.body})`,
     ),
   ],
 );

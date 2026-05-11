@@ -1,4 +1,4 @@
-# Dilliznt — LLM Context
+# Coznt — LLM Context
 
 ## Two Sources of Truth
 
@@ -151,7 +151,7 @@ Gives you `.list()`, `.search()`, `.searchSemantic()`, `.get(id, { with })`, `.c
 |--------|-------------|-----------|------|
 | `list()` | Paginated listing, no filtering | Drizzle query, ordered by `createdAt desc` | Zero |
 | `search(query)` | Full-text keyword search | PG `tsvector`/`tsquery` on `searchFields` columns | Zero |
-| `searchSemantic(query)` | Deep semantic search | Hybrid (vector embeddings + BM25) via `dilliznt.documents` | OpenAI embedding API call |
+| `searchSemantic(query)` | Deep semantic search | Hybrid (vector embeddings + BM25) via `coznt.documents` | OpenAI embedding API call |
 
 All three return `{ items, total }` and support `offset` + `limit` pagination.
 
@@ -188,7 +188,7 @@ const { items, total } = await roleCrud.searchSemantic("someone who can lead a t
 
 `searchFields` — every entity should declare these. Full-text search uses them directly on entity columns via GIN indexes (no extra tables). Include rich text fields like `resumeText`, `description`, `notes`, `transcript`. Each schema file has a matching GIN index on `to_tsvector('english', concat_ws(' ', ...fields))`.
 
-`searchConfig` — opt-in. Only needed for entities that also have embeddings in `dilliznt.documents` for `searchSemantic()`.
+`searchConfig` — opt-in. Only needed for entities that also have embeddings in `coznt.documents` for `searchSemantic()`.
 
 For detail pages needing deeper relations, add a custom operation:
 

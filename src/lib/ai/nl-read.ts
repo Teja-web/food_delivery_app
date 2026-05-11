@@ -2,7 +2,7 @@
  * NL Read — natural language → SQL query engine for complex multi-table reads.
  *
  * Given a natural language question and schema context, generates a parameterized
- * SELECT statement. AST validation ensures only SELECT on dilliznt.* schema.
+ * SELECT statement. AST validation ensures only SELECT on coznt.* schema.
  */
 
 import { generate } from "./index";
@@ -20,7 +20,7 @@ Given a natural language question and the database schema context below, generat
 
 RULES:
 - Only generate SELECT statements — never INSERT, UPDATE, DELETE, or DDL
-- Only query tables in the "dilliznt" schema
+- Only query tables in the "coznt" schema
 - Use parameterized values ($1, $2, etc.) for all user-supplied filter values
 - Return the SQL, parameter values, and a brief explanation separately
 - Always include organization_id filtering via a parameter ($1 is always organization_id)
@@ -94,7 +94,7 @@ export async function executeNlRead(params: {
       output.params[0] = organizationId;
     }
 
-    // AST validation: SELECT only, dilliznt schema only
+    // AST validation: SELECT only, coznt schema only
     const execResult = await executeSQLQuery(output.sql, {
       validation: {
         allowSelect: true,
@@ -102,7 +102,7 @@ export async function executeNlRead(params: {
         allowInsert: false,
         allowDelete: false,
         allowedTables: [...RECRUIT_TABLES],
-        requiredSchema: "dilliznt",
+        requiredSchema: "coznt",
       },
       params: output.params,
       dryRun: dryRun ?? false,

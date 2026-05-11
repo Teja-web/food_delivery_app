@@ -38,7 +38,7 @@ export async function listBindingsForProject(projectId: string): Promise<Adapter
 }
 
 /**
- * Look up the dilliznt project bound to an external (provider, externalKey)
+ * Look up the coznt project bound to an external (provider, externalKey)
  * pair within an organization. Returns null if no binding exists.
  *
  * Note: this is the internal query — the public resolver entrypoint lives

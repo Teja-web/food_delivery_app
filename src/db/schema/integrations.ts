@@ -1,5 +1,5 @@
 import { text, timestamp, index, unique, jsonb } from "drizzle-orm/pg-core";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 // ============================================
 // OAuth Connections (unified table for connections + tokens)
@@ -9,7 +9,7 @@ import { dillizntSchema } from "./schema";
  * Tracks OAuth connections to external services with embedded tokens.
  * Used for calendar (Google, Outlook) and email (Gmail) integrations.
  */
-export const oauthConnections = dillizntSchema.table("oauth_connections", {
+export const oauthConnections = cozntSchema.table("oauth_connections", {
     id: text().primaryKey().notNull(),
     organizationId: text("organization_id").notNull(),
     userId: text("user_id").notNull(),
@@ -50,7 +50,7 @@ export const oauthConnections = dillizntSchema.table("oauth_connections", {
  * Each org brings their own OAuth app credentials or API keys.
  * This is separate from oauth_connections which stores user-level tokens.
  */
-export const integrationCredentials = dillizntSchema.table("integration_credentials", {
+export const integrationCredentials = cozntSchema.table("integration_credentials", {
     id: text().primaryKey().notNull(),
     organizationId: text("organization_id").notNull(),
     provider: text().notNull(),

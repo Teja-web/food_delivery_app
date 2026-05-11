@@ -5,4 +5,4 @@
 /**
  * Application identifier for multi-app setups.
  */
-export const APP_ID = "dilliznt";
+export const APP_ID = "coznt";

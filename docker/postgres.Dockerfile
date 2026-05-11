@@ -33,4 +33,4 @@ RUN apt-get purge -y git && apt-get autoremove -y
 EXPOSE 5432
 
 # pg_cron requires shared_preload_libraries
-CMD ["postgres", "-c", "shared_preload_libraries=pg_cron", "-c", "cron.database_name=dilliznt"]
+CMD ["postgres", "-c", "shared_preload_libraries=pg_cron", "-c", "cron.database_name=coznt"]

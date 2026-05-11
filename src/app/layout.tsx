@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Dilliznt",
+  title: "Coznt",
   description: "AI powered SDLC Platform",
   icons: {
     icon: "/logo.svg",

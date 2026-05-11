@@ -1,9 +1,9 @@
 /**
- * AdapterBinding — maps a dilliznt project to an external system entity
+ * AdapterBinding — maps a coznt project to an external system entity
  * (GitHub repo, Jira project, ADO project, Confluence space).
  *
  * When a webhook arrives at /api/v1/webhooks/[source], we don't know which
- * dilliznt project the event belongs to — this table closes that gap. The
+ * coznt project the event belongs to — this table closes that gap. The
  * resolver (`src/lib/integrations/resolve.ts`) looks up
  * (organizationId, provider, externalKey) and returns the local projectId.
  *
@@ -19,13 +19,13 @@
 
 import { text, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 import { projects } from "./project";
 
 export const ADAPTER_PROVIDERS = ["github", "jira", "ado", "confluence"] as const;
 export type AdapterProvider = (typeof ADAPTER_PROVIDERS)[number];
 
-export const adapterBindings = dillizntSchema.table(
+export const adapterBindings = cozntSchema.table(
   "adapter_bindings",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

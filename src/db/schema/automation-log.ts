@@ -6,9 +6,9 @@
  */
 
 import { text, timestamp, jsonb, integer, index } from "drizzle-orm/pg-core";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
-export const automationLog = dillizntSchema.table("automation_logs", {
+export const automationLog = cozntSchema.table("automation_logs", {
   id: text().primaryKey(),
   organizationId: text("organization_id"),
 

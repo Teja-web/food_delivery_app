@@ -62,7 +62,7 @@ export async function searchHybrid(
   const orgFilter = organizationId
     ? tableName === "candidates"
       ? sql`EXISTS (
-          SELECT 1 FROM dilliznt.org_candidates oc
+          SELECT 1 FROM coznt.org_candidates oc
           WHERE oc.candidate_id = d.record_id
             AND oc.organization_id = ${organizationId}
         )`
@@ -78,7 +78,7 @@ export async function searchHybrid(
       SELECT
         d.record_id,
         (1 - (d.embedding <=> ${embeddingStr}::vector)) as combined_score
-      FROM dilliznt.documents d
+      FROM coznt.documents d
       ${joinClause}
       WHERE d.embedding IS NOT NULL
         AND d.table_name = ${tableName}
@@ -104,7 +104,7 @@ export async function searchHybrid(
       SELECT
         d.record_id,
         (1 - (d.embedding <=> ${embeddingStr}::vector)) as similarity
-      FROM dilliznt.documents d
+      FROM coznt.documents d
       ${joinClause}
       WHERE d.embedding IS NOT NULL
         AND d.table_name = ${tableName}
@@ -117,7 +117,7 @@ export async function searchHybrid(
       SELECT
         d.record_id,
         ts_rank(to_tsvector('english', d.content), to_tsquery('english', ${tsQuery})) as text_rank
-      FROM dilliznt.documents d
+      FROM coznt.documents d
       ${joinClause}
       WHERE d.table_name = ${tableName}
         AND ${orgFilter}

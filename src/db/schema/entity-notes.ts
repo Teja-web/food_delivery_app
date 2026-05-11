@@ -18,13 +18,13 @@
 
 import { text, timestamp, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 /** Valid entity types for entity_notes.entity_type. Keep in sync with the JSDoc above. */
 export const ENTITY_NOTE_TYPES = ["role", "candidate", "application", "interview", "pool"] as const;
 export type EntityNoteType = (typeof ENTITY_NOTE_TYPES)[number];
 
-export const entityNotes = dillizntSchema.table("entity_notes", {
+export const entityNotes = cozntSchema.table("entity_notes", {
   id: text().primaryKey().$defaultFn(() => nanoid()),
   organizationId: text("organization_id").notNull(),
 

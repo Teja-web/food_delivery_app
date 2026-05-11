@@ -8,12 +8,12 @@
 
 import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
 export const AUDIT_ACTOR_TYPES = ["user", "system", "integration", "api"] as const;
 export type AuditActorType = (typeof AUDIT_ACTOR_TYPES)[number];
 
-export const auditLogs = dillizntSchema.table(
+export const auditLogs = cozntSchema.table(
   "audit_logs",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),

@@ -1,5 +1,5 @@
 /**
- * Dilliznt Seed — standalone, no core imports.
+ * Coznt Seed — standalone, no core imports.
  *
  * CRUD triggers are already applied by db-setup.ts.
  * Agents are plain objects in code — no DB seeding needed.
@@ -15,12 +15,12 @@ async function seed(databaseUrl: string) {
   const pool = new Pool({ connectionString: databaseUrl });
 
   try {
-    console.log("[dilliznt:seed] Running seed...");
+    console.log("[coznt:seed] Running seed...");
 
     // Verify CRUD triggers are applied
     const triggerCheck = await pool.query(`
       SELECT trigger_name FROM information_schema.triggers
-      WHERE trigger_schema = 'dilliznt'
+      WHERE trigger_schema = 'coznt'
       LIMIT 5
     `);
     console.log(`  ${triggerCheck.rows.length} CRUD triggers found`);
@@ -28,11 +28,11 @@ async function seed(databaseUrl: string) {
     // Verify pgmq queue exists
     try {
       const queueCheck = await pool.query(`
-        SELECT * FROM pgmq.metrics('dilliznt_events')
+        SELECT * FROM pgmq.metrics('coznt_events')
       `);
-      console.log(`  dilliznt_events queue: ${queueCheck.rows[0]?.queue_length ?? 0} messages`);
+      console.log(`  coznt_events queue: ${queueCheck.rows[0]?.queue_length ?? 0} messages`);
     } catch {
-      console.log("  dilliznt_events queue not found — run db:setup first");
+      console.log("  coznt_events queue not found — run db:setup first");
     }
 
     console.log("Seed complete!");

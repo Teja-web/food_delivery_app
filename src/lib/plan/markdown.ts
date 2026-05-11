@@ -20,7 +20,7 @@
  *
  *   <body>
  *
- * Files land at `.dilliznt/plans/<kind>/<slug-or-id>.md` in the consumer
+ * Files land at `.coznt/plans/<kind>/<slug-or-id>.md` in the consumer
  * repo. The platform never writes to the consumer's git directly — it
  * exposes the file content over HTTP and a manifest of all files for a
  * project, and a CI job in the consumer's repo mirrors them.
@@ -75,5 +75,5 @@ export function serializePlanToMarkdown(plan: Plan, ctx: PlanMarkdownContext = {
 /** Relative path the file should land at inside the consumer's repo. */
 export function planFilePath(plan: Pick<Plan, "id" | "kind" | "slug">): string {
   const base = plan.slug && plan.slug.length > 0 ? plan.slug : plan.id;
-  return `.dilliznt/plans/${plan.kind}/${base}.md`;
+  return `.coznt/plans/${plan.kind}/${base}.md`;
 }

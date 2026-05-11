@@ -111,9 +111,9 @@ export function UnifiedSignIn() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-6 inline-flex items-center gap-2.5 ml-1">
-          <img src="/logo.svg" alt="Dilliznt" className="h-8 w-8" />
+          <img src="/logo.svg" alt="Coznt" className="h-8 w-8" />
           <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">Dilliznt</div>
+            <div className="text-sm font-semibold tracking-tight">Coznt</div>
             <div className="text-[10px] uppercase tracking-[0.2em] text-amber-600 font-medium">AI powered SDLC</div>
           </div>
         </Link>

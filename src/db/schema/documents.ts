@@ -1,9 +1,9 @@
 import { text, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
-import { dillizntSchema } from "./schema";
+import { cozntSchema } from "./schema";
 
-export const documents = dillizntSchema.table("documents", {
+export const documents = cozntSchema.table("documents", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   tableName: text("table_name").notNull(),
   recordId: text("record_id").notNull(),

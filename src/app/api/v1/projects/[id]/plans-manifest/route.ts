@@ -10,12 +10,12 @@ import { planFilePath } from "@/lib/plan/markdown";
  *
  * Returns an array describing every plan that should be present as a
  * markdown file in the project's repo, e.g. consumed by a CI job that
- * mirrors `.dilliznt/plans/**` from this list.
+ * mirrors `.coznt/plans/**` from this list.
  *
  * Output:
  *   [{ id, path, kind, status, updatedAt, url }, ...]
  *
- * `url` is the absolute path on the dilliznt platform; the consumer's CI
+ * `url` is the absolute path on the coznt platform; the consumer's CI
  * fetches it with the same bearer token and writes the body to `path`.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {

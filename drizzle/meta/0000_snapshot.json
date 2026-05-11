@@ -1,5 +1,5 @@
 {
-  "id": "a3f2fe44-9d53-4ba2-bbb1-921f124e955c",
+  "id": "279f727e-8af2-4d80-9636-1e26be1d25f5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -634,9 +634,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.departments": {
+    "coznt.departments": {
       "name": "departments",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -709,7 +709,7 @@
           "name": "departments_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"name\", \"description\")",
+              "expression": "coznt.fts_vector(\"name\", \"description\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -737,9 +737,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.org_identities": {
+    "coznt.org_identities": {
       "name": "org_identities",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -808,9 +808,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.documents": {
+    "coznt.documents": {
       "name": "documents",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -933,9 +933,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.integration_credentials": {
+    "coznt.integration_credentials": {
       "name": "integration_credentials",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -1039,9 +1039,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.oauth_connections": {
+    "coznt.oauth_connections": {
       "name": "oauth_connections",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -1244,9 +1244,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.automation_logs": {
+    "coznt.automation_logs": {
       "name": "automation_logs",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -1451,9 +1451,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.entity_notes": {
+    "coznt.entity_notes": {
       "name": "entity_notes",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -1575,9 +1575,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.rate_limits": {
+    "coznt.rate_limits": {
       "name": "rate_limits",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "key": {
           "name": "key",
@@ -1624,9 +1624,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.projects": {
+    "coznt.projects": {
       "name": "projects",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -1743,7 +1743,7 @@
           "name": "projects_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"name\", \"description\")",
+              "expression": "coznt.fts_vector(\"name\", \"description\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -1771,9 +1771,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.plans": {
+    "coznt.plans": {
       "name": "plans",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -1801,6 +1801,12 @@
         },
         "slug": {
           "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_plan_id": {
+          "name": "parent_plan_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1955,6 +1961,21 @@
           "method": "btree",
           "with": {}
         },
+        "plans_parent_idx": {
+          "name": "plans_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "plans_kind_status_idx": {
           "name": "plans_kind_status_idx",
           "columns": [
@@ -1980,7 +2001,7 @@
           "name": "plans_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"title\", \"summary\", \"body\")",
+              "expression": "coznt.fts_vector(\"title\", \"summary\", \"body\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -1997,7 +2018,7 @@
           "name": "plans_project_id_projects_id_fk",
           "tableFrom": "plans",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -2014,9 +2035,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.plan_revisions": {
+    "coznt.plan_revisions": {
       "name": "plan_revisions",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -2108,7 +2129,7 @@
           "name": "plan_revisions_plan_id_plans_id_fk",
           "tableFrom": "plan_revisions",
           "tableTo": "plans",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "plan_id"
           ],
@@ -2134,9 +2155,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.rules": {
+    "coznt.rules": {
       "name": "rules",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -2271,7 +2292,7 @@
           "name": "rules_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"title\", \"body\")",
+              "expression": "coznt.fts_vector(\"title\", \"body\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -2288,7 +2309,7 @@
           "name": "rules_project_id_projects_id_fk",
           "tableFrom": "rules",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -2305,9 +2326,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.skills": {
+    "coznt.skills": {
       "name": "skills",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -2432,7 +2453,7 @@
           "name": "skills_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"name\", \"description\", \"body\")",
+              "expression": "coznt.fts_vector(\"name\", \"description\", \"body\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -2449,7 +2470,7 @@
           "name": "skills_project_id_projects_id_fk",
           "tableFrom": "skills",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -2466,9 +2487,195 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.approvals": {
+    "coznt.skill_outcomes": {
+      "name": "skill_outcomes",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skill_id": {
+          "name": "skill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invocation_id": {
+          "name": "invocation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verdict": {
+          "name": "verdict",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "skill_outcomes_skill_time_idx": {
+          "name": "skill_outcomes_skill_time_idx",
+          "columns": [
+            {
+              "expression": "skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "skill_outcomes_org_time_idx": {
+          "name": "skill_outcomes_org_time_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "skill_outcomes_skill_id_skills_id_fk": {
+          "name": "skill_outcomes_skill_id_skills_id_fk",
+          "tableFrom": "skill_outcomes",
+          "tableTo": "skills",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "skill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.skill_autonomy": {
+      "name": "skill_autonomy",
+      "schema": "coznt",
+      "columns": {
+        "skill_id": {
+          "name": "skill_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "level": {
+          "name": "level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "level_set_at": {
+          "name": "level_set_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_reviewed_at": {
+          "name": "last_reviewed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_review_at": {
+          "name": "next_review_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_reason": {
+          "name": "last_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "skill_autonomy_skill_id_skills_id_fk": {
+          "name": "skill_autonomy_skill_id_skills_id_fk",
+          "tableFrom": "skill_autonomy",
+          "tableTo": "skills",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "skill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.approvals": {
       "name": "approvals",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -2621,9 +2828,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.comments": {
+    "coznt.comments": {
       "name": "comments",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -2730,7 +2937,7 @@
           "name": "comments_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"body\")",
+              "expression": "coznt.fts_vector(\"body\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -2747,7 +2954,7 @@
           "name": "comments_plan_id_plans_id_fk",
           "tableFrom": "comments",
           "tableTo": "plans",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "plan_id"
           ],
@@ -2764,9 +2971,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.work_items": {
+    "coznt.work_items": {
       "name": "work_items",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -2917,7 +3124,7 @@
           "name": "work_items_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"title\", \"description\")",
+              "expression": "coznt.fts_vector(\"title\", \"description\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -2934,7 +3141,7 @@
           "name": "work_items_project_id_projects_id_fk",
           "tableFrom": "work_items",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -2948,7 +3155,7 @@
           "name": "work_items_plan_id_plans_id_fk",
           "tableFrom": "work_items",
           "tableTo": "plans",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "plan_id"
           ],
@@ -2974,9 +3181,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.webhook_events": {
+    "coznt.webhook_events": {
       "name": "webhook_events",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3073,9 +3280,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.audit_logs": {
+    "coznt.audit_logs": {
       "name": "audit_logs",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3208,9 +3415,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.intelligence": {
+    "coznt.intelligence": {
       "name": "intelligence",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3341,7 +3548,7 @@
           "name": "intelligence_fts_idx",
           "columns": [
             {
-              "expression": "dilliznt.fts_vector(\"summary\", \"body\")",
+              "expression": "coznt.fts_vector(\"summary\", \"body\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -3358,7 +3565,7 @@
           "name": "intelligence_last_run_id_automation_logs_id_fk",
           "tableFrom": "intelligence",
           "tableTo": "automation_logs",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "last_run_id"
           ],
@@ -3385,9 +3592,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.notifications": {
+    "coznt.notifications": {
       "name": "notifications",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3522,9 +3729,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.events": {
+    "coznt.events": {
       "name": "events",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3645,9 +3852,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.api_keys": {
+    "coznt.api_keys": {
       "name": "api_keys",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3754,7 +3961,7 @@
           "name": "api_keys_project_id_projects_id_fk",
           "tableFrom": "api_keys",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -3779,9 +3986,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.phase_gates": {
+    "coznt.phase_gates": {
       "name": "phase_gates",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -3905,7 +4112,7 @@
           "name": "phase_gates_project_id_projects_id_fk",
           "tableFrom": "phase_gates",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -3932,9 +4139,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dilliznt.metrics": {
+    "coznt.metrics": {
       "name": "metrics",
-      "schema": "dilliznt",
+      "schema": "coznt",
       "columns": {
         "id": {
           "name": "id",
@@ -4041,7 +4248,7 @@
           "name": "metrics_project_id_projects_id_fk",
           "tableFrom": "metrics",
           "tableTo": "projects",
-          "schemaTo": "dilliznt",
+          "schemaTo": "coznt",
           "columnsFrom": [
             "project_id"
           ],
@@ -4054,6 +4261,554 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.deployments": {
+      "name": "deployments",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commit_sha": {
+          "name": "commit_sha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "deployed_by_id": {
+          "name": "deployed_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deployed_by_name": {
+          "name": "deployed_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ci_run_url": {
+          "name": "ci_run_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw": {
+          "name": "raw",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rolled_back_at": {
+          "name": "rolled_back_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rolled_back_reason": {
+          "name": "rolled_back_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "deployments_project_env_time_idx": {
+          "name": "deployments_project_env_time_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "environment",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deployments_project_status_idx": {
+          "name": "deployments_project_status_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deployments_plan_idx": {
+          "name": "deployments_plan_idx",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deployments_project_id_projects_id_fk": {
+          "name": "deployments_project_id_projects_id_fk",
+          "tableFrom": "deployments",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deployments_plan_id_plans_id_fk": {
+          "name": "deployments_plan_id_plans_id_fk",
+          "tableFrom": "deployments",
+          "tableTo": "plans",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.test_runs": {
+      "name": "test_runs",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suite": {
+          "name": "suite",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commit_sha": {
+          "name": "commit_sha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch": {
+          "name": "branch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "passed": {
+          "name": "passed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "failed": {
+          "name": "failed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "skipped": {
+          "name": "skipped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "coverage": {
+          "name": "coverage",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ci_run_url": {
+          "name": "ci_run_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw": {
+          "name": "raw",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ran_at": {
+          "name": "ran_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "test_runs_project_time_idx": {
+          "name": "test_runs_project_time_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ran_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "test_runs_project_status_idx": {
+          "name": "test_runs_project_status_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ran_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "test_runs_plan_idx": {
+          "name": "test_runs_plan_idx",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "test_runs_project_id_projects_id_fk": {
+          "name": "test_runs_project_id_projects_id_fk",
+          "tableFrom": "test_runs",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "test_runs_plan_id_plans_id_fk": {
+          "name": "test_runs_plan_id_plans_id_fk",
+          "tableFrom": "test_runs",
+          "tableTo": "plans",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.adapter_bindings": {
+      "name": "adapter_bindings",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_key": {
+          "name": "external_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "adapter_bindings_org_idx": {
+          "name": "adapter_bindings_org_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "adapter_bindings_project_idx": {
+          "name": "adapter_bindings_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "adapter_bindings_project_id_projects_id_fk": {
+          "name": "adapter_bindings_project_id_projects_id_fk",
+          "tableFrom": "adapter_bindings",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "adapter_bindings_org_provider_key_unique": {
+          "name": "adapter_bindings_org_provider_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "provider",
+            "external_key"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -4071,7 +4826,7 @@
     }
   },
   "schemas": {
-    "dilliznt": "dilliznt",
+    "coznt": "coznt",
     "auth": "auth"
   },
   "sequences": {},
