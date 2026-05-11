@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moar Onboarding Workshop</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #020617;
+  --bg-elevated: #0f172a;
+  --bg-card: #1e293b;
+  --surface: #1e293b;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f8fafc;
+  --text-dim: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #fbbf24;
+  --accent-dim: #f59e0b;
+  --accent-glow: rgba(251, 191, 36, 0.07);
+  --accent-bright: #fcd34d;
+  --red: #f87171;
+  --green: #34d399;
+  --blue: #60a5fa;
+  --purple: #a78bfa;
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+.deck { position: relative; width: 100%; height: 100%; }
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 6vw;
+  padding-top: 80px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.slide.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.slide-inner {
+  width: 100%;
+  max-width: 1300px;
+  position: relative;
+}
+
+.progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 100;
+}
+
+.counter {
+  position: fixed;
+  bottom: 28px; right: 40px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  z-index: 100;
+}
+
+.nav-hint {
+  position: fixed;
+  bottom: 28px; left: 40px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  z-index: 100;
+  opacity: 0.6;
+}
+
+.fs-btn {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  width: 32px; height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 100;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.fs-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── ROADMAP LEGEND ── */
+.roadmap {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 100;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.roadmap.visible { opacity: 1; }
+
+.roadmap-step {
+  padding: 5px 10px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: all 0.3s;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.roadmap-step:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.roadmap-step.active {
+  color: var(--accent);
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.roadmap-step.done {
+  color: var(--green);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.roadmap-sep {
+  width: 12px;
+  height: 1px;
+  background: var(--border);
+}
+
+.part-label {
+  font-family: var(--font-mono);
+  font-size: clamp(12px, 1vw, 16px);
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 24px;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 8vw, 100px);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, var(--accent-bright), var(--accent), var(--accent-dim));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: clamp(16px, 2vw, 22px);
+  color: var(--text-dim);
+  margin-top: 24px;
+  max-width: 800px;
+  line-height: 1.6;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4.5vw, 56px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 28px;
+}
+
+h3 {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.5vw, 32px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+
+.text-body {
+  font-size: clamp(15px, 1.3vw, 21px);
+  line-height: 1.7;
+  color: var(--text-dim);
+  max-width: 780px;
+}
+
+.text-large {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 32px);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text);
+  max-width: 800px;
+}
+
+.text-quote {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(22px, 3vw, 40px);
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  max-width: 800px;
+}
+
+.accent { color: var(--accent); }
+.dim { color: var(--text-dim); }
+.muted { color: var(--text-muted); }
+.green { color: var(--green); }
+.blue { color: var(--blue); }
+.purple { color: var(--purple); }
+
+.bullets {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bullets li {
+  font-size: clamp(14px, 1.2vw, 20px);
+  line-height: 1.6;
+  color: var(--text-dim);
+  padding-left: 28px;
+  position: relative;
+}
+
+.bullets li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 10px;
+  width: 8px; height: 8px;
+  border: 1.5px solid var(--accent);
+  border-radius: 2px;
+}
+
+.bullets.numbered { counter-reset: item; }
+.bullets.numbered li { padding-left: 36px; }
+.bullets.numbered li::before {
+  content: counter(item);
+  counter-increment: item;
+  border: none;
+  width: auto; height: auto;
+  font-family: var(--font-mono);
+  font-size: clamp(12px, 1vw, 16px);
+  color: var(--accent);
+  top: 3px;
+}
+
+.bullet-label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(13px, 1.1vw, 18px);
+}
+
+th {
+  text-align: left;
+  padding: clamp(10px, 0.9vw, 16px) clamp(12px, 1.2vw, 24px);
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 0.75vw, 13px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: clamp(10px, 0.9vw, 16px) clamp(12px, 1.2vw, 24px);
+  color: var(--text-dim);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  line-height: 1.5;
+}
+
+td:first-child {
+  color: var(--text);
+  font-weight: 500;
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+.card-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.card-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.card-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.card-grid.cols-5 { grid-template-columns: 1fr 1fr 1fr 1fr 1fr; }
+
+.card {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.card-label {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 0.75vw, 13px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.card h4 {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 1.4vw, 22px);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.card p {
+  font-size: clamp(13px, 1vw, 17px);
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.flow-step {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: clamp(8px, 0.8vw, 14px) clamp(12px, 1.1vw, 20px);
+  font-size: clamp(12px, 1vw, 16px);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.flow-arrow {
+  color: var(--accent);
+  font-size: clamp(14px, 1.2vw, 20px);
+  padding: 0 clamp(4px, 0.4vw, 8px);
+}
+
+.phases {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.phase {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.phase-marker {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 0.85vw, 14px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding-top: 3px;
+  min-width: 90px;
+  text-align: right;
+}
+
+.phase-content {
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+}
+
+.phase-content h4 {
+  font-family: var(--font-body);
+  font-size: clamp(15px, 1.3vw, 21px);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.phase-content p {
+  font-size: clamp(13px, 1.1vw, 18px);
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.sep {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-bright), var(--accent), var(--accent-dim));
+  border-radius: 1px;
+  margin: 20px 0;
+}
+
+.checklist {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checklist li {
+  font-size: clamp(13px, 1.1vw, 18px);
+  line-height: 1.5;
+  color: var(--text-dim);
+  padding-left: 28px;
+  position: relative;
+}
+
+.checklist li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 5px;
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+}
+
+.raci-a { color: var(--accent); font-weight: 600; }
+.raci-c { color: var(--blue); }
+.raci-i { color: var(--text-muted); }
+
+/* Stagger animations */
+.slide.active .stagger > * {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.slide.active .stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.slide.active .stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.slide.active .stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.slide.active .stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.slide.active .stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.slide.active .stagger > *:nth-child(6) { animation-delay: 0.40s; }
+.slide.active .stagger > *:nth-child(7) { animation-delay: 0.47s; }
+.slide.active .stagger > *:nth-child(8) { animation-delay: 0.54s; }
+.slide.active .stagger > *:nth-child(9) { animation-delay: 0.61s; }
+.slide.active .stagger > *:nth-child(10) { animation-delay: 0.68s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 256px;
+  pointer-events: none;
+  z-index: 99;
+}
+
+.ambient {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(120px);
+  animation: mkt-pulse-soft 6s ease-in-out infinite;
+}
+
+.ambient-1 {
+  width: 500px; height: 500px;
+  top: -150px; right: -100px;
+  background: rgba(251, 191, 36, 0.07);
+}
+
+.ambient-2 {
+  width: 400px; height: 400px;
+  bottom: -200px; left: -100px;
+  background: rgba(96, 165, 250, 0.05);
+  animation-delay: -3s;
+}
+
+@keyframes mkt-pulse-soft {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+@media (max-width: 768px) {
+  .slide { padding: 40px 24px; padding-top: 70px; }
+  .slide-inner { max-width: 100%; }
+  .card-grid.cols-2, .card-grid.cols-3, .card-grid.cols-5 { grid-template-columns: 1fr; }
+  .two-col { grid-template-columns: 1fr; gap: 24px; }
+  .phase { flex-direction: column; gap: 8px; }
+  .phase-marker { text-align: left; }
+  .nav-hint { display: none; }
+  .fs-btn { display: none; }
+  .counter { bottom: 16px; right: 20px; }
+  table { font-size: 13px; }
+  th, td { padding: 10px 12px; }
+  .roadmap { display: none; }
+}
+
+@media print {
+  @page { size: 16in 9in; margin: 0; }
+  html, body { width: 16in; height: auto; overflow: visible; background: var(--bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body::before, body::after, .ambient, .progress, .counter, .nav-hint, .fs-btn, .roadmap { display: none !important; }
+  .deck { position: static; width: 16in; height: auto; }
+  .slide { position: static; opacity: 1 !important; pointer-events: auto; transform: none !important; width: 16in; height: 9in; padding: 0.6in 0.9in; page-break-after: always; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: center; align-items: center; background: var(--bg); }
+  .slide:last-child { page-break-after: auto; }
+  .slide-inner { max-width: 14in; }
+  .slide.active .stagger > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .card { background: #1e293b !important; border: 2px solid #475569 !important; backdrop-filter: none !important; }
+  .flow-step { background: #1e293b !important; border: 2px solid #475569 !important; }
+  .phase-content { border-left: 2px solid #475569 !important; }
+  th { border-bottom: 2px solid #475569 !important; }
+  td { border-bottom: 1px solid #334155 !important; }
+  .sep { background: #fbbf24 !important; height: 3px !important; }
+  .card-grid.cols-2 { grid-template-columns: 1fr 1fr !important; }
+  .card-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr !important; }
+  .two-col { grid-template-columns: 1fr 1fr !important; gap: 48px !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="ambient ambient-1"></div>
+<div class="ambient ambient-2"></div>
+
+<div class="progress" id="progress"></div>
+<div class="counter" id="counter"></div>
+<div class="nav-hint">&larr; &rarr; navigate &middot; F fullscreen</div>
+<button class="fs-btn" id="fsBtn" title="Toggle fullscreen (F)">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path class="fs-expand" d="M2 6V2h4M12 2h4v4M16 12v4h-4M6 16H2v-4"/>
+    <path class="fs-compress" d="M6 2v4H2M16 6h-4V2M12 16v-4h4M2 12h4v4" style="display:none"/>
+  </svg>
+</button>
+
+<!-- Roadmap legend -->
+<div class="roadmap" id="roadmap">
+  <div class="roadmap-step" data-block="1">Model</div>
+  <div class="roadmap-sep"></div>
+  <div class="roadmap-step" data-block="2">Setup</div>
+  <div class="roadmap-sep"></div>
+  <div class="roadmap-step" data-block="3">Source</div>
+  <div class="roadmap-sep"></div>
+  <div class="roadmap-step" data-block="4">Execute</div>
+  <div class="roadmap-sep"></div>
+  <div class="roadmap-step" data-block="5">Measure</div>
+  <div class="roadmap-sep"></div>
+  <div class="roadmap-step" data-block="6">Launch</div>
+</div>
+
+<div class="deck" id="deck">
+
+<!-- ━━━ SLIDE 1: TITLE ━━━ -->
+<section class="slide" data-block="0">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="hero-title">Moar Workshop</div>
+    <div class="hero-subtitle">Walk through exactly who does what, how, and when — from client intake to first hire to steady-state operations. Build operational confidence that our combined team can run the full Role-to-Offer lifecycle with clarity, accountability, and data at every step.</div>
+    <div class="sep" style="margin:28px auto;"></div>
+    <p class="muted" style="font-size:14px; font-family:var(--font-mono);">Onboarding Workshop</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 2: SCHEDULE OVERVIEW ━━━ -->
+<section class="slide" data-block="0">
+  <div class="slide-inner stagger">
+    <div class="part-label">Overview</div>
+    <h2>Schedule — 3 hours</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time</th><th>Block</th><th>Duration</th><th>Focus</th></tr></thead>
+        <tbody>
+          <tr><td>0:00 – 0:25</td><td><span class="accent">1.</span> Operating Model</td><td>25 min</td><td class="dim">Who are the actors, what are their responsibilities?</td></tr>
+          <tr><td>0:25 – 1:00</td><td><span class="accent">2.</span> Intake & Setup</td><td>35 min</td><td class="dim">First actions — scope, create roles, connect team</td></tr>
+          <tr><td>1:00 – 1:35</td><td><span class="accent">3.</span> Source & Match</td><td>35 min</td><td class="dim">How candidates enter and pipeline starts moving</td></tr>
+          <tr><td>1:35 – 2:15</td><td><span class="accent">4.</span> Execute</td><td>40 min</td><td class="dim">Interview, assess, offer — daily operations</td></tr>
+          <tr><td>2:15 – 2:40</td><td><span class="accent">5.</span> Measure</td><td>25 min</td><td class="dim">Reporting, KPIs, client communication</td></tr>
+          <tr><td>2:40 – 3:00</td><td><span class="accent">6.</span> Launch</td><td>20 min</td><td class="dim">Scope the pilot, assign owners, set milestones</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="dim" style="margin-top:16px; font-size:14px;">Audience: Moar leadership + delivery team (recruiters, account managers, coordinators)</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 3: BLOCK 1 TITLE ━━━ -->
+<section class="slide" data-block="1">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Block 1 &middot; Operating Model &middot; 25 min</div>
+    <h2>Personas & Operating Model</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <p class="text-body" style="text-align:center;">Establish who the actors are, what each person is responsible for, and how work flows between them.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 4: THE FIVE PERSONAS ━━━ -->
+<section class="slide" data-block="1">
+  <div class="slide-inner stagger">
+    <div class="part-label">Operating Model</div>
+    <h2>The five personas</h2>
+    <div class="card-grid cols-5">
+      <div class="card">
+        <div class="card-label">Account Lead</div>
+        <h4>Client Owner</h4>
+        <p>Work package definition, KPI reporting, escalations, client communication</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Recruiter</div>
+        <h4>Execution</h4>
+        <p>Sourcing, screening, match review, scheduling, pipeline progression, candidate comms</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Hiring Manager</div>
+        <h4>Decision Maker</h4>
+        <p>Interview participation, hire/no-hire decisions, offer approval</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Panelist</div>
+        <h4>Evaluator</h4>
+        <p>Conduct interviews, submit scorecards</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Candidate</div>
+        <h4>Talent</h4>
+        <p>Completes assessments, attends interviews, accepts/declines offers (via Portal)</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 5: RACI MATRIX ━━━ -->
+<section class="slide" data-block="1">
+  <div class="slide-inner stagger">
+    <div class="part-label">Operating Model</div>
+    <h2>RACI Matrix</h2>
+    <div class="table-wrap">
+      <table style="font-size:clamp(11px, 0.95vw, 15px);">
+        <thead><tr><th>Activity</th><th>Account Lead</th><th>Recruiter</th><th>Hiring Mgr</th><th>Panelist</th><th>AI (System)</th></tr></thead>
+        <tbody>
+          <tr><td>Define work package & scope</td><td class="raci-a">A</td><td class="raci-c">C</td><td class="raci-c">C</td><td>—</td><td>—</td></tr>
+          <tr><td>Create roles from JDs</td><td class="raci-i">I</td><td class="raci-a">A</td><td class="raci-c">C</td><td>—</td><td class="dim">Enriches fields, generates criteria</td></tr>
+          <tr><td>Load candidates (resumes)</td><td class="raci-i">I</td><td class="raci-a">A</td><td>—</td><td>—</td><td class="dim">Parses, profiles, scores, matches</td></tr>
+          <tr><td>Review AI matches & shortlist</td><td class="raci-i">I</td><td class="raci-a">A</td><td>—</td><td>—</td><td class="dim">Scores & ranks all candidates</td></tr>
+          <tr><td>Schedule interviews</td><td class="raci-i">I</td><td class="raci-a">A</td><td class="raci-i">I</td><td class="raci-i">I</td><td class="dim">Generates prep materials</td></tr>
+          <tr><td>Conduct interviews</td><td>—</td><td class="raci-i">I</td><td class="raci-a">A</td><td class="raci-a">A</td><td class="dim">Records, transcribes</td></tr>
+          <tr><td>Submit scorecards</td><td>—</td><td class="raci-i">I</td><td class="raci-a">A</td><td class="raci-a">A</td><td class="dim">Analyzes & synthesizes</td></tr>
+          <tr><td>Make hire/no-hire decision</td><td class="raci-i">I</td><td class="raci-c">C</td><td class="raci-a">A</td><td class="raci-c">C</td><td class="dim">Decision-readiness signal</td></tr>
+          <tr><td>Build & extend offer</td><td class="raci-i">I</td><td class="raci-a">A</td><td class="raci-a">A</td><td>—</td><td class="dim">Comp analysis, close strategy</td></tr>
+          <tr><td>Monitor KPIs & report</td><td class="raci-a">A</td><td class="raci-c">C</td><td class="raci-i">I</td><td>—</td><td class="dim">Generates insights automatically</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:12px; font-size:12px;"><span class="raci-a">A</span> = Accountable &nbsp;&middot;&nbsp; <span class="raci-c">C</span> = Consulted &nbsp;&middot;&nbsp; <span class="raci-i">I</span> = Informed</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 6: THE AI COLUMN ━━━ -->
+<section class="slide" data-block="1">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Operating Model &middot; Key Concept</div>
+    <h2>The AI is a <span class="accent">sixth actor</span></h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <div class="text-quote" style="font-size:clamp(18px, 2.2vw, 30px); max-width:900px;">"The system doesn't wait for instructions — it reacts to events. When a recruiter uploads a resume, the AI parses, scores, and matches. When a panelist submits a scorecard, the AI synthesizes. Nobody clicks 'run AI.' It just happens."</div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 7: HANDOFF POINTS ━━━ -->
+<section class="slide" data-block="1">
+  <div class="slide-inner stagger">
+    <div class="part-label">Operating Model</div>
+    <h2>Handoff points — two parallel tracks</h2>
+    <div class="two-col" style="gap:32px;">
+      <div>
+        <h3 style="font-size:16px; color:var(--text);">Team Track</h3>
+        <ul class="bullets numbered" style="gap:10px;">
+          <li>Recruiter creates role</li>
+          <li>AI generates matches</li>
+          <li>Recruiter reviews & shortlists</li>
+          <li>Recruiter adds to pipeline</li>
+          <li>Recruiter screens</li>
+          <li>Recruiter schedules interview</li>
+          <li>Panelist/HM conducts interview</li>
+          <li>Panelist submits scorecard &rarr; AI synthesizes</li>
+          <li>Recruiter assigns assessment &rarr; AI evaluates</li>
+          <li>HM makes hire decision &rarr; Recruiter builds offer</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:16px; color:var(--green);">Candidate Track (Portal)</h3>
+        <ul class="bullets" style="gap:10px;">
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Sees role</span> in Portal when added to pipeline</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Updates profile</span></li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Receives</span> interview details</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Accesses</span> AI prep materials</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Practices</span> with AI coach</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Joins</span> interview via Portal/LiveKit</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Completes</span> assessment in Portal</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Reviews</span> offer in Portal</li>
+          <li style="padding-left:24px;"><span class="bullet-label" style="color:var(--green);">Accepts/negotiates/declines</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="text-body" style="margin-top:16px;">The candidate isn't passive — they have their own workspace from the moment they enter the pipeline.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 8: BLOCK 2 TITLE ━━━ -->
+<section class="slide" data-block="2">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Block 2 &middot; Intake & Setup &middot; 35 min</div>
+    <h2>Intake & Setup</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <p class="text-body" style="text-align:center;">Walk through exactly what happens at the start of a new client engagement — scope, create roles, connect the team.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 9: SCOPE THE MANDATE ━━━ -->
+<section class="slide" data-block="2">
+  <div class="slide-inner stagger">
+    <div class="part-label">Intake & Setup</div>
+    <h2>Scope the mandate</h2>
+    <p class="text-body" style="margin-bottom:20px;"><span class="accent">Who:</span> Account Lead + Client</p>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:16px;">Engagement Parameters</h3>
+        <ul class="bullets">
+          <li>Number of roles, headcount per role</li>
+          <li>Priority order (which roles to fill first)</li>
+          <li>Target hire dates</li>
+          <li>Compensation ranges and structure</li>
+          <li>Interview process preferences</li>
+          <li>Success criteria (target time-to-hire, fill rate)</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:16px;">Stakeholders & Data Sources</h3>
+        <ul class="bullets">
+          <li>Which HM owns which role(s)</li>
+          <li>Who sits on interview panels</li>
+          <li>Escalation contacts on client side</li>
+          <li>Existing ATS? (Greenhouse, Lever, Ashby, Workable)</li>
+          <li>Candidate databases to migrate?</li>
+          <li>Approved sourcing channels</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <p class="text-body"><span class="accent">Platform action:</span> Account Lead creates a Department for the client engagement.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 10: CREATE ROLES ━━━ -->
+<section class="slide" data-block="2">
+  <div class="slide-inner stagger">
+    <div class="part-label">Intake & Setup</div>
+    <h2>Create roles</h2>
+    <p class="text-body" style="margin-bottom:16px;"><span class="accent">Who:</span> Recruiter (with HM input)</p>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-marker">Step 1</div>
+        <div class="phase-content">
+          <h4>Paste the client's JD into Role Wizard</h4>
+          <p>AI extracts: title, criteria with weights, keywords, compensation, requirements. Recruiter reviews and adjusts.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Step 2</div>
+        <div class="phase-content">
+          <h4>Set engagement parameters</h4>
+          <p>Department (links to client), headcount, target hire date, location, employment type, assign Hiring Manager.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Step 3</div>
+        <div class="phase-content">
+          <h4>Configure interview stages</h4>
+          <p>Define stages in order (e.g., Phone Screen &rarr; Technical &rarr; HM Round). Each stage gets: name, duration, competencies to evaluate.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Step 4</div>
+        <div class="phase-content">
+          <h4>Save the role</h4>
+          <p>AI automatically: enriches missing fields, scores every existing candidate, checks which talent pools align.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 11: ROLE CREATION DO/DON'T ━━━ -->
+<section class="slide" data-block="2">
+  <div class="slide-inner stagger">
+    <div class="part-label">Intake & Setup</div>
+    <h2>Role creation — what matters</h2>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:16px; color:var(--red);">Don't skip</h3>
+        <ul class="bullets">
+          <li><span class="bullet-label">Criteria configuration</span> — drives entire matching and evaluation quality</li>
+          <li><span class="bullet-label">Headcount</span> — don't leave at 1 if multiple openings; affects fill rate tracking</li>
+          <li><span class="bullet-label">Interview stage setup</span> — generates prep materials and structures scorecards</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:16px; color:var(--green);">Exercise</h3>
+        <ul class="bullets">
+          <li>Create a role using a sample JD</li>
+          <li>Walk through the Role Wizard output together</li>
+          <li>Adjust one criterion weight</li>
+          <li>Configure 3 interview stages</li>
+          <li>Save it — observe AI processing</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 12: TEAM & CALENDARS ━━━ -->
+<section class="slide" data-block="2">
+  <div class="slide-inner stagger">
+    <div class="part-label">Intake & Setup</div>
+    <h2>Connect team & integrations</h2>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:16px;">Team calendar setup</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Person</th><th>Action Required</th></tr></thead>
+            <tbody>
+              <tr><td>Recruiters</td><td class="dim">Connect Google Calendar or Outlook</td></tr>
+              <tr><td>Hiring Managers</td><td class="dim">Connect calendar, review assigned roles</td></tr>
+              <tr><td>Interview Panelists</td><td class="dim">Connect calendar</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-body" style="margin-top:16px; color:var(--red); font-size:14px;">Without calendar: manual coordination, no availability visibility, no auto-event creation.</p>
+      </div>
+      <div>
+        <h3 style="font-size:16px;">Tech team integrations (parallel)</h3>
+        <p class="text-body" style="margin-bottom:12px; font-size:14px;">One-time setup. Moar team only shares credentials.</p>
+        <ul class="bullets">
+          <li><span class="bullet-label">ATS</span> — Greenhouse, Lever, Ashby, Workable</li>
+          <li><span class="bullet-label">HRIS</span> — BambooHR, Gusto, Workday</li>
+          <li><span class="bullet-label">Email</span> — Google, Outlook</li>
+          <li><span class="bullet-label">Bulk import</span> — existing resume databases</li>
+        </ul>
+        <p class="dim" style="font-size:13px; margin-top:12px;">Once connected, data flows continuously — no manual syncing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 13: VERIFY FOUNDATION ━━━ -->
+<section class="slide" data-block="2">
+  <div class="slide-inner stagger">
+    <div class="part-label">Intake & Setup</div>
+    <h2>Verify foundation</h2>
+    <p class="text-body" style="margin-bottom:20px;"><span class="accent">Who:</span> Account Lead — end-of-setup checklist</p>
+    <div class="two-col">
+      <div>
+        <ul class="checklist">
+          <li>Department created for the client</li>
+          <li>All roles created with criteria and interview stages</li>
+          <li>Headcount and target dates set per role</li>
+          <li>Hiring Managers invited and assigned to roles</li>
+          <li>Panel members invited</li>
+        </ul>
+      </div>
+      <div>
+        <ul class="checklist">
+          <li>At least 2 team members have calendar connected</li>
+          <li>Org Identity configured (shapes AI comms tone)</li>
+          <li>Integration credentials shared with tech team</li>
+          <li>Bulk import in progress or scheduled</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 14: BLOCK 3 TITLE ━━━ -->
+<section class="slide" data-block="3">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Block 3 &middot; Source & Match &middot; 35 min</div>
+    <h2>Source & Match</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <p class="text-body" style="text-align:center;">How candidates enter the system, what the AI does automatically, how recruiters review matches, and how the active pipeline begins.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 15: HOW CANDIDATES GET IN ━━━ -->
+<section class="slide" data-block="3">
+  <div class="slide-inner stagger">
+    <div class="part-label">Source & Match</div>
+    <h2>How candidates get into the system</h2>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead><tr><th>Method</th><th>Who</th><th>Speed</th><th>When to Use</th></tr></thead>
+        <tbody>
+          <tr><td>Resume upload (UI)</td><td class="dim">Recruiter</td><td class="dim">5/batch, ~2 min</td><td class="dim">Daily sourcing, individual candidates</td></tr>
+          <tr><td>ATS integration</td><td class="dim">Dilliznt Support sets up</td><td class="dim">Continuous</td><td class="dim">Client has existing ATS</td></tr>
+          <tr><td>Bulk import</td><td class="dim">Dilliznt Support</td><td class="dim">1-2 days for 1000+</td><td class="dim">Initial pipeline seeding</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 style="font-size:18px;">What happens automatically:</h3>
+    <div class="flow">
+      <div class="flow-step">Resume uploaded</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">Profile Extractor<br><span class="muted" style="font-size:11px;">10 sec</span></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">Candidate Intake<br><span class="muted" style="font-size:11px;">15 sec</span></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">Match Evaluation<br><span class="muted" style="font-size:11px;">20 sec/role</span></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">Pool Evaluation<br><span class="muted" style="font-size:11px;">10 sec</span></div>
+    </div>
+    <p class="text-body" style="margin-top:16px;">Upload the resume. Walk away. Come back to a structured profile, talent score, and match scores against every open role.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 16: REVIEWING MATCHES ━━━ -->
+<section class="slide" data-block="3">
+  <div class="slide-inner stagger">
+    <div class="part-label">Source & Match</div>
+    <h2>How the recruiter reviews matches</h2>
+    <p class="text-body" style="margin-bottom:16px;"><span class="accent">When:</span> After candidates are loaded (daily during active sourcing)</p>
+    <div class="two-col" style="gap:32px;">
+      <div>
+        <h3 style="font-size:16px;">For each candidate, the recruiter sees:</h3>
+        <ul class="bullets">
+          <li><span class="bullet-label">Fit score</span> — overall match quality (0-100)</li>
+          <li><span class="bullet-label">Recommendation</span> — strong yes / yes / maybe / no / strong no</li>
+          <li><span class="bullet-label">Alignment</span> — per-criterion breakdown</li>
+          <li><span class="bullet-label">Signal</span> — single strongest reason for fit</li>
+          <li><span class="bullet-label">Gaps</span> — what's missing or risky</li>
+          <li><span class="bullet-label">Summary</span> — 2-3 sentences ready for HM</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:16px;">Decision framework:</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Score</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--green);">80-100</td><td class="dim">Add to pipeline immediately</td></tr>
+              <tr><td style="color:var(--accent);">60-79</td><td class="dim">Add, prioritize for screening</td></tr>
+              <tr><td style="color:var(--text-muted);">40-59</td><td class="dim">Manual review — add if pipeline thin</td></tr>
+              <tr><td style="color:var(--red);">&lt;40</td><td class="dim">Dismiss (won't resurface for this role)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="dim" style="font-size:13px; margin-top:12px;">"Add to Pipeline" = one click &rarr; Application at Sourced stage &rarr; Candidate Portal activates</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 17: WHAT RECRUITER IS NOT DOING ━━━ -->
+<section class="slide" data-block="3">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Source & Match &middot; The Shift</div>
+    <h2>What the recruiter is <span class="accent">not</span> doing</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <ul class="bullets" style="text-align:left; max-width:600px;">
+      <li>Not reading every resume from scratch</li>
+      <li>Not manually cross-referencing JDs against profiles</li>
+      <li>Not writing up screening notes from memory</li>
+      <li>Not guessing which candidates to prioritize</li>
+    </ul>
+    <div class="sep" style="margin:24px auto;"></div>
+    <p class="text-large" style="text-align:center; max-width:700px;">Their time goes to <span class="accent">judgment calls</span>, not mechanical work.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 18: TALENT POOLS ━━━ -->
+<section class="slide" data-block="3">
+  <div class="slide-inner stagger">
+    <div class="part-label">Source & Match</div>
+    <h2>Talent pools — the long-term asset</h2>
+    <p class="text-body" style="margin-bottom:16px;">Pools are persistent candidate segments that outlive individual roles.</p>
+    <div class="card-grid cols-3" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="card-label">Example</div>
+        <h4>Senior Java Engineers — Hyderabad</h4>
+        <p>Reusable pipeline across multiple client roles</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Example</div>
+        <h4>Product Managers — Remote</h4>
+        <p>Ready bench for future mandates</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Example</div>
+        <h4>Alumni — Previously Placed</h4>
+        <p>Referral network, repeat placements</p>
+      </div>
+    </div>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:16px;">How they work:</h3>
+        <ul class="bullets">
+          <li>Recruiter defines pool criteria (skills, locations, experience)</li>
+          <li>System auto-populates with matching candidates</li>
+          <li>New roles matching pool criteria &rarr; candidates surface immediately</li>
+          <li>New candidates matching pool criteria &rarr; added automatically</li>
+        </ul>
+      </div>
+      <div style="display:flex; align-items:center;">
+        <div class="text-quote" style="font-size:clamp(16px, 1.8vw, 24px);">"A candidate dismissed for one role is still in the pool. Pre-qualified for the next similar role. Nothing is wasted."</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 19: SCREENING ━━━ -->
+<section class="slide" data-block="3">
+  <div class="slide-inner stagger">
+    <div class="part-label">Source & Match</div>
+    <h2>The Sourced stage: screening</h2>
+    <p class="text-body" style="margin-bottom:20px;"><span class="accent">Who:</span> Recruiter &nbsp;&middot;&nbsp; <span class="accent">When:</span> Immediately after adding to pipeline</p>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-marker">Review</div>
+        <div class="phase-content">
+          <h4>Full profile, match context, and evidence</h4>
+          <p>Everything the AI gathered — structured and ready to read.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Screen</div>
+        <div class="phase-content">
+          <h4>Conduct phone screen or initial assessment</h4>
+          <p>Document notes in the platform (entity notes).</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Decide</div>
+        <div class="phase-content">
+          <h4>Advance, Reject, or Hold</h4>
+          <p><span class="green">Advance</span> &rarr; move to Interview (triggers match re-evaluation, assessment auto-assignment)<br>
+          <span style="color:var(--red);">Reject</span> &rarr; captures reason (feeds source effectiveness metrics)<br>
+          <span class="muted">Hold</span> &rarr; leave in Sourced, revisit later</p>
+        </div>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <p class="dim" style="font-size:13px;"><span class="accent">Exercise:</span> Walk through Matches tab. Review 3-4 records. Add one to pipeline. Dismiss one. Discuss what information drove the decision.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 20: BLOCK 4 TITLE ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Block 4 &middot; Execute &middot; 40 min</div>
+    <h2>Execute</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <p class="text-body" style="text-align:center;">The daily operational rhythm for each persona — interview, assess, and close.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 21: RECRUITER DAY — MORNING ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger">
+    <div class="part-label">Execute &middot; Recruiter</div>
+    <h2>A day in the life: <span class="accent">Morning</span></h2>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:16px;">Open Today dashboard (30 min)</h3>
+        <ul class="bullets">
+          <li><span class="bullet-label">Open roles</span> with pipeline stage counts</li>
+          <li><span class="bullet-label">Today's scheduled interviews</span></li>
+          <li><span class="bullet-label">Triage items</span> — AI-generated action items</li>
+          <li><span class="bullet-label">Daily briefing</span> — AI summary of what needs attention</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:16px;">Review overnight activity</h3>
+        <ul class="bullets">
+          <li>New candidates loaded? Check match scores</li>
+          <li>Assessments completed? Review AI evaluations</li>
+          <li>Interview intelligence ready? Review transcript analysis and scorecard synthesis</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <p class="dim" style="font-size:13px;">Triage examples: "Candidate X in Sourced for 7 days", "Interview with Y needs scheduling", "Assessment for Z is overdue"</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 22: RECRUITER DAY — MIDDAY ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger">
+    <div class="part-label">Execute &middot; Recruiter</div>
+    <h2>A day in the life: <span class="accent">Midday & EOD</span></h2>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:16px;">Schedule & process interviews</h3>
+        <ul class="bullets">
+          <li>Select candidate, role, stage &rarr; propose time slots</li>
+          <li>System checks panelist calendar availability</li>
+          <li>Confirm and send invitations</li>
+          <li>Interview Prep auto-generates for panelist</li>
+          <li>Candidate receives prep materials + AI coach access in Portal</li>
+        </ul>
+        <div class="sep" style="margin:16px 0;"></div>
+        <ul class="bullets">
+          <li>Review AI-generated evaluation (competency scores from transcript)</li>
+          <li>Review panelist scorecards</li>
+          <li>Compare AI analysis with human judgment</li>
+          <li>Make advancement decision</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:16px;">End of day: Pipeline hygiene</h3>
+        <ul class="bullets">
+          <li>Move candidates through stages based on day's decisions</li>
+          <li>Follow up on pending items from triage</li>
+          <li>Check stalled candidates (days in stage)</li>
+        </ul>
+        <div class="card" style="margin-top:20px; border-color:rgba(251,191,36,0.3);">
+          <div class="card-label">Key insight</div>
+          <p>Where AI and human <strong>agree</strong> = high confidence.<br>Where they <strong>disagree</strong> = deeper review needed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 23: HIRING MANAGER DAY ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger">
+    <div class="part-label">Execute &middot; Hiring Manager</div>
+    <h2>A day in the life: <span class="accent">Hiring Manager</span></h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-marker">Before</div>
+        <div class="phase-content">
+          <h4>Receives AI-generated interview prep</h4>
+          <p>Who the candidate is, what to evaluate, specific questions to ask, scoring guidance (what 1, 3, and 5 looks like)</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">During</div>
+        <div class="phase-content">
+          <h4>Conducts interview via LiveKit video room</h4>
+          <p>Recording and transcript captured automatically. Can take notes during interview.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">After</div>
+        <div class="phase-content">
+          <h4>Submits scorecard</h4>
+          <p>Rate each competency with evidence notes. Overall rating + verdict. AI processes immediately upon submit.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Decide</div>
+        <div class="phase-content">
+          <h4>Makes the hire decision with full picture</h4>
+          <p>Match score (with interview + assessment evidence), panel consensus, assessment results, AI recommendation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 24: CANDIDATE PORTAL ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger">
+    <div class="part-label">Execute &middot; Candidate</div>
+    <h2>A day in the life: <span class="accent">Candidate</span></h2>
+    <p class="text-body" style="margin-bottom:16px;">The candidate interacts entirely through the Portal:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Section</th><th>What They Do</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>Roles</td><td class="dim">See active roles, current stage, prep materials, interview details, and offers — all per role</td><td class="dim">Anytime</td></tr>
+          <tr><td>Coach</td><td class="dim">Practice with AI interview coach, get readiness scoring and improvement feedback</td><td class="dim">Before interviews</td></tr>
+          <tr><td>Assessments</td><td class="dim">Complete assigned assessments (technical, coding, personality, aptitude)</td><td class="dim">When assigned</td></tr>
+          <tr><td>Pulse</td><td class="dim">Engagement nudges, status updates, activity feed</td><td class="dim">Ongoing</td></tr>
+          <tr><td>Profile</td><td class="dim">Update profile information, skills, preferences</td><td class="dim">Anytime</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="dim" style="font-size:13px; margin-top:12px;">Within each role: interview prep, scheduled interviews with join link, and offer details with accept/negotiate/decline actions.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 25: ASSESSMENT FLOW ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger">
+    <div class="part-label">Execute</div>
+    <h2>The assessment flow</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Step</th><th>Who</th><th>What Happens</th></tr></thead>
+        <tbody>
+          <tr><td>1. Configure</td><td class="dim">Recruiter (or auto-assigned)</td><td class="dim">Select type: technical, coding, personality, aptitude, case study</td></tr>
+          <tr><td>2. Notify</td><td class="dim">System</td><td class="dim">Portal notification + email</td></tr>
+          <tr><td>3. Complete</td><td class="dim">Candidate</td><td class="dim">Via portal — short text, MCQ, coding snippets, etc.</td></tr>
+          <tr><td>4. Evaluate</td><td class="dim">System (AI)</td><td class="dim">Assessment Evaluator scores each criterion. Code Evaluator handles coding. Personality Analyzer maps patterns.</td></tr>
+          <tr><td>5. Results</td><td class="dim">Recruiter + HM</td><td class="dim">Overall score, percentile, strengths, weaknesses, role fit, hire recommendation</td></tr>
+          <tr><td>6. Feed match</td><td class="dim">System</td><td class="dim">Results update match score and application intelligence</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-body" style="margin-top:16px;">Assessment results are one input alongside interview scores and match data. The platform presents all evidence together — recruiter and HM make the judgment call.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 26: OFFER FLOW ━━━ -->
+<section class="slide" data-block="4">
+  <div class="slide-inner stagger">
+    <div class="part-label">Execute</div>
+    <h2>The offer flow</h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-marker">Step 1-3</div>
+        <div class="phase-content">
+          <h4>Initiate</h4>
+          <p>HM approves hire &rarr; Recruiter moves to Offer stage &rarr; AI generates close intelligence (acceptance likelihood, risk factors, candidate motivators, negotiation strategy)</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Step 4-7</div>
+        <div class="phase-content">
+          <h4>Build</h4>
+          <p>Recruiter reviews intelligence &rarr; Sets comp terms (base, equity, bonus, start date) &rarr; AI generates offer letter from org identity + role + candidate &rarr; Optional: extract candidate's current comp for negotiation context</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Step 8-9</div>
+        <div class="phase-content">
+          <h4>Extend</h4>
+          <p>Candidate sees offer in portal &rarr; Accept, negotiate, or decline</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-marker">Outcomes</div>
+        <div class="phase-content">
+          <h4>Track everything</h4>
+          <p><span class="green">Accepted</span>: Mark hired, update fill count &nbsp;|&nbsp; <span class="accent">Negotiation</span>: Adjust terms, new version with change tracking &nbsp;|&nbsp; <span style="color:var(--red);">Declined</span>: Capture reason, feeds analytics</p>
+        </div>
+      </div>
+    </div>
+    <p class="dim" style="font-size:13px; margin-top:12px;">System tracks: every offer version, trigger type, risk flags (parity, budget, band compliance), full audit trail.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 27: BLOCK 5 TITLE ━━━ -->
+<section class="slide" data-block="5">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Block 5 &middot; Measure &middot; 25 min</div>
+    <h2>Measure</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <p class="text-body" style="text-align:center;">What data is available, who looks at it, how often, and what decisions it drives.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 28: THREE REPORTING RHYTHMS ━━━ -->
+<section class="slide" data-block="5">
+  <div class="slide-inner stagger">
+    <div class="part-label">Measure</div>
+    <h2>Three reporting rhythms</h2>
+    <div class="card-grid cols-3">
+      <div class="card">
+        <div class="card-label">Daily</div>
+        <h4>Recruiter Self-Management</h4>
+        <p><strong>Where:</strong> Today dashboard<br><br>Pipeline stage counts, today's interviews, triage items, new match scores<br><br><strong>Decision:</strong> "What do I work on today?"</p>
+      </div>
+      <div class="card" style="border-color:rgba(251,191,36,0.3);">
+        <div class="card-label">Weekly</div>
+        <h4>Account Lead Review</h4>
+        <p><strong>Where:</strong> Insights<br><br>Pipeline health, hiring velocity, bottlenecks, open roles overview, fill rate progress<br><br><strong>Decision:</strong> "Which roles need intervention?"</p>
+      </div>
+      <div class="card">
+        <div class="card-label">Monthly</div>
+        <h4>Client Reporting</h4>
+        <p><strong>Who:</strong> Account Lead &rarr; Client<br><br>Executive summary, role-by-role breakdown, quality metrics, source effectiveness, recommendations</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 29: WEEKLY METRICS ━━━ -->
+<section class="slide" data-block="5">
+  <div class="slide-inner stagger">
+    <div class="part-label">Measure &middot; Weekly</div>
+    <h2>Account Lead weekly metrics</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Metric</th><th>What It Tells You</th><th>Action If Off Track</th></tr></thead>
+        <tbody>
+          <tr><td>Pipeline Health</td><td class="dim">Where candidates are getting stuck (conversion rates per stage)</td><td class="dim">If Sourced&rarr;Interview is low: screening too tight, or sourcing quality issue</td></tr>
+          <tr><td>Hiring Velocity</td><td class="dim">Are we getting faster or slower?</td><td class="dim">If trending up: identify bottleneck stage</td></tr>
+          <tr><td>Bottlenecks</td><td class="dim">Which stages have most candidates stalled</td><td class="dim">If Interview bottlenecked: scheduling or panel availability issue</td></tr>
+          <tr><td>Open Roles Overview</td><td class="dim">Which roles are healthy vs at risk</td><td class="dim">Redirect recruiter effort to at-risk roles</td></tr>
+          <tr><td>Fill Rate Progress</td><td class="dim">Hires vs headcount target</td><td class="dim">Are we on track for engagement timeline?</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 30: MONTHLY CLIENT REPORT ━━━ -->
+<section class="slide" data-block="5">
+  <div class="slide-inner stagger">
+    <div class="part-label">Measure &middot; Monthly</div>
+    <h2>Client reporting structure</h2>
+    <div class="two-col">
+      <div>
+        <ul class="bullets numbered">
+          <li><span class="bullet-label">Executive Summary</span> — fill rate vs target, avg time-to-hire, roles on track vs at risk</li>
+          <li><span class="bullet-label">Role-by-Role Breakdown</span> — pipeline funnel, days open, projected fill date, bottlenecks</li>
+          <li><span class="bullet-label">Quality Metrics</span> — avg match score of hired, assessment score distribution, offer acceptance rate</li>
+          <li><span class="bullet-label">Source Effectiveness</span> — which channels produce hires, not just applications</li>
+          <li><span class="bullet-label">Recommendations</span> — data-driven suggestions, process improvements, pipeline gaps</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card" style="border-color:rgba(251,191,36,0.3);">
+          <div class="card-label">Key Message</div>
+          <h4>"We're not building reports. We're reading them."</h4>
+          <p style="margin-top:8px;">The system generates the data as a byproduct of doing the work. No manual compilation needed.</p>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-label">Example Recommendation</div>
+          <p>"Role X has a 15% interview-to-offer rate vs 45% average — consider adjusting criteria or interview panel"</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 31: WHERE DATA COMES FROM ━━━ -->
+<section class="slide" data-block="5">
+  <div class="slide-inner stagger">
+    <div class="part-label">Measure</div>
+    <h2>Where the data comes from</h2>
+    <p class="text-body" style="margin-bottom:16px;">Every metric is derived from platform data — no manual compilation:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Data Point</th><th>Platform Source</th><th>Auto?</th></tr></thead>
+        <tbody>
+          <tr><td>Time to hire</td><td class="dim">hiredAt - createdAt on application</td><td class="green">Yes</td></tr>
+          <tr><td>Pipeline conversion</td><td class="dim">Stage transition counts</td><td class="green">Yes</td></tr>
+          <tr><td>Fill rate</td><td class="dim">Role headcount vs hired count</td><td class="green">Yes</td></tr>
+          <tr><td>Source effectiveness</td><td class="dim">Application source field</td><td class="green">Yes</td></tr>
+          <tr><td>Candidate quality</td><td class="dim">Match fit scores</td><td class="green">Yes</td></tr>
+          <tr><td>Offer acceptance</td><td class="dim">Offer status transitions</td><td class="green">Yes</td></tr>
+          <tr><td>Stage time</td><td class="dim">daysInStage field</td><td class="green">Yes</td></tr>
+          <tr><td>Recruiter activity</td><td class="dim">createdById / updatedById audit fields</td><td class="green">Yes</td></tr>
+          <tr><td>Interview outcomes</td><td class="dim">Scorecard verdicts + interview intelligence</td><td class="green">Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 32: BLOCK 6 TITLE ━━━ -->
+<section class="slide" data-block="6">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="part-label">Block 6 &middot; Launch &middot; 20 min</div>
+    <h2>Launch</h2>
+    <div class="sep" style="margin:20px auto;"></div>
+    <p class="text-body" style="text-align:center;">Scope the pilot, assign owners, set milestones — leave with a concrete plan.</p>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 33: SCOPING THE PILOT ━━━ -->
+<section class="slide" data-block="6">
+  <div class="slide-inner stagger">
+    <div class="part-label">Launch</div>
+    <h2>Scoping the pilot</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Question</th><th>Why It Matters</th></tr></thead>
+        <tbody>
+          <tr><td>Which client?</td><td class="dim">Start with 10+ open roles — enough volume to demonstrate the full flywheel</td></tr>
+          <tr><td>Which roles?</td><td class="dim">Mix of difficulty levels — some easy fills, some hard fills</td></tr>
+          <tr><td>How many recruiters?</td><td class="dim">5-10 recruiters going deep from day one — critical mass for pipeline velocity</td></tr>
+          <tr><td>ATS integration?</td><td class="dim">Optional — only if ready pathways exist. Otherwise we support with bulk loads</td></tr>
+          <tr><td>What does success look like?</td><td class="dim">Time-to-hire target? Fill rate target? Agree upfront</td></tr>
+          <tr><td>When do we start?</td><td class="dim">Set a concrete date</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 34: PILOT TIMELINE ━━━ -->
+<section class="slide" data-block="6">
+  <div class="slide-inner stagger">
+    <div class="part-label">Launch</div>
+    <h2>Pilot timeline</h2>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead><tr><th>Week</th><th>Milestone</th><th>Who</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="dim">Pilot client selected, kickoff scheduled</td><td class="dim">Account Lead</td></tr>
+          <tr><td>1</td><td class="dim">Department + roles created, team onboarded, candidates loaded</td><td class="dim">Account Lead + Recruiter</td></tr>
+          <tr><td>2</td><td class="dim">Matches reviewed, shortlists built, first interviews scheduled</td><td class="dim">Recruiter + Panels</td></tr>
+          <tr><td>3-4</td><td class="dim">Interview + assessment cycle running, first offers extended</td><td class="dim">Full team</td></tr>
+          <tr><td>5</td><td style="color:var(--green);">First hires, KPI review</td><td class="dim">Account Lead</td></tr>
+          <tr><td>6</td><td style="color:var(--accent);">Retrospective — expand or adjust</td><td class="dim">Account Lead + Leadership</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 35: ACTION ITEMS ━━━ -->
+<section class="slide" data-block="6">
+  <div class="slide-inner stagger">
+    <div class="part-label">Launch</div>
+    <h2>Execution plan</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px;">
+      <div>
+        <h3 style="font-size:14px; color:var(--accent); font-family:var(--font-mono); letter-spacing:0.08em;">WEEK 0 — PREP</h3>
+        <ul class="checklist" style="margin-top:12px;">
+          <li>Send JDs for all 10+ roles</li>
+          <li>Export candidate data (CSV, ATS dump, or resume folder)</li>
+          <li>Share HM names and panel assignments per role</li>
+          <li>Provide comp ranges and target hire dates per role</li>
+          <li>List recruiter names + email addresses for onboarding</li>
+          <li>Share interview process per role (stages, durations)</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:14px; color:var(--accent); font-family:var(--font-mono); letter-spacing:0.08em;">WEEK 1 — SETUP</h3>
+        <ul class="checklist" style="margin-top:12px;">
+          <li>Department created, roles live with criteria</li>
+          <li>Interview stages configured per role</li>
+          <li>Recruiters logged in, calendars connected</li>
+          <li>HMs and panelists invited, roles assigned</li>
+          <li>Candidate bulk load complete</li>
+          <li>Org identity configured (comms tone, branding)</li>
+          <li>AI matching run — scores available</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:14px; color:var(--accent); font-family:var(--font-mono); letter-spacing:0.08em;">WEEK 2 — EXECUTE</h3>
+        <ul class="checklist" style="margin-top:12px;">
+          <li>Recruiters review matches, shortlist top candidates</li>
+          <li>Phone screens conducted, notes logged</li>
+          <li>First interviews scheduled via platform</li>
+          <li>Panelists receive AI prep, conduct interviews</li>
+          <li>Scorecards submitted, AI synthesis generated</li>
+          <li>Assessments assigned to advancing candidates</li>
+          <li>Pipeline visible in Insights — first review</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 36: OBJECTION HANDLING ━━━ -->
+<section class="slide" data-block="6">
+  <div class="slide-inner stagger">
+    <div class="part-label">Reference</div>
+    <h2>Objection handling</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Objection</th><th>Response</th></tr></thead>
+        <tbody>
+          <tr><td>"AI can't replace recruiter judgment"</td><td class="dim">"It gives recruiters better candidates faster. You spend time on judgment calls — not on the 4 hours of screening to find 3 people worth talking to."</td></tr>
+          <tr><td>"Our clients won't trust AI scores"</td><td class="dim">"Clients see the same evidence the recruiter sees — criterion-by-criterion alignment with source attribution. It's more transparent than any recruiter summary."</td></tr>
+          <tr><td>"We already have an ATS"</td><td class="dim">"Dilliznt can integrate with the existing ATS if provided access. It is however designed to act independently as an execution engine, not a tracking system."</td></tr>
+          <tr><td>"Is candidate data shared?"</td><td class="dim">"Yes — deliberately. Learnings from one engagement translate to meaningful signals across all. A candidate evaluated for Client A is pre-qualified intelligence for Client B. That's the compounding advantage."</td></tr>
+          <tr><td>"What about our client data?"</td><td class="dim">"Roles, pipelines, offers, client details, interview content — all org-private. No cross-client visibility. Only candidate intelligence compounds across engagements."</td></tr>
+          <tr><td>"What's the ramp-up cost?"</td><td class="dim">"Minimal disruption. Roles live in Week 1, AI-matched pipeline in Week 2, first hire by Week 5. Recruiters learn by doing — the system guides the workflow."</td></tr>
+          <tr><td>"What if the AI is wrong?"</td><td class="dim">"Recruiter and HM always make the final call. And when they override, that's data too — the system learns from disagreement and improves."</td></tr>
+          <tr><td>"Adoption resistance"</td><td class="dim">"The system removes drudgery, not autonomy. Recruiters who use it close faster and handle more roles — it's a leverage tool, not a replacement."</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━ SLIDE 37: CLOSING ━━━ -->
+<section class="slide" data-block="0">
+  <div class="slide-inner stagger" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+    <div class="hero-title" style="font-size:clamp(48px, 8vw, 90px);">Let's build this together.</div>
+    <div class="sep" style="margin:32px auto;"></div>
+    <div class="closing-text">Every step generates data. Every data point makes the next step smarter. The system learns as you work.</div>
+    <div class="sep" style="margin:32px auto; background:var(--text-muted);"></div>
+    <p class="muted" style="font-size:14px; font-family:var(--font-mono);">Moar Workshop &middot; Dilliznt</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function() {
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+  const roadmap = document.getElementById('roadmap');
+  const roadmapSteps = roadmap.querySelectorAll('.roadmap-step');
+  const total = slides.length;
+  let current = 0;
+
+  function go(n) {
+    if (n < 0 || n >= total) return;
+    slides[current].classList.remove('active');
+    current = n;
+    slides[current].classList.add('active');
+    progress.style.width = ((current + 1) / total * 100) + '%';
+    counter.textContent = String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+    updateRoadmap();
+  }
+
+  function updateRoadmap() {
+    const currentBlock = parseInt(slides[current].dataset.block) || 0;
+
+    // Hide roadmap on title/closing slides (block 0)
+    if (currentBlock === 0) {
+      roadmap.classList.remove('visible');
+      return;
+    }
+    roadmap.classList.add('visible');
+
+    roadmapSteps.forEach(step => {
+      const block = parseInt(step.dataset.block);
+      step.classList.remove('active', 'done');
+      if (block === currentBlock) {
+        step.classList.add('active');
+      } else if (block < currentBlock) {
+        step.classList.add('done');
+      }
+    });
+  }
+
+  const fsBtn = document.getElementById('fsBtn');
+  const expandPaths = fsBtn.querySelector('.fs-expand');
+  const compressPaths = fsBtn.querySelector('.fs-compress');
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  function updateFsIcon() {
+    const isFs = !!document.fullscreenElement;
+    expandPaths.style.display = isFs ? 'none' : '';
+    compressPaths.style.display = isFs ? '' : 'none';
+  }
+
+  // Clickable roadmap steps — jump to first slide of that block
+  roadmapSteps.forEach(step => {
+    step.addEventListener('click', e => {
+      e.stopPropagation();
+      const block = step.dataset.block;
+      for (let i = 0; i < total; i++) {
+        if (slides[i].dataset.block === block) { go(i); return; }
+      }
+    });
+  });
+
+  fsBtn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('fullscreenchange', updateFsIcon);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault(); toggleFullscreen();
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+      e.preventDefault(); go(current + 1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault(); go(current - 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault(); go(0);
+    } else if (e.key === 'End') {
+      e.preventDefault(); go(total - 1);
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('a, button, input')) return;
+    if (e.clientX > window.innerWidth / 2) go(current + 1);
+    else go(current - 1);
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) go(current + 1);
+      else go(current - 1);
+    }
+  });
+
+  go(0);
+})();
+</script>
+</body>
+</html>
