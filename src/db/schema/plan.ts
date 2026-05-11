@@ -16,14 +16,24 @@ import { dillizntSchema } from "./schema";
 import { projects } from "./project";
 
 export const PLAN_KINDS = [
-  "requirement",
+  "epic",
+  "feature",
+  "story",
   "adr",
-  "feature_plan",
   "test_plan",
   "release_plan",
   "incident",
 ] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
+
+/** Canonical parent → child rollup for hierarchy validation. */
+export const PLAN_KIND_PARENTS: Partial<Record<PlanKind, PlanKind[]>> = {
+  feature: ["epic"],
+  story: ["feature", "epic"],
+  adr: ["epic", "feature"],
+  test_plan: ["feature", "story"],
+  release_plan: ["epic", "feature"],
+};
 
 export const PLAN_STATUSES = [
   "draft",
@@ -48,6 +58,9 @@ export const plans = dillizntSchema.table(
 
     kind: text().$type<PlanKind>().notNull(),
     slug: text(),
+
+    /** Optional rollup: e.g. a story's parent feature, a feature's parent epic. */
+    parentPlanId: text("parent_plan_id"),
 
     title: text().notNull(),
     summary: text(),
@@ -79,6 +92,7 @@ export const plans = dillizntSchema.table(
   (table) => [
     index("plans_org_idx").on(table.organizationId),
     index("plans_project_idx").on(table.projectId),
+    index("plans_parent_idx").on(table.parentPlanId),
     index("plans_kind_status_idx").on(table.kind, table.status),
     index("plans_fts_idx").using(
       "gin",

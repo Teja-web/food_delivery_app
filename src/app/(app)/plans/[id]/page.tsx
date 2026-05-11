@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getPlan } from "@/actions/plans";
 import { listCommentsForPlan, createComment } from "@/actions/comments";
 import { listApprovalsForPlan, requestPlanApproval } from "@/actions/approvals";
-import { listPlanRevisions } from "@/operations/plans";
+import { listPlanRevisions, listChildPlans, getPlanAncestry } from "@/operations/plans";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -30,16 +30,30 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   const plan = await getPlan(id);
   if (!plan) notFound();
 
-  const [comments, approvals, revisions] = await Promise.all([
+  const [comments, approvals, revisions, children, ancestry] = await Promise.all([
     listCommentsForPlan(id),
     listApprovalsForPlan(id),
     listPlanRevisions(id),
+    listChildPlans(id),
+    getPlanAncestry(id),
   ]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between">
         <div>
+          {ancestry.length > 0 ? (
+            <nav className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+              {ancestry.map((a, i) => (
+                <span key={a.id} className="flex items-center gap-1">
+                  {i > 0 ? <span>›</span> : null}
+                  <Link href={`/plans/${a.id}`} className="hover:underline">
+                    [{a.kind}] {a.title}
+                  </Link>
+                </span>
+              ))}
+            </nav>
+          ) : null}
           <div className="text-xs uppercase tracking-wide text-muted-foreground">
             {plan.kind.replace("_", " ")} · {plan.status.replace("_", " ")}
           </div>
@@ -58,6 +72,23 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
       <article className="prose prose-sm max-w-none rounded border bg-muted/20 p-4 font-mono whitespace-pre-wrap">
         {plan.body || <em className="text-muted-foreground">No body yet.</em>}
       </article>
+
+      {children.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-medium">Children</h2>
+          <ul className="divide-y rounded border text-sm">
+            {children.map((c) => (
+              <li key={c.id} className="flex items-center justify-between px-4 py-2">
+                <Link href={`/plans/${c.id}`} className="hover:underline">
+                  <span className="text-xs uppercase text-muted-foreground mr-2">{c.kind}</span>
+                  {c.title}
+                </Link>
+                <span className="text-xs text-muted-foreground capitalize">{c.status.replace("_", " ")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Approvals</h2>

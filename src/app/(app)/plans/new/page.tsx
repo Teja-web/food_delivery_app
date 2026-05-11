@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { and, eq, inArray } from "drizzle-orm";
+import { db } from "@/db/client";
+import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan";
 import { createPlan } from "@/actions/plans";
 import { listProjects } from "@/actions/projects";
-import { PLAN_KINDS } from "@/db/schema/plan";
+import { getCurrentUser } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,12 +12,14 @@ import { Label } from "@/components/ui/label";
 
 async function action(formData: FormData) {
   "use server";
+  const parentId = String(formData.get("parentPlanId") ?? "").trim();
   const created = await createPlan({
     projectId: String(formData.get("projectId")),
-    kind: String(formData.get("kind")) as (typeof PLAN_KINDS)[number],
+    kind: String(formData.get("kind")) as PlanKind,
     title: String(formData.get("title") ?? "").trim(),
     summary: String(formData.get("summary") ?? "").trim() || undefined,
     body: String(formData.get("body") ?? ""),
+    parentPlanId: parentId || undefined,
   });
   redirect(`/plans/${created.id}`);
 }
@@ -22,10 +27,27 @@ async function action(formData: FormData) {
 export default async function NewPlanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ projectId?: string }>;
+  searchParams: Promise<{ projectId?: string; kind?: PlanKind; parentPlanId?: string }>;
 }) {
   const sp = await searchParams;
   const { items: projects } = await listProjects({ limit: 100 });
+  const selectedProjectId = sp.projectId ?? projects[0]?.id;
+
+  const selectedKind = (sp.kind as PlanKind | undefined) ?? "story";
+  const allowedParentKinds = PLAN_KIND_PARENTS[selectedKind] ?? [];
+
+  const { organizationId } = await getCurrentUser();
+  const parentOptions = selectedProjectId && organizationId && allowedParentKinds.length
+    ? await db.query.plans.findMany({
+        where: and(
+          eq(plans.projectId, selectedProjectId),
+          eq(plans.organizationId, organizationId),
+          inArray(plans.kind, allowedParentKinds),
+        ),
+        columns: { id: true, title: true, kind: true },
+        limit: 100,
+      })
+    : [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -36,7 +58,7 @@ export default async function NewPlanPage({
           <select
             id="projectId"
             name="projectId"
-            defaultValue={sp.projectId ?? projects[0]?.id ?? ""}
+            defaultValue={selectedProjectId}
             required
             className="h-9 w-full rounded border bg-background px-3 text-sm"
           >
@@ -49,7 +71,13 @@ export default async function NewPlanPage({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="kind">Kind</Label>
-          <select id="kind" name="kind" required className="h-9 w-full rounded border bg-background px-3 text-sm">
+          <select
+            id="kind"
+            name="kind"
+            defaultValue={selectedKind}
+            required
+            className="h-9 w-full rounded border bg-background px-3 text-sm"
+          >
             {PLAN_KINDS.map((k) => (
               <option key={k} value={k}>
                 {k.replace("_", " ")}
@@ -57,6 +85,24 @@ export default async function NewPlanPage({
             ))}
           </select>
         </div>
+        {allowedParentKinds.length > 0 ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="parentPlanId">Parent ({allowedParentKinds.join(" or ")})</Label>
+            <select
+              id="parentPlanId"
+              name="parentPlanId"
+              defaultValue={sp.parentPlanId ?? ""}
+              className="h-9 w-full rounded border bg-background px-3 text-sm"
+            >
+              <option value="">— none —</option>
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.kind}] {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="title">Title</Label>
           <Input id="title" name="title" required />
