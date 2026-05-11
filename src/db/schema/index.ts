@@ -21,5 +21,6 @@ export * from "./audit-log";
 export * from "./intelligence";
 export * from "./notification";
 export * from "./event";
+export * from "./api-key";
 
 export * from "./relations";

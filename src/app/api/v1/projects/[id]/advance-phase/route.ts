@@ -1,0 +1,27 @@
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { projects } from "@/db/schema/project";
+import { handleApi } from "@/lib/api/auth";
+import { canAdvanceFrom, nextPhase } from "@/domain/phases";
+
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return handleApi(req, async (ctx) => {
+    const project = await db.query.projects.findFirst({
+      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
+    });
+    if (!project) {
+      const err = new Error("Project not found") as Error & { status?: number };
+      err.status = 404;
+      throw err;
+    }
+    if (!canAdvanceFrom(project.phase)) {
+      const err = new Error(`Already in final phase (${project.phase})`) as Error & { status?: number };
+      err.status = 409;
+      throw err;
+    }
+    const phase = nextPhase(project.phase)!;
+    await db.update(projects).set({ phase, updatedAt: new Date() }).where(eq(projects.id, id));
+    return { id, phase };
+  });
+}

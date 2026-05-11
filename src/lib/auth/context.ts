@@ -31,6 +31,10 @@ export function getMessageContext(): ScopedActionContext | undefined {
   return messageContextStorage.getStore();
 }
 
+export function isWorkerContext(): boolean {
+  return messageContextStorage.getStore() !== undefined;
+}
+
 export async function getActionContext(): Promise<ScopedActionContext> {
   const messageCtx = messageContextStorage.getStore();
   if (messageCtx) return messageCtx;
