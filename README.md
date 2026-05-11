@@ -1,41 +1,48 @@
 # Coznt
 
-AI-powered recruiting platform. Candidates and roles are matched automatically, interviews are synthesized, and pipeline intelligence accumulates over time.
+AI-native SDLC platform. Plans, phase gates, and deployments are coordinated by skills (governed AI agents) under an autonomy ledger; DORA metrics accumulate from the same trusted timeline. Integrates with GitHub, Jira, Azure DevOps, and Confluence via adapter bindings.
 
 ## Setup
 
 ```bash
 pnpm install
-pnpm dev          # Next.js dev server
-pnpm db:push      # Push schema changes to DB
-pnpm db:generate  # Generate migration files
+pnpm dev               # Next.js dev server + worker
+pnpm db:setup --reset
+pnpm db:seed --reset
+pnpm db:onboard --reset
 ```
 
-pnpm db:setup --reset
-pnpm db:seed --reset                              
-pnpm db:onboard --reset
+For ongoing schema work:
+
+```bash
+pnpm db:push           # Fast iteration on a feature branch
+pnpm db:generate       # Versioned migration before merge
+pnpm db:migrate        # Apply committed migrations (prod path)
+```
 
 ## Stack
 
 - **Next.js App Router** (RSC + client components)
-- **Drizzle ORM** + PostgreSQL (pgmq for async events)
-- **Vercel AI SDK** → OpenAI/Groq models
+- **Drizzle ORM** + PostgreSQL (pgmq for async events, pg_cron for periodic jobs)
+- **Vercel AI SDK** → OpenAI / Anthropic / Groq models
 - **Zod** for validation (AI output + CRUD writes)
+- **Better Auth** for sessions + organization scoping
 
 ## Routes
 
 | Route | Description |
 |---|---|
-| `/today` | Daily dashboard — triage items, interviews, role health |
-| `/candidates`, `/candidates/[id]` | Candidate list and detail |
-| `/roles`, `/roles/[id]`, `/roles/new` | Role management |
-| `/interviews` | Interview tracking |
-| `/offers` | Offer management |
-| `/assessments` | Assessment views |
-| `/pools` | Talent pools |
-| `/scorecard/[id]` | Scorecard detail |
-| `/compose` | Communication drafting |
-| `/insights` | Analytics |
+| `/projects`, `/projects/[id]`, `/projects/new` | Project workspace + phase gate state |
+| `/plans`, `/plans/[id]`, `/plans/new` | Release / change plans |
+| `/skills` | Governed AI agents (skills) and their autonomy levels |
+| `/approvals` | Pending approvals queue |
+| `/rules` | Automation rules (entity events → skill invocations) |
+| `/metrics` | DORA + delivery analytics |
+| `/api-keys` | Programmatic access tokens |
+
+## API surface
+
+Versioned at `/api/v1/*`: `projects`, `plans`, `deployments`, `metrics`, `rules`, `skills/[slug]/invoke`, `test-runs`, `work-items`, `webhooks/[source]`, `context`. SSE event stream at `/api/events/stream`.
 
 ## Architecture
 
