@@ -26,5 +26,6 @@ export * from "./phase-gate";
 export * from "./metric";
 export * from "./deployment";
 export * from "./test-run";
+export * from "./adapter-binding";
 
 export * from "./relations";

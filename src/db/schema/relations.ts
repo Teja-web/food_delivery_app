@@ -10,6 +10,7 @@ import { comments } from "./comment";
 import { workItems } from "./work-item";
 import { phaseGates } from "./phase-gate";
 import { metrics } from "./metric";
+import { adapterBindings } from "./adapter-binding";
 
 export const departmentsRelations = relations(departments, () => ({}));
 export const orgIdentityRelations = relations(orgIdentity, () => ({}));
@@ -22,6 +23,11 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   workItems: many(workItems),
   phaseGates: many(phaseGates),
   metrics: many(metrics),
+  adapterBindings: many(adapterBindings),
+}));
+
+export const adapterBindingsRelations = relations(adapterBindings, ({ one }) => ({
+  project: one(projects, { fields: [adapterBindings.projectId], references: [projects.id] }),
 }));
 
 export const plansRelations = relations(plans, ({ one, many }) => ({

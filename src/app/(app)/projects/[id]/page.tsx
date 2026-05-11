@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/actions/projects";
 import { advanceProjectPhase, UnmetGatesError } from "@/actions/project-phase";
 import { listGatesForPhase } from "@/actions/phase-gates";
+import { listBindingsForProject } from "@/operations/adapter-bindings";
 import { listPlansByProject } from "@/operations/plans";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
 import { Button } from "@/components/ui/button";
@@ -34,9 +35,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const project = await getProject(id);
   if (!project) notFound();
 
-  const [plans, gates] = await Promise.all([
+  const [plans, gates, bindings] = await Promise.all([
     listPlansByProject(id, { limit: 50 }),
     listGatesForPhase(id, project.phase),
+    listBindingsForProject(id),
   ]);
   const next = nextPhase(project.phase);
 
@@ -96,6 +98,32 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   <div className="text-xs text-muted-foreground capitalize">{g.type}</div>
                 </div>
                 <span className={`capitalize ${GATE_BADGE[g.status] ?? ""}`}>{g.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        {/* TODO: binding editor — follow-up. Read-only listing for now. */}
+        <h2 className="text-lg font-medium">External bindings</h2>
+        {bindings.length === 0 ? (
+          <div className="rounded border bg-muted/30 p-4 text-sm text-muted-foreground">
+            No external systems bound to this project yet.
+          </div>
+        ) : (
+          <ul className="divide-y rounded border text-sm">
+            {bindings.map((b) => (
+              <li key={b.id} className="flex items-center justify-between px-4 py-2">
+                <div className="flex items-center gap-3">
+                  <span className="rounded bg-muted px-2 py-0.5 text-xs uppercase tracking-wide">
+                    {b.provider}
+                  </span>
+                  <span className="font-mono text-xs">{b.externalKey}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(b.createdAt).toLocaleDateString()}
+                </span>
               </li>
             ))}
           </ul>
