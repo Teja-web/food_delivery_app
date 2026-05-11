@@ -1,0 +1,49 @@
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { plans } from "@/db/schema/plan";
+import { projects } from "@/db/schema/project";
+import { authenticate, withApiContext, UnauthorizedError } from "@/lib/api/auth";
+import { serializePlanToMarkdown, planFilePath } from "@/lib/plan/markdown";
+
+/**
+ * GET /api/v1/plans/:id/markdown
+ *
+ * Returns the plan as `text/markdown` ready to drop into the consumer's
+ * repo at `.dilliznt/plans/<kind>/<slug>.md`. The relative path is
+ * surfaced in `Content-Disposition: filename` and `X-Dilliznt-File-Path`.
+ */
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  let apiCtx;
+  try {
+    apiCtx = await authenticate(req);
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return new Response(err.message, { status: 401 });
+    throw err;
+  }
+  return withApiContext(apiCtx, async (ctx) => {
+    const plan = await db.query.plans.findFirst({
+      where: and(eq(plans.id, id), eq(plans.organizationId, ctx.organizationId)),
+    });
+    if (!plan) return new Response("Plan not found", { status: 404 });
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, plan.projectId),
+      columns: { slug: true },
+    });
+
+    const md = serializePlanToMarkdown(plan, { project: project ?? undefined });
+    const path = planFilePath(plan);
+
+    return new Response(md, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `inline; filename="${path.split("/").pop()}"`,
+        "X-Dilliznt-File-Path": path,
+        "X-Dilliznt-Plan-Id": plan.id,
+        "X-Dilliznt-Plan-Updated-At": plan.updatedAt.toISOString(),
+      },
+    });
+  });
+}
