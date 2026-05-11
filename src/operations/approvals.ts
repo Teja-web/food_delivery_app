@@ -7,6 +7,7 @@ import { plans } from "@/db/schema/plan";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
+import { getSkillAutonomy } from "@/operations/skill-autonomy";
 
 const approvalSchema = z.object({
   entityType: z.enum(APPROVAL_ENTITY_TYPES),
@@ -105,6 +106,33 @@ export async function decideApproval(args: {
   // release / work_item: caller (release manager, integration handler) does the cascade.
 
   safeRevalidate("/approvals");
+}
+
+/**
+ * Autonomy-gated auto-approve helper.
+ *
+ * Returns true when the originating skill has earned enough autonomy for the
+ * given change complexity:
+ *   - level >= 3 (principal) → auto-approve any complexity
+ *   - level >= 2 (senior)    → auto-approve only "low" complexity
+ *   - otherwise              → always requires human
+ *
+ * No skillId → returns false (we only auto-approve skill-driven changes).
+ *
+ * TODO(autonomy): wire this into the approval-creation flow. When that flow
+ * exists (skill-driven plan/PR proposals), call `canAutoApprove({ skillId,
+ * complexity })` and short-circuit to status="approved" + decidedById="system"
+ * when true. Until then this helper is exported for downstream callers.
+ */
+export async function canAutoApprove(input: {
+  skillId?: string | null;
+  complexity?: "low" | "medium" | "high";
+}): Promise<boolean> {
+  if (!input.skillId) return false;
+  const autonomy = await getSkillAutonomy(input.skillId);
+  if (autonomy.level >= 3) return true;
+  if (autonomy.level >= 2 && input.complexity === "low") return true;
+  return false;
 }
 
 /** Request an approval for a plan. Sets the plan's status to in_review. */

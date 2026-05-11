@@ -6,6 +6,8 @@ import { plans } from "./plan";
 import { planRevisions } from "./plan-revision";
 import { rules } from "./rule";
 import { skills } from "./skill";
+import { skillOutcomes } from "./skill-outcome";
+import { skillAutonomy } from "./skill-autonomy";
 import { comments } from "./comment";
 import { workItems } from "./work-item";
 import { phaseGates } from "./phase-gate";
@@ -45,8 +47,18 @@ export const rulesRelations = relations(rules, ({ one }) => ({
   project: one(projects, { fields: [rules.projectId], references: [projects.id] }),
 }));
 
-export const skillsRelations = relations(skills, ({ one }) => ({
+export const skillsRelations = relations(skills, ({ one, many }) => ({
   project: one(projects, { fields: [skills.projectId], references: [projects.id] }),
+  outcomes: many(skillOutcomes),
+  autonomy: one(skillAutonomy, { fields: [skills.id], references: [skillAutonomy.skillId] }),
+}));
+
+export const skillOutcomesRelations = relations(skillOutcomes, ({ one }) => ({
+  skill: one(skills, { fields: [skillOutcomes.skillId], references: [skills.id] }),
+}));
+
+export const skillAutonomyRelations = relations(skillAutonomy, ({ one }) => ({
+  skill: one(skills, { fields: [skillAutonomy.skillId], references: [skills.id] }),
 }));
 
 export const commentsRelations = relations(comments, ({ one }) => ({

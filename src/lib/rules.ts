@@ -11,6 +11,7 @@
 
 import { processWebhookEvent } from "@/automations/tasks/process-webhook-event";
 import { computeWorkItemLeadTime } from "@/automations/tasks/compute-work-item-lead-time";
+import { recomputeSkillAutonomyTask } from "@/automations/tasks/recompute-skill-autonomy";
 
 export interface CrudEvent {
   entityType: string;
@@ -66,6 +67,15 @@ const rules: Rule[] = [
       return !!next && next !== prev && TERMINAL.has(next);
     },
     tasks: [computeWorkItemLeadTime],
+  },
+  {
+    // Each new skill_outcomes row recomputes the autonomy ledger for its
+    // skill. The task itself looks up the row to discover skillId; see
+    // src/automations/tasks/recompute-skill-autonomy.ts for the lookup note.
+    id: "skill_outcome:insert",
+    entityType: "skill_outcome",
+    operation: "insert",
+    tasks: [recomputeSkillAutonomyTask],
   },
 ];
 

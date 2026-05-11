@@ -25,6 +25,7 @@ import { intelligence } from "@/db/schema/intelligence";
 import { generate, DEFAULT_MODEL, type ModelId } from "@/lib/ai";
 import { getActionContext } from "@/lib/auth/context";
 import { applyActionPolicyRules } from "./rule-engine";
+import { recordSkillOutcome } from "@/operations/skill-autonomy";
 
 export interface SkillInvocationRequest {
   slug: string;
@@ -168,6 +169,16 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
       })
       .returning({ id: intelligence.id });
 
+    // === autonomy ledger ================================================
+    // Successful invocation → "success" verdict. Best-effort: failures here
+    // must not poison the invocation result.
+    try {
+      await recordSkillOutcome({ skillId: skill.id, invocationId: runId, verdict: "success" });
+    } catch {
+      // swallow — ledger is observability, not load-bearing for the call
+    }
+    // ====================================================================
+
     return {
       skillId: skill.id,
       runId,
@@ -193,6 +204,21 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
       createdAt: startedAt,
       completedAt: new Date(),
     });
+
+    // === autonomy ledger ================================================
+    // Thrown LLM error → "incident" at severity "high". Best-effort.
+    try {
+      await recordSkillOutcome({
+        skillId: skill.id,
+        invocationId: runId,
+        verdict: "incident",
+        severity: "high",
+      });
+    } catch {
+      // swallow
+    }
+    // ====================================================================
+
     throw err;
   }
 }
