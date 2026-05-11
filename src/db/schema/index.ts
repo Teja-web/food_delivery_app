@@ -24,5 +24,7 @@ export * from "./event";
 export * from "./api-key";
 export * from "./phase-gate";
 export * from "./metric";
+export * from "./deployment";
+export * from "./test-run";
 
 export * from "./relations";

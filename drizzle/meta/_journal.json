@@ -15,6 +15,13 @@
       "when": 1778488845592,
       "tag": "0001_optimal_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778489107428,
+      "tag": "0002_known_roulette",
+      "breakpoints": true
     }
   ]
 }
