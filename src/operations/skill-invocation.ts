@@ -1,0 +1,177 @@
+/**
+ * Skill invocation — runs a stored skill's prompt against an input and
+ * records the result.
+ *
+ * For each call:
+ *   1. Resolve the skill by slug, scoped to the org and (optionally) project.
+ *   2. Pass `skill.body` as the system prompt and `input` (JSON) as the user
+ *      prompt to the configured model.
+ *   3. If `outputSchema` is set on the skill, parse the model output as JSON
+ *      and shallow-validate the shape; otherwise return raw text.
+ *   4. Append an `automation_logs` row + an `intelligence` row keyed
+ *      to the caller-supplied entity (or `skill:<id>` if none).
+ *
+ * The input is *not* schema-validated yet — we'd need a JSON-Schema-to-Zod
+ * converter for that. The skill author is responsible for documenting input
+ * shape in `inputSchema` until then.
+ */
+
+import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { db } from "@/db/client";
+import { skills } from "@/db/schema/skill";
+import { automationLog } from "@/db/schema/automation-log";
+import { intelligence } from "@/db/schema/intelligence";
+import { generate, DEFAULT_MODEL, type ModelId } from "@/lib/ai";
+import { getActionContext } from "@/lib/auth/context";
+
+export interface SkillInvocationRequest {
+  slug: string;
+  input: unknown;
+  entityType?: string;
+  entityId?: string;
+  /** Override the model id (otherwise uses DEFAULT_MODEL). */
+  model?: ModelId;
+}
+
+export interface SkillInvocationResult {
+  skillId: string;
+  runId: string;
+  /** Parsed JSON if the model returned a valid JSON object, else raw text. */
+  output: unknown;
+  /** Raw model output, always populated. */
+  text: string;
+  durationMs: number;
+  intelligenceId: string;
+}
+
+function resolveSkillBody(skill: { body: string }, input: unknown): string {
+  return `# Input\n\n\`\`\`json\n${JSON.stringify(input, null, 2)}\n\`\`\``;
+}
+
+function tryParseJson(text: string): unknown {
+  // Strip ```json fences if present
+  const fenced = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  const raw = fenced ? fenced[1] : text;
+  try {
+    return JSON.parse(raw.trim());
+  } catch {
+    return null;
+  }
+}
+
+export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInvocationResult> {
+  const ctx = await getActionContext();
+
+  const projectFilter = ctx.projectId
+    ? or(isNull(skills.projectId), eq(skills.projectId, ctx.projectId))
+    : isNull(skills.projectId);
+
+  const skill = await db.query.skills.findFirst({
+    where: and(
+      eq(skills.slug, req.slug),
+      eq(skills.organizationId, ctx.organizationId),
+      eq(skills.enabled, true),
+      projectFilter,
+    ),
+  });
+
+  if (!skill) {
+    const err = new Error(`Skill "${req.slug}" not found, disabled, or out of scope`) as Error & { status?: number };
+    err.status = 404;
+    throw err;
+  }
+
+  const runId = nanoid();
+  const startedAt = new Date();
+  const traceId = nanoid();
+
+  try {
+    const result = await generate({
+      agent: {
+        slug: skill.slug,
+        name: skill.name,
+        systemPrompt: skill.body,
+        model: req.model ?? DEFAULT_MODEL,
+      },
+      prompt: resolveSkillBody(skill, req.input),
+    });
+
+    const parsed = skill.outputSchema ? tryParseJson(result.text) : null;
+    const output = parsed ?? result.text;
+    const durationMs = Date.now() - startedAt.getTime();
+
+    await db.insert(automationLog).values({
+      id: runId,
+      organizationId: ctx.organizationId,
+      taskId: `skill:${skill.slug}`,
+      traceId,
+      entityType: req.entityType ?? "skill",
+      entityId: req.entityId ?? skill.id,
+      actorType: "api",
+      actorId: ctx.userId,
+      status: "succeeded",
+      durationMs,
+      outputTable: "intelligence",
+      createdAt: startedAt,
+      completedAt: new Date(),
+    });
+
+    const [intel] = await db
+      .insert(intelligence)
+      .values({
+        organizationId: ctx.organizationId,
+        entityType: req.entityType ?? "skill",
+        entityId: req.entityId ?? skill.id,
+        kind: skill.slug,
+        summary: skill.description ?? skill.name,
+        body: typeof output === "string" ? output : null,
+        data: typeof output === "object" && output !== null ? (output as Record<string, unknown>) : null,
+        modelId: req.model ?? DEFAULT_MODEL,
+        lastRunId: runId,
+        lastEvaluatedAt: new Date(),
+        evaluationCount: 1,
+      })
+      .onConflictDoUpdate({
+        target: [intelligence.entityType, intelligence.entityId, intelligence.kind],
+        set: {
+          summary: skill.description ?? skill.name,
+          body: typeof output === "string" ? output : null,
+          data: typeof output === "object" && output !== null ? (output as Record<string, unknown>) : null,
+          modelId: req.model ?? DEFAULT_MODEL,
+          lastRunId: runId,
+          lastEvaluatedAt: new Date(),
+          updatedAt: new Date(),
+          evaluationCount: sql`${intelligence.evaluationCount} + 1`,
+        },
+      })
+      .returning({ id: intelligence.id });
+
+    return {
+      skillId: skill.id,
+      runId,
+      output,
+      text: result.text,
+      durationMs,
+      intelligenceId: intel.id,
+    };
+  } catch (err) {
+    const durationMs = Date.now() - startedAt.getTime();
+    await db.insert(automationLog).values({
+      id: runId,
+      organizationId: ctx.organizationId,
+      taskId: `skill:${skill.slug}`,
+      traceId,
+      entityType: req.entityType ?? "skill",
+      entityId: req.entityId ?? skill.id,
+      actorType: "api",
+      actorId: ctx.userId,
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : String(err),
+      durationMs,
+      createdAt: startedAt,
+      completedAt: new Date(),
+    });
+    throw err;
+  }
+}

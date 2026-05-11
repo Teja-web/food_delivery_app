@@ -12,6 +12,8 @@ import { getCurrentUser } from "./actions";
 export interface ScopedActionContext {
   user: { id: string; name: string; email: string };
   organizationId: string;
+  /** Project scope when the caller carries one (API keys can be project-scoped). */
+  projectId?: string | null;
   userId: string;
   isAdmin: boolean;
   role: string;
