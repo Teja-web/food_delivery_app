@@ -1,37 +1,30 @@
-import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+
+import { AppShell } from "@/components/app-shell/AppShell";
+import { db } from "@/db/client";
+import { organization } from "@/db/schema/auth";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-const NAV = [
-  { href: "/projects", label: "Projects" },
-  { href: "/plans", label: "Plans" },
-  { href: "/rules", label: "Rules" },
-  { href: "/skills", label: "Skills" },
-  { href: "/approvals", label: "Approvals" },
-  { href: "/metrics", label: "Metrics" },
-  { href: "/api-keys", label: "API keys" },
-] as const;
+async function getOrgName(organizationId: string): Promise<string> {
+  const [row] = await db
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1);
+  return row?.name ?? "Workspace";
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { currentUser } = await getCurrentUser();
+  const { currentUser, organizationId, role } = await getCurrentUser();
   if (!currentUser) redirect("/auth/sign-in");
+  if (!organizationId) redirect("/auth/sign-in");
+
+  const orgName = await getOrgName(organizationId);
 
   return (
-    <div className="grid h-dvh grid-cols-[220px_1fr]">
-      <aside className="border-r bg-muted/30 px-4 py-6">
-        <Link href="/projects" className="mb-6 block text-lg font-semibold">
-          coznt
-        </Link>
-        <nav className="flex flex-col gap-1 text-sm">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="rounded px-2 py-1.5 hover:bg-muted">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="mt-auto pt-6 text-xs text-muted-foreground">{currentUser.email}</div>
-      </aside>
-      <main className="overflow-auto p-8">{children}</main>
-    </div>
+    <AppShell user={currentUser} role={role} orgName={orgName}>
+      {children}
+    </AppShell>
   );
 }
