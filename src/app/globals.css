@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap') layer(base);
 @import "tailwindcss";
 @import "tw-animate-css";
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 @source "../**/*.{ts,tsx}";
 
 @theme inline {
@@ -45,22 +45,126 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-autonomy-intern: var(--autonomy-intern);
+  --color-autonomy-junior: var(--autonomy-junior);
+  --color-autonomy-senior: var(--autonomy-senior);
+  --color-autonomy-principal: var(--autonomy-principal);
+  --color-state-pending: var(--state-pending);
+  --color-state-passed: var(--state-passed);
+  --color-state-failed: var(--state-failed);
+  --color-state-skipped: var(--state-skipped);
+  --color-verdict-success: var(--verdict-success);
+  --color-verdict-rollback: var(--verdict-rollback);
+  --color-verdict-incident: var(--verdict-incident);
+  --color-severity-critical: var(--severity-critical);
+  --color-severity-high: var(--severity-high);
+  --color-severity-medium: var(--severity-medium);
+  --color-severity-low: var(--severity-low);
+  --color-trend-up: var(--trend-up);
+  --color-trend-down: var(--trend-down);
+  --color-trend-flat: var(--trend-flat);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
+/* ═══════════════════════════════════════════════════════════
+   Dark theme (default)
+   ═══════════════════════════════════════════════════════════ */
+:root,
+[data-theme="dark"] {
   --radius: 0.5rem;
+
+  --background: oklch(0.18 0.02 250);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.21 0.025 250);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.21 0.025 250);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.74 0.14 175);
+  --primary-foreground: oklch(0.16 0.03 175);
+  --secondary: oklch(0.26 0.025 250);
+  --secondary-foreground: oklch(0.92 0.01 250);
+  --muted: oklch(0.24 0.02 250);
+  --muted-foreground: oklch(0.68 0.015 250);
+  --accent: oklch(0.74 0.14 175);
+  --accent-foreground: oklch(0.16 0.03 175);
+  --destructive: oklch(0.62 0.21 28);
+  --destructive-foreground: oklch(0.98 0.01 28);
+  --border: oklch(0.28 0.02 250);
+  --input: oklch(0.28 0.02 250);
+  --ring: oklch(0.74 0.14 175);
+
+  --success: oklch(0.7 0.16 145);
+  --success-foreground: oklch(0.16 0.03 145);
+  --warning: oklch(0.78 0.17 75);
+  --warning-foreground: oklch(0.22 0.04 75);
+  --info: oklch(0.7 0.13 240);
+  --info-foreground: oklch(0.16 0.03 240);
+
+  --chart-1: oklch(0.74 0.14 175);
+  --chart-2: oklch(0.78 0.17 75);
+  --chart-3: oklch(0.7 0.16 145);
+  --chart-4: oklch(0.7 0.18 15);
+  --chart-5: oklch(0.7 0.13 240);
+
+  --sidebar: oklch(0.14 0.025 250);
+  --sidebar-foreground: oklch(0.78 0.02 250);
+  --sidebar-primary: oklch(0.74 0.14 175);
+  --sidebar-primary-foreground: oklch(0.14 0.025 250);
+  --sidebar-accent: oklch(0.22 0.03 250);
+  --sidebar-accent-foreground: oklch(0.96 0.005 250);
+  --sidebar-border: oklch(0.24 0.025 250);
+  --sidebar-ring: oklch(0.74 0.14 175);
+
+  /* Trust signals — autonomy levels */
+  --autonomy-intern: oklch(0.65 0.015 250);     /* neutral gray */
+  --autonomy-junior: oklch(0.7 0.13 240);       /* blue */
+  --autonomy-senior: oklch(0.7 0.16 145);       /* green */
+  --autonomy-principal: oklch(0.68 0.18 305);   /* violet */
+
+  /* Gate / check states */
+  --state-pending: oklch(0.78 0.17 75);         /* amber */
+  --state-passed: oklch(0.7 0.16 145);          /* green */
+  --state-failed: oklch(0.65 0.22 28);          /* red */
+  --state-skipped: oklch(0.55 0.01 250);        /* muted */
+
+  /* Deployment verdicts */
+  --verdict-success: oklch(0.7 0.16 145);       /* green */
+  --verdict-rollback: oklch(0.72 0.16 55);      /* orange */
+  --verdict-incident: oklch(0.65 0.22 28);      /* red */
+
+  /* Severity ladder */
+  --severity-critical: oklch(0.6 0.24 28);      /* deep red */
+  --severity-high: oklch(0.72 0.18 45);         /* orange */
+  --severity-medium: oklch(0.78 0.17 75);       /* amber */
+  --severity-low: oklch(0.6 0.015 250);         /* muted */
+
+  /* Trend indicators (semantic — green is "improving" not always "up") */
+  --trend-up: oklch(0.7 0.16 145);              /* green */
+  --trend-down: oklch(0.65 0.22 28);            /* red */
+  --trend-flat: oklch(0.6 0.015 250);           /* muted */
+
+  /* Motion tokens */
+  --motion-instant: 0ms;
+  --motion-micro: 75ms;
+  --motion-short: 150ms;
+  --motion-medium: 300ms;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Light theme (opt-in via data-theme="light")
+   ═══════════════════════════════════════════════════════════ */
+[data-theme="light"] {
   --background: oklch(0.985 0.003 260);
   --foreground: oklch(0.2 0.015 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.2 0.015 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.2 0.015 260);
-  --primary: oklch(0.28 0.06 260);
-  --primary-foreground: oklch(0.98 0.005 80);
+  --primary: oklch(0.55 0.13 175);
+  --primary-foreground: oklch(0.98 0.005 175);
   --secondary: oklch(0.95 0.006 260);
   --secondary-foreground: oklch(0.29 0.015 260);
   --muted: oklch(0.965 0.005 260);
@@ -71,18 +175,21 @@
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.91 0.008 260);
   --input: oklch(0.91 0.008 260);
-  --ring: oklch(0.28 0.06 260);
-  --success: oklch(0.65 0.18 145);
+  --ring: oklch(0.55 0.13 175);
+
+  --success: oklch(0.6 0.17 145);
   --success-foreground: oklch(1 0 0);
   --warning: oklch(0.78 0.17 75);
   --warning-foreground: oklch(0.22 0.04 75);
   --info: oklch(0.62 0.14 240);
   --info-foreground: oklch(1 0 0);
-  --chart-1: oklch(0.28 0.06 260);
+
+  --chart-1: oklch(0.55 0.13 175);
   --chart-2: oklch(0.78 0.17 75);
-  --chart-3: oklch(0.65 0.18 145);
+  --chart-3: oklch(0.6 0.17 145);
   --chart-4: oklch(0.62 0.18 15);
   --chart-5: oklch(0.62 0.14 240);
+
   --sidebar: oklch(0.14 0.035 260);
   --sidebar-foreground: oklch(0.78 0.02 250);
   --sidebar-primary: oklch(0.78 0.17 75);
@@ -91,6 +198,34 @@
   --sidebar-accent-foreground: oklch(0.96 0.005 260);
   --sidebar-border: oklch(0.22 0.03 260);
   --sidebar-ring: oklch(0.78 0.17 75);
+
+  /* Trust signals — autonomy levels */
+  --autonomy-intern: oklch(0.55 0.015 260);
+  --autonomy-junior: oklch(0.55 0.14 240);
+  --autonomy-senior: oklch(0.55 0.17 145);
+  --autonomy-principal: oklch(0.5 0.18 305);
+
+  /* Gate / check states */
+  --state-pending: oklch(0.68 0.17 75);
+  --state-passed: oklch(0.6 0.17 145);
+  --state-failed: oklch(0.58 0.22 28);
+  --state-skipped: oklch(0.6 0.01 260);
+
+  /* Deployment verdicts */
+  --verdict-success: oklch(0.6 0.17 145);
+  --verdict-rollback: oklch(0.65 0.17 55);
+  --verdict-incident: oklch(0.58 0.22 28);
+
+  /* Severity ladder */
+  --severity-critical: oklch(0.52 0.24 28);
+  --severity-high: oklch(0.62 0.18 45);
+  --severity-medium: oklch(0.68 0.17 75);
+  --severity-low: oklch(0.6 0.015 260);
+
+  /* Trend indicators */
+  --trend-up: oklch(0.6 0.17 145);
+  --trend-down: oklch(0.58 0.22 28);
+  --trend-flat: oklch(0.6 0.015 260);
 }
 
 @layer base {
