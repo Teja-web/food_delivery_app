@@ -28,6 +28,14 @@ const LABEL: Record<AutonomyLevel, string> = {
   PRINCIPAL: "Principal",
 };
 
+/** Maps the lowercase `LevelName` used in the autonomy operations to the pill's uppercase variant key. */
+export const AUTONOMY_LABELS: Record<"intern" | "junior" | "senior" | "principal", AutonomyLevel> = {
+  intern: "INTERN",
+  junior: "JUNIOR",
+  senior: "SENIOR",
+  principal: "PRINCIPAL",
+};
+
 type Props = Omit<ComponentProps<typeof Badge>, "variant"> &
   VariantProps<typeof autonomyVariants> & {
     level: AutonomyLevel;

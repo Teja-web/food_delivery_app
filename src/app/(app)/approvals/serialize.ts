@@ -1,5 +1,7 @@
 import type { Approval, ApprovalEntityType, ApprovalStatus } from "@/db/schema/approval";
 
+import type { AutonomyLevel } from "@/components/trust/AutonomyPill";
+
 export interface ApprovalRowClient {
   id: string;
   entityType: ApprovalEntityType;
@@ -11,6 +13,10 @@ export interface ApprovalRowClient {
   requestedByName: string;
   /** True when requested by a bot/skill — drives the autonomy badge styling. */
   isBotRequester: boolean;
+  /** Skill slug parsed from `requestedByName` for bot rows, e.g. "frontend-test-author". */
+  skillSlug: string | null;
+  /** Actual autonomy level for the originating skill, or null when we can't resolve it. */
+  skillLevel: AutonomyLevel | null;
   requesterNote: string | null;
   ageLabel: string;
   ageDays: number;
@@ -69,14 +75,35 @@ function resolveTitle(a: Approval): string {
 
 const BOT_NAMES = new Set(["bot", "system", "skill", "agent"]);
 
-export function serializeApprovalRow(a: Approval): ApprovalRowClient {
+/**
+ * Bot-requested approvals are seeded with names like `"frontend-test-author (bot)"`
+ * or `"doc-updater (bot)"`. Until `approvals` carries a real `requested_by_skill_id`,
+ * we extract the slug from the name to look up autonomy state.
+ */
+export function parseSkillSlug(name: string): string | null {
+  const m = /^([a-z0-9][a-z0-9-]*)\s*\(bot\)$/i.exec(name.trim());
+  if (m) return m[1].toLowerCase();
+  if (name.endsWith("-bot")) return name.slice(0, -"-bot".length).toLowerCase();
+  return null;
+}
+
+export function serializeApprovalRow(
+  a: Approval,
+  skillLevelBySlug: Map<string, AutonomyLevel> = new Map(),
+): ApprovalRowClient {
   const requestedByName = a.requestedByName ?? "—";
   const isBot = BOT_NAMES.has(requestedByName.toLowerCase()) || requestedByName.endsWith("-bot");
+  const skillSlug = isBot ? parseSkillSlug(requestedByName) : null;
+  const skillLevel = skillSlug ? skillLevelBySlug.get(skillSlug) ?? null : null;
   const age = formatAge(a.createdAt);
-  // v1 auto-eligibility heuristic: bot-requested + entityType in (work_item, plan)
-  // + age < 7d. The real eligibility check lives in operations/approvals.ts
-  // canAutoApprove() — once approvals carry skillId we'll route through that.
-  const autoEligible = isBot && (a.entityType === "work_item" || a.entityType === "plan") && age.days < 7;
+  // Auto-eligibility: a Senior or Principal originating skill earns auto-approve
+  // for low-risk entity types within a 7d window. Falls back to "bot-requested"
+  // heuristic when we can't resolve the skill (preserves prior behavior).
+  const trustedLevel = skillLevel === "SENIOR" || skillLevel === "PRINCIPAL";
+  const autoEligible =
+    (trustedLevel || (isBot && !skillLevel)) &&
+    (a.entityType === "work_item" || a.entityType === "plan") &&
+    age.days < 7;
   return {
     id: a.id,
     entityType: a.entityType,
@@ -87,13 +114,17 @@ export function serializeApprovalRow(a: Approval): ApprovalRowClient {
     phase: a.phase ?? null,
     requestedByName,
     isBotRequester: isBot,
+    skillSlug,
+    skillLevel,
     requesterNote: a.requesterNote,
     ageLabel: age.label,
     ageDays: age.days,
     isStale: age.days >= 7,
     autoEligible,
     autoReason: autoEligible
-      ? "Originating skill earned auto-approve via 30d outcomes"
+      ? skillLevel
+        ? `${skillLevel.toLowerCase()} skill — auto-approve earned via 30d outcomes`
+        : "Originating skill earned auto-approve via 30d outcomes"
       : "",
   };
 }

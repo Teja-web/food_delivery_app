@@ -92,8 +92,16 @@ function ApprovalRow({
           ) : null}
         </div>
         <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-          {row.isBotRequester ? (
-            <AutonomyPill level="SENIOR">{row.requestedByName}</AutonomyPill>
+          {row.isBotRequester && row.skillLevel ? (
+            <AutonomyPill level={row.skillLevel}>{row.requestedByName}</AutonomyPill>
+          ) : row.isBotRequester ? (
+            <Badge
+              variant="outline"
+              className="px-1.5 py-0 font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground"
+              title="Originating skill not yet on the autonomy ledger"
+            >
+              {row.requestedByName}
+            </Badge>
           ) : (
             <span className="font-medium text-foreground/85">{row.requestedByName}</span>
           )}
