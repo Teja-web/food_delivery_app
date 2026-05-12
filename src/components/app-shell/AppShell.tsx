@@ -16,7 +16,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
+import { CommandPalette, useCommandPaletteShortcut } from "@/components/app-shell/CommandPalette";
+import { ThemeToggle } from "@/components/app-shell/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -120,6 +123,8 @@ export function AppShell({ user, role, orgName, children }: Props) {
   const pathname = usePathname();
   const section = deriveSectionLabel(pathname);
   const showNewProject = pathname === "/projects";
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useCommandPaletteShortcut(setPaletteOpen);
 
   return (
     <div className="grid h-dvh grid-cols-[224px_1fr] bg-background text-foreground">
@@ -191,6 +196,7 @@ export function AppShell({ user, role, orgName, children }: Props) {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setPaletteOpen(true)}
               className="inline-flex items-center gap-2 rounded-md border border-input bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60"
               aria-label="Search"
             >
@@ -198,6 +204,7 @@ export function AppShell({ user, role, orgName, children }: Props) {
               <span>Search</span>
               <span className="ml-2 hidden font-mono text-[10px] opacity-70 sm:inline">⌘K</span>
             </button>
+            <ThemeToggle />
             {showNewProject ? (
               <Button asChild size="sm">
                 <Link href="/projects/new">
@@ -210,6 +217,7 @@ export function AppShell({ user, role, orgName, children }: Props) {
         </header>
         <main className="flex-1 overflow-auto px-8 py-6">{children}</main>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

@@ -45,6 +45,8 @@ export interface PortfolioProjectClient {
   status: Project["status"];
   health: ProjectHealth;
   hasRegression: boolean;
+  isStale: boolean;
+  staleDays: number;
   gates: {
     passed: number;
     total: number;
@@ -81,6 +83,8 @@ function serializePortfolioProject(row: PortfolioProjectRow): PortfolioProjectCl
     status: row.project.status,
     health: row.health,
     hasRegression: row.hasRegression,
+    isStale: row.isStale,
+    staleDays: row.staleDays,
     gates: {
       passed: row.gates.passed,
       total: row.gates.total,

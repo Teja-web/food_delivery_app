@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import { AttributionChip } from "@/components/trust/AttributionChip";
 import { AutonomyPill, type AutonomyLevel } from "@/components/trust/AutonomyPill";
 import { GateDot, type GateState } from "@/components/trust/GateDot";
@@ -196,6 +198,11 @@ function Playground() {
 }
 
 export default function PlaygroundPage() {
+  // Dev-only surface — 404 in production builds. Visual QA for Phase 1
+  // composites; not a user-facing page.
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
   return (
     <div className="space-y-10">
       <header>

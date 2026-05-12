@@ -29,6 +29,8 @@ export type PortfolioProjectRow = {
   shortKey: string;
   health: ProjectHealth;
   hasRegression: boolean;
+  isStale: boolean;
+  staleDays: number;
   gates: { passed: number; total: number; items: PortfolioGate[] };
   openApprovals: number;
   leadTimeDays: number | null;
@@ -222,15 +224,19 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     fetchOpenApprovalCounts(ctx.organizationId, projectIds),
   ]);
 
+  const now = Date.now();
   const rows: PortfolioProjectRow[] = projectRows.map((p) => {
     const fixture = PROJECT_FIXTURES[p.slug];
     const gates = gateByProject.get(p.id) ?? { passed: 0, total: 0, items: [] };
     const cfr = fixture?.cfr30d ?? null;
+    const staleDays = Math.floor((now - p.updatedAt.getTime()) / (24 * 60 * 60 * 1000));
     return {
       project: p,
       shortKey: fixture?.shortKey ?? deriveShortKey(p.name),
       health: fixture?.health ?? deriveHealth(p, cfr),
       hasRegression: fixture?.hasRegression ?? false,
+      isStale: staleDays >= 30,
+      staleDays,
       gates,
       openApprovals: openByProject.get(p.id) ?? 0,
       leadTimeDays: fixture?.leadTimeDays ?? null,

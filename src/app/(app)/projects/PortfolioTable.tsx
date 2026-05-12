@@ -140,6 +140,7 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
       className={cn(
         "group grid h-9 grid-cols-[18px_minmax(0,1.6fr)_120px_140px_72px_72px_72px_88px_24px] items-center gap-3 border-b border-border/40 px-3 text-sm transition-colors duration-[var(--motion-short)]",
         "hover:bg-muted/40",
+        project.isStale && "opacity-55 hover:opacity-90",
       )}
     >
       <StatusDot status={project.health} />
@@ -154,6 +155,14 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
             className="shrink-0 border-trend-down/40 bg-trend-down/10 px-1.5 py-0 text-[9px] font-medium uppercase tracking-wide text-trend-down"
           >
             CFR ↑
+          </Badge>
+        ) : null}
+        {project.isStale ? (
+          <Badge
+            variant="outline"
+            className="shrink-0 border-muted-foreground/40 px-1.5 py-0 text-[9px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            Inactive {project.staleDays}d
           </Badge>
         ) : null}
       </div>
