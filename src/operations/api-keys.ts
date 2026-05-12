@@ -67,6 +67,33 @@ export async function listApiKeys(): Promise<ApiKey[]> {
     .orderBy(desc(apiKeys.createdAt));
 }
 
+/**
+ * Find the most recent project-scoped key, or mint one if none exists.
+ * Used by the H2 cockpit's "Connect Cursor" modal. If a key exists, the
+ * plaintext is unrecoverable — only the prefix is returned. If none
+ * exists, mints one and returns `{ plaintext, isNew: true }`.
+ */
+export async function getOrCreateProjectKey(
+  projectId: string,
+  name = "Cursor MCP",
+): Promise<{ prefix: string; plaintext: string | null; isNew: boolean }> {
+  const ctx = await getActionContext();
+  const [existing] = await db
+    .select({ prefix: apiKeys.prefix })
+    .from(apiKeys)
+    .where(
+      and(eq(apiKeys.organizationId, ctx.organizationId), eq(apiKeys.projectId, projectId)),
+    )
+    .orderBy(desc(apiKeys.createdAt))
+    .limit(1);
+
+  if (existing) {
+    return { prefix: existing.prefix, plaintext: null, isNew: false };
+  }
+  const minted = await mintApiKey({ name, projectId });
+  return { prefix: minted.prefix, plaintext: minted.plaintext, isNew: true };
+}
+
 export async function revokeApiKey(id: string): Promise<void> {
   const ctx = await getActionContext();
   await db

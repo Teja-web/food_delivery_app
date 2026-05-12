@@ -42,6 +42,12 @@ export const phaseGates = cozntSchema.table(
     comment: text(),
     evaluatedAt: timestamp("evaluated_at"),
 
+    unmetCriterion: text("unmet_criterion"),
+    assigneeId: text("assignee_id"),
+    assigneeName: text("assignee_name"),
+    lastChangedAt: timestamp("last_changed_at"),
+    lastGreenAt: timestamp("last_green_at"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
