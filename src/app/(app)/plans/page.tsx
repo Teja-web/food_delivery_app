@@ -1,8 +1,10 @@
 import Link from "next/link";
+
 import { listPlans } from "@/actions/plans";
+import type { Plan } from "@/db/schema/plan";
 
 export default async function PlansPage() {
-  const { items } = await listPlans({ limit: 100 });
+  const { items } = (await listPlans({ limit: 100 })) as { items: Plan[] };
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

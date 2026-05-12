@@ -1,7 +1,8 @@
 import { listRules } from "@/actions/rules";
+import type { Rule } from "@/db/schema/rule";
 
 export default async function RulesPage() {
-  const { items } = await listRules({ limit: 100 });
+  const { items } = (await listRules({ limit: 100 })) as { items: Rule[] };
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

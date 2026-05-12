@@ -27,6 +27,10 @@ export interface CrudEvent {
 export interface TaskParams {
   organizationId: string;
   entityId: string;
+  /** Source entity table (e.g. "projects", "work_items"). Tasks can ignore. */
+  entityType?: string;
+  /** CRUD operation that produced the event. Tasks can ignore. */
+  operation?: "insert" | "update" | "delete";
   traceId?: string;
   data?: Record<string, unknown>;
 }

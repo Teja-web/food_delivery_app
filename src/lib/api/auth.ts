@@ -11,10 +11,7 @@ import { createHash } from "crypto";
 import { and, eq, isNull, or, gt } from "drizzle-orm";
 import { db } from "@/db/client";
 import { apiKeys } from "@/db/schema/api-key";
-import {
-  runWithMessageContext,
-  type ScopedActionContext,
-} from "@/lib/auth/context";
+import { buildScopedContext, runWithMessageContext } from "@/lib/auth/context";
 import { eq as drizzleEq } from "drizzle-orm";
 
 export class UnauthorizedError extends Error {
@@ -73,15 +70,11 @@ export async function withApiContext<T>(
   ctx: ApiContext,
   fn: (ctx: ApiContext) => Promise<T>,
 ): Promise<T> {
-  const scoped: ScopedActionContext = {
-    user: { id: `api:${ctx.apiKeyId}`, name: "API client", email: "api@coznt" },
-    organizationId: ctx.organizationId,
-    projectId: ctx.projectId,
-    userId: `api:${ctx.apiKeyId}`,
-    isAdmin: false,
-    role: "api",
-    orgScope: (table) => eq((table as { organizationId: { name: string } }).organizationId as never, ctx.organizationId as never),
-  };
+  const scoped = buildScopedContext(
+    ctx.organizationId,
+    { id: `api:${ctx.apiKeyId}`, name: "API client", email: "api@coznt" },
+    { role: "api", projectId: ctx.projectId },
+  );
   return runWithMessageContext(scoped, () => fn(ctx));
 }
 

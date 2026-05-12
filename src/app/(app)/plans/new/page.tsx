@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan";
+import type { Project } from "@/db/schema/project";
 import { createPlan } from "@/actions/plans";
 import { listProjects } from "@/actions/projects";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -30,7 +31,7 @@ export default async function NewPlanPage({
   searchParams: Promise<{ projectId?: string; kind?: PlanKind; parentPlanId?: string }>;
 }) {
   const sp = await searchParams;
-  const { items: projects } = await listProjects({ limit: 100 });
+  const { items: projects } = (await listProjects({ limit: 100 })) as { items: Project[] };
   const selectedProjectId = sp.projectId ?? projects[0]?.id;
 
   const selectedKind = (sp.kind as PlanKind | undefined) ?? "story";

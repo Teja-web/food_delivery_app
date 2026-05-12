@@ -1,13 +1,35 @@
 /**
  * Action Context — org-scoped auth context for server actions and worker tasks.
  *
- * Worker tasks call `runWithMessageContext(ctx, fn)` so background work
- * inherits the originating user's org without re-querying the request.
+ * Two entry points construct a `ScopedActionContext`:
+ *   - `getActionContext()`  — request-time, derives from the Better Auth session
+ *   - `buildScopedContext()` — worker-time, builds from raw org + actor inputs
+ *
+ * Worker tasks call `runWithMessageContext(ctx, fn)` (alias: `runWithContext`)
+ * so background work inherits the originating user's org without re-querying
+ * the request. The `auditCreate` / `auditUpdate` methods on the context return
+ * the audit-field bundles that the CRUD factory spreads into inserts/updates
+ * — keeping the "who/when" provenance attached to every mutation.
  */
 
 import { eq, SQL } from "drizzle-orm";
 import { AsyncLocalStorage } from "node:async_hooks";
+
 import { getCurrentUser } from "./actions";
+
+export interface AuditCreateFields {
+  organizationId: string;
+  createdById: string;
+  createdByName: string;
+  updatedById: string;
+  updatedByName: string;
+}
+
+export interface AuditUpdateFields {
+  updatedById: string;
+  updatedByName: string;
+  updatedAt: Date;
+}
 
 export interface ScopedActionContext {
   user: { id: string; name: string; email: string };
@@ -21,6 +43,39 @@ export interface ScopedActionContext {
   taskId?: string;
   /** Returns the org-scope SQL predicate for a Drizzle table with an `organizationId` column. */
   orgScope: (table: { organizationId: { name: string } } & Record<string, unknown>) => SQL;
+  /** Audit bundle for inserts: organization + created-by + updated-by. */
+  auditCreate: () => AuditCreateFields;
+  /** Audit bundle for updates: updated-by + bumped updatedAt. */
+  auditUpdate: () => AuditUpdateFields;
+}
+
+function makeOrgScope(organizationId: string): ScopedActionContext["orgScope"] {
+  return (table) =>
+    eq(
+      (table as unknown as { organizationId: { name: string } }).organizationId as never,
+      organizationId as never,
+    );
+}
+
+function makeAuditCreate(
+  organizationId: string,
+  user: { id: string; name: string },
+): () => AuditCreateFields {
+  return () => ({
+    organizationId,
+    createdById: user.id,
+    createdByName: user.name,
+    updatedById: user.id,
+    updatedByName: user.name,
+  });
+}
+
+function makeAuditUpdate(user: { id: string; name: string }): () => AuditUpdateFields {
+  return () => ({
+    updatedById: user.id,
+    updatedByName: user.name,
+    updatedAt: new Date(),
+  });
 }
 
 const messageContextStorage = new AsyncLocalStorage<ScopedActionContext>();
@@ -29,12 +84,44 @@ export function runWithMessageContext<T>(ctx: ScopedActionContext, fn: () => Pro
   return messageContextStorage.run(ctx, fn);
 }
 
+/** Alias for `runWithMessageContext` — used by the worker entrypoint. */
+export const runWithContext = runWithMessageContext;
+
 export function getMessageContext(): ScopedActionContext | undefined {
   return messageContextStorage.getStore();
 }
 
 export function isWorkerContext(): boolean {
   return messageContextStorage.getStore() !== undefined;
+}
+
+/**
+ * Build a `ScopedActionContext` for a worker task from raw inputs.
+ *
+ * The worker drains a message off pgmq and needs to wrap each task call in a
+ * context — but it has no session. The message carries `organizationId` and
+ * the originating user's id/name, which is enough to construct a context
+ * with full audit provenance.
+ */
+export function buildScopedContext(
+  organizationId: string,
+  actor: { id: string; name: string; email?: string },
+  options: { isAdmin?: boolean; role?: string; traceId?: string; taskId?: string; projectId?: string | null } = {},
+): ScopedActionContext {
+  const user = { id: actor.id, name: actor.name, email: actor.email ?? "" };
+  return {
+    user,
+    organizationId,
+    projectId: options.projectId ?? null,
+    userId: actor.id,
+    isAdmin: options.isAdmin ?? false,
+    role: options.role ?? "system",
+    traceId: options.traceId,
+    taskId: options.taskId,
+    orgScope: makeOrgScope(organizationId),
+    auditCreate: makeAuditCreate(organizationId, user),
+    auditUpdate: makeAuditUpdate(user),
+  };
 }
 
 export async function getActionContext(): Promise<ScopedActionContext> {
@@ -56,8 +143,9 @@ export async function getActionContext(): Promise<ScopedActionContext> {
     userId: currentUser.id,
     isAdmin,
     role,
-    orgScope: (table) =>
-      eq((table as unknown as { organizationId: { name: string } }).organizationId as never, organizationId as never),
+    orgScope: makeOrgScope(organizationId),
+    auditCreate: makeAuditCreate(organizationId, currentUser),
+    auditUpdate: makeAuditUpdate(currentUser),
   };
 }
 
