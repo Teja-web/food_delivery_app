@@ -1,87 +1,82 @@
 import { listSkills } from "@/actions/skills";
-import { getSkillAutonomyAction } from "@/actions/skill-autonomy";
-import { LEVEL_BLURBS, type SkillAutonomyState } from "@/operations/skill-autonomy";
+import type { Skill } from "@/db/schema/skill";
+import { getActionContext } from "@/lib/auth/context";
+import {
+  getRecentAutonomyEvents,
+  getSkillAutonomy,
+  getSkillStats30d,
+} from "@/operations/skill-autonomy";
 
-function relativeTime(date: Date | null): string {
-  if (!date) return "never";
-  const diffMs = date.getTime() - Date.now();
-  const abs = Math.abs(diffMs);
-  const sign = diffMs < 0 ? "ago" : "from now";
-  const minutes = Math.round(abs / 60_000);
-  if (minutes < 60) return `${minutes}m ${sign}`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ${sign}`;
-  const days = Math.round(hours / 24);
-  return `${days}d ${sign}`;
-}
-
-function levelPillClass(level: number): string {
-  // 0 intern → muted; 1 junior → blue; 2 senior → green; 3 principal → violet.
-  if (level >= 3) return "bg-violet-100 text-violet-800 border-violet-200";
-  if (level >= 2) return "bg-green-100 text-green-800 border-green-200";
-  if (level >= 1) return "bg-blue-100 text-blue-800 border-blue-200";
-  return "bg-muted text-muted-foreground border-border";
-}
+import { RecentEventsBanner } from "./RecentEventsBanner";
+import {
+  levelLabel,
+  serializeAutonomyEvent,
+  serializeSkillRow,
+  type AutonomyDistribution,
+  type AutonomyEventClient,
+} from "./serialize";
+import { SkillsLedgerTable } from "./SkillsLedgerTable";
 
 export default async function SkillsPage() {
-  const { items } = await listSkills({ limit: 100 });
+  const ctx = await getActionContext();
+  const { items } = await listSkills({ limit: 200 });
+  const skills = items as Skill[];
 
-  // Per-skill fetch is fine for v1 — skills lists are small.
-  const autonomyByID = new Map<string, SkillAutonomyState>();
-  await Promise.all(
-    items.map(async (s: { id: string }) => {
-      autonomyByID.set(s.id, await getSkillAutonomyAction(s.id));
-    }),
+  const [autonomy, stats, recentEvents] = await Promise.all([
+    Promise.all(skills.map((s) => getSkillAutonomy(s.id))),
+    Promise.all(skills.map((s) => getSkillStats30d(s.id))),
+    getRecentAutonomyEvents(ctx.organizationId, 14),
+  ]);
+
+  const rows = skills.map((s, i) => serializeSkillRow(s, autonomy[i], stats[i]));
+
+  const distribution: AutonomyDistribution = rows.reduce(
+    (acc, r) => {
+      const label = levelLabel(r.level);
+      if (label === "INTERN") acc.intern += 1;
+      else if (label === "JUNIOR") acc.junior += 1;
+      else if (label === "SENIOR") acc.senior += 1;
+      else if (label === "PRINCIPAL") acc.principal += 1;
+      acc.total += 1;
+      return acc;
+    },
+    { intern: 0, junior: 0, senior: 0, principal: 0, total: 0 } as AutonomyDistribution,
   );
 
+  const eventsBySkill = new Map(recentEvents.map((e) => [e.skillId, e]));
+  const events: AutonomyEventClient[] = [];
+  for (const skill of skills) {
+    const e = eventsBySkill.get(skill.id);
+    if (!e) continue;
+    const event = serializeAutonomyEvent({
+      skill: { id: skill.id, slug: skill.slug, name: skill.name },
+      autonomy: {
+        skillId: skill.id,
+        organizationId: ctx.organizationId,
+        level: e.level,
+        levelName: (["intern", "junior", "senior", "principal"] as const)[e.level] ?? "intern",
+        levelSetAt: e.levelSetAt,
+        lastReviewedAt: null,
+        nextReviewAt: null,
+        lastReason: e.lastReason,
+      },
+    });
+    if (event) events.push(event);
+  }
+  events.sort((a, b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <h1 className="text-2xl font-semibold">Skills</h1>
-      {items.length === 0 ? (
-        <div className="rounded border bg-muted/30 p-8 text-sm text-muted-foreground">
-          No skills yet. Skills are reusable agent workflows callable over the HTTP API.
-        </div>
-      ) : (
-        <ul className="divide-y rounded border">
-          {items.map((s: { id: string; name: string; slug: string; projectId: string | null; enabled: boolean; description: string | null }) => {
-            const autonomy = autonomyByID.get(s.id);
-            const level = autonomy?.level ?? 0;
-            const levelName = autonomy?.levelName ?? "intern";
-            const blurb = LEVEL_BLURBS[levelName] ?? "";
-            return (
-              <li key={s.id} className="px-4 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{s.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {s.slug}
-                      {s.projectId ? "" : " · org-wide"}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${levelPillClass(level)}`}
-                      title={autonomy?.lastReason ?? undefined}
-                    >
-                      {levelName}
-                      {blurb ? <span className="ml-1 font-normal opacity-80">· {blurb}</span> : null}
-                    </span>
-                    <span className={s.enabled ? "text-green-600" : "text-muted-foreground"}>
-                      {s.enabled ? "enabled" : "disabled"}
-                    </span>
-                  </div>
-                </div>
-                {s.description ? <p className="mt-1 text-xs text-muted-foreground">{s.description}</p> : null}
-                {autonomy?.nextReviewAt ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    next autonomy review {relativeTime(autonomy.nextReviewAt)}
-                  </p>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-display text-2xl font-semibold">Skills — autonomy ledger</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Trust over time. Outcomes earn auto-merge; incidents revoke it.
+        </p>
+      </header>
+
+      <RecentEventsBanner events={events} />
+
+      <SkillsLedgerTable rows={rows} distribution={distribution} />
     </div>
   );
 }

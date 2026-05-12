@@ -267,3 +267,63 @@ export async function recomputeSkillAutonomy(skillId: string): Promise<Recompute
     stats,
   };
 }
+
+/**
+ * Trailing-30d outcomes count and a daily sparkline (success-only).
+ */
+export async function getSkillStats30d(skillId: string): Promise<{
+  success: number;
+  rollback: number;
+  incident: number;
+  windowDays: number;
+  sparkline: number[];
+}> {
+  const windowDays = 30;
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({ verdict: skillOutcomes.verdict, recordedAt: skillOutcomes.recordedAt })
+    .from(skillOutcomes)
+    .where(and(eq(skillOutcomes.skillId, skillId), gte(skillOutcomes.recordedAt, since)));
+
+  let success = 0;
+  let rollback = 0;
+  let incident = 0;
+  const dayBuckets = Array.from({ length: windowDays }, () => 0);
+  const start = since.getTime();
+  for (const r of rows) {
+    if (r.verdict === "success") success += 1;
+    else if (r.verdict === "rolled_back") rollback += 1;
+    else if (r.verdict === "incident") incident += 1;
+    const idx = Math.min(
+      windowDays - 1,
+      Math.max(0, Math.floor((r.recordedAt.getTime() - start) / (24 * 60 * 60 * 1000))),
+    );
+    if (r.verdict === "success") dayBuckets[idx] += 1;
+  }
+  return { success, rollback, incident, windowDays, sparkline: dayBuckets };
+}
+
+/**
+ * Recent autonomy events from the ledger. v1 limitation: returns one event
+ * per skill (the most recent state change). A proper history table will
+ * replace this when needed.
+ */
+export async function getRecentAutonomyEvents(
+  organizationId: string,
+  days = 14,
+): Promise<
+  Array<{ skillId: string; level: number; levelSetAt: Date; lastReason: string | null }>
+> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return db
+    .select({
+      skillId: skillAutonomy.skillId,
+      level: skillAutonomy.level,
+      levelSetAt: skillAutonomy.levelSetAt,
+      lastReason: skillAutonomy.lastReason,
+    })
+    .from(skillAutonomy)
+    .where(
+      and(eq(skillAutonomy.organizationId, organizationId), gte(skillAutonomy.levelSetAt, since)),
+    );
+}
