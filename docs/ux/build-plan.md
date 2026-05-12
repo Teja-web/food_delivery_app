@@ -650,7 +650,8 @@ Before committing:
 | Date | Phase | Status | PR | Notes |
 |---|---|---|---|---|
 | 2026-05-12 | Phase 0 | ✅ Done | — | Dark theme default + trust/motion tokens added to `globals.css`. `data-theme="dark"` set on `<html>`. Fixed pre-existing `baseUrl` deprecation in `tsconfig.json` via `ignoreDeprecations: "6.0"`. Other pre-existing TS errors (scripts/worker.ts, lib/crud.ts, page.tsx implicit-any) noted; unrelated to Phase 0 scope. |
-| | Phase 1 | | | |
+| 2026-05-12 | Phase 1 | ✅ Done | — | Installed shadcn primitives via CLI: badge/table/tabs/drawer/sheet/sidebar/command/chart/popover/tooltip/skeleton/sonner/separator/scroll-area/collapsible (plus auto-deps: cmdk, vaul, recharts, next-themes). Built 8 trust composites (`AutonomyPill`, `LevelChange`, `GateDot`, `GateStateRow`, `StatusDot`, `AttributionChip`, `SkillTrackRecord`, `TrendIndicator`) and 2 viz (`Sparkline`, `SmallMultiples`). Playground at `/playground` — note: renamed from plan's `__playground` because Next.js excludes `_`-prefixed folders from routing. Patched `dialog.tsx` to export `DialogDescription` et al for `command.tsx`. |
+| | Phase 2 | | | |
 | | Phase 2 | | | |
 | | Phase 3 (H1) | | | |
 | | Phase 4 (H2) | | | |
