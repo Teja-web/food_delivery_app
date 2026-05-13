@@ -7,6 +7,7 @@ import { plans } from "@/db/schema/plan";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
+import { tryAdvancePhase } from "@/operations/phase-advance";
 import { getSkillAutonomy } from "@/operations/skill-autonomy";
 
 const approvalSchema = z.object({
@@ -102,6 +103,24 @@ export async function decideApproval(args: {
         updatedAt: now,
       })
       .where(and(eq(phaseGates.id, existing.entityId), eq(phaseGates.organizationId, ctx.organizationId)));
+
+    // Auto-advance: when this approval flipped a gate green, check if every
+    // gate in the current phase is now passed/skipped. If so, advance.
+    if (args.decision === "approved") {
+      const gate = await db.query.phaseGates.findFirst({
+        where: and(
+          eq(phaseGates.id, existing.entityId),
+          eq(phaseGates.organizationId, ctx.organizationId),
+        ),
+      });
+      if (gate) {
+        await tryAdvancePhase({
+          organizationId: ctx.organizationId,
+          projectId: gate.projectId,
+          triggeredByName: ctx.user.name ?? "approval-system",
+        });
+      }
+    }
   }
   // release / work_item: caller (release manager, integration handler) does the cascade.
 
@@ -126,10 +145,11 @@ export async function decideApproval(args: {
  */
 export async function canAutoApprove(input: {
   skillId?: string | null;
+  projectId: string | null;
   complexity?: "low" | "medium" | "high";
 }): Promise<boolean> {
   if (!input.skillId) return false;
-  const autonomy = await getSkillAutonomy(input.skillId);
+  const autonomy = await getSkillAutonomy(input.skillId, input.projectId);
   if (autonomy.level >= 3) return true;
   if (autonomy.level >= 2 && input.complexity === "low") return true;
   return false;

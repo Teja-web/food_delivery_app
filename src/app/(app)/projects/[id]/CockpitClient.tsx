@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Check,
   ChevronLeft,
   CircleAlert,
   CircleCheck,
@@ -9,6 +10,7 @@ import {
   ExternalLink,
   Plus,
   Shield,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -172,6 +174,34 @@ export function CockpitClient({ data }: { data: CockpitData }) {
                     </li>
                   ))}
                 </ul>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-trend-up/30 bg-trend-up/[0.04] px-3 py-2">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-trend-up/85">
+                    Allowed for agents
+                  </div>
+                  <ul className="space-y-1 text-xs">
+                    {guidance.allowed.map((a) => (
+                      <li key={a} className="flex items-start gap-1.5 text-foreground/85">
+                        <Check className="mt-0.5 h-3 w-3 shrink-0 text-trend-up" aria-hidden />
+                        <span>{a}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-md border border-state-failed/30 bg-state-failed/[0.04] px-3 py-2">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-state-failed/85">
+                    Forbidden in this phase
+                  </div>
+                  <ul className="space-y-1 text-xs">
+                    {guidance.forbidden.map((a) => (
+                      <li key={a} className="flex items-start gap-1.5 text-muted-foreground">
+                        <X className="mt-0.5 h-3 w-3 shrink-0 text-state-failed/80" aria-hidden />
+                        <span>{a}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
               <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">

@@ -37,6 +37,20 @@ export interface PhaseGuidance {
   description: string;
   suggestedActions: string[];
   nextCondition: string;
+  /**
+   * Verbs an AI agent is explicitly permitted to perform during this phase.
+   * Surfaced to MCP consumers (Cursor / Claude Code) via the context endpoint
+   * and rendered in the cockpit "This phase" card. Borrowed from the
+   * ai-sdlc-framework `sdlc-governance.mdc` discipline model.
+   */
+  allowed: string[];
+  /**
+   * Verbs explicitly forbidden during this phase. The load-bearing boundary:
+   * no source-code work outside the `development` phase. Phase enforcement
+   * for write-side MCP tools should reject calls whose intent matches a
+   * forbidden entry rather than silently succeeding.
+   */
+  forbidden: string[];
 }
 
 /**
@@ -57,6 +71,17 @@ export const PHASE_GUIDANCE: Record<ProjectPhase, PhaseGuidance> = {
       "List explicit non-goals to bound scope",
     ],
     nextCondition: "Three+ requirements with acceptance criteria, requirement quorum gate passed.",
+    allowed: [
+      "Discuss requirements with the user; ask, don't assume",
+      "Draft `requirement` plans (saved as draft until the user pushes)",
+      "Submit drafts for approval via the platform",
+    ],
+    forbidden: [
+      "Inventing requirements without the user's explicit input",
+      "Writing source code, configs, or scaffolding the project",
+      "Running package managers (`npm install`, `pip install`, etc.) or build commands",
+      "Creating git commits or branches",
+    ],
   },
   design: {
     label: "Design",
@@ -68,6 +93,16 @@ export const PHASE_GUIDANCE: Record<ProjectPhase, PhaseGuidance> = {
       "Populate the risk register with mitigations",
     ],
     nextCondition: "ADR quorum reached, architecture review approved, risks logged.",
+    allowed: [
+      "Author ADRs (`adr` plans) and architecture-review notes",
+      "Generate `test_plan` drafts from approved requirements",
+      "Check proposed designs against active project rules",
+    ],
+    forbidden: [
+      "Writing source code or implementation files",
+      "Installing dependencies or scaffolding services",
+      "Bypassing pending ADR approvals to move ahead with implementation",
+    ],
   },
   development: {
     label: "Development",
@@ -79,6 +114,17 @@ export const PHASE_GUIDANCE: Record<ProjectPhase, PhaseGuidance> = {
       "Open `test_plan` and `release_plan` drafts in parallel",
     ],
     nextCondition: "Code review coverage, test coverage, and ADR-required gates all green.",
+    allowed: [
+      "Write and modify source code that complies with active rules",
+      "Open PRs against an approved plan",
+      "Run tests, builds, and package-manager commands",
+      "Create branches and commits",
+    ],
+    forbidden: [
+      "Shipping code that violates an `error`-severity rule",
+      "Merging without coverage or review-quorum gates green",
+      "Skipping the ADR for an architecture-touching change",
+    ],
   },
   testing: {
     label: "Testing",
@@ -91,6 +137,16 @@ export const PHASE_GUIDANCE: Record<ProjectPhase, PhaseGuidance> = {
       "Collect change-advisory sign-off",
     ],
     nextCondition: "Test plan approved, E2E pass rate ≥ threshold, rollback verified, CAB sign-off recorded.",
+    allowed: [
+      "Execute test cases and record results",
+      "Mark test cases passed/failed; auto-pass the QA gate when all approved tests pass",
+      "Author or update `test_plan` plans to cover gaps",
+    ],
+    forbidden: [
+      "Modifying source code (return to `development` to fix a regression)",
+      "Forcing the QA gate green without test evidence",
+      "Skipping the rollback rehearsal",
+    ],
   },
   cicd: {
     label: "CI/CD",
@@ -102,6 +158,16 @@ export const PHASE_GUIDANCE: Record<ProjectPhase, PhaseGuidance> = {
       "Confirm rollback path is one button",
     ],
     nextCondition: "Release plan approved, canary gates green on a real deploy.",
+    allowed: [
+      "Update the `release_plan` with rollout, monitoring, and rollback sections",
+      "Run pipeline diagnostics and canary checks",
+      "Trigger deploys once the release plan is approved",
+    ],
+    forbidden: [
+      "Deploying without an approved release plan",
+      "Bypassing canary thresholds because they're inconvenient",
+      "Touching source code (return to `development`)",
+    ],
   },
   monitoring: {
     label: "Monitoring",
@@ -113,6 +179,15 @@ export const PHASE_GUIDANCE: Record<ProjectPhase, PhaseGuidance> = {
       "Mark complete when the work is retired",
     ],
     nextCondition: "Terminal phase — no automatic advancement.",
+    allowed: [
+      "Open `incident` plans for every page or regression",
+      "Annotate DORA aggregates with root-cause notes",
+      "Archive the project when the work is retired",
+    ],
+    forbidden: [
+      "Hot-patching production without an `incident` plan and rollback record",
+      "Auto-rotating phases backward (use explicit `setPhase` for incident response)",
+    ],
   },
 };
 

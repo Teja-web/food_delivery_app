@@ -42,6 +42,19 @@ export const McpAdrSchema = z.object({
   url: z.string(),
 });
 
+/**
+ * Per-phase tool boundary surfaced to MCP consumers. Borrowed from the
+ * ai-sdlc-framework `sdlc-governance.mdc` discipline model: the agent
+ * uses these to self-police what it can and can't do in the current phase.
+ */
+export const McpPhaseDisciplineSchema = z.object({
+  label: z.string(),
+  description: z.string(),
+  allowed: z.array(z.string()),
+  forbidden: z.array(z.string()),
+  nextCondition: z.string(),
+});
+
 export const McpMetaSchema = z.object({
   responseTimeMs: z.number(),
   cacheStatus: z.enum(["fresh", "stale", "miss"]),
@@ -51,6 +64,7 @@ export const McpMetaSchema = z.object({
 export const McpResponseSchema = z.object({
   project: McpProjectSchema,
   workItem: McpWorkItemSchema.nullable(),
+  phaseDiscipline: McpPhaseDisciplineSchema,
   rules: z.array(McpRuleSchema),
   skills: z.array(McpSkillSchema),
   adrs: z.array(McpAdrSchema),

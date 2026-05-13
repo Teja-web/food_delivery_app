@@ -5,6 +5,7 @@ import { plans } from "@/db/schema/plan";
 import { projects, type Project } from "@/db/schema/project";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill";
+import { PHASE_GUIDANCE } from "@/domain/phases";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill-autonomy";
 
 import type { McpResponse } from "./schemas";
@@ -124,7 +125,7 @@ export async function buildMcpContext(args: {
 
   const skillsWithAutonomy = await Promise.all(
     projectSkills.map(async (s) => {
-      const autonomy = await getSkillAutonomy(s.id);
+      const autonomy = await getSkillAutonomy(s.id, project.id);
       return {
         slug: s.slug,
         level: LEVEL_LABEL[autonomy.levelName],
@@ -133,6 +134,8 @@ export async function buildMcpContext(args: {
       };
     }),
   );
+
+  const guidance = PHASE_GUIDANCE[project.phase];
 
   const response: McpResponse = {
     project: {
@@ -149,6 +152,13 @@ export async function buildMcpContext(args: {
           url: null,
         }
       : null,
+    phaseDiscipline: {
+      label: guidance.label,
+      description: guidance.description,
+      allowed: guidance.allowed,
+      forbidden: guidance.forbidden,
+      nextCondition: guidance.nextCondition,
+    },
     rules: activeRules.map((r) => ({
       id: r.id,
       title: r.title,
