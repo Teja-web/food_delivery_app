@@ -2,9 +2,16 @@
 /**
  * Coznt Onboarding Script
  *
- * Creates organization, owner account, and data sources.
+ * Creates organization + owner account, and optionally seeds a fully
+ * cross-linked sample workspace (4 projects, 5 skills with 30-day autonomy
+ * history, 12 plans, 8 rules, 15 phase gates, 12 approvals, deployments,
+ * DORA metrics, audit log entries) so every UI surface looks alive on first
+ * sign-in.
  *
- * Usage: pnpm db:onboard
+ * Usage:
+ *   pnpm db:onboard                 # interactive (asks about sample data)
+ *   pnpm db:onboard --sample        # non-interactive, seed sample data
+ *   pnpm db:onboard --no-sample     # non-interactive, skip sample seed
  */
 
 import "dotenv/config";
@@ -12,6 +19,15 @@ import { Pool, type PoolClient } from "pg";
 import { createInterface } from "readline/promises";
 import { randomBytes } from "crypto";
 import { hashPassword } from "better-auth/crypto";
+
+import { seedSampleWorkspace } from "../src/operations/seed-sample-workspace";
+
+const argv = new Set(process.argv.slice(2));
+const SAMPLE_FLAG: "yes" | "no" | "ask" = argv.has("--sample")
+  ? "yes"
+  : argv.has("--no-sample")
+    ? "no"
+    : "ask";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -118,9 +134,21 @@ async function main() {
     process.exit(1);
   }
 
+  let seedSample: boolean;
+  if (SAMPLE_FLAG === "yes") seedSample = true;
+  else if (SAMPLE_FLAG === "no") seedSample = false;
+  else {
+    console.log("\nSample workspace:");
+    console.log("  Populates the org with 4 projects, 12 plans, 5 skills (with autonomy");
+    console.log("  history), 8 rules, gates, approvals, deployments, and DORA metrics.");
+    console.log("  Every UI surface lights up on first sign-in.");
+    seedSample = await confirm("Seed sample workspace?", true);
+  }
+
   console.log("\n-----------------------------------------");
   console.log(`  Organization:  ${orgName} (${orgSlug})`);
   console.log(`  Owner:         ${ownerName} <${ownerEmail}>`);
+  console.log(`  Sample data:   ${seedSample ? "yes" : "no"}`);
   console.log("-----------------------------------------");
 
   const proceed = await confirm("Proceed?", true);
@@ -133,6 +161,8 @@ async function main() {
   rl.close();
 
   const client = await pool.connect();
+  let owner: { userId: string; name: string; email: string } | undefined;
+  let orgIdForSeed: string | undefined;
 
   try {
     await client.query("BEGIN");
@@ -141,8 +171,9 @@ async function main() {
 
     console.log("\nCreating organization...");
     const orgId = await seedOrganization(client, orgName, orgSlug);
+    orgIdForSeed = orgId;
     console.log("Creating owner...");
-    const owner = await seedOwner(client, orgId, ownerName, ownerEmail, password);
+    owner = await seedOwner(client, orgId, ownerName, ownerEmail, password);
 
     console.log("Seeding default department...");
     await client.query(`
@@ -152,12 +183,6 @@ async function main() {
     console.log("  Default");
 
     await client.query("COMMIT");
-
-    console.log("\n=========================================");
-    console.log("       ONBOARDING COMPLETE");
-    console.log("=========================================");
-    console.log(`\n  Login: ${ownerEmail} / ${password}`);
-    console.log("\n  Run 'pnpm dev' to start the app\n");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -165,6 +190,29 @@ async function main() {
     client.release();
     await pool.end();
   }
+
+  if (seedSample && owner && orgIdForSeed) {
+    console.log("\nSeeding sample workspace...");
+    const result = await seedSampleWorkspace({
+      organizationId: orgIdForSeed,
+      userId: owner.userId,
+      userName: owner.name,
+    });
+    if (result.inserted) {
+      const c = result.counts;
+      console.log(`  ${c.projects} projects · ${c.plans} plans · ${c.skills} skills (${c.autonomyRows} autonomy rows, ${c.skillOutcomes} outcomes)`);
+      console.log(`  ${c.rules} rules · ${c.gates} gates · ${c.approvals} approvals · ${c.bindings} adapter bindings`);
+      console.log(`  ${c.deployments} deployments · ${c.metrics} metric rows · ${c.auditLogs} audit entries`);
+    } else {
+      console.log("  Skipped — org already has projects.");
+    }
+  }
+
+  console.log("\n=========================================");
+  console.log("       ONBOARDING COMPLETE");
+  console.log("=========================================");
+  console.log(`\n  Login: ${ownerEmail} / ${password}`);
+  console.log("\n  Run 'pnpm dev' to start the app\n");
 }
 
 main().then(() => process.exit(0)).catch((error) => {
