@@ -4,6 +4,7 @@ import type { AdapterBinding } from "@/db/schema/adapter-binding";
 import type { PhaseGate } from "@/db/schema/phase-gate";
 import type { Plan } from "@/db/schema/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
+import type { Rule, RuleSeverity } from "@/db/schema/rule";
 import type { PhaseGuidance } from "@/domain/phases";
 
 export interface CockpitProjectClient {
@@ -45,6 +46,17 @@ export interface CockpitPlanClient {
   updatedAt: string;
 }
 
+export interface CockpitRuleClient {
+  id: string;
+  slug: string;
+  title: string;
+  severity: RuleSeverity;
+  scope: "project" | "org";
+  /** null = all phases */
+  phase: string | null;
+  tags: string[];
+}
+
 export interface CockpitClient {
   project: CockpitProjectClient;
   nextPhase: ProjectPhase | null;
@@ -55,6 +67,7 @@ export interface CockpitClient {
   gatesAllPassed: boolean;
   bindings: CockpitBindingClient[];
   plans: CockpitPlanClient[];
+  rules: CockpitRuleClient[];
   apiKey: {
     prefix: string;
     /** Only present when newly minted in this request. */
@@ -119,5 +132,17 @@ export function serializeCockpitPlan(p: Plan): CockpitPlanClient {
     kind: p.kind,
     status: p.status,
     updatedAt: p.updatedAt.toISOString(),
+  };
+}
+
+export function serializeCockpitRule(r: Rule, currentProjectId: string): CockpitRuleClient {
+  return {
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    severity: r.severity,
+    scope: r.projectId === currentProjectId ? "project" : "org",
+    phase: r.phase ?? null,
+    tags: r.tags ?? [],
   };
 }

@@ -4,28 +4,36 @@
  * Borrowed from ai-sdlc-framework `spec/autonomy.md`; see
  * `docs/borrowings-from-ai-sdlc-framework.md` section 3.
  *
+ * Per-project: autonomy is scored per (skillId, projectId) pair. A skill that
+ * earns senior-level on a docs-only repo restarts at intern on a payments
+ * service. NULL projectId is reserved for legacy / org-wide rows; new code
+ * paths must always populate it.
+ *
  * Pipeline:
  *
  *   invokeSkill() → recordSkillOutcome()  ── PG trigger ──▶ pgmq
  *                                                            │
  *                                                            ▼
- *                                          recomputeSkillAutonomy(skillId)
+ *                              recomputeSkillAutonomy(skillId, projectId)
  *                                                            │
  *                                                            ▼
- *                                                upsert skill_autonomy row
+ *                                          upsert skill_autonomy row
+ *                                          keyed by (skillId, projectId)
  *
  * Defaults (constants below): 30-day window, >=90% success and 0 critical
  * incidents and >=14 days at current level to promote; immediate demotion on
- * any verdict at severity=critical. New skills default to level 0 — we don't
- * eagerly insert rows, `getSkillAutonomy()` returns an in-memory default when
- * no row exists yet.
+ * any verdict at severity=critical. New (skill, project) pairs default to
+ * level 0 — we don't eagerly insert rows; `getSkillAutonomy()` returns an
+ * in-memory default when no row exists yet.
  */
 
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, type SQL } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import { skillOutcomes, type SkillOutcomeVerdict, type SkillOutcomeSeverity } from "@/db/schema/skill-outcome";
 import { skillAutonomy } from "@/db/schema/skill-autonomy";
 import { skills } from "@/db/schema/skill";
+import { projects } from "@/db/schema/project";
 
 export const LEVEL_NAMES = ["intern", "junior", "senior", "principal"] as const;
 export type LevelName = (typeof LEVEL_NAMES)[number];
@@ -45,8 +53,14 @@ const MAX_LEVEL = 3;
 const MIN_LEVEL = 0;
 const MIN_SAMPLES_FOR_PROMOTION = 5;
 
+function projectIdMatches(column: AnyPgColumn, projectId: string | null): SQL {
+  return projectId === null ? isNull(column) : eq(column, projectId);
+}
+
 export interface RecordSkillOutcomeInput {
   skillId: string;
+  /** Project the outcome belongs to. Pass null for legacy / org-wide invocations. */
+  projectId: string | null;
   invocationId?: string | null;
   verdict: SkillOutcomeVerdict;
   severity?: SkillOutcomeSeverity | null;
@@ -69,6 +83,7 @@ export async function recordSkillOutcome(input: RecordSkillOutcomeInput) {
     .values({
       organizationId: skill.organizationId,
       skillId: input.skillId,
+      projectId: input.projectId,
       invocationId: input.invocationId ?? null,
       verdict: input.verdict,
       severity: input.severity ?? null,
@@ -79,6 +94,7 @@ export async function recordSkillOutcome(input: RecordSkillOutcomeInput) {
 
 export interface SkillAutonomyState {
   skillId: string;
+  projectId: string | null;
   organizationId: string | null;
   level: number;
   levelName: LevelName;
@@ -88,15 +104,21 @@ export interface SkillAutonomyState {
   lastReason: string | null;
 }
 
-function asState(skillId: string, organizationId: string | null, row: {
-  level: number;
-  levelSetAt: Date;
-  lastReviewedAt: Date | null;
-  nextReviewAt: Date | null;
-  lastReason: string | null;
-}): SkillAutonomyState {
+function asState(
+  skillId: string,
+  projectId: string | null,
+  organizationId: string | null,
+  row: {
+    level: number;
+    levelSetAt: Date;
+    lastReviewedAt: Date | null;
+    nextReviewAt: Date | null;
+    lastReason: string | null;
+  },
+): SkillAutonomyState {
   return {
     skillId,
+    projectId,
     organizationId,
     level: row.level,
     levelName: LEVEL_NAMES[row.level] ?? "intern",
@@ -108,19 +130,27 @@ function asState(skillId: string, organizationId: string | null, row: {
 }
 
 /**
- * Returns the current autonomy row, or a synthesised level-0 default when no
- * row exists yet (i.e. the skill has never been reviewed). Callers that need
- * to *write* should always upsert via `recomputeSkillAutonomy()`.
+ * Returns the current autonomy row for a (skill, project) pair, or a
+ * synthesised level-0 default when no row exists yet. Pass `projectId = null`
+ * to get the legacy / org-wide row. Callers that need to *write* should
+ * always upsert via `recomputeSkillAutonomy()`.
  */
-export async function getSkillAutonomy(skillId: string): Promise<SkillAutonomyState> {
+export async function getSkillAutonomy(
+  skillId: string,
+  projectId: string | null,
+): Promise<SkillAutonomyState> {
   const row = await db.query.skillAutonomy.findFirst({
-    where: eq(skillAutonomy.skillId, skillId),
+    where: and(
+      eq(skillAutonomy.skillId, skillId),
+      projectIdMatches(skillAutonomy.projectId, projectId),
+    ),
   });
   if (row) {
-    return asState(skillId, row.organizationId, row);
+    return asState(skillId, row.projectId, row.organizationId, row);
   }
   return {
     skillId,
+    projectId,
     organizationId: null,
     level: 0,
     levelName: "intern",
@@ -140,7 +170,11 @@ interface WindowStats {
   successRate: number;
 }
 
-async function loadWindowStats(skillId: string, windowDays = WINDOW_DAYS): Promise<WindowStats> {
+async function loadWindowStats(
+  skillId: string,
+  projectId: string | null,
+  windowDays = WINDOW_DAYS,
+): Promise<WindowStats> {
   const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   const rows = await db
     .select({
@@ -148,7 +182,13 @@ async function loadWindowStats(skillId: string, windowDays = WINDOW_DAYS): Promi
       severity: skillOutcomes.severity,
     })
     .from(skillOutcomes)
-    .where(and(eq(skillOutcomes.skillId, skillId), gte(skillOutcomes.recordedAt, since)));
+    .where(
+      and(
+        eq(skillOutcomes.skillId, skillId),
+        projectIdMatches(skillOutcomes.projectId, projectId),
+        gte(skillOutcomes.recordedAt, since),
+      ),
+    );
 
   let successes = 0;
   let rollbacks = 0;
@@ -183,18 +223,22 @@ export interface RecomputeResult {
 }
 
 /**
- * Apply promotion/demotion rules to a skill's autonomy ledger and upsert
- * the result. Idempotent — safe to call repeatedly from the worker.
+ * Apply promotion/demotion rules to a (skill, project) pair's autonomy
+ * ledger and upsert the result. Idempotent — safe to call repeatedly from
+ * the worker.
  */
-export async function recomputeSkillAutonomy(skillId: string): Promise<RecomputeResult> {
+export async function recomputeSkillAutonomy(
+  skillId: string,
+  projectId: string | null,
+): Promise<RecomputeResult> {
   const skill = await db.query.skills.findFirst({
     where: eq(skills.id, skillId),
     columns: { id: true, organizationId: true },
   });
   if (!skill) throw new Error(`Skill ${skillId} not found`);
 
-  const current = await getSkillAutonomy(skillId);
-  const stats = await loadWindowStats(skillId);
+  const current = await getSkillAutonomy(skillId, projectId);
+  const stats = await loadWindowStats(skillId, projectId);
   const now = new Date();
   const nextReviewAt = new Date(now.getTime() + REVIEW_INTERVAL_HOURS * 60 * 60 * 1000);
 
@@ -240,6 +284,7 @@ export async function recomputeSkillAutonomy(skillId: string): Promise<Recompute
     .insert(skillAutonomy)
     .values({
       skillId,
+      projectId,
       organizationId: skill.organizationId,
       level: newLevel,
       levelSetAt,
@@ -248,7 +293,7 @@ export async function recomputeSkillAutonomy(skillId: string): Promise<Recompute
       lastReason: reason,
     })
     .onConflictDoUpdate({
-      target: skillAutonomy.skillId,
+      target: [skillAutonomy.skillId, skillAutonomy.projectId],
       set: {
         level: newLevel,
         levelSetAt,
@@ -269,9 +314,14 @@ export async function recomputeSkillAutonomy(skillId: string): Promise<Recompute
 }
 
 /**
- * Trailing-30d outcomes count and a daily sparkline (success-only).
+ * Trailing-30d outcomes count and a daily sparkline (success-only) for one
+ * (skill, project) pair. Pass `projectId = null` for the legacy / org-wide
+ * aggregate.
  */
-export async function getSkillStats30d(skillId: string): Promise<{
+export async function getSkillStats30d(
+  skillId: string,
+  projectId: string | null,
+): Promise<{
   success: number;
   rollback: number;
   incident: number;
@@ -283,7 +333,13 @@ export async function getSkillStats30d(skillId: string): Promise<{
   const rows = await db
     .select({ verdict: skillOutcomes.verdict, recordedAt: skillOutcomes.recordedAt })
     .from(skillOutcomes)
-    .where(and(eq(skillOutcomes.skillId, skillId), gte(skillOutcomes.recordedAt, since)));
+    .where(
+      and(
+        eq(skillOutcomes.skillId, skillId),
+        projectIdMatches(skillOutcomes.projectId, projectId),
+        gte(skillOutcomes.recordedAt, since),
+      ),
+    );
 
   let success = 0;
   let rollback = 0;
@@ -304,20 +360,65 @@ export async function getSkillStats30d(skillId: string): Promise<{
 }
 
 /**
+ * Recent outcomes for a single skill — the "receipts" behind the autonomy
+ * level. Joins the project name so the detail page can render where the
+ * outcome was produced; left-joins so legacy / org-wide rows (projectId =
+ * null) still render with no project label.
+ */
+export async function getRecentSkillOutcomes(
+  skillId: string,
+  limit = 20,
+): Promise<
+  Array<{
+    id: string;
+    verdict: SkillOutcomeVerdict;
+    severity: SkillOutcomeSeverity | null;
+    recordedAt: Date;
+    projectId: string | null;
+    projectName: string | null;
+    invocationId: string | null;
+  }>
+> {
+  const rows = await db
+    .select({
+      id: skillOutcomes.id,
+      verdict: skillOutcomes.verdict,
+      severity: skillOutcomes.severity,
+      recordedAt: skillOutcomes.recordedAt,
+      projectId: skillOutcomes.projectId,
+      projectName: projects.name,
+      invocationId: skillOutcomes.invocationId,
+    })
+    .from(skillOutcomes)
+    .leftJoin(projects, eq(projects.id, skillOutcomes.projectId))
+    .where(eq(skillOutcomes.skillId, skillId))
+    .orderBy(desc(skillOutcomes.recordedAt))
+    .limit(limit);
+  return rows;
+}
+
+/**
  * Recent autonomy events from the ledger. v1 limitation: returns one event
- * per skill (the most recent state change). A proper history table will
- * replace this when needed.
+ * per (skill, project) pair (the most recent state change). A proper history
+ * table will replace this when needed.
  */
 export async function getRecentAutonomyEvents(
   organizationId: string,
   days = 14,
 ): Promise<
-  Array<{ skillId: string; level: number; levelSetAt: Date; lastReason: string | null }>
+  Array<{
+    skillId: string;
+    projectId: string | null;
+    level: number;
+    levelSetAt: Date;
+    lastReason: string | null;
+  }>
 > {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   return db
     .select({
       skillId: skillAutonomy.skillId,
+      projectId: skillAutonomy.projectId,
       level: skillAutonomy.level,
       levelSetAt: skillAutonomy.levelSetAt,
       lastReason: skillAutonomy.lastReason,

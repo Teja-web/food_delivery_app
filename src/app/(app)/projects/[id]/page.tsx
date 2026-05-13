@@ -7,6 +7,7 @@ import { canAdvanceFrom, nextPhase, PHASE_GUIDANCE } from "@/domain/phases";
 import { listBindingsForProject } from "@/operations/adapter-bindings";
 import { getOrCreateProjectKey } from "@/operations/api-keys";
 import { listPlansByProject } from "@/operations/plans";
+import { listRulesForProject } from "@/operations/rules";
 
 import { CockpitClient } from "./CockpitClient";
 import {
@@ -14,6 +15,7 @@ import {
   serializeCockpitGate,
   serializeCockpitPlan,
   serializeCockpitProject,
+  serializeCockpitRule,
   type CockpitClient as CockpitData,
 } from "./serialize";
 
@@ -26,10 +28,11 @@ export default async function ProjectDetailPage({
   const project = (await getProject(id)) as Project | null;
   if (!project) notFound();
 
-  const [plans, gates, bindings, apiKey] = await Promise.all([
+  const [plans, gates, bindings, rules, apiKey] = await Promise.all([
     listPlansByProject(id, { limit: 50 }),
     listGatesForPhase(id, project.phase),
     listBindingsForProject(id),
+    listRulesForProject(id, project.phase),
     getOrCreateProjectKey(id),
   ]);
 
@@ -50,6 +53,7 @@ export default async function ProjectDetailPage({
     gatesAllPassed,
     bindings: bindings.map(serializeCockpitBinding),
     plans: plans.map(serializeCockpitPlan),
+    rules: rules.map((r) => serializeCockpitRule(r, id)),
     apiKey,
   };
 

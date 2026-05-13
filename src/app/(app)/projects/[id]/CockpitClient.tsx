@@ -8,6 +8,7 @@ import {
   CircleX,
   ExternalLink,
   Plus,
+  Shield,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -18,7 +19,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import { ConnectCursorModal } from "./ConnectCursorModal";
-import type { CockpitClient as CockpitData, CockpitGateClient } from "./serialize";
+import type { CockpitClient as CockpitData, CockpitGateClient, CockpitRuleClient } from "./serialize";
+
+const SEVERITY_CLASS: Record<CockpitRuleClient["severity"], string> = {
+  info: "border-border/60 text-muted-foreground",
+  warn: "border-state-pending/40 text-state-pending",
+  error: "border-state-failed/40 text-state-failed",
+};
 
 const PHASE_LABEL: Record<CockpitData["project"]["phase"], string> = {
   requirements: "REQUIREMENTS",
@@ -72,7 +79,9 @@ function GateRow({ gate }: { gate: CockpitGateClient }) {
 
 export function CockpitClient({ data }: { data: CockpitData }) {
   const [cursorOpen, setCursorOpen] = useState(false);
-  const { project, guidance, gates, gatesAllPassed, plans, bindings, nextPhase, canAdvance, blockedReason } = data;
+  const { project, guidance, gates, gatesAllPassed, plans, bindings, rules, nextPhase, canAdvance, blockedReason } = data;
+  const projectScopedRules = rules.filter((r) => r.scope === "project").length;
+  const orgScopedRules = rules.length - projectScopedRules;
 
   return (
     <div className="space-y-6">
@@ -269,6 +278,71 @@ export function CockpitClient({ data }: { data: CockpitData }) {
                   {plans.length > 8 ? (
                     <li className="pt-1 text-xs text-muted-foreground">
                       + {plans.length - 8} more
+                    </li>
+                  ) : null}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Shield className="h-3 w-3" aria-hidden />
+                    Policies in force · {rules.length}
+                  </span>
+                </CardTitle>
+                {rules.length > 0 ? (
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {projectScopedRules}p · {orgScopedRules}o
+                  </span>
+                ) : null}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {rules.length === 0 ? (
+                <Link
+                  href="/rules"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  No policies apply at this phase · + Declare a rule
+                </Link>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {rules.slice(0, 8).map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/rules?slug=${encodeURIComponent(r.slug)}`}
+                        className="min-w-0 truncate hover:underline"
+                        title={r.title}
+                      >
+                        {r.title}
+                      </Link>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "px-1.5 py-0 font-mono text-[10px] uppercase",
+                            SEVERITY_CLASS[r.severity],
+                          )}
+                        >
+                          {r.severity}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className="px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
+                          title={r.scope === "project" ? "Scoped to this project" : "Applies org-wide"}
+                        >
+                          {r.scope === "project" ? "proj" : "org"}
+                        </Badge>
+                      </span>
+                    </li>
+                  ))}
+                  {rules.length > 8 ? (
+                    <li className="pt-1 text-xs text-muted-foreground">
+                      + {rules.length - 8} more · <Link href="/rules" className="hover:underline">open rules</Link>
                     </li>
                   ) : null}
                 </ul>

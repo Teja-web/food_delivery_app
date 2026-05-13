@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, CircleCheck, CircleX, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkline } from "@/components/viz/Sparkline";
 import type { Skill } from "@/db/schema/skill";
+import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
 import { getSkill } from "@/actions/skills";
 import {
+  getRecentSkillOutcomes,
   getSkillAutonomy,
   getSkillStats30d,
   LEVEL_BLURBS,
@@ -16,12 +18,70 @@ import {
 
 import { levelLabel } from "../serialize";
 
-const LEVEL_CRITERIA: Record<"INTERN" | "JUNIOR" | "SENIOR" | "PRINCIPAL", string> = {
+type LevelKey = "INTERN" | "JUNIOR" | "SENIOR" | "PRINCIPAL";
+
+const LEVEL_CRITERIA: Record<LevelKey, string> = {
   INTERN: "5+ successful invocations to reach Junior",
   JUNIOR: "≥90% success rate across 5+ invocations and ≥14 days at level to reach Senior",
   SENIOR: "≥90% success rate, no critical incidents, ≥14 days at level to reach Principal",
   PRINCIPAL: "Top of the ladder. Stays until a critical incident demotes.",
 };
+
+/**
+ * What each autonomy level concretely permits inside coznt. This is the
+ * "what changes when the skill is promoted?" answer — the missing half of
+ * the trust-earned moment from `docs/ux/moments.md`. Edits here should be
+ * paired with policy changes in `src/operations/approvals.ts` so the UI
+ * doesn't drift from runtime behaviour.
+ */
+const LEVEL_PERMISSIONS: Record<LevelKey, { granted: string[]; gated: string[] }> = {
+  INTERN: {
+    granted: ["Read-only access to project context", "Can draft plans, gates, and PR comments"],
+    gated: ["Cannot self-approve any change", "Cannot mutate releases or production state"],
+  },
+  JUNIOR: {
+    granted: [
+      "Can open PRs and propose plan revisions",
+      "Can request approval — every change still routes through a human",
+    ],
+    gated: ["No auto-approve", "No release-channel writes"],
+  },
+  SENIOR: {
+    granted: [
+      "Auto-approve eligible for low-risk PRs (work_item, plan)",
+      "Can advance phase gates of type APPROVAL when scoped to its project",
+    ],
+    gated: ["Production releases still require human sign-off", "Demotes on a single critical incident"],
+  },
+  PRINCIPAL: {
+    granted: [
+      "Auto-approve eligible for all entity types within its project",
+      "Can promote junior skills it co-signs with",
+      "Minimal oversight on routine changes",
+    ],
+    gated: ["Cannot demote peer skills", "Demotes on a single critical incident (no warning)"],
+  },
+};
+
+const VERDICT_META: Record<
+  SkillOutcomeVerdict,
+  { label: string; tone: string; Icon: typeof CircleCheck }
+> = {
+  success: { label: "success", tone: "border-trend-up/40 text-trend-up", Icon: CircleCheck },
+  rolled_back: { label: "rolled back", tone: "border-state-pending/40 text-state-pending", Icon: Undo2 },
+  incident: { label: "incident", tone: "border-state-failed/40 text-state-failed", Icon: CircleX },
+};
+
+function formatAge(date: Date): string {
+  const ms = Date.now() - date.getTime();
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return date.toLocaleDateString();
+}
 
 export default async function SkillDetailPage({
   params,
@@ -32,9 +92,16 @@ export default async function SkillDetailPage({
   const skill = (await getSkill(id)) as Skill | null;
   if (!skill) notFound();
 
-  const [autonomy, stats] = await Promise.all([getSkillAutonomy(skill.id), getSkillStats30d(skill.id)]);
+  // Transitional: org-wide view (projectId=null). Per-project breakdown lands
+  // in Milestone B alongside the skills ledger redesign.
+  const [autonomy, stats, recent] = await Promise.all([
+    getSkillAutonomy(skill.id, null),
+    getSkillStats30d(skill.id, null),
+    getRecentSkillOutcomes(skill.id, 20),
+  ]);
   const label = levelLabel(autonomy.level);
   const sparkDirection = stats.success === 0 ? "flat" : stats.incident > 0 ? "down" : "up";
+  const permissions = LEVEL_PERMISSIONS[label];
 
   return (
     <div className="space-y-6">
@@ -134,9 +201,108 @@ export default async function SkillDetailPage({
               ) : null}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Recent receipts · {recent.length}
+                </CardTitle>
+                <Link
+                  href={`/audit?scope=skills`}
+                  className="font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  open audit log →
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {recent.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No invocations recorded yet. Outcomes appear here as the skill runs.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {recent.map((r) => {
+                    const meta = VERDICT_META[r.verdict];
+                    return (
+                      <li key={r.id} className="flex items-center gap-3 py-1.5 first:pt-0 last:pb-0">
+                        <meta.Icon
+                          className={`h-3.5 w-3.5 shrink-0 ${meta.tone.split(" ").find((c) => c.startsWith("text-")) ?? ""}`}
+                          aria-hidden
+                        />
+                        <Badge
+                          variant="outline"
+                          className={`shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase ${meta.tone}`}
+                        >
+                          {meta.label}
+                        </Badge>
+                        {r.severity ? (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
+                          >
+                            {r.severity}
+                          </Badge>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate text-xs text-foreground/85">
+                          {r.projectName ? (
+                            <Link href={`/projects/${r.projectId}`} className="hover:underline">
+                              {r.projectName}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground">org-wide</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                          {formatAge(r.recordedAt)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                What {label.toLowerCase()} unlocks
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0 text-xs">
+              <div>
+                <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-trend-up/80">
+                  Granted
+                </div>
+                <ul className="space-y-1">
+                  {permissions.granted.map((p) => (
+                    <li key={p} className="flex items-start gap-2 text-foreground/85">
+                      <CircleCheck className="mt-0.5 h-3 w-3 shrink-0 text-trend-up" aria-hidden />
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+                  Still gated
+                </div>
+                <ul className="space-y-1">
+                  {permissions.gated.map((p) => (
+                    <li key={p} className="flex items-start gap-2 text-muted-foreground">
+                      <CircleX className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">

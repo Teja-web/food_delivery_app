@@ -106,7 +106,7 @@ export function MarketingLanding() {
               <ThesisPoint icon={Sparkles} title="Governed skills" body="Intern → Junior → Senior → Principal. Promotion has 30d receipts." />
               <ThesisPoint icon={Milestone} title="Deterministic gates" body="Same project state always yields the same gate result. Diffs shown." />
               <ThesisPoint icon={Activity} title="Causal DORA" body="Spike attributed to specific deploys, skills, and autonomy state at the time." />
-              <ThesisPoint icon={Shield} title="Signed audit log" body="Reviewer recorded with session ID at the time, not their current role." />
+              <ThesisPoint icon={Shield} title="Reproducible audit log" body="Every row hashes its fields. Exports are byte-stable — diff yesterday's against today's to spot drift." />
             </ul>
           </div>
         </div>
