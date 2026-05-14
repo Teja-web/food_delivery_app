@@ -23,11 +23,17 @@
     "db:onboard": "tsx scripts/db-onboard.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "mcp": "tsx src/mcp/bin.ts",
+    "mcp:build": "tsc -p tsconfig.mcp.json"
+  },
+  "bin": {
+    "coznt-mcp": "./src/mcp/bin.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^3.0.33",
     "@ai-sdk/openai": "^3.0.50",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "ai": "^6.0.146",
