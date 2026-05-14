@@ -55,7 +55,7 @@ It continuously converts proven execution patterns into safe autonomous delivery
 
 Coznt is the layer above all of these — the only one that closes the loop between AI taking action and an organization being able to trust it with more.
 
-**Coznt is MCP-compatible, not Cursor-bound.** Coznt ships a Model Context Protocol server (`@coznt/mcp`) any compliant agent client mounts — Cursor, Claude Code, Cline, Continue, Zed, custom agents via the MCP SDK. The platform never requires a specific IDE; the IDE is one of several inputs the organization observes.
+**Coznt is MCP-compatible, not Cursor-bound.** Coznt ships a Model Context Protocol server any compliant agent client mounts — Cursor, Claude Code, Cline, Continue, Zed, custom agents via the MCP SDK. The server is distributed privately (bundled with the coznt deployment or via the customer's internal artifact registry) — coznt is for governed orgs whose supply-chain policy won't tolerate public-registry pulls. The platform never requires a specific IDE; the IDE is one of several inputs the organization observes.
 
 **A trace, end-to-end:** Devin's agent in Cursor pulls his context — project, phase, allowed/forbidden, his skill's autonomy level. The agent opens a PR; coznt evaluates and posts a `success` check-run because the skill is Senior and the change is medium-risk. A week later the same skill ships an incident on a sibling project — the ledger demotes it to Intern within 5 minutes, and the agent's three other open PRs flip from passing to blocked automatically. The CISO queries `/audit` filtered to that skill's window and gets a reproducible CSV with the full chain: who reviewed, what was approved, when autonomy changed, which PRs were affected.
 
