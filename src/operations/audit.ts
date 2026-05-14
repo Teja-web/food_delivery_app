@@ -58,7 +58,11 @@ const SCOPE_ENTITY_FILTER: Record<AuditScope, string[] | null> = {
 };
 
 function hashSignature(parts: Array<string | number | null | undefined>): string {
-  // Stable short hash; reproducible per row. Not cryptographic.
+  // Fallback for rows that don't have a chain-computed row_hash (e.g.
+  // skill_outcomes — not chained yet, and the in-memory fixture rows used
+  // before any real data lands). Stable short hash; reproducible per row.
+  // Not cryptographic. The real audit_logs.row_hash takes precedence in
+  // `unifiedSignature()` below.
   const s = parts.map((p) => (p == null ? "" : String(p))).join("|");
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
@@ -260,14 +264,19 @@ export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[
       summary: a.summary,
       severity: null,
       verdict: null,
-      signature: hashSignature([
-        a.organizationId,
-        a.id,
-        a.action,
-        a.entityType,
-        a.entityId,
-        a.createdAt.getTime(),
-      ]),
+      // Prefer the chain-computed row_hash (sha256) when present — that's
+      // the value the verifier walks. Fall back to the stable short hash
+      // for rows inserted before the trigger landed and not yet backfilled.
+      signature:
+        a.rowHash?.slice(0, 12) ??
+        hashSignature([
+          a.organizationId,
+          a.id,
+          a.action,
+          a.entityType,
+          a.entityId,
+          a.createdAt.getTime(),
+        ]),
     });
   }
   for (const { outcome, skill } of outcomeRows) {

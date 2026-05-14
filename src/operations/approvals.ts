@@ -13,6 +13,11 @@ import { getSkillAutonomy } from "@/operations/skill-autonomy";
 const approvalSchema = z.object({
   entityType: z.enum(APPROVAL_ENTITY_TYPES),
   entityId: z.string().min(1),
+  /**
+   * Optional at the API boundary — `resolveProjectIdForApproval` fills it
+   * in when the caller didn't supply it, by looking up the target entity.
+   */
+  projectId: z.string().nullable().optional(),
   phase: z.string().optional(),
   requestedById: z.string().min(1),
   requestedByName: z.string().optional(),
@@ -20,6 +25,52 @@ const approvalSchema = z.object({
   approverIds: z.array(z.string()).optional(),
   status: z.enum(APPROVAL_STATUSES).default("pending"),
 });
+
+/**
+ * Look up the project the target entity belongs to. Used at approval-create
+ * time so portfolio rollup counts are real instead of org-total-divided-by-N.
+ *
+ *   plan        → plans.projectId
+ *   phase_gate  → phase_gates.projectId
+ *   work_item   → work_items.projectId
+ *   release     → encoded in entityId as `<projectId>:<version>` per the
+ *                 release-plan convention; fall back to null if unparseable
+ */
+export async function resolveProjectIdForApproval(
+  entityType: ApprovalEntityType,
+  entityId: string,
+): Promise<string | null> {
+  if (entityType === "plan") {
+    const [row] = await db
+      .select({ projectId: plans.projectId })
+      .from(plans)
+      .where(eq(plans.id, entityId))
+      .limit(1);
+    return row?.projectId ?? null;
+  }
+  if (entityType === "phase_gate") {
+    const [row] = await db
+      .select({ projectId: phaseGates.projectId })
+      .from(phaseGates)
+      .where(eq(phaseGates.id, entityId))
+      .limit(1);
+    return row?.projectId ?? null;
+  }
+  if (entityType === "work_item") {
+    const { workItems } = await import("@/db/schema/work-item");
+    const [row] = await db
+      .select({ projectId: workItems.projectId })
+      .from(workItems)
+      .where(eq(workItems.id, entityId))
+      .limit(1);
+    return row?.projectId ?? null;
+  }
+  if (entityType === "release") {
+    const colonIdx = entityId.indexOf(":");
+    return colonIdx > 0 ? entityId.slice(0, colonIdx) : null;
+  }
+  return null;
+}
 
 export const approvalCrud = createEntityCrud({
   db,
@@ -29,6 +80,21 @@ export const approvalCrud = createEntityCrud({
   schema: approvalSchema,
   onMutate: () => safeRevalidate("/approvals"),
 });
+
+/**
+ * Preferred create path — resolves projectId from the target entity before
+ * inserting, so portfolio rollup counts are accurate. `approvalCrud.create`
+ * still works for callers that already know the projectId.
+ */
+export async function createApprovalWithProjectResolution(
+  input: z.input<typeof approvalSchema>,
+): Promise<Awaited<ReturnType<typeof approvalCrud.create>>> {
+  const projectId =
+    input.projectId !== undefined
+      ? input.projectId
+      : await resolveProjectIdForApproval(input.entityType, input.entityId);
+  return approvalCrud.create({ ...input, projectId });
+}
 
 export async function listApprovalsForEntity(entityType: ApprovalEntityType, entityId: string) {
   const ctx = await getActionContext();

@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { metrics, METRIC_TYPES, type MetricType } from "@/db/schema/metric";
 import { projects, type Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
+import { computeProjectDora, type DoraMetric as DoraComposeMetric } from "@/operations/dora-compose";
 
 const metricSchema = z.object({
   projectId: z.string().optional().nullable(),
@@ -258,26 +259,38 @@ export async function getPortfolioMetrics(windowDays = 30): Promise<PortfolioMet
     .where(and(eq(projects.organizationId, ctx.organizationId), eq(projects.status, "active")))
     .orderBy(projects.createdAt);
 
-  const { aggregates, attribution } = aggregateFixture(windowDays);
+  // Real per-project DORA from the metrics table. Fixture overlay only fills
+  // gaps when no metric rows exist for a project — once data flows, the
+  // fixture is invisible.
+  const doraResults = await Promise.all(
+    projectRows.map((p) => computeProjectDora(p.id, windowDays)),
+  );
 
-  const columns: DoraProjectColumn[] = projectRows.map((p) => {
+  const columns: DoraProjectColumn[] = projectRows.map((p, i) => {
     const fixture = PROJECT_FIXTURES[p.slug] ?? {};
+    const real = doraResults[i];
     const cells: DoraProjectColumn["cells"] = {
       lead_time: null,
       deployment_frequency: null,
       change_failure_rate: null,
       mttr: null,
     };
-    for (const m of ["lead_time", "deployment_frequency", "change_failure_rate", "mttr"] as DoraMetric[]) {
+    for (const m of ["lead_time", "deployment_frequency", "change_failure_rate", "mttr"] as DoraComposeMetric[]) {
+      const realCell = real.cells[m];
+      if (realCell) {
+        cells[m] = realCell;
+        continue;
+      }
       const f = fixture[m];
-      if (!f) continue;
-      cells[m] = {
-        value: f.value,
-        unit: METRIC_UNIT[m],
-        sparkline: f.sparkline,
-        direction: f.direction,
-        wowDelta: f.wowDelta,
-      };
+      if (f) {
+        cells[m] = {
+          value: f.value,
+          unit: METRIC_UNIT[m],
+          sparkline: f.sparkline,
+          direction: f.direction,
+          wowDelta: f.wowDelta,
+        };
+      }
     }
     return {
       id: p.id,
@@ -288,6 +301,21 @@ export async function getPortfolioMetrics(windowDays = 30): Promise<PortfolioMet
     };
   });
 
+  // Portfolio aggregates: average non-null per-project values. If every
+  // project lacks real data, fall back to the demo fixture aggregates so
+  // a freshly-seeded workspace still renders the H5 panel.
+  const hasAnyReal = doraResults.some((d) => d.hasData);
+  let aggregates: DoraAggregate[];
+  let attribution: AttributionFinding | null;
+  if (hasAnyReal) {
+    aggregates = aggregateFromColumns(columns, windowDays);
+    attribution = null; // causal-attribution heuristic is fixture-only until the model lands
+  } else {
+    const fixtureBundle = aggregateFixture(windowDays);
+    aggregates = fixtureBundle.aggregates;
+    attribution = fixtureBundle.attribution;
+  }
+
   return {
     windowDays,
     refreshedAt: new Date().toISOString(),
@@ -295,4 +323,64 @@ export async function getPortfolioMetrics(windowDays = 30): Promise<PortfolioMet
     columns,
     attribution,
   };
+}
+
+const METRIC_BETTER_LOWER: Record<DoraMetric, boolean> = {
+  lead_time: true,
+  deployment_frequency: false,
+  change_failure_rate: true,
+  mttr: true,
+};
+
+function aggregateFromColumns(columns: DoraProjectColumn[], windowDays: number): DoraAggregate[] {
+  const metricsList: DoraMetric[] = ["lead_time", "deployment_frequency", "change_failure_rate", "mttr"];
+  const aggs: DoraAggregate[] = [];
+  for (const m of metricsList) {
+    const cells = columns.map((c) => c.cells[m]).filter((c): c is NonNullable<typeof c> => c !== null);
+    if (cells.length === 0) {
+      aggs.push({
+        metric: m,
+        label: METRIC_LABEL[m],
+        unit: METRIC_UNIT[m],
+        value: 0,
+        wowDelta: 0,
+        tone: "neutral",
+        sparkline: new Array(Math.min(windowDays, 14)).fill(0),
+      });
+      continue;
+    }
+    const value =
+      cells.reduce((acc, c) => acc + (c.value ?? 0), 0) /
+      Math.max(1, cells.filter((c) => c.value !== null).length);
+    const wow =
+      cells.reduce((acc, c) => acc + (c.wowDelta ?? 0), 0) /
+      Math.max(1, cells.filter((c) => c.wowDelta !== null).length);
+    // Average sparklines element-wise.
+    const sparkLen = Math.max(...cells.map((c) => c.sparkline.length));
+    const spark = new Array(sparkLen).fill(0);
+    for (let i = 0; i < sparkLen; i++) {
+      const vals = cells.map((c) => c.sparkline[i]).filter((v): v is number => v !== undefined);
+      spark[i] = vals.length === 0 ? 0 : vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+    const tone: DoraAggregate["tone"] =
+      wow === 0
+        ? "neutral"
+        : METRIC_BETTER_LOWER[m]
+          ? wow > 0
+            ? "danger"
+            : "success"
+          : wow > 0
+            ? "success"
+            : "danger";
+    aggs.push({
+      metric: m,
+      label: METRIC_LABEL[m],
+      unit: METRIC_UNIT[m],
+      value: Math.round(value * 10) / 10,
+      wowDelta: Math.round(wow * 10) / 10,
+      tone,
+      sparkline: spark,
+    });
+  }
+  return aggs;
 }

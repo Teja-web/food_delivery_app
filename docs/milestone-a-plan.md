@@ -183,3 +183,26 @@ This is the smallest version of the loop that's externally credible.
 2. **For deploy assessment, what's the "incident window"?** v1 says 24h. Should it adapt per-environment (production: 24h, staging: 4h)?
 3. **What about PRs with no skill attribution at all?** Today they just don't generate outcomes. Should we record `skillId: null` outcomes per-project for completeness, so DORA aggregates have a complete signal? Probably yes — opt-out per project.
 4. **The cron schedule for `assess-outcomes.ts`** — hourly? daily? The 7-day lookback means latency floor is one cron tick. Hourly is cheap and gives a much tighter feedback loop.
+
+---
+
+## Implementation status (2026-05-14)
+
+Days 1–4 landed; day 5 (live run against a bound staging repo) is the operator-side step that's documented but cannot be executed from this session.
+
+| Day | Artifact | Status |
+|---|---|---|
+| 1 | `src/domain/outcomes.ts` + `tests/outcomes.test.ts` | ✅ landed — 28 table-driven tests, pure-function assessors with the spec's `AssessorResult` shape |
+| 2 | `attributeSkillFromCommitSha` + `detectRevert` helpers; synchronous `assessPrReverted` / `assessPrAbandoned` / `assessDeployIncident` wired into `process-webhook-event.ts`; `recordAssessorOutcome` writer | ✅ landed |
+| 3 | `skill_outcomes.{source_kind,source_ref,rationale}` columns + partial unique index (migration `drizzle/0000_uneven_boomer.sql`); shared `runOutcomeAssessment()` in `src/automations/tasks/assess-outcomes.ts`; pg_cron job `coznt:assess-outcomes` registered in `scripts/db-setup.ts` `setupCronJobs()` (SQL enqueues a `cron_tick` event onto `coznt_events` → worker → `rules.ts` → `assessOutcomesTask`); `pnpm assess-outcomes` retained as the local-dev / manual-run path; idempotent via partial unique index + `ON CONFLICT DO NOTHING` | ✅ landed |
+| 4 | HMAC verification path on `/api/v1/webhooks/github` (coexists with bearer auth); `.env.example` adds `COZNT_GITHUB_APP_*`, `COZNT_GITHUB_WEBHOOK_SECRET`, `COZNT_TEST_INSTALLATION_ID`; `tests/github-webhook-hmac.test.ts` + `tests/skill-attribution.test.ts`; `scripts/smoke-milestone-a.ts` end-to-end harness; `pnpm smoke:milestone-a` script | ✅ landed |
+| 5 | `docs/milestone-a-operator-install.md` operator runbook; acceptance verification awaits a live bound staging repo | 📘 docs landed; ⏳ live run is operator-side |
+
+**Test summary:** `pnpm test` → 79 passing across 6 files (28 outcomes, 12 attribution, 7 HMAC, plus existing execution-gate + skill-autonomy + intel suites). `pnpm type-check` clean.
+
+**Known v1 limits worth flagging in PR descriptions:**
+
+- `assess-outcomes.ts` deploy-clean attribution requires `COZNT_TEST_INSTALLATION_ID` because adapter bindings don't yet persist a per-binding `installationId`. Tracked in `docs/milestone-a-operator-install.md` troubleshooting table.
+- The cron's pr_merge assessor uses `gate_evaluations` as a proxy for "PR merged" (no per-PR merge table exists yet). False positives are bounded by the synchronous revert handler always running first.
+- Skill attribution requires the original commit's message to contain the trailer; revert PRs attribute via SHA-match (preferred) or title-match (fallback) against `gate_evaluations`.
+

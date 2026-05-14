@@ -8,6 +8,7 @@ import { skills } from "@/db/schema/skill";
 import { PHASE_GUIDANCE } from "@/domain/phases";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill-autonomy";
 
+import { getAllowedTools } from "./phase-enforcement";
 import type { McpResponse } from "./schemas";
 
 function appUrl(path: string): string {
@@ -159,6 +160,7 @@ export async function buildMcpContext(args: {
       forbidden: guidance.forbidden,
       nextCondition: guidance.nextCondition,
     },
+    allowedTools: getAllowedTools(project.phase),
     rules: activeRules.map((r) => ({
       id: r.id,
       title: r.title,

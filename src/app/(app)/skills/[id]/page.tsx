@@ -13,9 +13,11 @@ import { countBlockedPrsForSkill } from "@/operations/execution-gate";
 import {
   getRecentSkillOutcomes,
   getSkillAutonomy,
+  getSkillAutonomyAcrossProjects,
   getSkillStats30d,
   LEVEL_BLURBS,
 } from "@/operations/skill-autonomy";
+import { projectCrud } from "@/operations/projects";
 import { getActionContext } from "@/lib/auth/context";
 
 import { levelLabel } from "../serialize";
@@ -97,12 +99,29 @@ export default async function SkillDetailPage({
   // Transitional: org-wide view (projectId=null). Per-project breakdown lands
   // in Milestone B alongside the skills ledger redesign.
   const ctx = await getActionContext();
-  const [autonomy, stats, recent, blockedPrs] = await Promise.all([
+  const [autonomy, stats, recent, blockedPrs, perProject] = await Promise.all([
     getSkillAutonomy(skill.id, null),
     getSkillStats30d(skill.id, null),
     getRecentSkillOutcomes(skill.id, 20),
     countBlockedPrsForSkill(ctx.organizationId, skill.id, null),
+    getSkillAutonomyAcrossProjects(skill.id),
   ]);
+
+  // Resolve project names for the cross-project rollup pane. The autonomy
+  // rows only carry projectId; without the join the pane has nothing
+  // human-readable to print.
+  const referencedProjectIds = Array.from(
+    new Set(perProject.map((p) => p.projectId).filter((id): id is string => Boolean(id))),
+  );
+  const projectsById = new Map<string, { id: string; name: string }>();
+  if (referencedProjectIds.length > 0) {
+    const projectRows = await Promise.all(
+      referencedProjectIds.map((id) => projectCrud.get(id).catch(() => null)),
+    );
+    for (const p of projectRows) {
+      if (p) projectsById.set(p.id, { id: p.id, name: p.name });
+    }
+  }
   const label = levelLabel(autonomy.level);
   const sparkDirection = stats.success === 0 ? "flat" : stats.incident > 0 ? "down" : "up";
   const permissions = LEVEL_PERMISSIONS[label];
@@ -353,6 +372,59 @@ export default async function SkillDetailPage({
                     : "—"}
                 </span>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                Across projects · {perProject.length}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {perProject.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No per-project trust earned yet. Per-(skill, project) rows appear
+                  once the skill produces an outcome on a project.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {perProject.map((row) => {
+                    const projectMeta = row.projectId ? projectsById.get(row.projectId) : null;
+                    const projectLabel = projectMeta?.name ?? (row.projectId ? row.projectId.slice(0, 8) : "org-wide");
+                    const rowLabel = (
+                      ["INTERN", "JUNIOR", "SENIOR", "PRINCIPAL"] as const
+                    )[row.level] ?? "INTERN";
+                    return (
+                      <li
+                        key={`${row.projectId ?? "org"}-${row.levelSetAt.getTime()}`}
+                        className="flex items-center justify-between gap-2 rounded-sm border border-border/40 px-2 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-medium text-foreground">
+                            {row.projectId && projectMeta ? (
+                              <Link
+                                href={`/projects/${row.projectId}`}
+                                className="hover:underline"
+                              >
+                                {projectLabel}
+                              </Link>
+                            ) : (
+                              <span className={row.projectId ? "" : "text-muted-foreground"}>
+                                {projectLabel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate font-mono text-[10px] text-muted-foreground">
+                            since {row.levelSetAt.toLocaleDateString()}
+                          </div>
+                        </div>
+                        <AutonomyPill level={rowLabel} title={row.lastReason ?? undefined} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </div>

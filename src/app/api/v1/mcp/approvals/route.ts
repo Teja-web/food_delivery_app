@@ -10,7 +10,7 @@ import { z } from "zod/v4";
 
 import { APPROVAL_ENTITY_TYPES } from "@/db/schema/approval";
 import { handleApi } from "@/lib/api/auth";
-import { approvalCrud } from "@/operations/approvals";
+import { createApprovalWithProjectResolution } from "@/operations/approvals";
 
 const bodySchema = z.object({
   entityType: z.enum(APPROVAL_ENTITY_TYPES),
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       throw err;
     }
     const requesterName = `mcp:${ctx.apiKeyId.slice(0, 8)}`;
-    const approval = await approvalCrud.create({
+    const approval = await createApprovalWithProjectResolution({
       entityType: parsed.data.entityType,
       entityId: parsed.data.entityId,
       requestedById: `api:${ctx.apiKeyId}`,

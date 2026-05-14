@@ -96,3 +96,114 @@ BEGIN
     );
   END LOOP;
 END $$;
+
+-- ===================================================================
+-- audit_logs hash chain — Milestone B
+-- ===================================================================
+-- BEFORE INSERT trigger that links each row to the previous row in its
+-- org's chain. Concurrent inserts within an org serialize on a per-org
+-- advisory lock so the chain remains linear; cross-org inserts run
+-- independently.
+--
+-- Hash function:  row_hash := encode(digest(coalesce(prev_hash, '') ||
+--                              canonical_field_concat, 'sha256'), 'hex')
+--
+-- Requires the `pgcrypto` extension (already installed by db-setup.ts
+-- alongside vector and pgmq).
+
+CREATE OR REPLACE FUNCTION coznt.audit_log_chain()
+RETURNS TRIGGER AS $$
+DECLARE
+  prev TEXT;
+  body TEXT;
+BEGIN
+  -- Per-org advisory lock; released at txn end. Keeps concurrent inserts
+  -- within an org strictly serialized so the chain stays linear, while
+  -- letting different orgs proceed in parallel.
+  PERFORM pg_advisory_xact_lock(hashtext('audit_chain:' || NEW.organization_id));
+
+  SELECT row_hash INTO prev
+  FROM coznt.audit_logs
+  WHERE organization_id = NEW.organization_id
+    AND row_hash IS NOT NULL
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1;
+
+  -- Canonical concat — keep this stable; changing it invalidates every
+  -- existing chain. Fields in alphabetical order, null → empty string,
+  -- jsonb serialized via jsonb_strip_nulls + ::text for determinism.
+  body := concat_ws('|',
+    NEW.id,
+    NEW.organization_id,
+    NEW.actor_type,
+    coalesce(NEW.actor_id, ''),
+    coalesce(NEW.actor_name, ''),
+    NEW.action,
+    NEW.entity_type,
+    NEW.entity_id,
+    coalesce(NEW.summary, ''),
+    coalesce((jsonb_strip_nulls(NEW.before))::text, ''),
+    coalesce((jsonb_strip_nulls(NEW.after))::text, ''),
+    -- created_at goes last; the trigger fires BEFORE INSERT so NEW.created_at
+    -- has already been populated by the column default.
+    NEW.created_at::text
+  );
+
+  NEW.prev_hash := prev;
+  NEW.row_hash := encode(digest(coalesce(prev, '') || body, 'sha256'), 'hex');
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_audit_log_chain ON coznt.audit_logs;
+CREATE TRIGGER trg_audit_log_chain
+  BEFORE INSERT ON coznt.audit_logs
+  FOR EACH ROW EXECUTE FUNCTION coznt.audit_log_chain();
+
+-- One-time backfill: populate row_hash/prev_hash for rows inserted before
+-- the trigger landed. Walks each org's history in created_at order.
+DO $$
+DECLARE
+  r RECORD;
+  prev TEXT;
+  current_org TEXT := '';
+  body TEXT;
+  computed TEXT;
+BEGIN
+  FOR r IN
+    SELECT * FROM coznt.audit_logs
+    WHERE row_hash IS NULL
+    ORDER BY organization_id, created_at, id
+  LOOP
+    IF r.organization_id <> current_org THEN
+      current_org := r.organization_id;
+      -- Pick up any already-hashed tail from the same org so the chain
+      -- continues if a partial backfill ran before.
+      SELECT row_hash INTO prev
+      FROM coznt.audit_logs
+      WHERE organization_id = current_org AND row_hash IS NOT NULL
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1;
+    END IF;
+
+    body := concat_ws('|',
+      r.id,
+      r.organization_id,
+      r.actor_type,
+      coalesce(r.actor_id, ''),
+      coalesce(r.actor_name, ''),
+      r.action,
+      r.entity_type,
+      r.entity_id,
+      coalesce(r.summary, ''),
+      coalesce((jsonb_strip_nulls(r.before))::text, ''),
+      coalesce((jsonb_strip_nulls(r.after))::text, ''),
+      r.created_at::text
+    );
+    computed := encode(digest(coalesce(prev, '') || body, 'sha256'), 'hex');
+
+    UPDATE coznt.audit_logs SET row_hash = computed, prev_hash = prev WHERE id = r.id;
+    prev := computed;
+  END LOOP;
+END $$;

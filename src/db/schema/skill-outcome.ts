@@ -10,7 +10,8 @@
  * Consumers: `recomputeSkillAutonomy()` reads the trailing 30-day window.
  */
 
-import { text, timestamp, index } from "drizzle-orm/pg-core";
+import { text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { skills } from "./skill";
@@ -21,6 +22,22 @@ export type SkillOutcomeVerdict = (typeof SKILL_OUTCOME_VERDICTS)[number];
 
 export const SKILL_OUTCOME_SEVERITIES = ["low", "high", "critical"] as const;
 export type SkillOutcomeSeverity = (typeof SKILL_OUTCOME_SEVERITIES)[number];
+
+/**
+ * Discriminator for *how* the outcome was derived. `invocation` is the
+ * existing AI-call path; the rest are Milestone-A deterministic assessors
+ * over observed GitHub signal. Adding a kind requires updating the
+ * idempotency contract on `source_ref` below.
+ */
+export const SKILL_OUTCOME_SOURCE_KINDS = [
+  "invocation",
+  "pr_merge",
+  "pr_revert",
+  "pr_abandon",
+  "deploy_clean",
+  "deploy_incident",
+] as const;
+export type SkillOutcomeSourceKind = (typeof SKILL_OUTCOME_SOURCE_KINDS)[number];
 
 export const skillOutcomes = cozntSchema.table(
   "skill_outcomes",
@@ -48,6 +65,25 @@ export const skillOutcomes = cozntSchema.table(
     verdict: text().$type<SkillOutcomeVerdict>().notNull(),
     severity: text().$type<SkillOutcomeSeverity>(),
 
+    /**
+     * How this outcome was derived. Null on legacy rows; new code paths set
+     * it. Combined with `sourceRef` it gives Milestone-A assessors a stable
+     * idempotency key (see partial unique index below).
+     */
+    sourceKind: text("source_kind").$type<SkillOutcomeSourceKind>(),
+
+    /**
+     * Stable reference to the originating signal — e.g.
+     *   `github:acme/api#42`   for PR-derived outcomes
+     *   `deployment:<id>`      for deploy-derived outcomes
+     * Required for non-`invocation` rows; the partial unique index below
+     * enforces idempotency on `(skill_id, source_kind, source_ref)`.
+     */
+    sourceRef: text("source_ref"),
+
+    /** Human-readable explanation written by the assessor. */
+    rationale: text(),
+
     recordedAt: timestamp("recorded_at").defaultNow().notNull(),
   },
   (table) => [
@@ -58,6 +94,12 @@ export const skillOutcomes = cozntSchema.table(
       table.skillId,
       table.recordedAt,
     ),
+    // Idempotency: assessors that re-fire on retry must not double-write.
+    // The index is partial because `invocation`-kind rows can repeat per
+    // run (they have invocationId, not a stable sourceRef).
+    uniqueIndex("skill_outcomes_source_unique_idx")
+      .on(table.skillId, table.sourceKind, table.sourceRef)
+      .where(sql`${table.sourceRef} is not null`),
   ],
 );
 

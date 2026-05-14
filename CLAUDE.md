@@ -1,5 +1,21 @@
 # Coznt — LLM Context
 
+## What this is
+
+Coznt is an **AI-assisted SDLC governance + observability platform** — peer set Linear, Vercel, Datadog, Grafana, Cursor. Not an ATS. The marketing thesis is "trust observable": every claim on screen links to a source-of-record.
+
+Core domain (real, ground truth in `src/db/schema/`):
+
+- **Project** — unit of SDLC work, in one of six phases (`requirements → design → development → testing → cicd → monitoring`). Links to repo / Jira / ADO / Confluence.
+- **Plan** — authored unit of work. Kinds: `epic`, `feature`, `story`, `adr`, `test_plan`, `release_plan`. Status flow: draft → in_review → approved → in_progress → completed.
+- **Phase Gate** — checkpoint that must PASS (or be SKIPPED) before a project can advance phase. Types: `approval`, `coverage`, `lint`, `security`, `custom`.
+- **Approval** — polymorphic sign-off request against any entity (`plan`, `phase_gate`, `release`, `work_item`).
+- **Skill** — a capability that can be invoked (eventually by AI agents). Skills earn autonomy **per-project**: 0 intern, 1 junior, 2 senior, 3 principal.
+- **Skill Outcome** — append-only ledger row. `verdict`: `success` | `rolled_back` | `incident`. `sourceKind`: `invocation` (AI path) or one of the Milestone-A deterministic assessors (`pr_merge`, `pr_revert`, `pr_abandon`, `deploy_clean`, `deploy_incident`). Drives autonomy recompute.
+- **Skill Autonomy** — current level per `(skillId, projectId)` pair. Recomputed from the trailing 30-day window of outcomes.
+
+See `docs/architecture.md` and `docs/ux/build-plan.md` for the milestone framing (A: deterministic-signal ledger, B: portfolio audit, C: first AI agent joins, D: dispatch gate, E: IDE input).
+
 ## Two Sources of Truth
 
 Every data type derives from exactly one of:
@@ -31,9 +47,9 @@ Drizzle schema ($inferSelect)
 
 ### Adding a new field end-to-end
 
-When the AI produces a new field (e.g. `summary`), touch exactly 3 files:
+When a new field needs to be produced by an AI agent (e.g. `riskRationale`), touch exactly 3 files:
 
-1. **Zod schema** — add field to agent output (`src/automations/agents/definitions/`)
+1. **Zod schema** — add field to the agent's output shape (`src/automations/agents/definitions/`)
 2. **Drizzle schema** — add column (`src/db/schema/`), then run `pnpm db:generate` to produce a versioned migration in `drizzle/`. **Commit the SQL alongside the schema change.**
 3. **Task** — store it in the DB write (`src/automations/tasks/`)
 
@@ -46,16 +62,17 @@ The serializer picks it up via Drizzle relations. The client picks it up via the
 - **Production**: `pnpm db:migrate` applies committed migrations. Never `db:push` to prod — it bypasses the audit trail and silently drops/recreates indexes.
 - If you change a schema file in a PR, the diff against `drizzle/meta` should produce a new migration. CI should fail if `pnpm db:generate` produces an uncommitted diff.
 
-### Example: Role detail page
+### Example: Skill detail page
 
 ```
-page.tsx:   fetchRoleDetail(id)                    → serializeRoleDetail(role)  → <RoleDetailClient {...props} />
+page.tsx:   fetchSkillDetail(id)                    → serializeSkillDetail(skill) → <SkillDetailClient {...props} />
               ↓                                       ↓
-actions:    getRoleDetail(id)                       serialize.ts exports types
+actions:    getSkillDetail(id)                       serialize.ts exports types
               ↓                                       ↓
-operations: roleCrud.get(id, { with: {              RoleDetailClient.tsx imports from serialize.ts
-              applications: { candidate, match },     (no manual interfaces)
-              matches: { candidate },
+operations: skillCrud.get(id, { with: {              SkillDetailClient.tsx imports from serialize.ts
+              outcomes: { project: true },             (no manual interfaces)
+              autonomy: true,
+              invocations: true,
             }})
 ```
 
@@ -65,81 +82,84 @@ operations: roleCrud.get(id, { with: {              RoleDetailClient.tsx imports
 - Don't declare data interfaces in client components — import from `serialize.ts`
 - Don't write raw `db.select().from().innerJoin()` in pages — use the CRUD factory's `.get()` or `.list()` with `with` for relations
 - Don't duplicate types between Zod schemas and Drizzle schemas — they serve different purposes (AI output vs DB storage)
-- Don't name client components `_client.tsx` — use descriptive PascalCase names (e.g. `RoleDetailClient.tsx`, `CandidatesList.tsx`)
+- Don't name client components `_client.tsx` — use descriptive PascalCase names (e.g. `SkillDetailClient.tsx`, `PortfolioOverview.tsx`)
 
 ## AI Agent Pattern
+
+> Status: forward-looking. The `definitions/` directory is empty as of Milestone A — coznt is observing deterministic CI signal first (PR merge, deploy success). The first real AI agent lands at Milestone C. This pattern is the contract for when it does.
 
 Every AI call follows the same 3-file pattern:
 
 ```
 src/automations/agents/
-  definitions/role-candidate-matcher.ts    — Agent config + Zod output schema
-  prompts/role-candidate-matcher.ts        — System prompt + context builder
+  definitions/change-risk-classifier.ts    — Agent config + Zod output schema
+  prompts/change-risk-classifier.ts        — System prompt + context builder
 src/automations/tasks/
-  match.ts                                 — Orchestration: fetch data → build prompt → generate() → store results
+  classify-change-risk.ts                  — Orchestration: fetch data → build prompt → generate() → store results
 ```
 
 ### Agent definition
 
 ```ts
-// definitions/role-candidate-matcher.ts
-export const roleCandidateMatchSchema = z.object({
-  fitScore: z.number().min(0).max(100),
-  alignment: z.array(z.object({ criterion: z.string(), score: z.number(), evidence: z.string() })),
-  recommendation: z.string(),
-  signal: z.string(),
-  gaps: z.array(z.string()),
-  summary: z.string(),
+// definitions/change-risk-classifier.ts
+export const changeRiskSchema = z.object({
+  riskClass: z.enum(["low", "medium", "high", "critical"]),
+  rationale: z.string(),
+  signals: z.array(z.object({ kind: z.string(), evidence: z.string() })),
+  recommendedGates: z.array(z.string()),
 });
 
-export const roleCandidateMatcherAgent = {
-  slug: "role-candidate-matcher",
+export const changeRiskClassifierAgent = {
+  slug: "change-risk-classifier",
   model: DEFAULT_MODEL,
   temperature: 0.2,
-  systemPrompt: roleCandidateMatcherPrompt,
+  systemPrompt: changeRiskClassifierPrompt,
 };
 ```
 
 ### Prompt
 
 ```ts
-// prompts/role-candidate-matcher.ts
-export const roleCandidateMatcherPrompt = `You are a recruitment matching analyst...`;
+// prompts/change-risk-classifier.ts
+export const changeRiskClassifierPrompt = `You are a change-risk analyst...`;
 
-export function roleCandidateMatcherPromptWithContext(params) {
-  return `${roleCandidateMatcherPrompt}\n## ROLE: ${params.roleTitle}\n...`;
+export function changeRiskClassifierPromptWithContext(params) {
+  return `${changeRiskClassifierPrompt}\n## PROJECT: ${params.projectName}\n## DIFF:\n${params.diff}\n...`;
 }
 ```
 
 ### Task (orchestration)
 
 ```ts
-// tasks/match.ts
-const prompt = roleCandidateMatcherPromptWithContext({ candidateProfile, roleCriteria, ... });
-const result = await generate({ agent: roleCandidateMatcherAgent, prompt, output: roleCandidateMatchSchema });
+// tasks/classify-change-risk.ts
+const prompt = changeRiskClassifierPromptWithContext({ projectName, diff, criticalPaths });
+const result = await generate({ agent: changeRiskClassifierAgent, prompt, output: changeRiskSchema });
 // result.object is fully typed from the Zod schema
-await db.update(matches).set({ fitScore: result.object.fitScore, ... });
+await db.update(workItems).set({ riskClass: result.object.riskClass, ... });
 ```
 
 ### Rules
 
 - **Zod schema** owns the AI output shape — the agent definition and task both reference it
-- **`generate()`** in `src/lib/ai.ts` is the only AI call point. It handles model routing, retries, and validation
+- **`generate()`** in `src/lib/ai/` is the only AI call point. It handles model routing, retries, and validation
 - **Tasks** never call LLM APIs directly — always go through `generate()`
 - **Prompt** is separated from definition so context can be injected at call time
 - **Output validation** happens automatically — `generate()` parses against the Zod schema and retries on failure (up to 3 attempts)
+- **Every invocation appends a `skill_outcomes` row** via `src/operations/skill-invocation.ts` — `success` on clean return, `incident`/`high` on throw. This is what feeds the autonomy ledger.
 
 ## CRUD Factory
 
-All entity CRUD goes through `createEntityCrud()` in `src/lib/crud.ts`:
+All entity CRUD goes through `createEntityCrud()` in `src/lib/crud.ts`. Real example from `src/operations/skills.ts`:
 
 ```ts
-const roleCrud = createEntityCrud({
-  db, table: roles, queryKey: "roles", idField: "id",
-  schema: roleSchema,                         // Zod validation on write
-  getWith: { applications: true },            // default relations on read
-  searchFields: ["title", "team", "department", "location", "description", "businessCase"],
-  searchConfig: { tableName: "roles" },       // enables hybrid search
+export const skillCrud = createEntityCrud({
+  db,
+  table: skills,
+  queryKey: "skills",
+  idField: "id",
+  schema: skillSchema,                        // Zod validation on write
+  searchFields: ["name", "description", "body"],
+  onMutate: () => safeRevalidate("/skills"),
 });
 ```
 
@@ -158,7 +178,7 @@ All three return `{ items, total }` and support `offset` + `limit` pagination.
 **`list()`** — paginated listing:
 
 ```ts
-const { items, total } = await roleCrud.list({
+const { items, total } = await skillCrud.list({
   offset: 0,
   limit: 25,
   sortBy: "createdAt",
@@ -169,7 +189,7 @@ const { items, total } = await roleCrud.list({
 **`search()`** — full-text search with stemming and prefix matching:
 
 ```ts
-const { items, total } = await roleCrud.search("engineering manager", {
+const { items, total } = await skillCrud.search("schema migration reviewer", {
   offset: 0,
   limit: 25,
 });
@@ -178,7 +198,7 @@ const { items, total } = await roleCrud.search("engineering manager", {
 **`searchSemantic()`** — hybrid search, results sorted by relevance score:
 
 ```ts
-const { items, total } = await roleCrud.searchSemantic("someone who can lead a team", {
+const { items, total } = await skillCrud.searchSemantic("anything that touches the payments service", {
   offset: 0,
   limit: 20,
 });
@@ -186,34 +206,62 @@ const { items, total } = await roleCrud.searchSemantic("someone who can lead a t
 
 ### Search configuration
 
-`searchFields` — every entity should declare these. Full-text search uses them directly on entity columns via GIN indexes (no extra tables). Include rich text fields like `resumeText`, `description`, `notes`, `transcript`. Each schema file has a matching GIN index on `to_tsvector('english', concat_ws(' ', ...fields))`.
+`searchFields` — every entity should declare these. Full-text search uses them directly on entity columns via GIN indexes (no extra tables). Include rich text fields like `body`, `description`, `summary`, `rationale`. Each schema file has a matching GIN index on `coznt.fts_vector(...fields)`.
 
 `searchConfig` — opt-in. Only needed for entities that also have embeddings in `coznt.documents` for `searchSemantic()`.
+
+### Project-scoped + org-wide visibility
+
+Skills and rules can be scoped to a single project OR org-wide (NULL `projectId`). The standard pattern, from `src/operations/skills.ts`:
+
+```ts
+export async function listSkillsForProject(projectId: string) {
+  const ctx = await getActionContext();
+  return db.query.skills.findMany({
+    where: and(
+      eq(skills.organizationId, ctx.organizationId),
+      eq(skills.enabled, true),
+      or(eq(skills.projectId, projectId), isNull(skills.projectId)),
+    ),
+  });
+}
+```
 
 For detail pages needing deeper relations, add a custom operation:
 
 ```ts
-export async function getRoleDetail(id: string) {
-  return roleCrud.get(id, {
+export async function getSkillDetail(id: string) {
+  return skillCrud.get(id, {
     with: {
-      applications: { with: { candidate: true, match: true, interviews: true } },
-      matches: { with: { candidate: true } },
+      outcomes: { with: { project: true } },
+      autonomy: true,
+      invocations: { limit: 50, orderBy: (i, { desc }) => desc(i.createdAt) },
     },
   });
 }
 ```
 
-## Rules Engine
+## Async Task Engine (pgmq + triggers)
 
-PG triggers fire on insert/update → pgmq → worker polls and matches rules → tasks run sequentially:
+PG triggers fire on insert/update of watched tables → pgmq → worker polls and matches rules → tasks run sequentially. The HTTP response is instant; all AI / heavy work happens async in the worker.
+
+Real example: when a `skill_outcomes` row is inserted, the trigger enqueues a job; the worker dispatches `recomputeSkillAutonomyTask` (in `src/automations/tasks/recompute-skill-autonomy.ts`) which re-runs promotion/demotion math for that `(skillId, projectId)` pair.
 
 ```ts
-// src/lib/rules.ts
-{ id: "candidate:insert", entityType: "candidate", operation: "insert",
-  tasks: [candidateIntake, evaluateMatchesForCandidate] }
+// Task receives a TaskParams with entityId of the row that triggered it
+export async function recomputeSkillAutonomyTask(params: TaskParams): Promise<void> {
+  // look up the outcome → recompute autonomy for its (skill, project) pair
+}
 ```
 
-The HTTP response is instant. All AI processing happens async in the worker.
+Current tasks (`src/automations/tasks/`):
+- `recompute-skill-autonomy.ts` — fires on `skill_outcomes` insert
+- `compute-work-item-lead-time.ts` — fires when a work item closes
+- `process-webhook-event.ts` — fires on inbound webhook events (GitHub PR, deploy)
+
+`TaskParams` and rule registration live in `src/lib/rules.ts`.
+
+> Separately, the `rules` table holds **declarative policy validators** (`keyword-presence`, `action-policy`) that gate plan writes and skill action attempts. Those run synchronously inside CRUD hooks — see `src/operations/rule-engine.ts`. Don't confuse them with the async task engine above.
 
 ## Project Structure
 
@@ -221,16 +269,19 @@ The HTTP response is instant. All AI processing happens async in the worker.
 src/
 ├── actions/          Server actions ("use server" wrappers around operations)
 ├── app/(app)/        Route pages + client components + serializers
+│                       projects, plans, skills, approvals, audit,
+│                       metrics, rules, integrations, api-keys, playground
 ├── automations/
 │   ├── agents/       Agent definitions (config + Zod output schema) and prompts
-│   └── tasks/        Workflow functions (fetch → prompt → generate → store)
+│   └── tasks/        Workflow functions fired by pgmq (fetch → prompt → generate → store)
 ├── components/       Shared UI components
 ├── db/schema/        Drizzle table definitions, relations, inferred types
+├── domain/           Pure functions — e.g. outcomes.ts (Milestone-A deterministic assessors)
 ├── lib/              Core utilities
-│   ├── ai/           AI client, NL read/write engines, entity tools
+│   ├── ai/           AI client (generate()), NL read/write engines, entity tools
 │   ├── auth/         Authentication (JWT, context, actions)
 │   ├── events/       Event bus, listener, SSE stream
-│   ├── integrations/ External service connectors (Google Calendar, encryption)
+│   ├── integrations/ External service connectors (GitHub, encryption)
 │   ├── search/       Hybrid search (FTS + semantic)
 │   └── sql/          SQL executor, parser, schema context
 └── operations/       Entity CRUD — thin wrappers around createEntityCrud factory

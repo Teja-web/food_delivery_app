@@ -1,13 +1,15 @@
 "use client";
 
-import { Download, FileJson, Filter, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Download, FileJson, FileLock2, Filter, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
+import { buildEvidencePacketAction, verifyAuditChainAction } from "@/actions/audit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { ChainVerification } from "@/operations/audit-chain";
 
 import type { AuditPageClient, AuditRowClient } from "./serialize";
 
@@ -100,6 +102,18 @@ export function AuditClient({ data }: { data: AuditPageClient }) {
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [exporting, setExporting] = useState(false);
+  const [chainStatus, setChainStatus] = useState<ChainVerification | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  const runVerify = async () => {
+    setVerifying(true);
+    try {
+      const result = await verifyAuditChainAction();
+      setChainStatus(result);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const updateParam = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
@@ -143,6 +157,25 @@ export function AuditClient({ data }: { data: AuditPageClient }) {
     setExporting(false);
   };
 
+  const downloadEvidencePacket = async () => {
+    setExporting(true);
+    try {
+      const packet = await buildEvidencePacketAction({
+        scope: data.query.scope as never,
+        from: new Date(data.query.from),
+        to: new Date(data.query.to),
+        actorType: data.query.actorType === "any" ? undefined : (data.query.actorType as never),
+      });
+      triggerDownload(
+        `coznt-evidence-${data.query.range}-${data.query.scope}-${Date.now()}.json`,
+        JSON.stringify(packet, null, 2),
+        "application/json",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const actorBreakdown = useMemo(() => {
     const entries = Object.entries(data.totals.byActorType);
     if (entries.length === 0) return "—";
@@ -167,6 +200,15 @@ export function AuditClient({ data }: { data: AuditPageClient }) {
           <Button variant="outline" size="sm" onClick={downloadJson} disabled={isPending || exporting}>
             <FileJson className="h-3.5 w-3.5" aria-hidden />
             JSON
+          </Button>
+          <Button
+            size="sm"
+            onClick={downloadEvidencePacket}
+            disabled={isPending || exporting}
+            title="Tamper-evident export with chain head + verification receipt"
+          >
+            <FileLock2 className="h-3.5 w-3.5" aria-hidden />
+            Evidence packet
           </Button>
         </div>
       </header>
@@ -319,13 +361,50 @@ export function AuditClient({ data }: { data: AuditPageClient }) {
         </div>
       )}
 
-      <footer className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span>
-          Each row carries a deterministic hash of its fields — re-running the same query produces
-          identical hashes, so any post-hoc edit shows up as drift. Not cryptographically signed
-          (no keypair, no chain); cryptographic signing lands with the v2 compliance surface.
-        </span>
+      <footer className="space-y-2 rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              Each row's <span className="font-mono">row_hash</span> = sha256(<span className="font-mono">prev_hash</span> ‖ canonical fields).
+              Tamper with any row and every subsequent row's hash diverges — verifiable here or via
+              <span className="font-mono"> POST /api/v1/audit/verify</span>.
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={runVerify}
+            disabled={verifying}
+            className="shrink-0"
+          >
+            {verifying ? "Verifying…" : "Verify chain"}
+          </Button>
+        </div>
+        {chainStatus ? (
+          chainStatus.ok ? (
+            <div className="flex items-center gap-2 text-trend-up">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                Chain verified · {chainStatus.checked} rows ·{" "}
+                {chainStatus.firstAt
+                  ? `${new Date(chainStatus.firstAt).toLocaleDateString()} → ${new Date(chainStatus.lastAt ?? chainStatus.firstAt).toLocaleDateString()}`
+                  : "empty"}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 text-state-failed">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                Drift detected at row <span className="font-mono">{chainStatus.drift.rowId.slice(0, 8)}</span>{" "}
+                ({chainStatus.drift.reason}) — {new Date(chainStatus.drift.rowCreatedAt).toLocaleString()}.
+                Expected <span className="font-mono">{chainStatus.drift.expectedRowHash.slice(0, 12)}</span>,
+                got <span className="font-mono">{chainStatus.drift.actualRowHash?.slice(0, 12) ?? "null"}</span>.
+              </span>
+            </div>
+          )
+        ) : null}
       </footer>
     </div>
   );

@@ -14,20 +14,35 @@
  * in the payload.
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { approvals } from "@/db/schema/approval";
+import { gateEvaluations } from "@/db/schema/gate-evaluation";
+import { deployments } from "@/db/schema/deployment";
 import { projects } from "@/db/schema/project";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill";
 import { webhookEvents, type WebhookEvent } from "@/db/schema/webhook-event";
+import {
+  assessDeployIncident,
+  assessPrAbandoned,
+  assessPrReverted,
+} from "@/domain/outcomes";
 import { isConfigured as githubAppConfigured, postCheckRun } from "@/lib/integrations/github-app";
 import { resolveProjectForWebhook } from "@/lib/integrations/resolve";
-import { attributeSkill } from "@/lib/integrations/skill-attribution";
+import {
+  attributeSkill,
+  attributeSkillFromCommitSha,
+  detectRevert,
+} from "@/lib/integrations/skill-attribution";
 import { classifyChangeRisk, type ChangedFile } from "@/operations/change-risk";
 import { recordDeployment } from "@/operations/deployments";
 import { evaluatePullRequest, type GateInput } from "@/operations/execution-gate";
-import { getSkillAutonomy } from "@/operations/skill-autonomy";
+import {
+  getSkillAutonomy,
+  recordAssessorOutcome,
+  recomputeSkillAutonomy,
+} from "@/operations/skill-autonomy";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -107,7 +122,7 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
     const ciRunUrl = asString(deployStatus?.target_url) ?? asString(deployStatus?.log_url);
 
     try {
-      await recordDeployment({
+      const deployment = await recordDeployment({
         projectId,
         environment,
         version,
@@ -117,6 +132,27 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
         raw: payload,
         completedAt: new Date(),
       });
+
+      // Synchronous incident path. A failed deploy is itself the signal;
+      // we don't wait for an external incident report to call it.
+      if (state === "failure" && commitSha) {
+        const installation = asObject(payload.installation);
+        const installationId =
+          asString(installation?.id) ??
+          (installation?.id != null ? String(installation.id) : null);
+        await emitDeployIncidentOutcome({
+          organizationId: evt.organizationId,
+          projectId,
+          deploymentId: deployment.id,
+          environment,
+          completedAt: deployment.completedAt,
+          rolledBackAt: deployment.rolledBackAt,
+          status: "failed",
+          commitSha,
+          ownerRepo: externalKey.replace(/^[^/]+\//, ""),
+          installationId,
+        });
+      }
       return markProcessed(evt.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -125,6 +161,13 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
   }
 
   if (evt.event === "pull_request") {
+    const action = asString(payload.action);
+    if (action === "closed") {
+      // Two synchronous post-merge paths live here: revert detection and
+      // abandonment. Execution-gate re-evaluation is irrelevant once the
+      // PR has closed, so we don't fall through.
+      return runClosedPrAssessors(evt, payload, externalKey, projectId);
+    }
     return runExecutionGate(evt, payload, externalKey, projectId);
   }
 
@@ -308,6 +351,204 @@ async function fetchChangedFiles(
   const additions = typeof pr?.additions === "number" ? pr.additions : 0;
   const deletions = typeof pr?.deletions === "number" ? pr.deletions : 0;
   return [{ filename: "__pr-aggregate__", additions, deletions }];
+}
+
+// ---------------------------------------------------------------------------
+// Outcome assessors — synchronous-on-event paths.
+// The cron lookback in `scripts/assess-outcomes.ts` handles the deferred
+// 7d / 24h windows; this file only fires the assessors whose verdict is
+// knowable on the event itself.
+// ---------------------------------------------------------------------------
+
+/** Lookup helper — given a SHA, find the gate_evaluation row whose PR carried it. */
+async function findEvaluationByHeadSha(
+  organizationId: string,
+  projectId: string,
+  sha: string,
+) {
+  const rows = await db
+    .select()
+    .from(gateEvaluations)
+    .where(
+      and(
+        eq(gateEvaluations.organizationId, organizationId),
+        eq(gateEvaluations.projectId, projectId),
+      ),
+    )
+    .orderBy(desc(gateEvaluations.evaluatedAt))
+    .limit(200);
+  // Match on prefix — `body` typically carries a 7-char short sha, while
+  // gate evaluations store the full sha.
+  return rows.find((r) => r.prHeadSha && r.prHeadSha.startsWith(sha)) ??
+    rows.find((r) => r.prHeadSha === sha) ??
+    null;
+}
+
+async function runClosedPrAssessors(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  if (!evt.organizationId) return markProcessed(evt.id, "webhook has no organizationId");
+  const pr = asObject(payload.pull_request);
+  if (!pr) return markProcessed(evt.id, "pull_request payload missing");
+
+  const number = typeof pr.number === "number" ? pr.number : Number(pr.number);
+  if (!Number.isFinite(number)) return markProcessed(evt.id, "pull_request missing number");
+
+  const ownerRepo = externalKey.replace(/^[^/]+\//, "");
+  const prRef = `github:${ownerRepo}#${number}`;
+  const sourceRef = prRef;
+  const merged = pr.merged === true;
+  const mergedAtRaw = asString(pr.merged_at);
+  const closedAtRaw = asString(pr.closed_at);
+  const createdAtRaw = asString(pr.created_at);
+  const mergedAt = mergedAtRaw ? new Date(mergedAtRaw) : null;
+  const closedAt = closedAtRaw ? new Date(closedAtRaw) : new Date();
+  const createdAt = createdAtRaw ? new Date(createdAtRaw) : new Date(closedAt.getTime() - 1);
+
+  // Path 1 — abandoned (closed without merging).
+  if (!merged) {
+    const result = assessPrAbandoned({
+      merged: false,
+      mergedAt: null,
+      closed: true,
+      closedAt,
+      createdAt,
+    });
+    if (result.verdict !== null) {
+      // Skill attribution: look at the most recent gate evaluation for the PR.
+      // We don't re-fetch commits — abandoned PRs never produced a head-sha
+      // we'd want to charge to a different skill.
+      const [evaluation] = await db
+        .select({ skillId: gateEvaluations.skillId })
+        .from(gateEvaluations)
+        .where(
+          and(
+            eq(gateEvaluations.organizationId, evt.organizationId),
+            eq(gateEvaluations.projectId, projectId),
+            eq(gateEvaluations.prRef, prRef),
+          ),
+        )
+        .orderBy(desc(gateEvaluations.evaluatedAt))
+        .limit(1);
+      const skillId = evaluation?.skillId ?? null;
+      if (skillId) {
+        await recordAssessorOutcome({
+          skillId,
+          projectId,
+          sourceKind: "pr_abandon",
+          sourceRef,
+          result,
+        });
+        await recomputeSkillAutonomy(skillId, projectId).catch((err) =>
+          console.error("[process-webhook-event] recomputeSkillAutonomy failed:", err),
+        );
+      }
+    }
+    return markProcessed(evt.id);
+  }
+
+  // Path 2 — merged, revert PR. Attribute the rolled_back outcome to the
+  // ORIGINAL skill (the one that produced the reverted change), not the
+  // skill that authored the revert itself.
+  const prTitle = asString(pr.title) ?? null;
+  const prBody = asString(pr.body) ?? null;
+  const revert = detectRevert(prTitle, prBody);
+  if (!revert) return markProcessed(evt.id);
+
+  let originalEval = null;
+  if (revert.originalSha) {
+    originalEval = await findEvaluationByHeadSha(evt.organizationId, projectId, revert.originalSha);
+  }
+  if (!originalEval && revert.originalTitle) {
+    // Fall back to title-match on the most-recent evaluation row.
+    const [byTitle] = await db
+      .select()
+      .from(gateEvaluations)
+      .where(
+        and(
+          eq(gateEvaluations.organizationId, evt.organizationId),
+          eq(gateEvaluations.projectId, projectId),
+          eq(gateEvaluations.prTitle, revert.originalTitle),
+        ),
+      )
+      .orderBy(desc(gateEvaluations.evaluatedAt))
+      .limit(1);
+    originalEval = byTitle ?? null;
+  }
+  if (!originalEval || !originalEval.skillId) return markProcessed(evt.id);
+
+  if (!mergedAt) return markProcessed(evt.id);
+  const result = assessPrReverted(
+    {
+      merged: true,
+      mergedAt: originalEval.evaluatedAt,
+      closed: true,
+      closedAt: originalEval.evaluatedAt,
+      createdAt: originalEval.evaluatedAt,
+    },
+    { committedAt: mergedAt, sha: revert.originalSha ?? undefined },
+  );
+  if (result.verdict !== null) {
+    await recordAssessorOutcome({
+      skillId: originalEval.skillId,
+      projectId,
+      sourceKind: "pr_revert",
+      sourceRef: originalEval.prRef,
+      result,
+    });
+    await recomputeSkillAutonomy(originalEval.skillId, projectId).catch((err) =>
+      console.error("[process-webhook-event] recomputeSkillAutonomy failed:", err),
+    );
+  }
+  return markProcessed(evt.id);
+}
+
+interface DeployIncidentInput {
+  organizationId: string;
+  projectId: string;
+  deploymentId: string;
+  environment: string;
+  completedAt: Date | null;
+  rolledBackAt: Date | null;
+  status: "failed" | "rolled_back";
+  commitSha: string;
+  ownerRepo: string;
+  installationId: string | null;
+}
+
+async function emitDeployIncidentOutcome(input: DeployIncidentInput): Promise<void> {
+  const skillSlug = input.installationId
+    ? await attributeSkillFromCommitSha(input.commitSha, input.ownerRepo, input.installationId)
+    : null;
+  if (!skillSlug) return;
+  const skill = await db.query.skills.findFirst({
+    where: and(eq(skills.organizationId, input.organizationId), eq(skills.slug, skillSlug)),
+  });
+  if (!skill) return;
+
+  const result = assessDeployIncident(
+    {
+      status: input.status,
+      environment: input.environment,
+      completedAt: input.completedAt,
+      rolledBackAt: input.rolledBackAt,
+    },
+    null,
+  );
+  if (result.verdict === null) return;
+  await recordAssessorOutcome({
+    skillId: skill.id,
+    projectId: input.projectId,
+    sourceKind: "deploy_incident",
+    sourceRef: `deployment:${input.deploymentId}`,
+    result,
+  });
+  await recomputeSkillAutonomy(skill.id, input.projectId).catch((err) =>
+    console.error("[process-webhook-event] recomputeSkillAutonomy failed:", err),
+  );
 }
 
 function hitsPath(files: ChangedFile[], rule: { tags: string[] | null }): boolean {

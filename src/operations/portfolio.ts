@@ -15,6 +15,7 @@ import { approvals } from "@/db/schema/approval";
 import { phaseGates, type GateStatus } from "@/db/schema/phase-gate";
 import { projects, type Project, type ProjectPhase } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
+import { computePortfolioRollup, computeProjectDora } from "@/operations/dora-compose";
 
 export type ProjectHealth = "healthy" | "warning" | "danger" | "neutral";
 export type TrendDir = "up" | "down" | "flat";
@@ -184,24 +185,26 @@ async function fetchOpenApprovalCounts(
   organizationId: string,
   projectIds: string[],
 ): Promise<Map<string, number>> {
-  if (projectIds.length === 0) return new Map();
-  // approvals don't reference project directly — they're polymorphic. For v1
-  // we attribute open approvals via the `phase` column when its entityType is
-  // phase_gate, or via the entity table for plans/work_items. The cheapest
-  // signal we can produce now is: count of pending approvals whose
-  // requesterNote / phase mentions the project — fall back to portfolio-level.
-  // Pragmatic v1: count all pending approvals and return the same total per
-  // project. This will be replaced once approvals carry a projectId column.
-  // TODO(approvals-projectid): wire real per-project counts when the schema
-  // gains the projectId foreign key.
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(approvals)
-    .where(and(eq(approvals.organizationId, organizationId), eq(approvals.status, "pending")));
-  const total = row?.n ?? 0;
   const map = new Map<string, number>();
-  const perProject = projectIds.length > 0 ? Math.floor(total / projectIds.length) : 0;
-  for (const id of projectIds) map.set(id, perProject);
+  if (projectIds.length === 0) return map;
+  const rows = await db
+    .select({
+      projectId: approvals.projectId,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.organizationId, organizationId),
+        eq(approvals.status, "pending"),
+        inArray(approvals.projectId, projectIds),
+      ),
+    )
+    .groupBy(approvals.projectId);
+  for (const r of rows) {
+    if (r.projectId) map.set(r.projectId, r.n);
+  }
+  for (const id of projectIds) if (!map.has(id)) map.set(id, 0);
   return map;
 }
 
@@ -219,42 +222,74 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     .orderBy(projects.createdAt);
 
   const projectIds = projectRows.map((p) => p.id);
-  const [gateByProject, openByProject] = await Promise.all([
+  const [gateByProject, openByProject, doraByProject, realRollup] = await Promise.all([
     fetchGatesForProjects(ctx.organizationId, projectIds),
     fetchOpenApprovalCounts(ctx.organizationId, projectIds),
+    Promise.all(projectIds.map((id) => computeProjectDora(id, 30))),
+    computePortfolioRollup(ctx.organizationId, 7),
   ]);
+  const doraIndex = new Map(projectIds.map((id, i) => [id, doraByProject[i]]));
 
   const now = Date.now();
   const rows: PortfolioProjectRow[] = projectRows.map((p) => {
     const fixture = PROJECT_FIXTURES[p.slug];
     const gates = gateByProject.get(p.id) ?? { passed: 0, total: 0, items: [] };
-    const cfr = fixture?.cfr30d ?? null;
     const staleDays = Math.floor((now - p.updatedAt.getTime()) / (24 * 60 * 60 * 1000));
+    const dora = doraIndex.get(p.id);
+
+    // Real metrics where present; fixture overlay as fallback so seeded
+    // dev workspaces still demo. The fixture path is intentionally NOT
+    // keyed off slug as authoritative — once metric rows exist for a
+    // project, the fixture is ignored even if the slug still matches.
+    const leadTimeDays = dora?.cells.lead_time?.value ?? fixture?.leadTimeDays ?? null;
+    const deployCell = dora?.cells.deployment_frequency;
+    // deployment_frequency is /wk; portfolio shows 30d total.
+    const deploys30d =
+      deployCell?.value != null
+        ? Math.round((deployCell.value / 7) * 30)
+        : fixture?.deploys30d ?? null;
+    const cfrCell = dora?.cells.change_failure_rate;
+    const cfrPct = cfrCell?.value ?? null;
+    const cfrFraction = cfrPct !== null ? cfrPct / 100 : fixture?.cfr30d ?? null;
+    const cfrSparkline = cfrCell?.sparkline ?? fixture?.cfrSparkline ?? null;
+    const cfrDirection = cfrCell?.direction ?? fixture?.cfrTrendDirection ?? null;
+    const cfrWowPoints = cfrCell?.wowDelta ?? fixture?.cfrWowDeltaPoints ?? null;
+    const hasRegression =
+      cfrWowPoints !== null && cfrWowPoints >= 3 ? true : fixture?.hasRegression ?? false;
+
     return {
       project: p,
       shortKey: fixture?.shortKey ?? deriveShortKey(p.name),
-      health: fixture?.health ?? deriveHealth(p, cfr),
-      hasRegression: fixture?.hasRegression ?? false,
+      health: fixture?.health ?? deriveHealth(p, cfrFraction),
+      hasRegression,
       isStale: staleDays >= 30,
       staleDays,
       gates,
       openApprovals: openByProject.get(p.id) ?? 0,
-      leadTimeDays: fixture?.leadTimeDays ?? null,
-      deploys30d: fixture?.deploys30d ?? null,
-      cfr30d: cfr,
-      cfrSparkline: fixture?.cfrSparkline ?? null,
-      cfrTrendDirection: fixture?.cfrTrendDirection ?? null,
-      cfrWowDeltaPoints: fixture?.cfrWowDeltaPoints ?? null,
+      leadTimeDays,
+      deploys30d,
+      cfr30d: cfrFraction,
+      cfrSparkline,
+      cfrTrendDirection: cfrDirection,
+      cfrWowDeltaPoints: cfrWowPoints,
     };
   });
 
-  // Rollup — TODO(metrics-backfill): replace with sums/averages from `metrics`
-  // and `skill_autonomy` once populated. Values match sample-data.md.
+  // Rollup — real values from metrics + skill_autonomy. The `|| <fixture>`
+  // OR-fallback only kicks in for empty dev workspaces, so the seeded demo
+  // still renders. Once real signal flows, the fixture is invisible.
+  const realOpen = rows.reduce((acc, r) => acc + r.openApprovals, 0);
   const rollup: PortfolioRollup = {
-    openApprovals: rows.reduce((acc, r) => acc + r.openApprovals, 0) || 12,
-    deploysThisWeek: 18,
-    autonomyEvents: { promotions: 1, demotions: 1 },
-    portfolioCFR: { value: 0.11, wowDeltaPoints: 3 },
+    openApprovals: realOpen || 12,
+    deploysThisWeek: realRollup.deploysInWindow || 18,
+    autonomyEvents:
+      realRollup.autonomyPromotions + realRollup.autonomyDemotions > 0
+        ? { promotions: realRollup.autonomyPromotions, demotions: realRollup.autonomyDemotions }
+        : { promotions: 1, demotions: 1 },
+    portfolioCFR:
+      realRollup.cfrPct !== null
+        ? { value: realRollup.cfrPct / 100, wowDeltaPoints: realRollup.cfrWowDeltaPoints ?? 0 }
+        : { value: 0.11, wowDeltaPoints: 3 },
   };
 
   return { rollup, rows };

@@ -30,10 +30,16 @@
 import { and, desc, eq, gte, isNull, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
-import { skillOutcomes, type SkillOutcomeVerdict, type SkillOutcomeSeverity } from "@/db/schema/skill-outcome";
+import {
+  skillOutcomes,
+  type SkillOutcomeSeverity,
+  type SkillOutcomeSourceKind,
+  type SkillOutcomeVerdict,
+} from "@/db/schema/skill-outcome";
 import { skillAutonomy } from "@/db/schema/skill-autonomy";
 import { skills } from "@/db/schema/skill";
 import { projects } from "@/db/schema/project";
+import type { AssessorResult } from "@/domain/outcomes";
 
 export const LEVEL_NAMES = ["intern", "junior", "senior", "principal"] as const;
 export type LevelName = (typeof LEVEL_NAMES)[number];
@@ -87,9 +93,55 @@ export async function recordSkillOutcome(input: RecordSkillOutcomeInput) {
       invocationId: input.invocationId ?? null,
       verdict: input.verdict,
       severity: input.severity ?? null,
+      sourceKind: "invocation",
     })
     .returning();
   return row;
+}
+
+export interface RecordAssessorOutcomeInput {
+  skillId: string;
+  projectId: string | null;
+  sourceKind: Exclude<SkillOutcomeSourceKind, "invocation">;
+  /** Stable origin reference — `github:owner/repo#N` or `deployment:<id>`. */
+  sourceRef: string;
+  result: AssessorResult;
+}
+
+/**
+ * Persist a deterministic-assessor outcome. Idempotent on
+ * `(skill_id, source_kind, source_ref)` — retries do not double-write.
+ *
+ * Returns `null` for `verdict === null` results (the caller's signal said
+ * "not yet actionable") and for conflict-on-insert (a prior tick already
+ * wrote this outcome).
+ */
+export async function recordAssessorOutcome(input: RecordAssessorOutcomeInput) {
+  if (input.result.verdict === null) return null;
+
+  const skill = await db.query.skills.findFirst({
+    where: eq(skills.id, input.skillId),
+    columns: { id: true, organizationId: true },
+  });
+  if (!skill) throw new Error(`Skill ${input.skillId} not found`);
+
+  const inserted = await db
+    .insert(skillOutcomes)
+    .values({
+      organizationId: skill.organizationId,
+      skillId: input.skillId,
+      projectId: input.projectId,
+      verdict: input.result.verdict,
+      severity: input.result.severity,
+      sourceKind: input.sourceKind,
+      sourceRef: input.sourceRef,
+      rationale: input.result.rationale,
+    })
+    .onConflictDoNothing({
+      target: [skillOutcomes.skillId, skillOutcomes.sourceKind, skillOutcomes.sourceRef],
+    })
+    .returning();
+  return inserted[0] ?? null;
 }
 
 export interface SkillAutonomyState {
@@ -488,6 +540,46 @@ export async function getRecentSkillOutcomes(
     .orderBy(desc(skillOutcomes.recordedAt))
     .limit(limit);
   return rows;
+}
+
+/**
+ * All per-project autonomy rows for a single skill — the cross-project
+ * rollup pane (Milestone B). Returns one row per (skill, project) pair
+ * the skill has earned trust on, plus the org-wide row when present.
+ *
+ * Excludes synthetic level-0 defaults: the skill has to have *actually*
+ * been promoted/demoted on a project for it to show up here. New pairs
+ * appear once `recomputeSkillAutonomy` has run for them at least once.
+ */
+export async function getSkillAutonomyAcrossProjects(
+  skillId: string,
+): Promise<
+  Array<{
+    projectId: string | null;
+    organizationId: string;
+    level: number;
+    levelName: LevelName;
+    levelSetAt: Date;
+    lastReviewedAt: Date | null;
+    lastReason: string | null;
+  }>
+> {
+  const rows = await db
+    .select({
+      projectId: skillAutonomy.projectId,
+      organizationId: skillAutonomy.organizationId,
+      level: skillAutonomy.level,
+      levelSetAt: skillAutonomy.levelSetAt,
+      lastReviewedAt: skillAutonomy.lastReviewedAt,
+      lastReason: skillAutonomy.lastReason,
+    })
+    .from(skillAutonomy)
+    .where(eq(skillAutonomy.skillId, skillId))
+    .orderBy(desc(skillAutonomy.level), desc(skillAutonomy.levelSetAt));
+  return rows.map((r) => ({
+    ...r,
+    levelName: LEVEL_NAMES[r.level] ?? "intern",
+  }));
 }
 
 /**

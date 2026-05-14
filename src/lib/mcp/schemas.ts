@@ -65,6 +65,12 @@ export const McpResponseSchema = z.object({
   project: McpProjectSchema,
   workItem: McpWorkItemSchema.nullable(),
   phaseDiscipline: McpPhaseDisciplineSchema,
+  /**
+   * Names of MCP tools the agent may call in the current phase. Sourced
+   * from `src/lib/mcp/phase-enforcement.ts`. The agent self-polices by
+   * checking proposed tool calls against this list before invoking.
+   */
+  allowedTools: z.array(z.string()),
   rules: z.array(McpRuleSchema),
   skills: z.array(McpSkillSchema),
   adrs: z.array(McpAdrSchema),

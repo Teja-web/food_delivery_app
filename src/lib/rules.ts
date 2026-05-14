@@ -9,6 +9,7 @@
  * implemented in `src/automations/tasks/`.
  */
 
+import { assessOutcomesTask } from "@/automations/tasks/assess-outcomes";
 import { processWebhookEvent } from "@/automations/tasks/process-webhook-event";
 import { computeWorkItemLeadTime } from "@/automations/tasks/compute-work-item-lead-time";
 import { recomputeSkillAutonomyTask } from "@/automations/tasks/recompute-skill-autonomy";
@@ -80,6 +81,17 @@ const rules: Rule[] = [
     entityType: "skill_outcome",
     operation: "insert",
     tasks: [recomputeSkillAutonomyTask],
+  },
+  {
+    // pg_cron tick. The cron expression in `scripts/db-setup.ts`
+    // setupCronJobs() enqueues a synthetic `cron_tick:insert` event
+    // with `entityId = 'assess-outcomes'`. The condition keeps this
+    // rule from firing for any other future cron_tick entityId.
+    id: "cron_tick:assess-outcomes",
+    entityType: "cron_tick",
+    operation: "insert",
+    condition: (e) => e.entityId === "assess-outcomes",
+    tasks: [assessOutcomesTask],
   },
 ];
 

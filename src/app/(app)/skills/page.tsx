@@ -1,4 +1,6 @@
+import { listProjects } from "@/actions/projects";
 import { listSkills } from "@/actions/skills";
+import type { Project } from "@/db/schema/project";
 import type { Skill } from "@/db/schema/skill";
 import { getActionContext } from "@/lib/auth/context";
 import {
@@ -7,6 +9,7 @@ import {
   getSkillStats30d,
 } from "@/operations/skill-autonomy";
 
+import { ProjectFilter } from "./ProjectFilter";
 import { RecentEventsBanner } from "./RecentEventsBanner";
 import {
   levelLabel,
@@ -17,17 +20,29 @@ import {
 } from "./serialize";
 import { SkillsLedgerTable } from "./SkillsLedgerTable";
 
-export default async function SkillsPage() {
+export default async function SkillsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ projectId?: string }>;
+}) {
   const ctx = await getActionContext();
-  const { items } = await listSkills({ limit: 200 });
-  const skills = items as Skill[];
+  const sp = await searchParams;
+  const filterProjectId = sp.projectId && sp.projectId !== "all" ? sp.projectId : null;
 
-  // Transitional: the skills ledger view is org-wide today. Per-project views
-  // arrive in Milestone B (see docs/architecture.md). Passing projectId=null
-  // reads the legacy / org-wide autonomy row.
+  const [skillsList, projectsList] = await Promise.all([
+    listSkills({ limit: 200 }),
+    listProjects({ limit: 200 }),
+  ]);
+  const skills = skillsList.items as Skill[];
+  const projects = (projectsList.items ?? []) as Project[];
+
+  // When a project is selected, autonomy + stats read per-project rows. When
+  // null, we read the legacy / org-wide rows (the projectId=null lane that
+  // pre-Milestone-A data uses). New (skill, project) pairs default to
+  // level-0 intern until `recomputeSkillAutonomy` runs at least once.
   const [autonomy, stats, recentEvents] = await Promise.all([
-    Promise.all(skills.map((s) => getSkillAutonomy(s.id, null))),
-    Promise.all(skills.map((s) => getSkillStats30d(s.id, null))),
+    Promise.all(skills.map((s) => getSkillAutonomy(s.id, filterProjectId))),
+    Promise.all(skills.map((s) => getSkillStats30d(s.id, filterProjectId))),
     getRecentAutonomyEvents(ctx.organizationId, 14),
   ]);
 
@@ -46,7 +61,13 @@ export default async function SkillsPage() {
     { intern: 0, junior: 0, senior: 0, principal: 0, total: 0 } as AutonomyDistribution,
   );
 
-  const eventsBySkill = new Map(recentEvents.map((e) => [e.skillId, e]));
+  // Recent events get filtered to the selected project too — otherwise the
+  // banner shows promotions on other projects that aren't currently in view.
+  const eventsBySkill = new Map(
+    recentEvents
+      .filter((e) => (filterProjectId ? e.projectId === filterProjectId : true))
+      .map((e) => [e.skillId, e]),
+  );
   const events: AutonomyEventClient[] = [];
   for (const skill of skills) {
     const e = eventsBySkill.get(skill.id);
@@ -69,13 +90,25 @@ export default async function SkillsPage() {
   }
   events.sort((a, b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
 
+  const selectedProject = filterProjectId
+    ? projects.find((p) => p.id === filterProjectId) ?? null
+    : null;
+
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-display text-2xl font-semibold">Skills — autonomy ledger</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Trust over time. Outcomes earn auto-merge; incidents revoke it.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-semibold">Skills — autonomy ledger</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {selectedProject
+              ? `Trust earned on ${selectedProject.name}. Each skill restarts at intern on a new project.`
+              : "Trust over time across the org. Use the project filter to see per-project autonomy."}
+          </p>
+        </div>
+        <ProjectFilter
+          projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+          activeProjectId={filterProjectId}
+        />
       </header>
 
       <RecentEventsBanner events={events} />

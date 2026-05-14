@@ -88,6 +88,9 @@ async function initExtensionsAndSchemas() {
     console.log("  + vector extension");
     await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
     console.log("  + uuid-ossp extension");
+    // pgcrypto provides digest() — used by the audit_logs hash-chain trigger.
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
+    console.log("  + pgcrypto extension");
 
     for (const schema of ["auth", "coznt"]) {
       await pool.query(`CREATE SCHEMA IF NOT EXISTS ${schema};`);
@@ -259,20 +262,39 @@ async function setupCronJobs() {
     );
 
     console.log("-> Scheduling pg_cron jobs...");
-    // Add SDLC-specific cron jobs here as features land. Pattern:
-    //
-    //   await adminPool.query(`
-    //     SELECT cron.schedule_in_database(
-    //       '${CRON_JOB_PREFIX}nightly-metrics-rollup',
-    //       '0 3 * * *',
-    //       $$INSERT INTO coznt.metric_rollups SELECT ...$$,
-    //       $1
-    //     )
-    //   `, [dbName]);
-    //
     // Job names MUST start with the project prefix so reset/teardown can find
     // them without touching jobs owned by other projects on the cluster.
-    console.log("  (no scheduled jobs configured)");
+
+    // Milestone A — outcome lookback. Fires hourly; the SQL body enqueues a
+    // synthetic cron_tick event onto coznt_events. The worker drains it and
+    // routes via src/lib/rules.ts → assessOutcomesTask, which runs the
+    // deferred assessPrMerged + assessDeployClean passes. Same path as every
+    // other event in the system; pg_cron is only the trigger.
+    await adminPool.query(
+      `
+      SELECT cron.schedule_in_database(
+        '${CRON_JOB_PREFIX}assess-outcomes',
+        '0 * * * *',
+        $$
+          SELECT pgmq.send(
+            'coznt_events',
+            jsonb_build_object(
+              'entityType', 'cron_tick',
+              'operation', 'insert',
+              'entityId', 'assess-outcomes',
+              'organizationId', '__cron__',
+              'userId', 'cron:assess-outcomes',
+              'userName', 'assess-outcomes cron',
+              'newData', jsonb_build_object('firedAt', now())
+            )
+          )
+        $$,
+        $1
+      )
+      `,
+      [dbName],
+    );
+    console.log(`  + ${CRON_JOB_PREFIX}assess-outcomes  (hourly)`);
   } finally {
     await adminPool.end();
   }

@@ -11,6 +11,29 @@
 
 import { randomUUID } from "node:crypto";
 
+export interface SessionProject {
+  id: string;
+  name: string;
+  slug: string;
+  /** Lowercase coznt phase (`requirements` | `design` | …). */
+  phase: string;
+}
+
+export interface RequirementDraft {
+  id: string;
+  kind?: string;
+  title: string;
+  summary?: string;
+  body?: string;
+  priority?: string;
+  effortEstimate?: string;
+  parentPlanId?: string | null;
+  assigneeId?: string;
+  assigneeName?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SessionInfo {
   localId: string;
   serverId: string | null;
@@ -19,6 +42,18 @@ export interface SessionInfo {
   /** Best-effort label for what the agent said it was doing. */
   intent: string | null;
   toolCalls: number;
+  /**
+   * Project bound to this session via `set_project` / `switch_project`.
+   * Mirrors what the platform knows; routes still re-validate org match
+   * and refresh phase, so a slightly-stale cache here is fine.
+   */
+  project: SessionProject | null;
+  /**
+   * In-flight requirement drafts. Per-process, ephemeral by design —
+   * the agent's local working set. Pushed to the platform via
+   * `push_requirements`; cleared on successful push.
+   */
+  drafts: RequirementDraft[];
 }
 
 let current: SessionInfo | null = null;
@@ -31,8 +66,81 @@ export function startLocalSession(intent: string | null): SessionInfo {
     endedAt: null,
     intent,
     toolCalls: 0,
+    project: null,
+    drafts: [],
   };
   return current;
+}
+
+/**
+ * Bind a project to the session. Lazily creates a session if none is
+ * active so `set_project` can be the agent's first call (no need to
+ * mandate `session_start` first).
+ */
+export function setSessionProject(project: SessionProject): void {
+  if (!current) startLocalSession(null);
+  current!.project = project;
+}
+
+export function clearSessionProject(): void {
+  if (current) current.project = null;
+}
+
+export function getSessionProject(): SessionProject | null {
+  return current?.project ?? null;
+}
+
+/** Update just the cached phase — used after `advance_phase` succeeds. */
+export function updateSessionPhase(phase: string): void {
+  if (current?.project) current.project.phase = phase;
+}
+
+/** Lazily create the session so draft_* verbs can be the first call. */
+function ensureSession(): SessionInfo {
+  if (!current) startLocalSession(null);
+  return current!;
+}
+
+export function listDrafts(): RequirementDraft[] {
+  return current?.drafts ?? [];
+}
+
+export function addDraft(
+  input: Omit<RequirementDraft, "id" | "createdAt" | "updatedAt">,
+): RequirementDraft {
+  const s = ensureSession();
+  const now = new Date();
+  const draft: RequirementDraft = {
+    id: randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    ...input,
+  };
+  s.drafts.push(draft);
+  return draft;
+}
+
+export function updateDraft(
+  id: string,
+  patch: Partial<Omit<RequirementDraft, "id" | "createdAt">>,
+): RequirementDraft | null {
+  if (!current) return null;
+  const idx = current.drafts.findIndex((d) => d.id === id);
+  if (idx === -1) return null;
+  current.drafts[idx] = { ...current.drafts[idx], ...patch, updatedAt: new Date() };
+  return current.drafts[idx];
+}
+
+export function deleteDraft(id: string): boolean {
+  if (!current) return false;
+  const idx = current.drafts.findIndex((d) => d.id === id);
+  if (idx === -1) return false;
+  current.drafts.splice(idx, 1);
+  return true;
+}
+
+export function clearDrafts(): void {
+  if (current) current.drafts = [];
 }
 
 export function attachServerId(serverId: string): void {

@@ -253,8 +253,8 @@ Milestones A and B are required for any external use. C is the first sale of the
 
 ## 9. Open decisions
 
-1. **Hash-chained `audit_logs`** — the positioning leans on "signed, tamper-evident." The borrowings doc defers DSSE. Either ship hash-chained writes (cheap, no key management) before any external claim of "audit-grade," or soften the positioning. Pick before Milestone B.
+1. ~~**Hash-chained `audit_logs`**~~ ✅ **Resolved 2026-05-14 (Milestone B).** Shipped. `audit_logs.row_hash` = sha256(`prev_hash` ‖ canonical field concat), maintained by the `coznt.audit_log_chain` BEFORE INSERT trigger using a per-org advisory lock. `verifyAuditChain()` walks the chain and reports the first divergence; exposed at `POST /api/v1/audit/verify` and via the "Verify chain" button on `/audit`. DSSE-signing with a customer-controlled keypair remains a v2 surface — positioning.md item 6 was updated to reflect the shipped state.
 2. **Mode 1 → Mode 2 trigger** — how does a project graduate to allowing AI agents? Manual toggle? Threshold (≥30 days of observed activity, ≥N successful outcomes)? Codify in Milestone C.
-3. **Mode 1 outcome rubric** — which deterministic signals count as `success` for autonomy bootstrap? Suggested defaults: PR merged with no rollback within 7 days; deploy success + no incident within 24 hours; gate passed without override. Codify in Milestone A.
+3. ~~**Mode 1 outcome rubric**~~ ✅ **Resolved 2026-05-14 (Milestone A).** Codified in `src/domain/outcomes.ts` as five pure assessor functions: `assessPrMerged` (no rollback within 7d, checks green), `assessPrAbandoned` (closed-without-merge after >24h), `assessPrReverted` (revert within 7d), `assessDeployClean` (no incident within 24h), `assessDeployIncident` (rollback or post-deploy incident < 24h). Windows are parameterizable; production-environment severity escalation is `critical` for prod / `high` elsewhere.
 4. **AI default model** — `gpt-5-mini` or Claude via `@ai-sdk/anthropic`?
-5. **CLI distribution** — npm public package or private?
+5. **CLI distribution** — npm public package or private? (Per `memory_mcp_private_distribution`: the MCP server is **not** public npm — bundled/internal-registry only. CLI may follow the same rule; pick before Milestone E ships externally.)

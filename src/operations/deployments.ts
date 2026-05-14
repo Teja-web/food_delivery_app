@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { deployments, DEPLOYMENT_STATUSES, type Deployment } from "@/db/schema/deployment";
 import { metrics } from "@/db/schema/metric";
 import { getActionContext } from "@/lib/auth/context";
+import { recordMttrForRollback, recordMttrForSuccess } from "@/operations/mttr";
 
 const deploymentSchema = z.object({
   projectId: z.string().min(1),
@@ -72,6 +73,13 @@ export async function recordDeployment(input: z.infer<typeof deploymentSchema>):
     })
     .returning();
   await recordDeploymentMetrics(row);
+  // MTTR: rollback closes the incident in place; success closes the most
+  // recent open incident in the same lane (project + environment).
+  if (row.status === "rolled_back") {
+    await recordMttrForRollback(row);
+  } else if (row.status === "success") {
+    await recordMttrForSuccess(row);
+  }
   return row;
 }
 
@@ -88,6 +96,11 @@ export async function updateDeploymentStatus(
     .returning();
   if (!row) throw new Error("Deployment not found");
   await recordDeploymentMetrics(row);
+  if (row.status === "rolled_back") {
+    await recordMttrForRollback(row);
+  } else if (row.status === "success") {
+    await recordMttrForSuccess(row);
+  }
   return row;
 }
 
