@@ -5,6 +5,7 @@ import type { PhaseGate } from "@/db/schema/phase-gate";
 import type { Plan } from "@/db/schema/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
+import type { Skill } from "@/db/schema/skill";
 import type { PhaseGuidance } from "@/domain/phases";
 
 export interface CockpitProjectClient {
@@ -57,6 +58,15 @@ export interface CockpitRuleClient {
   tags: string[];
 }
 
+export interface CockpitSkillClient {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  scope: "project" | "org";
+  isPlatform: boolean;
+}
+
 export interface CockpitClient {
   project: CockpitProjectClient;
   nextPhase: ProjectPhase | null;
@@ -68,6 +78,7 @@ export interface CockpitClient {
   bindings: CockpitBindingClient[];
   plans: CockpitPlanClient[];
   rules: CockpitRuleClient[];
+  skills: CockpitSkillClient[];
   apiKey: {
     prefix: string;
     /** Only present when newly minted in this request. */
@@ -144,5 +155,16 @@ export function serializeCockpitRule(r: Rule, currentProjectId: string): Cockpit
     scope: r.projectId === currentProjectId ? "project" : "org",
     phase: r.phase ?? null,
     tags: r.tags ?? [],
+  };
+}
+
+export function serializeCockpitSkill(s: Skill, currentProjectId: string): CockpitSkillClient {
+  return {
+    id: s.id,
+    slug: s.slug,
+    name: s.name,
+    description: s.description,
+    scope: s.projectId === currentProjectId ? "project" : "org",
+    isPlatform: Array.isArray(s.tags) ? s.tags.includes("platform") : false,
   };
 }

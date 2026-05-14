@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Plus,
   Shield,
+  Sparkles,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -81,7 +82,7 @@ function GateRow({ gate }: { gate: CockpitGateClient }) {
 
 export function CockpitClient({ data }: { data: CockpitData }) {
   const [cursorOpen, setCursorOpen] = useState(false);
-  const { project, guidance, gates, gatesAllPassed, plans, bindings, rules, nextPhase, canAdvance, blockedReason } = data;
+  const { project, guidance, gates, gatesAllPassed, plans, bindings, rules, skills, nextPhase, canAdvance, blockedReason } = data;
   const projectScopedRules = rules.filter((r) => r.scope === "project").length;
   const orgScopedRules = rules.length - projectScopedRules;
 
@@ -308,6 +309,69 @@ export function CockpitClient({ data }: { data: CockpitData }) {
                   {plans.length > 8 ? (
                     <li className="pt-1 text-xs text-muted-foreground">
                       + {plans.length - 8} more
+                    </li>
+                  ) : null}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                    Skills · {skills.length}
+                  </span>
+                </CardTitle>
+                <Link
+                  href="/skills"
+                  className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                >
+                  All
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {skills.length === 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  No skills available. Platform skills are seeded by db-setup.
+                </span>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {skills.slice(0, 8).map((s) => (
+                    <li key={s.id} className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/skills/${s.id}`}
+                        className="min-w-0 truncate hover:underline"
+                        title={s.description ?? s.name}
+                      >
+                        {s.name}
+                      </Link>
+                      <span className="flex shrink-0 items-center gap-1">
+                        {s.isPlatform ? (
+                          <Badge
+                            variant="outline"
+                            className="border-autonomy-principal/40 px-1.5 py-0 font-mono text-[10px] uppercase text-autonomy-principal"
+                            title="Platform-authored skill — invoke from Cursor via invoke_skill"
+                          >
+                            platform
+                          </Badge>
+                        ) : null}
+                        <Badge
+                          variant="outline"
+                          className="px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
+                          title={s.scope === "project" ? "Scoped to this project" : "Available org-wide"}
+                        >
+                          {s.scope === "project" ? "proj" : "org"}
+                        </Badge>
+                      </span>
+                    </li>
+                  ))}
+                  {skills.length > 8 ? (
+                    <li className="pt-1 text-xs text-muted-foreground">
+                      + {skills.length - 8} more · <Link href="/skills" className="hover:underline">open ledger</Link>
                     </li>
                   ) : null}
                 </ul>

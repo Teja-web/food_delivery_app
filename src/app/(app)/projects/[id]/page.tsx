@@ -8,6 +8,7 @@ import { listBindingsForProject } from "@/operations/adapter-bindings";
 import { getOrCreateProjectKey } from "@/operations/api-keys";
 import { listPlansByProject } from "@/operations/plans";
 import { listRulesForProject } from "@/operations/rules";
+import { listSkillsForProject } from "@/operations/skills";
 
 import { CockpitClient } from "./CockpitClient";
 import {
@@ -16,6 +17,7 @@ import {
   serializeCockpitPlan,
   serializeCockpitProject,
   serializeCockpitRule,
+  serializeCockpitSkill,
   type CockpitClient as CockpitData,
 } from "./serialize";
 
@@ -28,11 +30,12 @@ export default async function ProjectDetailPage({
   const project = (await getProject(id)) as Project | null;
   if (!project) notFound();
 
-  const [plans, gates, bindings, rules, apiKey] = await Promise.all([
+  const [plans, gates, bindings, rules, skills, apiKey] = await Promise.all([
     listPlansByProject(id, { limit: 50 }),
     listGatesForPhase(id, project.phase),
     listBindingsForProject(id),
     listRulesForProject(id, project.phase),
+    listSkillsForProject(id),
     getOrCreateProjectKey(id),
   ]);
 
@@ -54,6 +57,7 @@ export default async function ProjectDetailPage({
     bindings: bindings.map(serializeCockpitBinding),
     plans: plans.map(serializeCockpitPlan),
     rules: rules.map((r) => serializeCockpitRule(r, id)),
+    skills: skills.map((s) => serializeCockpitSkill(s, id)),
     apiKey,
   };
 
