@@ -2,7 +2,7 @@
 /**
  * Seed platform-authored skills into the default organization.
  *
- * Reads every `scripts/platform-skills/<slug>/SKILL.md` file, parses YAML
+ * Reads every `src/automations/skills/<slug>/SKILL.md` file, parses YAML
  * frontmatter for metadata, and upserts a row into `coznt.skills` with
  * `organization_id = <default org>`, `project_id = NULL` (org-wide), and
  * `tags` including `"platform"`. Idempotent: re-running updates the body
@@ -20,7 +20,7 @@ import { join } from "path";
 import { randomBytes } from "crypto";
 
 const APP_DIR = import.meta.dirname ? join(import.meta.dirname, "..") : process.cwd();
-const SKILLS_DIR = join(APP_DIR, "scripts", "platform-skills");
+const SKILLS_DIR = join(APP_DIR, "src", "automations", "skills");
 
 const DATABASE_URL =
   process.env.DATABASE_URL || "postgres://postgres:password@localhost:5432/coznt";
@@ -107,7 +107,7 @@ export async function seedPlatformSkills(): Promise<{ inserted: number; updated:
 
     const files = loadSkillFiles();
     if (files.length === 0) {
-      console.log("  - No platform-skill directories found under scripts/platform-skills/");
+      console.log("  - No platform-skill directories found under src/automations/skills/");
       return { inserted: 0, updated: 0 };
     }
 
