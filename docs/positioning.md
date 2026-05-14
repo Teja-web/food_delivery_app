@@ -49,8 +49,11 @@ It continuously converts proven execution patterns into safe autonomous delivery
 | GitLab / Azure DevOps | Pipeline automation + signal | Earned autonomy — pipelines don't graduate |
 | Sonar / Snyk | Risk signal | Action — they detect, they don't allow more |
 | ai-sdlc-framework (OSS) | The loop, single-repo | Multi-project, hosted, portfolio-wide |
+| Cursor-first SDLC platforms (e.g. SDLC Transformation Platform) | Hosted IDE-write surface — real MCP server, write tools for requirements / ADRs / tests / PRs, the agent's daily workplace | Cross-project portfolio observability, causal DORA attribution, audit-grade execution history, earned-autonomy ledger as a trust artifact |
 
 Coznt is the layer above all of these — the only one that closes the loop between AI taking action and an organization being able to trust it with more.
+
+**Coznt is MCP-compatible, not Cursor-bound.** Coznt ships a Model Context Protocol server (`@coznt/mcp`) any compliant agent client mounts — Cursor, Claude Code, Cline, Continue, Zed, custom agents via the MCP SDK. The platform never requires a specific IDE; the IDE is one of several inputs the organization observes.
 
 ---
 

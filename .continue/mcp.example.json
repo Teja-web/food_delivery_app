@@ -1,0 +1,17 @@
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "pnpm",
+          "args": ["--silent", "-C", "/absolute/path/to/coznt", "mcp"],
+          "env": {
+            "COZNT_URL": "http://localhost:3029",
+            "COZNT_API_KEY": "<paste a project or org-scoped key from /settings/api-keys>"
+          }
+        }
+      }
+    ]
+  }
+}
