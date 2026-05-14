@@ -1,8 +1,18 @@
 import "server-only";
 
 import { writeFile, readFile as fsReadFile, unlink, mkdir, readdir, stat } from "node:fs/promises";
-import { resolve, basename, extname } from "node:path";
+import { resolve, basename, extname, join } from "node:path";
 import { nanoid } from "nanoid";
+
+// Use `path.join` for every fs path in this module. Two reasons:
+//   1. Template-literal paths (`${a}/${b}`) trigger Turbopack's static
+//      file tracer to emit broad `<dynamic>/<dynamic>/...` patterns that
+//      match thousands of files in the project root and bloat the build.
+//      `path.join` is opaque enough that the tracer gives up.
+//   2. Cross-platform path joining (windows separator handling).
+// Also: in production, set STORAGE_PATH to a directory *outside* the
+// project root (e.g. `/var/lib/coznt/storage`) so the tracer has no
+// chance of scanning user-uploaded content as bundle input.
 
 const ALLOWED_CATEGORIES = ["uploads", "generated", "temp"] as const;
 type StorageCategory = (typeof ALLOWED_CATEGORIES)[number];
@@ -64,7 +74,7 @@ function validateOrgId(organizationId: string): void {
 function getCategoryDir(organizationId: string, category: string): string {
   validateOrgId(organizationId);
   validateCategory(category);
-  return `${getStoragePath()}/${organizationId}/${category}`;
+  return join(getStoragePath(), organizationId, category);
 }
 
 /**
@@ -73,11 +83,11 @@ function getCategoryDir(organizationId: string, category: string): string {
  */
 async function ensureOrgStorage(organizationId: string): Promise<string> {
   validateOrgId(organizationId);
-  const orgDir = `${getStoragePath()}/${organizationId}`;
+  const orgDir = join(getStoragePath(), organizationId);
 
   await Promise.all(
     ALLOWED_CATEGORIES.map((cat) => {
-      return mkdir(`${orgDir}/${cat}`, { recursive: true });
+      return mkdir(join(orgDir, cat), { recursive: true });
     })
   );
 
@@ -123,7 +133,7 @@ export async function storeFile(
   const ext = extname(clean);
   const base = basename(clean, ext);
   const uniqueName = `${nanoid()}-${base}${ext}`;
-  const filePath = `${dir}/${uniqueName}`;
+  const filePath = join(dir, uniqueName);
 
   await writeFile(filePath, data);
   const stats = await stat(filePath);
@@ -146,7 +156,7 @@ export async function readFile(
 ): Promise<Buffer> {
   const clean = sanitizeFilename(filename);
   const dir = getCategoryDir(organizationId, category);
-  return fsReadFile(`${dir}/${clean}`);
+  return fsReadFile(join(dir, clean));
 }
 
 /**
@@ -159,7 +169,7 @@ async function deleteFile(
 ): Promise<void> {
   const clean = sanitizeFilename(filename);
   const dir = getCategoryDir(organizationId, category);
-  await unlink(`${dir}/${clean}`);
+  await unlink(join(dir, clean));
 }
 
 /**
@@ -187,5 +197,5 @@ function getFilePath(
 ): string {
   const clean = sanitizeFilename(filename);
   const dir = getCategoryDir(organizationId, category);
-  return `${dir}/${clean}`;
+  return join(dir, clean);
 }

@@ -120,10 +120,11 @@ async function main() {
 
   // ── 3. Record a critical incident, recompute autonomy ───────────────
   banner("Step 3 — Skill ships an incident; record outcome + recompute");
+  // `recordSkillOutcome` looks up organizationId from the skill row — caller
+  // doesn't pass it. See src/operations/skill-autonomy.ts:74.
   await recordSkillOutcome({
     skillId: skill.id,
     projectId: project.id,
-    organizationId: orgId,
     verdict: "incident",
     severity: "critical",
   });
