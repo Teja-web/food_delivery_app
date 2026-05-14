@@ -27,7 +27,7 @@
  * in-memory default when no row exists yet.
  */
 
-import { and, desc, eq, gte, isNull, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
@@ -139,6 +139,7 @@ export async function recordAssessorOutcome(input: RecordAssessorOutcomeInput) {
     })
     .onConflictDoNothing({
       target: [skillOutcomes.skillId, skillOutcomes.sourceKind, skillOutcomes.sourceRef],
+      where: sql`${skillOutcomes.sourceRef} is not null`,
     })
     .returning();
   return inserted[0] ?? null;
