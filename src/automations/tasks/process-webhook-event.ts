@@ -14,11 +14,20 @@
  * in the payload.
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
+import { approvals } from "@/db/schema/approval";
+import { projects } from "@/db/schema/project";
+import { rules } from "@/db/schema/rule";
+import { skills } from "@/db/schema/skill";
 import { webhookEvents, type WebhookEvent } from "@/db/schema/webhook-event";
+import { isConfigured as githubAppConfigured, postCheckRun } from "@/lib/integrations/github-app";
 import { resolveProjectForWebhook } from "@/lib/integrations/resolve";
+import { attributeSkill } from "@/lib/integrations/skill-attribution";
+import { classifyChangeRisk, type ChangedFile } from "@/operations/change-risk";
 import { recordDeployment } from "@/operations/deployments";
+import { evaluatePullRequest, type GateInput } from "@/operations/execution-gate";
+import { getSkillAutonomy } from "@/operations/skill-autonomy";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,9 +124,200 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
     }
   }
 
+  if (evt.event === "pull_request") {
+    return runExecutionGate(evt, payload, externalKey, projectId);
+  }
+
   // Other GitHub events resolved to a project but aren't yet wired up.
-  // TODO: implement per-event handlers (push, pull_request, check_run, …).
+  // TODO: implement per-event handlers (push, check_run, …).
   return markProcessed(evt.id);
+}
+
+/**
+ * Execution gate — evaluate a pull_request event against the autonomy
+ * ledger and post a check-run back to GitHub.
+ *
+ * Triggered for actions: opened, synchronize, reopened, edited. Other
+ * actions (closed, assigned, …) are no-ops so we don't generate noise.
+ */
+async function runExecutionGate(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  const action = asString(payload.action);
+  const triggers = new Set(["opened", "synchronize", "reopened", "edited", "ready_for_review"]);
+  if (!action || !triggers.has(action)) {
+    return markProcessed(evt.id);
+  }
+  if (!evt.organizationId) {
+    return markProcessed(evt.id, "webhook has no organizationId");
+  }
+
+  const pr = asObject(payload.pull_request);
+  if (!pr) return markProcessed(evt.id, "pull_request payload missing");
+
+  const number = typeof pr.number === "number" ? pr.number : Number(pr.number);
+  if (!Number.isFinite(number)) return markProcessed(evt.id, "pull_request missing number");
+
+  const ownerRepo = externalKey.replace(/^[^/]+\//, ""); // strip host
+  const prRef = `github:${ownerRepo}#${number}`;
+  const prTitle = asString(pr.title) ?? null;
+  const head = asObject(pr.head);
+  const headSha = asString(head?.sha) ?? null;
+  const prBody = asString(pr.body) ?? null;
+
+  // Skill attribution — head-commit trailer, falling back to PR body.
+  const commits = Array.isArray(payload.commits)
+    ? (payload.commits as Json[]).map((c) => ({
+        message: asString(c.message) ?? "",
+        sha: asString(c.id),
+      }))
+    : [];
+  const skillSlug = attributeSkill(commits, prBody);
+
+  // Resolve skill id + autonomy if attribution was found.
+  let skillId: string | null = null;
+  let skillLevel: number | null = null;
+  if (skillSlug) {
+    const skill = await db.query.skills.findFirst({
+      where: and(eq(skills.organizationId, evt.organizationId), eq(skills.slug, skillSlug)),
+    });
+    if (skill) {
+      skillId = skill.id;
+      // Per-project autonomy, falling back to org-wide.
+      const perProject = await getSkillAutonomy(skill.id, projectId);
+      const orgWide = await getSkillAutonomy(skill.id, null);
+      skillLevel = perProject.level > 0 ? perProject.level : orgWide.level;
+    }
+  }
+
+  // Project + active rules + current phase.
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, projectId), eq(projects.organizationId, evt.organizationId)),
+  });
+  if (!project) return markProcessed(evt.id, "project not found");
+
+  // Change risk from PR files. Fetch via GitHub when the App is configured;
+  // otherwise fall back to PR-level additions/deletions if present.
+  const files: ChangedFile[] = await fetchChangedFiles(
+    payload,
+    ownerRepo,
+    number,
+    skillLevel,
+  );
+  const risk = classifyChangeRisk({
+    files,
+    criticalPaths: project.criticalPaths ?? [],
+    productionCriticalPaths: project.productionCriticalPaths ?? [],
+  });
+
+  // Rule violations — v1 heuristic: active rules whose `phase` matches OR
+  // are unscoped, surfaced as warn/error. A future iteration runs each
+  // rule's body against the diff; v1 leaves the body check to CI and just
+  // exposes the rule list as informational so the verdict cites them.
+  const activeRules = await db.query.rules.findMany({
+    where: and(eq(rules.organizationId, evt.organizationId), eq(rules.enabled, true)),
+    limit: 50,
+  });
+  const ruleViolations = activeRules
+    .filter((r) => !r.phase || r.phase === project.phase)
+    .filter((r) => r.projectId === null || r.projectId === projectId)
+    .filter((r) => r.severity === "error" && hitsPath(files, r))
+    .map((r) => ({ ruleId: r.slug, severity: r.severity }));
+
+  // Human approval present? Look for an `approved` row scoped to this PR's
+  // work_item entityId (we use the prRef itself as the entityId convention).
+  const humanApproval = await db.query.approvals.findFirst({
+    where: and(
+      eq(approvals.organizationId, evt.organizationId),
+      eq(approvals.entityType, "work_item"),
+      eq(approvals.entityId, prRef),
+      eq(approvals.status, "approved"),
+    ),
+  });
+
+  const input: GateInput = {
+    organizationId: evt.organizationId,
+    projectId,
+    prRef,
+    prTitle,
+    prHeadSha: headSha,
+    skillId,
+    skillLevel,
+    changeRisk: risk.risk,
+    ruleViolations,
+    phase: project.phase,
+    hasHumanApproval: Boolean(humanApproval),
+  };
+
+  const { evaluation, verdict } = await evaluatePullRequest(input);
+
+  // POST the check-run if the GitHub App is configured. The installation
+  // id is on the webhook payload's `installation` block.
+  const installation = asObject(payload.installation);
+  const installationId = asString(installation?.id) ?? (installation?.id != null ? String(installation.id) : null);
+  if (githubAppConfigured() && installationId && headSha) {
+    try {
+      const result = await postCheckRun({
+        installationId,
+        ownerRepo,
+        headSha,
+        name: "coznt / autonomy gate",
+        conclusion: verdict.verdict,
+        title: verdict.reason,
+        summary: `**Risk:** ${risk.risk} (${risk.totalLines} lines, ${files.length} files). **Skill:** ${skillSlug ?? "—"}.`,
+        text: verdict.details.join("\n\n"),
+      });
+      if (result) {
+        await db
+          .update(
+            (await import("@/db/schema/gate-evaluation")).gateEvaluations,
+          )
+          .set({ checkRunId: String(result.id) })
+          .where(eq((await import("@/db/schema/gate-evaluation")).gateEvaluations.id, evaluation.id));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await db
+        .update(
+          (await import("@/db/schema/gate-evaluation")).gateEvaluations,
+        )
+        .set({ checkRunError: msg })
+        .where(eq((await import("@/db/schema/gate-evaluation")).gateEvaluations.id, evaluation.id));
+    }
+  }
+
+  return markProcessed(evt.id);
+}
+
+/** Best-effort change-files list. With a GitHub App token we'd fetch the full
+ * file list; without, fall back to PR-level totals so the heuristic still has
+ * something to chew on. Returns at least one synthetic entry so totalLines is
+ * non-zero. */
+async function fetchChangedFiles(
+  payload: Json,
+  _ownerRepo: string,
+  _number: number,
+  _skillLevel: number | null,
+): Promise<ChangedFile[]> {
+  // v1: read totals from the webhook payload. The GitHub Files API call comes
+  // when we wire installationTokenFor() into a per-PR file fetcher.
+  const pr = asObject(payload.pull_request);
+  const additions = typeof pr?.additions === "number" ? pr.additions : 0;
+  const deletions = typeof pr?.deletions === "number" ? pr.deletions : 0;
+  return [{ filename: "__pr-aggregate__", additions, deletions }];
+}
+
+function hitsPath(files: ChangedFile[], rule: { tags: string[] | null }): boolean {
+  // v1: only treat as "violated" if the rule is tagged with a path hint that
+  // appears in a changed file. This is intentionally conservative — false
+  // positives on the execution gate are expensive. Real per-rule logic
+  // (running the rule body against the diff) is a follow-up.
+  const hintTags = (rule.tags ?? []).filter((t) => t.includes("/") || t.endsWith(".ts") || t.endsWith(".py"));
+  if (hintTags.length === 0) return false;
+  return files.some((f) => hintTags.some((h) => f.filename.includes(h)));
 }
 
 // ---------------------------------------------------------------------------

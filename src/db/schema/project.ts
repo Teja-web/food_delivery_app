@@ -43,6 +43,15 @@ export const projects = cozntSchema.table(
     adoProjectId: text("ado_project_id"),
     confluenceSpaceKey: text("confluence_space_key"),
 
+    // Execution-gate inputs (docs/execution-gate-plan.md). Empty defaults
+    // are permissive; the gate's change-risk heuristic upgrades a PR's
+    // risk class when any changed file matches a critical-path glob.
+    criticalPaths: text("critical_paths").array().notNull().default(sql`ARRAY[]::text[]`),
+    productionCriticalPaths: text("production_critical_paths")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+
     createdById: text("created_by_id"),
     createdByName: text("created_by_name"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

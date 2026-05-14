@@ -9,12 +9,14 @@ import { Sparkline } from "@/components/viz/Sparkline";
 import type { Skill } from "@/db/schema/skill";
 import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
 import { getSkill } from "@/actions/skills";
+import { countBlockedPrsForSkill } from "@/operations/execution-gate";
 import {
   getRecentSkillOutcomes,
   getSkillAutonomy,
   getSkillStats30d,
   LEVEL_BLURBS,
 } from "@/operations/skill-autonomy";
+import { getActionContext } from "@/lib/auth/context";
 
 import { levelLabel } from "../serialize";
 
@@ -94,10 +96,12 @@ export default async function SkillDetailPage({
 
   // Transitional: org-wide view (projectId=null). Per-project breakdown lands
   // in Milestone B alongside the skills ledger redesign.
-  const [autonomy, stats, recent] = await Promise.all([
+  const ctx = await getActionContext();
+  const [autonomy, stats, recent, blockedPrs] = await Promise.all([
     getSkillAutonomy(skill.id, null),
     getSkillStats30d(skill.id, null),
     getRecentSkillOutcomes(skill.id, 20),
+    countBlockedPrsForSkill(ctx.organizationId, skill.id, null),
   ]);
   const label = levelLabel(autonomy.level);
   const sparkDirection = stats.success === 0 ? "flat" : stats.incident > 0 ? "down" : "up";
@@ -133,6 +137,21 @@ export default async function SkillDetailPage({
           {skill.enabled ? "Enabled" : "Disabled"}
         </Badge>
       </header>
+
+      {blockedPrs > 0 ? (
+        <div className="rounded-md border border-state-failed/40 bg-state-failed/[0.06] px-4 py-3">
+          <div className="flex items-center gap-2">
+            <CircleX className="h-3.5 w-3.5 shrink-0 text-state-failed" aria-hidden />
+            <span className="text-sm font-medium text-state-failed">
+              {blockedPrs} pull request{blockedPrs === 1 ? "" : "s"} currently blocked by the execution gate
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            This skill&apos;s autonomy isn&apos;t high enough to clear the change risk on these PRs, or a
+            recent demotion re-graded them. A human reviewer can override via /approvals.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="space-y-6 lg:col-span-3">

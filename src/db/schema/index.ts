@@ -29,5 +29,6 @@ export * from "./metric";
 export * from "./deployment";
 export * from "./test-run";
 export * from "./adapter-binding";
+export * from "./gate-evaluation";
 
 export * from "./relations";
