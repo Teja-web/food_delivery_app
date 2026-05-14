@@ -33,7 +33,7 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "mcp": "tsx src/mcp/bin.ts",
-    "mcp:build": "tsc -p tsconfig.mcp.json"
+    "mcp:build": "tsc -p tsconfig.mcp.json && chmod +x dist/mcp/bin.js"
   },
   "bin": {
     "coznt-mcp": "./src/mcp/bin.ts"

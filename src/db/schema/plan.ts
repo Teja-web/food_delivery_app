@@ -14,48 +14,29 @@ import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
+import {
+  PLAN_KINDS,
+  PLAN_KIND_PARENTS,
+  PLAN_STATUSES,
+  PLAN_PRIORITIES,
+  type PlanKind,
+  type PlanStatus,
+  type PlanPriority,
+} from "./plan-kinds";
 
-export const PLAN_KINDS = [
-  "epic",
-  "feature",
-  "story",
-  "adr",
-  "test_plan",
-  "release_plan",
-  "incident",
-  "storyboard",
-  "dev_summary",
-  "go_live_report",
-  "cicd_pipeline",
-] as const;
-export type PlanKind = (typeof PLAN_KINDS)[number];
-
-/** Canonical parent → child rollup for hierarchy validation. */
-export const PLAN_KIND_PARENTS: Partial<Record<PlanKind, PlanKind[]>> = {
-  feature: ["epic"],
-  story: ["feature", "epic"],
-  adr: ["epic", "feature"],
-  test_plan: ["feature", "story"],
-  release_plan: ["epic", "feature"],
-  storyboard: ["feature", "epic"],
-  dev_summary: ["feature", "story"],
-  go_live_report: ["release_plan"],
-  cicd_pipeline: ["release_plan", "epic"],
+// Re-exported so existing `@/db/schema/plan` callers keep working. The
+// authoritative definitions live in `./plan-kinds.ts` — a leaf with no
+// Drizzle imports so the MCP CLI bundle can use them without dragging
+// in pg-core.
+export {
+  PLAN_KINDS,
+  PLAN_KIND_PARENTS,
+  PLAN_STATUSES,
+  PLAN_PRIORITIES,
+  type PlanKind,
+  type PlanStatus,
+  type PlanPriority,
 };
-
-export const PLAN_STATUSES = [
-  "draft",
-  "in_review",
-  "approved",
-  "in_progress",
-  "completed",
-  "rejected",
-  "cancelled",
-] as const;
-export type PlanStatus = (typeof PLAN_STATUSES)[number];
-
-export const PLAN_PRIORITIES = ["p0", "p1", "p2", "p3"] as const;
-export type PlanPriority = (typeof PLAN_PRIORITIES)[number];
 
 export const plans = cozntSchema.table(
   "plans",

@@ -15,7 +15,7 @@ import { z } from "zod";
 
 import { CozntClient } from "../client.js";
 import { bumpToolCall, getSessionProject } from "../session.js";
-import { PLAN_KINDS } from "../../db/schema/plan.js";
+import { PLAN_KINDS } from "../../db/schema/plan-kinds.js";
 
 export const upsertPlanInput = z.object({
   projectId: z.string().optional().describe("Defaults to the session's bound project."),
