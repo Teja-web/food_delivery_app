@@ -332,6 +332,31 @@ async function runExecutionGate(
     }
   }
 
+  // Milestone C — fire the AI change-risk-classifier alongside the
+  // deterministic verdict. The result is written to `intelligence` and
+  // appears on the PR row in the cockpit / approvals inbox. Any failure
+  // here is contained — the gate verdict has already shipped.
+  try {
+    const { classifyChangeRiskTask } = await import("./classify-change-risk");
+    await classifyChangeRiskTask({
+      organizationId: evt.organizationId,
+      projectId,
+      projectName: project.name,
+      projectPhase: project.phase ?? "unknown",
+      prRef,
+      prTitle: prTitle ?? `PR #${number}`,
+      prBody,
+      files,
+      totalLines: risk.totalLines,
+      criticalPaths: project.criticalPaths ?? [],
+      productionCriticalPaths: project.productionCriticalPaths ?? [],
+      heuristicRisk: risk.risk,
+      activeRules: ruleViolations.map((v) => v.ruleId),
+    });
+  } catch {
+    // swallow — AI is observability, not load-bearing
+  }
+
   return markProcessed(evt.id);
 }
 
