@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type PlanKind, type PlanStatus } from "@/db/schema/plan";
+import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan";
 import { cn } from "@/lib/utils";
 
 import type { PlanRowClient, PlansPageClient } from "./serialize";
@@ -29,6 +29,10 @@ const KIND_TONE_CLASS: Record<PlanKind, string> = {
   test_plan: "border-state-pending/40 text-state-pending",
   release_plan: "border-trend-up/40 text-trend-up",
   incident: "border-state-failed/40 text-state-failed",
+  storyboard: "border-foreground/30 text-foreground/85",
+  dev_summary: "border-foreground/30 text-foreground/85",
+  go_live_report: "border-trend-up/40 text-trend-up",
+  cicd_pipeline: "border-state-pending/40 text-state-pending",
 };
 
 type Filter =
@@ -145,7 +149,7 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             Kind
           </span>
-          {(["epic", "feature", "story", "adr", "test_plan", "release_plan", "incident"] as const).map(
+          {PLAN_KINDS.map(
             (k) => {
               const n = data.counts.byKind[k] ?? 0;
               if (n === 0) return null;

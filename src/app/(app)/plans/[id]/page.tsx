@@ -60,13 +60,21 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           <h1 className="text-2xl font-semibold">{plan.title}</h1>
           {plan.summary ? <p className="mt-2 text-sm text-muted-foreground">{plan.summary}</p> : null}
         </div>
-        {plan.status === "draft" ? (
-          <form action={requestApproval.bind(null, id)}>
-            <Button type="submit" variant="outline">
-              Request approval
-            </Button>
-          </form>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/v1/plans/${id}/export?format=html`}>Export .html</a>
+          </Button>
+          {plan.status === "draft" ? (
+            <form action={requestApproval.bind(null, id)}>
+              <Button type="submit" variant="outline">
+                Request approval
+              </Button>
+            </form>
+          ) : null}
+        </div>
       </div>
 
       <article className="prose prose-sm max-w-none rounded border bg-muted/20 p-4 font-mono whitespace-pre-wrap">

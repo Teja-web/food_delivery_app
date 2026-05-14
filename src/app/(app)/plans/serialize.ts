@@ -37,6 +37,10 @@ const KIND_LABEL: Record<PlanKind, string> = {
   test_plan: "Test plan",
   release_plan: "Release",
   incident: "Incident",
+  storyboard: "Storyboard",
+  dev_summary: "Dev summary",
+  go_live_report: "Go-live report",
+  cicd_pipeline: "CI/CD pipeline",
 };
 
 const STATUS_LABEL: Record<PlanStatus, string> = {
