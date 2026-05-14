@@ -1,93 +1,44 @@
 /**
- * Phase enforcement for MCP tools.
+ * Phase enforcement for MCP tools — route-side, authoritative.
  *
  * Maps each MCP tool to the SDLC phases in which it is allowed. Tools in
  * the ALWAYS_ALLOWED set bypass phase checks. Tools not in TOOL_PHASE_MAP
  * or ALWAYS_ALLOWED are denied by default — fail closed.
  *
- * Authoritative enforcement lives in the API route handlers (the MCP
- * server is just an HTTP client). Each `/api/v1/mcp/*` route that mutates
- * state calls `checkPhaseAllowed(verb, project.phase)` after resolving
- * the project and before doing any work. Denials return a structured
- * 403 body that surfaces back to the agent as a clear error.
+ * Each `/api/v1/mcp/*` route that mutates state calls
+ * `checkPhaseAllowed(verb, project.phase)` after resolving the project
+ * and before doing any work. Denials return a structured 403 body that
+ * surfaces back to the agent as a clear error.
  *
+ * The phase + tool maps are imported from `src/mcp/phase-tool-map.ts` —
+ * the single source of truth shared with the MCP CLI's fast-fail check.
  * Per-phase guidance text is sourced from coznt's `PHASE_GUIDANCE`
- * (`@/domain/phases`) — no second source of truth.
+ * (`@/domain/phases`).
  *
  * Ported from `/Users/ram/Projects/SDLC/apps/mcp-server/src/phase-enforcement.ts`.
  */
 
 import { PROJECT_PHASES, type ProjectPhase } from "@/db/schema/project";
 import { PHASE_GUIDANCE } from "@/domain/phases";
+import {
+  ALWAYS_ALLOWED as SHARED_ALWAYS_ALLOWED,
+  TOOL_PHASE_MAP as SHARED_TOOL_PHASE_MAP,
+  type Phase,
+} from "../../mcp/phase-tool-map.js";
 
-/**
- * Tools that bypass phase checks — orientation, navigation, validation,
- * and the phase-transition verbs themselves.
- */
-export const ALWAYS_ALLOWED = new Set<string>([
-  "set_project",
-  "switch_project",
-  "get_my_context",
-  "get_project_status",
-  "get_requirements",
-  "get_plans",
-  "get_assigned_work",
-  "check_standards",
-  "get_phase_checklist",
-  "submit_phase_for_review",
-  "advance_phase",
-  "setup_workspace",
-  // Coznt-specific tools (no SDLC analog) — always allowed.
-  "session_start",
-  "session_end",
-  "mark_gate_passed",
-  // General skill-invocation verb. Phase enforcement happens *inside* the
-  // skill (via action-policy rules) rather than at the verb level — a
-  // skill may be allowed in any phase its rules permit.
-  "invoke_skill",
-]);
+// Static guarantee: the shared `Phase` union must equal the schema's
+// `ProjectPhase`. If a phase is added to one without the other, this
+// assignment fails at compile time and the two surfaces stop drifting.
+type _PhaseAlignment = [Phase] extends [ProjectPhase]
+  ? [ProjectPhase] extends [Phase]
+    ? true
+    : false
+  : false;
+const _phaseAligned: _PhaseAlignment = true;
+void _phaseAligned;
 
-/**
- * Phase-gated tools. A verb absent from both this map and
- * `ALWAYS_ALLOWED` is denied by default.
- */
-export const TOOL_PHASE_MAP: Record<string, ProjectPhase[]> = {
-  // Requirements
-  draft_requirement: ["requirements"],
-  list_draft_requirements: ["requirements"],
-  update_draft_requirement: ["requirements"],
-  delete_draft_requirement: ["requirements"],
-  push_requirements: ["requirements"],
-  create_requirement: ["requirements"],
-
-  // Cross-phase submit
-  submit_for_approval: ["requirements", "design", "testing", "cicd"],
-
-  // Design
-  log_decision: ["design", "development"],
-  get_design_context: ["design", "development", "testing"],
-  generate_tests: ["design", "testing"],
-
-  // Development
-  create_pr: ["development"],
-  update_work_item_status: ["development", "testing", "cicd"],
-
-  // Testing
-  update_test_result: ["testing"],
-
-  // CI/CD + Monitoring
-  get_pipeline_status: ["cicd", "monitoring"],
-  generate_pipeline: ["development", "testing", "cicd"],
-
-  // Cross-phase external push
-  push_to_external: ["requirements", "design", "development", "testing", "cicd"],
-
-  // Plan upsert is broadly available; `kind` discriminates intent. No
-  // per-kind phase rule yet — the agent picks the right kind and the route
-  // trusts it. Add a kind→phase guard here when an agent picks wrong in
-  // practice.
-  upsert_plan: ["requirements", "design", "development", "testing", "cicd", "monitoring"],
-};
+export const ALWAYS_ALLOWED = SHARED_ALWAYS_ALLOWED;
+export const TOOL_PHASE_MAP: Record<string, ProjectPhase[]> = SHARED_TOOL_PHASE_MAP;
 
 export interface PhaseCheckResult {
   allowed: boolean;

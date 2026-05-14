@@ -1,82 +1,20 @@
 /**
- * MCP-side phase-enforcement data.
+ * MCP-side phase fast-fail.
  *
- * The route-side engine in `src/lib/mcp/phase-enforcement.ts` is
- * AUTHORITATIVE — it has the final say and is what the agent will
- * ultimately hit. This file exists so the MCP server can short-circuit
- * obviously-disallowed calls before the network roundtrip (sub-ms
- * denial vs a few hundred ms round-trip).
+ * Authoritative enforcement lives in the API route handlers
+ * (`src/lib/mcp/phase-enforcement.ts`). This file lets the MCP server
+ * short-circuit obviously-disallowed calls before the network roundtrip
+ * (sub-ms denial vs a few hundred ms round-trip).
  *
- * The data here is a snapshot of the route-side maps. They're small
- * and stable; keep them in sync manually. A drift between the two is
- * not a correctness bug — the route still rejects — just a missed
- * fast-fail.
- *
- * Lives in `src/mcp/` (not `src/lib/mcp/`) so the MCP server bundle
- * can import via relative paths without depending on Next.js's `@/`
- * alias resolver.
+ * The phase + tool maps are imported from `./phase-tool-map.js` — the
+ * single source of truth shared with the route-side engine. Don't add a
+ * local copy here; if you need a new mapping, add it to phase-tool-map.
  */
 
-export const PHASES = [
-  "requirements",
-  "design",
-  "development",
-  "testing",
-  "cicd",
-  "monitoring",
-] as const;
+export { PHASES, ALWAYS_ALLOWED, TOOL_PHASE_MAP } from "./phase-tool-map.js";
+export type { Phase } from "./phase-tool-map.js";
 
-export type Phase = (typeof PHASES)[number];
-
-export const ALWAYS_ALLOWED = new Set<string>([
-  "set_project",
-  "switch_project",
-  "get_my_context",
-  "get_project_status",
-  "get_requirements",
-  "get_plans",
-  "get_assigned_work",
-  "check_standards",
-  "get_phase_checklist",
-  "submit_phase_for_review",
-  "advance_phase",
-  "setup_workspace",
-  "session_start",
-  "session_end",
-  "mark_gate_passed",
-  "invoke_skill",
-]);
-
-export const TOOL_PHASE_MAP: Record<string, Phase[]> = {
-  draft_requirement: ["requirements"],
-  list_draft_requirements: ["requirements"],
-  update_draft_requirement: ["requirements"],
-  delete_draft_requirement: ["requirements"],
-  push_requirements: ["requirements"],
-  create_requirement: ["requirements"],
-
-  submit_for_approval: ["requirements", "design", "testing", "cicd"],
-
-  log_decision: ["design", "development"],
-  get_design_context: ["design", "development", "testing"],
-  generate_tests: ["design", "testing"],
-
-  create_pr: ["development"],
-  update_work_item_status: ["development", "testing", "cicd"],
-
-  update_test_result: ["testing"],
-
-  get_pipeline_status: ["cicd", "monitoring"],
-  generate_pipeline: ["development", "testing", "cicd"],
-
-  push_to_external: ["requirements", "design", "development", "testing", "cicd"],
-
-  // upsert_plan is broadly available; `kind` discriminates intent. No
-  // per-kind phase rule yet — keeping the verb open avoids forcing a
-  // phase-switch just to file an artifact. Mirror the authoritative copy
-  // in src/lib/mcp/phase-enforcement.ts when you add one.
-  upsert_plan: ["requirements", "design", "development", "testing", "cicd", "monitoring"],
-};
+import { ALWAYS_ALLOWED, TOOL_PHASE_MAP, type Phase } from "./phase-tool-map.js";
 
 export interface LocalPhaseCheck {
   allowed: boolean;
