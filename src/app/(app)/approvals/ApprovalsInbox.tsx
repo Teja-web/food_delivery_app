@@ -26,6 +26,7 @@ const ENTITY_ACCENT: Record<ApprovalRowClient["entityType"], string> = {
   phase_gate: "border-state-pending/40 text-state-pending",
   release: "border-autonomy-principal/40 text-autonomy-principal",
   work_item: "border-autonomy-senior/40 text-autonomy-senior",
+  skill_invocation: "border-autonomy-intern/40 text-autonomy-intern",
 };
 
 const ENTITY_LABEL: Record<ApprovalRowClient["entityType"], string> = {
@@ -33,6 +34,7 @@ const ENTITY_LABEL: Record<ApprovalRowClient["entityType"], string> = {
   phase_gate: "GATE",
   release: "RELEASE",
   work_item: "WORK",
+  skill_invocation: "SKILL",
 };
 
 function ApprovalRow({

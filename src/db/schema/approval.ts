@@ -15,7 +15,13 @@ import { projects } from "./project";
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "cancelled"] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 
-export const APPROVAL_ENTITY_TYPES = ["plan", "phase_gate", "release", "work_item"] as const;
+export const APPROVAL_ENTITY_TYPES = [
+  "plan",
+  "phase_gate",
+  "release",
+  "work_item",
+  "skill_invocation",
+] as const;
 export type ApprovalEntityType = (typeof APPROVAL_ENTITY_TYPES)[number];
 
 export const approvals = cozntSchema.table(

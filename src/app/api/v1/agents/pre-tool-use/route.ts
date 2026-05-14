@@ -3,8 +3,9 @@
  *
  * Called by IDE plugins (Claude Code, Cursor, …) before an AI agent runs a
  * tool. Resolves the calling skill against the API context, applies
- * action-policy rules, and returns an allow/deny verdict plus the current
- * autonomy level.
+ * action-policy rules AND the Milestone-D autonomy threshold gate, and
+ * returns an allow/deny verdict. When the autonomy gate blocks, the
+ * response includes the id of a freshly-opened `skill_invocation` approval.
  *
  * Request body (validated by `preToolUseSchema`):
  *
@@ -25,9 +26,10 @@
  *   {
  *     "allowed": false,
  *     "runId": "...",
- *     "reason": "Blocked: dangerous-shell-commands",
- *     "autonomy": { "level": 2, "levelName": "senior", "successRate": 0.94 },
- *     "violations": [...],
+ *     "reason": "autonomy_gate: skill at level 0 but 2 required",
+ *     "autonomy": { "level": 0, "levelName": "intern", "requiredLevel": 2 },
+ *     "approvalId": "appr_...",
+ *     "violations": [],
  *     "skillId": "..."
  *   }
  */

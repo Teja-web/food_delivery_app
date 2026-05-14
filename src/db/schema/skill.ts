@@ -5,7 +5,7 @@
  * `projectId` null = org-wide skill available to every project.
  */
 
-import { text, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { text, timestamp, boolean, jsonb, integer, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
@@ -30,6 +30,14 @@ export const skills = cozntSchema.table(
 
     tags: text().array(),
     enabled: boolean().notNull().default(true),
+
+    /**
+     * Minimum autonomy level (0–3) the skill must hold on a project before the
+     * Milestone-D dispatch gate lets a tool call through. Below this, the
+     * PreToolUse handler denies the call and routes a `skill_invocation`
+     * approval into the inbox.
+     */
+    minAutonomyLevel: integer("min_autonomy_level").notNull().default(0),
 
     createdById: text("created_by_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

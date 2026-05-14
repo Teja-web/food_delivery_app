@@ -5,16 +5,15 @@
  * are the on-ramp for IDE plugins (Claude Code, Cursor) to record what an
  * AI agent is about to do (Pre) and what happened (Post).
  *
- * Pre — applies action-policy rules and returns an allow/deny verdict
- * plus the current autonomy level for the (skill, project) pair. The
- * caller (the plugin) is expected to honor `allowed: false`.
+ * Pre — applies action-policy rules AND the Milestone-D autonomy threshold
+ * gate, then returns an allow/deny verdict plus the current autonomy level
+ * for the (skill, project) pair. When the autonomy gate blocks, a
+ * `skill_invocation` approval is opened so the action can be routed through
+ * the H3 approvals inbox. The caller (the plugin) honors `allowed: false`.
  *
  * Post — appends a `skill_outcomes` row keyed by the run, and (optionally)
  * an `intelligence` row carrying the structured result. Idempotency on the
  * outcomes side is the caller's responsibility — pass a stable `runId`.
- *
- * The Milestone-D dispatch gate will later wrap Pre with a hard autonomy
- * threshold check. v1 just surfaces the level and lets the plugin decide.
  */
 
 import { z } from "zod/v4";
@@ -22,11 +21,13 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db/client";
 import { skills, type Skill } from "@/db/schema/skill";
+import { approvals } from "@/db/schema/approval";
 import { automationLog } from "@/db/schema/automation-log";
 import { intelligence } from "@/db/schema/intelligence";
 import type { ApiContext } from "@/lib/api/auth";
 import { applyActionPolicyRules } from "@/operations/rule-engine";
 import { getSkillAutonomy, recordSkillOutcome, LEVEL_NAMES } from "@/operations/skill-autonomy";
+import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export const preToolUseSchema = z.object({
   skillSlug: z.string().min(1).describe("The skill the calling agent identifies as."),
@@ -95,7 +96,11 @@ export interface PreToolUseResponse {
   autonomy: {
     level: number;
     levelName: (typeof LEVEL_NAMES)[number];
+    /** Minimum level the skill requires on this project to dispatch. */
+    requiredLevel: number;
   } | null;
+  /** Set when the autonomy gate blocked the call and an approval was opened. */
+  approvalId: string | null;
   violations: Array<{ ruleId: string; severity: string; message: string }>;
   skillId: string | null;
 }
@@ -122,17 +127,50 @@ export async function handlePreToolUse(
   );
 
   const blocking = violations.filter((v) => v.severity === "error");
-  const allowed = blocking.length === 0;
+  const rulesAllowed = blocking.length === 0;
 
-  // Autonomy lookup — informational in v1 (Milestone D will gate on it).
+  // Autonomy gate. Per-project level first, falling back to org-wide if the
+  // project pair hasn't earned anything yet. Required level lives on the
+  // skill row (Milestone D).
   let autonomy: PreToolUseResponse["autonomy"] = null;
+  let autonomyGated = false;
   if (skill) {
     const perProject = await getSkillAutonomy(skill.id, projectId);
-    const fallback = perProject.level > 0 ? perProject : await getSkillAutonomy(skill.id, null);
+    const effective = perProject.level > 0 ? perProject : await getSkillAutonomy(skill.id, null);
     autonomy = {
-      level: fallback.level,
-      levelName: fallback.levelName,
+      level: effective.level,
+      levelName: effective.levelName,
+      requiredLevel: skill.minAutonomyLevel,
     };
+    autonomyGated = effective.level < skill.minAutonomyLevel;
+  }
+
+  const allowed = rulesAllowed && !autonomyGated;
+  const ruleReason = rulesAllowed ? null : blocking.map((v) => v.ruleTitle).join("; ");
+  const autonomyReason = autonomyGated
+    ? `autonomy_gate: skill at level ${autonomy?.level} but ${autonomy?.requiredLevel} required`
+    : null;
+  const reason = [ruleReason, autonomyReason].filter(Boolean).join("; ") || null;
+
+  // Route blocked autonomy decisions into the approvals inbox so a human
+  // (or, eventually, a senior agent) can ack.
+  let approvalId: string | null = null;
+  if (autonomyGated && skill) {
+    const [row] = await db
+      .insert(approvals)
+      .values({
+        organizationId: ctx.organizationId,
+        entityType: "skill_invocation",
+        entityId: runId,
+        projectId,
+        requestedById: `agent:${input.skillSlug}`,
+        requestedByName: skill.name,
+        requesterNote: `${input.tool}${input.command ? `: ${input.command}` : ""}`,
+        status: "pending",
+      })
+      .returning({ id: approvals.id });
+    approvalId = row.id;
+    safeRevalidate("/approvals");
   }
 
   // Log the pre-tool-use decision regardless of outcome.
@@ -145,15 +183,16 @@ export async function handlePreToolUse(
     actorType: "agent",
     actorId: input.skillSlug,
     status: allowed ? "succeeded" : "blocked",
-    errorMessage: allowed ? null : blocking.map((v) => v.message).join("; "),
+    errorMessage: allowed ? null : reason,
     createdAt: new Date(),
   });
 
   return {
     allowed,
     runId,
-    reason: allowed ? null : blocking.map((v) => v.ruleTitle).join("; "),
+    reason,
     autonomy,
+    approvalId,
     violations: violations.map((v) => ({
       ruleId: v.ruleId,
       severity: v.severity,
