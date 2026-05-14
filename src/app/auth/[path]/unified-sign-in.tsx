@@ -54,7 +54,7 @@ export function UnifiedSignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = searchParams.get("callbackUrl") || "/projects";
   const invite = searchParams.get("invite");
 
   const client = authClient;

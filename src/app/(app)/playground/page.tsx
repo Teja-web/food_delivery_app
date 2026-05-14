@@ -76,7 +76,7 @@ function Playground() {
       <Section title="Attribution chips">
         <AttributionChip id="gh-pr-1234" href="https://github.com/example/repo/pull/1234" />
         <AttributionChip id="JIRA-OPS-42" />
-        <AttributionChip id="audit-log-9c3f" href="/skills/audit" />
+        <AttributionChip id="audit-log-9c3f" href="/audit" />
       </Section>
 
       <Section title="Skill track record">

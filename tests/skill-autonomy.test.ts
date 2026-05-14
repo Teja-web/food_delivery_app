@@ -93,7 +93,7 @@ beforeEach(() => {
 describe("getSkillAutonomy", () => {
   it("returns level 0 (intern) default when no row exists", async () => {
     state.autonomyRow = null;
-    const s = await getSkillAutonomy("skill-1");
+    const s = await getSkillAutonomy("skill-1", null);
     expect(s.level).toBe(0);
     expect(s.levelName).toBe("intern");
     expect(s.lastReviewedAt).toBeNull();
@@ -118,7 +118,7 @@ describe("recomputeSkillAutonomy", () => {
       { verdict: "rolled_back" as const },
     ];
 
-    const result = await recomputeSkillAutonomy("skill-1");
+    const result = await recomputeSkillAutonomy("skill-1", null);
     expect(result.promoted).toBe(true);
     expect(result.level).toBe(2);
     expect(result.levelName).toBe("senior");
@@ -137,7 +137,7 @@ describe("recomputeSkillAutonomy", () => {
     };
     state.outcomes = Array.from({ length: 20 }, () => ({ verdict: "success" as const }));
 
-    const result = await recomputeSkillAutonomy("skill-1");
+    const result = await recomputeSkillAutonomy("skill-1", null);
     expect(result.promoted).toBe(false);
     expect(result.level).toBe(1);
     expect(result.reason).toMatch(/holding at junior/);
@@ -158,7 +158,7 @@ describe("recomputeSkillAutonomy", () => {
       { verdict: "incident" as const, severity: "critical" as const },
     ];
 
-    const result = await recomputeSkillAutonomy("skill-1");
+    const result = await recomputeSkillAutonomy("skill-1", null);
     expect(result.demoted).toBe(true);
     expect(result.level).toBe(0);
     expect(result.reason).toMatch(/critical incident/);
@@ -167,7 +167,7 @@ describe("recomputeSkillAutonomy", () => {
   it("treats a brand-new skill as level 0 with no history", async () => {
     state.autonomyRow = null;
     state.outcomes = []; // no outcomes yet
-    const result = await recomputeSkillAutonomy("skill-1");
+    const result = await recomputeSkillAutonomy("skill-1", null);
     // Default level 0; no demotion, no promotion (level cap on bottom).
     expect(result.level).toBe(0);
     expect(result.promoted).toBe(false);

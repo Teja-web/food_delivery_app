@@ -22,9 +22,12 @@ export default async function SkillsPage() {
   const { items } = await listSkills({ limit: 200 });
   const skills = items as Skill[];
 
+  // Transitional: the skills ledger view is org-wide today. Per-project views
+  // arrive in Milestone B (see docs/architecture.md). Passing projectId=null
+  // reads the legacy / org-wide autonomy row.
   const [autonomy, stats, recentEvents] = await Promise.all([
-    Promise.all(skills.map((s) => getSkillAutonomy(s.id))),
-    Promise.all(skills.map((s) => getSkillStats30d(s.id))),
+    Promise.all(skills.map((s) => getSkillAutonomy(s.id, null))),
+    Promise.all(skills.map((s) => getSkillStats30d(s.id, null))),
     getRecentAutonomyEvents(ctx.organizationId, 14),
   ]);
 
@@ -52,6 +55,7 @@ export default async function SkillsPage() {
       skill: { id: skill.id, slug: skill.slug, name: skill.name },
       autonomy: {
         skillId: skill.id,
+        projectId: e.projectId,
         organizationId: ctx.organizationId,
         level: e.level,
         levelName: (["intern", "junior", "senior", "principal"] as const)[e.level] ?? "intern",

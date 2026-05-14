@@ -14,6 +14,7 @@ import { text, timestamp, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { skills } from "./skill";
+import { projects } from "./project";
 
 export const SKILL_OUTCOME_VERDICTS = ["success", "rolled_back", "incident"] as const;
 export type SkillOutcomeVerdict = (typeof SKILL_OUTCOME_VERDICTS)[number];
@@ -31,6 +32,13 @@ export const skillOutcomes = cozntSchema.table(
       .references(() => skills.id, { onDelete: "cascade" }),
 
     /**
+     * Project the outcome was produced for. Autonomy is scored per
+     * (skill, project) pair. NULL is reserved for legacy / org-wide
+     * outcomes; new code paths must always populate this.
+     */
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+
+    /**
      * Reference to the invoking run id (matches `automation_logs.id` produced
      * by `invokeSkill`). Stored as plain text — automation_logs uses a nanoid
      * for `id` so we don't add a hard FK here to avoid coupling lifecycles.
@@ -45,6 +53,11 @@ export const skillOutcomes = cozntSchema.table(
   (table) => [
     index("skill_outcomes_skill_time_idx").on(table.skillId, table.recordedAt),
     index("skill_outcomes_org_time_idx").on(table.organizationId, table.recordedAt),
+    index("skill_outcomes_project_skill_time_idx").on(
+      table.projectId,
+      table.skillId,
+      table.recordedAt,
+    ),
   ],
 );
 

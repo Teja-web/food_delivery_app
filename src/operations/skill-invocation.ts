@@ -170,10 +170,16 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
       .returning({ id: intelligence.id });
 
     // === autonomy ledger ================================================
-    // Successful invocation → "success" verdict. Best-effort: failures here
-    // must not poison the invocation result.
+    // Successful invocation → "success" verdict, scored against the project
+    // the agent was working on (per-project autonomy). Best-effort: failures
+    // here must not poison the invocation result.
     try {
-      await recordSkillOutcome({ skillId: skill.id, invocationId: runId, verdict: "success" });
+      await recordSkillOutcome({
+        skillId: skill.id,
+        projectId: ctx.projectId ?? null,
+        invocationId: runId,
+        verdict: "success",
+      });
     } catch {
       // swallow — ledger is observability, not load-bearing for the call
     }
@@ -206,10 +212,12 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
     });
 
     // === autonomy ledger ================================================
-    // Thrown LLM error → "incident" at severity "high". Best-effort.
+    // Thrown LLM error → "incident" at severity "high", scored against the
+    // project the agent was working on. Best-effort.
     try {
       await recordSkillOutcome({
         skillId: skill.id,
+        projectId: ctx.projectId ?? null,
         invocationId: runId,
         verdict: "incident",
         severity: "high",

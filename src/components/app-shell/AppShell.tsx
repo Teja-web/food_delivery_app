@@ -45,25 +45,22 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Operate",
+    label: "Insight",
     items: [
       { href: "/skills", label: "Skills", Icon: Sparkles, matchPrefix: "/skills" },
-      { href: "/rules", label: "Rules", Icon: Shield },
-    ],
-  },
-  {
-    label: "Connect",
-    items: [{ href: "/integrations", label: "Adapters", Icon: Plug }],
-  },
-  {
-    label: "Measure",
-    items: [
       { href: "/metrics", label: "DORA", Icon: Activity },
-      { href: "/skills/audit", label: "Audit log", Icon: FileCheck },
+      { href: "/audit", label: "Audit log", Icon: FileCheck },
     ],
   },
   {
-    label: "Admin",
+    label: "Runtime",
+    items: [
+      { href: "/rules", label: "Rules", Icon: Shield },
+      { href: "/integrations", label: "Adapters", Icon: Plug },
+    ],
+  },
+  {
+    label: "Access",
     items: [
       { href: "/settings", label: "Settings", Icon: Settings },
       { href: "/api-keys", label: "API keys", Icon: Key },
@@ -76,7 +73,7 @@ const SECTION_LABELS: Record<string, string> = {
   "/plans": "Plans",
   "/approvals": "Approvals",
   "/skills": "Skills",
-  "/skills/audit": "Audit log",
+  "/audit": "Audit log",
   "/rules": "Rules",
   "/integrations": "Adapters",
   "/metrics": "DORA metrics",
@@ -91,15 +88,13 @@ function deriveSectionLabel(pathname: string): string {
   const seg = pathname.split("/").filter(Boolean);
   if (seg[0] === "projects" && seg[1]) return "Project";
   if (seg[0] === "plans" && seg[1]) return "Plan";
-  if (seg[0] === "skills" && seg[1] && seg[1] !== "audit") return "Skill";
+  if (seg[0] === "skills" && seg[1]) return "Skill";
   return SECTION_LABELS[`/${seg[0] ?? ""}`] ?? "Workspace";
 }
 
 function isActive(pathname: string, item: NavItem): boolean {
   if (pathname === item.href) return true;
   if (item.matchPrefix && pathname.startsWith(`${item.matchPrefix}/`)) {
-    // Don't claim "/skills" when on "/skills/audit"
-    if (item.href === "/skills" && pathname === "/skills/audit") return false;
     return true;
   }
   return false;

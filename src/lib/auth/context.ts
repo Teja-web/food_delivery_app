@@ -152,3 +152,14 @@ export async function getActionContext(): Promise<ScopedActionContext> {
 export async function requireOrgContext(): Promise<ScopedActionContext> {
   return getActionContext();
 }
+
+/**
+ * Thrown when an operation runs in a context without the required permission.
+ * Distinct from "not found" so the API layer can map it to 403.
+ */
+export class ForbiddenError extends Error {
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}

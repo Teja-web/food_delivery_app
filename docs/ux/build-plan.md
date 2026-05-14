@@ -64,6 +64,29 @@ A self-contained execution plan for implementing the five hero screens and the M
 
 ---
 
+## Milestone alignment (added 2026-05-12)
+
+`docs/architecture.md` defines five milestones A–E, each gated on the autonomy-with-observability loop being demonstrably closed at that scope. This UI build plan is one track inside that framing. The mapping below tells you which UI phase ships against which milestone, and which runtime prerequisites have to land first.
+
+| Milestone | Loop scope | Runtime prerequisite (not in this doc) | UI phases that ship here |
+|---|---|---|---|
+| **A** | One project, Mode 1 (ledger from non-AI signal) | Worker drains pgmq; deterministic outcome assessors in `src/domain/outcomes.ts` write `skill_outcomes` from PR-merge / deploy-success / gate-pass; schema deltas already landed (`skill_outcomes.projectId`, `skill_autonomy` rekeyed by `(skillId, projectId)`). | **Phase 6** (H4 Skills ledger — spine demo, per-project view by default) |
+| **B** | Portfolio + audit-grade visibility across projects | Same worker covering N projects; metrics rollups. | **Phase 3** (H1 portfolio), **Phase 4** (H2 cockpit), **Phase 7** (H5 cross-project DORA), `/audit` (functional screen — needs to be promoted from screens.md) |
+| **C** | First real AI agent joins one project (Mode 2 begins) | One agent definition in `src/automations/agents/definitions/`; PreToolUse/PostToolUse endpoints. | None — Milestone C is mostly runtime. Skills ledger gains "AI signal" rows. |
+| **D** | Agent dispatch gate + approvals integration | Autonomy threshold check on `/api/v1/skills/:id/invoke`; plugin telemetry endpoint. | **Phase 5** (H3 approvals inbox — pre-agent in B, agent-aware in D) |
+| **E** | Devin's IDE input surface | MCP context endpoint live, plugin packaged. | **Phase 8** (DX track — DEFERRED until Milestones A–B are real) |
+
+Phases 0–2 (foundation tokens, primitives, app shell) are infrastructure for all milestones. Phase 9 (polish) cuts across the lot.
+
+**What this changes operationally:**
+
+- **Phase 6 is now the spine demo, not Phase 3.** The H4 skills ledger is the screen that *proves* the loop is real. Build it per-project from day one (do not ship the org-wide-only view as the headline).
+- **Phase 8 is deferred to Milestone E.** Cursor MCP onboarding is Devin's input surface; useful, not load-bearing. Don't burn variant-exploration budget on it before the loop runs end-to-end.
+- **Audit screen is missing from this plan.** `/audit` is listed as a "functional screen" in `screens.md` but isn't a numbered phase here. It belongs in Milestone B. Add as Phase 7b (or renumber).
+- **Phase 3 (H1 portfolio) depends on Milestone A having real data.** Before Milestone A's worker + outcome assessors run, the portfolio view runs on fixture data only. That's fine for visual variant exploration; not fine for a customer demo.
+
+---
+
 ## Phase 0 — Foundation tokens
 
 **Goal:** make the dark theme the default, add trust-signal tokens, add motion tokens. Single-file additive edit. Lowest risk.
@@ -179,7 +202,7 @@ Run `pnpm typecheck` and `pnpm lint`.
 
 ## Phase 2 — App shell with grouped sidebar
 
-**Goal:** replace the current flat 7-link sidebar with the 5-group structure validated in the Lovable H1 variant.
+**Goal:** replace the current flat 7-link sidebar with the 4-group structure derived from persona journeys (revised 2026-05-12, see "IA: persona-journey grouping" below).
 
 ### Deliverables
 
@@ -194,21 +217,36 @@ PLAN
   Plans        (route: /plans, icon: ScrollText)
   Approvals    (route: /approvals, icon: CheckCircle2)
 
-OPERATE
+INSIGHT
   Skills       (route: /skills, icon: Sparkles)
-  Rules        (route: /rules, icon: Shield)
+  DORA         (route: /metrics, icon: Activity)
+  Audit log    (route: /audit, icon: FileCheck)
 
-CONNECT
+RUNTIME
+  Rules        (route: /rules, icon: Shield)
   Adapters     (route: /integrations, icon: Plug)
 
-MEASURE
-  DORA         (route: /metrics, icon: Activity)
-  Audit log    (route: /skills/audit, icon: FileCheck)
-
-ADMIN
+ACCESS
   Settings     (route: /settings, icon: Settings)
   API keys     (route: /api-keys, icon: Key)
 ```
+
+### IA: persona-journey grouping (2026-05-12 revision)
+
+The earlier 5-group structure (PLAN/OPERATE/CONNECT/MEASURE/ADMIN) from the original Lovable H1 mockup was a clean categorical taxonomy, but it split two personas' daily arcs across multiple groups:
+
+- **Priya's arc** (weekly trust check + rare audit): Skills ledger → DORA → Audit log. The old layout put Skills in OPERATE and DORA/Audit in MEASURE — she had to zigzag across groups for one mental model ("what do I observe?"). Now: all three live in **INSIGHT**, top-to-bottom matching her flow.
+- **Jordan's arc** (setup + connection): Adapters and API keys are both connection plumbing (external systems in vs. agents in). The old layout split them across CONNECT and ADMIN. Now: API keys sits in **ACCESS** next to Settings (it *is* workspace access config), and Adapters joins Rules in **RUNTIME** (Rules + Adapters together = "what an agent receives when it calls in").
+- **Sam's arc** (daily portfolio sweep): unchanged. PLAN group is exactly his daily flow.
+- **Devin**: lives in Cursor, barely touches the sidebar; the new IA doesn't constrain him.
+
+**Skills under INSIGHT, not OPERATE:** the H4 brief frames `/skills` as the *trust-earned ledger* — Priya's celebration moment, not "operate an agent". The agent-callable framing applies to the API surface, not the web UI.
+
+### Anti-patterns (do NOT revert)
+
+- ❌ Do not re-split Adapters and API keys into separate groups. They are both connection config from a user POV (one for system integrations, one for agent auth) and belong together.
+- ❌ Do not move Skills back into an "OPERATE" group. The web surface for Skills is the trust ledger (H4), an observation surface.
+- ❌ Do not move the audit log back under `/skills/audit`. The page now spans plans, projects, approvals, deployments, *and* skills — the route was renamed to `/audit` (2026-05-12) to reflect that. Priya's flow still starts from `/skills` (trust ledger) and links across to `/audit`.
 
 - Brand: top-left, lowercase wordmark `coznt` + small `v0.1` chip (Bricolage Grotesque for display weight, Mono for the version chip)
 - Top of main pane: breadcrumb pattern `<Org name> / <current section>` (e.g., `Northwind Platform Engineering / Portfolio`)
@@ -456,6 +494,8 @@ export function isAutoApprovalEligible(approval, skill): boolean {
 
 ## Phase 6 — H4 Skills Autonomy Ledger
 
+**Milestone A spine demo.** This is the screen that proves the loop is real. Build per-project from day one — the org-wide-only view is not the headline. Depends on Milestone A's worker + outcome assessors writing real `skill_outcomes` rows.
+
 **Required reading:** `docs/ux/briefs/H4-ledger.md`
 
 ### Key new build
@@ -516,6 +556,8 @@ export function isAutoApprovalEligible(approval, skill): boolean {
 ---
 
 ## Phase 8 — DX track: MCP endpoint + Connect Cursor modal
+
+> **DEFERRED to Milestone E.** This phase serves Devin's IDE input surface — Moment 6 (Cursor First-Call). Useful for adoption, not load-bearing for the loop. Do not pull forward before Milestones A and B have real data flowing end-to-end. The spec below remains valid for when Milestone E lands.
 
 **Required reading:** `docs/ux/briefs/DX-mcp-context.md`
 

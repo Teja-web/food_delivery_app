@@ -1,5 +1,7 @@
-import { writeFile, readFile as fsReadFile, unlink, mkdir, readdir, stat } from "fs/promises";
-import { resolve, basename, extname } from "path";
+import "server-only";
+
+import { writeFile, readFile as fsReadFile, unlink, mkdir, readdir, stat } from "node:fs/promises";
+import { resolve, basename, extname } from "node:path";
 import { nanoid } from "nanoid";
 
 const ALLOWED_CATEGORIES = ["uploads", "generated", "temp"] as const;

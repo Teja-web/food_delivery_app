@@ -1,36 +1,51 @@
-import { listRules } from "@/actions/rules";
-import type { Rule } from "@/db/schema/rule";
+import { and, eq, inArray } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import { type Project, projects } from "@/db/schema/project";
+import { RULE_SEVERITIES, type Rule, type RuleSeverity } from "@/db/schema/rule";
+import { getActionContext } from "@/lib/auth/context";
+import { ruleCrud } from "@/operations/rules";
+
+import { RulesClient } from "./RulesClient";
+import { serializeRuleRow, type RulesPageClient } from "./serialize";
 
 export default async function RulesPage() {
-  const { items } = (await listRules({ limit: 100 })) as { items: Rule[] };
+  const ctx = await getActionContext();
+  const { items, total } = await ruleCrud.list({ limit: 200, sortBy: "updatedAt", sortOrder: "desc" });
+  const ruleItems = items as Rule[];
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <h1 className="text-2xl font-semibold">Rules</h1>
-      {items.length === 0 ? (
-        <div className="rounded border bg-muted/30 p-8 text-sm text-muted-foreground">
-          No rules yet. Add rules to enforce conventions across projects.
-        </div>
-      ) : (
-        <ul className="divide-y rounded border">
-          {items.map((r) => (
-            <li key={r.id} className="px-4 py-3 text-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{r.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {r.phase ?? "all phases"} · {r.severity}
-                    {r.projectId ? "" : " · org-wide"}
-                  </div>
-                </div>
-                <span className={r.enabled ? "text-green-600" : "text-muted-foreground"}>
-                  {r.enabled ? "enabled" : "disabled"}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+  const projectIds: string[] = [
+    ...new Set(ruleItems.map((r) => r.projectId).filter((x): x is string => !!x)),
+  ];
+  const projectsById = new Map<string, Project>();
+  if (projectIds.length > 0) {
+    const projRows = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.organizationId, ctx.organizationId), inArray(projects.id, projectIds)));
+    for (const p of projRows) projectsById.set(p.id, p);
+  }
+
+  const rows = ruleItems.map((r) => serializeRuleRow(r, projectsById));
+
+  const bySeverity = RULE_SEVERITIES.reduce(
+    (acc, s) => ({ ...acc, [s]: 0 }),
+    {} as Record<RuleSeverity, number>,
   );
+  let org = 0;
+  let perProject = 0;
+  let enabled = 0;
+  for (const r of rows) {
+    bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
+    if (r.scope === "org") org += 1;
+    else perProject += 1;
+    if (r.enabled) enabled += 1;
+  }
+
+  const data: RulesPageClient = {
+    rows,
+    counts: { total, org, perProject, enabled, bySeverity },
+  };
+
+  return <RulesClient data={data} />;
 }

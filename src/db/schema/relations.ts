@@ -50,15 +50,17 @@ export const rulesRelations = relations(rules, ({ one }) => ({
 export const skillsRelations = relations(skills, ({ one, many }) => ({
   project: one(projects, { fields: [skills.projectId], references: [projects.id] }),
   outcomes: many(skillOutcomes),
-  autonomy: one(skillAutonomy, { fields: [skills.id], references: [skillAutonomy.skillId] }),
+  autonomy: many(skillAutonomy),
 }));
 
 export const skillOutcomesRelations = relations(skillOutcomes, ({ one }) => ({
   skill: one(skills, { fields: [skillOutcomes.skillId], references: [skills.id] }),
+  project: one(projects, { fields: [skillOutcomes.projectId], references: [projects.id] }),
 }));
 
 export const skillAutonomyRelations = relations(skillAutonomy, ({ one }) => ({
   skill: one(skills, { fields: [skillAutonomy.skillId], references: [skills.id] }),
+  project: one(projects, { fields: [skillAutonomy.projectId], references: [projects.id] }),
 }));
 
 export const commentsRelations = relations(comments, ({ one }) => ({

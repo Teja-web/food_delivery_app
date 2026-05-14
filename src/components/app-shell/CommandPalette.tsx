@@ -40,7 +40,7 @@ const NAV_ITEMS = [
   { label: "Rules", href: "/rules", Icon: Shield, group: "Navigate" },
   { label: "Adapters", href: "/integrations", Icon: Plug, group: "Navigate" },
   { label: "DORA metrics", href: "/metrics", Icon: Activity, group: "Navigate" },
-  { label: "Audit log", href: "/skills/audit", Icon: FileCheck, group: "Navigate" },
+  { label: "Audit log", href: "/audit", Icon: FileCheck, group: "Navigate" },
   { label: "Settings", href: "/settings", Icon: Settings, group: "Navigate" },
   { label: "API keys", href: "/api-keys", Icon: Key, group: "Navigate" },
 ] as const;

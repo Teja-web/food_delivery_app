@@ -21,6 +21,8 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { organization, admin as adminPlugin } from "better-auth/plugins";
 
+import { ac, roles } from "./permissions";
+
 const appUrl =
   process.env.BETTER_AUTH_BASE_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -75,6 +77,8 @@ export const auth = betterAuth({
     nextCookies(),
     organization({
       allowUserToCreateOrganization: false,
+      ac,
+      roles,
       async sendInvitationEmail({ email, inviter, organization, invitation }) {
         const inviteLink = `${appUrl}/accept-invitation/${invitation.id}`;
         await sendEmailStub({

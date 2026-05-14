@@ -103,7 +103,7 @@ export function SkillsLedgerTable({
     return (
       <div className="rounded-lg border bg-card/30 px-6 py-12 text-center text-sm text-muted-foreground">
         No skills registered yet.{" "}
-        <Link href="/skills/audit" className="underline">
+        <Link href="/audit" className="underline">
           Open an audit query
         </Link>{" "}
         when the first invocations land.
@@ -117,7 +117,7 @@ export function SkillsLedgerTable({
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             All skills · {rows.length}
           </div>
-          <Link href="/skills/audit" className="text-xs text-muted-foreground hover:text-foreground">
+          <Link href="/audit" className="text-xs text-muted-foreground hover:text-foreground">
             Audit query →
           </Link>
         </div>
