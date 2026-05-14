@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, Download, Sparkles, X } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -107,6 +107,18 @@ function ApprovalRow({
           ) : (
             <span className="font-medium text-foreground/85">{row.requestedByName}</span>
           )}
+          {row.entityType === "skill_invocation" && row.requiredAutonomyLevel ? (
+            <>
+              <span aria-hidden>→</span>
+              <Badge
+                variant="outline"
+                className="shrink-0 border-state-pending/40 bg-state-pending/10 px-1.5 py-0 font-mono text-[10px] font-medium uppercase tracking-wide text-state-pending"
+                title={`Dispatch gate blocked: skill must be at ${row.requiredAutonomyLevel.toLowerCase()} on this project before the action runs unattended.`}
+              >
+                requires {row.requiredAutonomyLevel.toLowerCase()}
+              </Badge>
+            </>
+          ) : null}
           <span>·</span>
           <span>{row.ageLabel}</span>
           {row.phase ? (
@@ -223,6 +235,22 @@ export function ApprovalsInbox({ data, onApprove, onReject, onBulkApprove }: Pro
     });
   };
 
+  // Plans-only selection — only `plan` approvals carry a markdown body to
+  // export. Phase gates, releases, work items, skill invocations don't.
+  const planIdsToExport = (() => {
+    const source = selected.size > 0 ? visible.filter((r) => selected.has(r.id)) : visible;
+    return source.filter((r) => r.entityType === "plan").map((r) => r.entityId);
+  })();
+
+  const handleBulkExport = (format: "md" | "html") => {
+    if (planIdsToExport.length === 0) {
+      toast.error("No plan approvals selected to export.");
+      return;
+    }
+    const url = `/api/v1/plans/export/bulk?ids=${planIdsToExport.join(",")}&format=${format}`;
+    window.location.href = url;
+  };
+
   return (
     <div className="space-y-5">
       <header className="flex items-center justify-between">
@@ -253,16 +281,29 @@ export function ApprovalsInbox({ data, onApprove, onReject, onBulkApprove }: Pro
             );
           })}
         </nav>
-        {(eligibleSelected > 0 || eligibleAllVisible.length > 0) && selected.size === 0 ? (
-          <Button size="sm" onClick={handleBulkApproveEligible}>
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            Approve eligible ({eligibleAllVisible.length})
-          </Button>
-        ) : eligibleSelected > 0 ? (
-          <Button size="sm" onClick={handleBulkApproveEligible}>
-            Approve {eligibleSelected} eligible
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {planIdsToExport.length > 0 ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => handleBulkExport("md")}>
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                Export {planIdsToExport.length} (.md)
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => handleBulkExport("html")}>
+                Export .html
+              </Button>
+            </>
+          ) : null}
+          {(eligibleSelected > 0 || eligibleAllVisible.length > 0) && selected.size === 0 ? (
+            <Button size="sm" onClick={handleBulkApproveEligible}>
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              Approve eligible ({eligibleAllVisible.length})
+            </Button>
+          ) : eligibleSelected > 0 ? (
+            <Button size="sm" onClick={handleBulkApproveEligible}>
+              Approve {eligibleSelected} eligible
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {visible.length === 0 ? (

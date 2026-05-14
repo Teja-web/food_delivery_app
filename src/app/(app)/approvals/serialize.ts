@@ -17,6 +17,12 @@ export interface ApprovalRowClient {
   skillSlug: string | null;
   /** Actual autonomy level for the originating skill, or null when we can't resolve it. */
   skillLevel: AutonomyLevel | null;
+  /**
+   * For `skill_invocation` rows: the level the skill must hold on the
+   * target project before the dispatch gate lets the action through. The
+   * gap between this and `skillLevel` is the reason the approval exists.
+   */
+  requiredAutonomyLevel: AutonomyLevel | null;
   requesterNote: string | null;
   ageLabel: string;
   ageDays: number;
@@ -57,6 +63,10 @@ function formatAge(date: Date): { label: string; days: number } {
  * approvals carry a denormalized title or once we batch-join.
  */
 function resolveTitle(a: Approval): string {
+  if (a.entityType === "skill_invocation") {
+    const action = a.requesterNote?.trim();
+    return action && action.length > 0 ? `wants to ${action}` : "skill invocation blocked";
+  }
   if (a.requesterNote && a.requesterNote.length <= 80) return a.requesterNote;
   const shortId = a.entityId.slice(0, 8);
   switch (a.entityType) {
@@ -87,14 +97,37 @@ export function parseSkillSlug(name: string): string | null {
   return null;
 }
 
+/**
+ * Milestone-D `skill_invocation` approvals store the originating skill as
+ * `requestedById = "agent:<slug>"`. Extract the slug from that prefix.
+ */
+export function parseAgentSlugFromId(requestedById: string | null | undefined): string | null {
+  if (!requestedById) return null;
+  const m = /^agent:([a-z0-9][a-z0-9-]*)$/i.exec(requestedById.trim());
+  return m ? m[1].toLowerCase() : null;
+}
+
+export interface ApprovalRowResolution {
+  /** Current autonomy level of the originating skill on this approval's project. */
+  skillLevel?: AutonomyLevel | null;
+  /** For `skill_invocation` rows: the skill's `minAutonomyLevel` threshold. */
+  requiredAutonomyLevel?: AutonomyLevel | null;
+}
+
 export function serializeApprovalRow(
   a: Approval,
-  skillLevelBySlug: Map<string, AutonomyLevel> = new Map(),
+  resolved: ApprovalRowResolution = {},
 ): ApprovalRowClient {
   const requestedByName = a.requestedByName ?? "—";
-  const isBot = BOT_NAMES.has(requestedByName.toLowerCase()) || requestedByName.endsWith("-bot");
-  const skillSlug = isBot ? parseSkillSlug(requestedByName) : null;
-  const skillLevel = skillSlug ? skillLevelBySlug.get(skillSlug) ?? null : null;
+  const agentSlug = parseAgentSlugFromId(a.requestedById);
+  const isBot =
+    agentSlug !== null ||
+    BOT_NAMES.has(requestedByName.toLowerCase()) ||
+    requestedByName.endsWith("-bot");
+  const skillSlug = agentSlug ?? (isBot ? parseSkillSlug(requestedByName) : null);
+  const skillLevel = resolved.skillLevel ?? null;
+  const requiredAutonomyLevel =
+    a.entityType === "skill_invocation" ? resolved.requiredAutonomyLevel ?? null : null;
   const age = formatAge(a.createdAt);
   // Auto-eligibility: a Senior or Principal originating skill earns auto-approve
   // for low-risk entity types within a 7d window. Falls back to "bot-requested"
@@ -116,6 +149,7 @@ export function serializeApprovalRow(
     isBotRequester: isBot,
     skillSlug,
     skillLevel,
+    requiredAutonomyLevel,
     requesterNote: a.requesterNote,
     ageLabel: age.label,
     ageDays: age.days,
