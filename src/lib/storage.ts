@@ -4,6 +4,13 @@ import { writeFile, readFile as fsReadFile, unlink, mkdir, readdir, stat } from 
 import { resolve, basename, extname } from "path";
 import { nanoid } from "nanoid";
 
+// Turbopack's static file tracer otherwise expands the dynamic paths
+// below into globs that match 10k+ project files. The
+// `/*turbopackIgnore: true*/` comment is the documented escape hatch
+// (Turbopack emits the warning along with this exact suggestion). It
+// only affects build-time tracing — runtime behavior is unchanged.
+// Production tip: also set STORAGE_PATH outside the project root.
+
 const ALLOWED_CATEGORIES = ["uploads", "generated", "temp"] as const;
 type StorageCategory = (typeof ALLOWED_CATEGORIES)[number];
 
@@ -77,7 +84,7 @@ async function ensureOrgStorage(organizationId: string): Promise<string> {
 
   await Promise.all(
     ALLOWED_CATEGORIES.map((cat) => {
-      return mkdir(`${orgDir}/${cat}`, { recursive: true });
+      return mkdir(/*turbopackIgnore: true*/ `${orgDir}/${cat}`, { recursive: true });
     })
   );
 
@@ -118,15 +125,15 @@ export async function storeFile(
 ): Promise<StoredFile> {
   const clean = sanitizeFilename(filename);
   const dir = getCategoryDir(organizationId, category);
-  await mkdir(dir, { recursive: true });
+  await mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
 
   const ext = extname(clean);
   const base = basename(clean, ext);
   const uniqueName = `${nanoid()}-${base}${ext}`;
   const filePath = `${dir}/${uniqueName}`;
 
-  await writeFile(filePath, data);
-  const stats = await stat(filePath);
+  await writeFile(/*turbopackIgnore: true*/ filePath, data);
+  const stats = await stat(/*turbopackIgnore: true*/ filePath);
 
   return {
     path: filePath,
@@ -146,7 +153,7 @@ export async function readFile(
 ): Promise<Buffer> {
   const clean = sanitizeFilename(filename);
   const dir = getCategoryDir(organizationId, category);
-  return fsReadFile(`${dir}/${clean}`);
+  return fsReadFile(/*turbopackIgnore: true*/ `${dir}/${clean}`);
 }
 
 /**
@@ -159,7 +166,7 @@ async function deleteFile(
 ): Promise<void> {
   const clean = sanitizeFilename(filename);
   const dir = getCategoryDir(organizationId, category);
-  await unlink(`${dir}/${clean}`);
+  await unlink(/*turbopackIgnore: true*/ `${dir}/${clean}`);
 }
 
 /**
@@ -171,7 +178,7 @@ async function listFiles(
 ): Promise<string[]> {
   const dir = getCategoryDir(organizationId, category);
   try {
-    return await readdir(dir);
+    return await readdir(/*turbopackIgnore: true*/ dir);
   } catch {
     return [];
   }
