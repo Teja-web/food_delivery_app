@@ -13,6 +13,7 @@ import { execSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
+import { seedPlatformSkills } from "./seed-platform-skills";
 
 const APP_DIR = import.meta.dirname ? join(import.meta.dirname, "..") : process.cwd();
 
@@ -311,7 +312,7 @@ async function main() {
   console.log(`Host: ${url.host}`);
 
   // Step 1: Create/reset database
-  console.log("\n[1/6] Database...");
+  console.log("\n[1/7] Database...");
   const exists = await checkDatabaseExists();
   if (exists) {
     if (reset) {
@@ -330,11 +331,11 @@ async function main() {
   }
 
   // Step 2: Extensions & schemas
-  console.log("\n[2/6] Extensions & schemas...");
+  console.log("\n[2/7] Extensions & schemas...");
   await initExtensionsAndSchemas();
 
   // Step 3: Apply schema (push on reset, migrate otherwise)
-  console.log("\n[3/6] Apply schema...");
+  console.log("\n[3/7] Apply schema...");
   try {
     if (reset) {
       execSync("npx drizzle-kit push", { stdio: "inherit", cwd: APP_DIR, env: process.env });
@@ -351,15 +352,20 @@ async function main() {
   }
 
   // Step 4: Platform admin
-  console.log("\n[4/6] Platform admin...");
+  console.log("\n[4/7] Platform admin...");
   await seedPlatformAdmin();
 
-  // Step 5: CRUD triggers
-  console.log("\n[5/6] CRUD triggers...");
+  // Step 5: Platform skills
+  console.log("\n[5/7] Platform skills...");
+  const skillsResult = await seedPlatformSkills();
+  console.log(`+ ${skillsResult.inserted} inserted, ${skillsResult.updated} updated`);
+
+  // Step 6: CRUD triggers
+  console.log("\n[6/7] CRUD triggers...");
   await applyTriggers();
 
-  // Step 6: pg_cron scheduled jobs
-  console.log("\n[6/6] Scheduled jobs...");
+  // Step 7: pg_cron scheduled jobs
+  console.log("\n[7/7] Scheduled jobs...");
   await setupCronJobs();
 
   console.log("\n===========================================");
