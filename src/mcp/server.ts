@@ -43,6 +43,7 @@ import { generateTestsInput, runGenerateTests } from "./tools/generate-tests.js"
 import { getAssignedWorkInput, runGetAssignedWork } from "./tools/get-assigned-work.js";
 import { getDesignContextInput, runGetDesignContext } from "./tools/get-design-context.js";
 import { getMyContextInput, runGetMyContext } from "./tools/get-my-context.js";
+import { getOutcomesInput, runGetOutcomes } from "./tools/get-outcomes.js";
 import { getPhaseChecklistInput, runGetPhaseChecklist } from "./tools/get-phase-checklist.js";
 import { getPipelineStatusInput, runGetPipelineStatus } from "./tools/get-pipeline-status.js";
 import { getPlansInput, runGetPlans } from "./tools/get-plans.js";
@@ -324,6 +325,17 @@ export const tools = [
     ].join(" "),
     schema: invokeSkillInput,
     run: runInvokeSkill,
+  }),
+  tool({
+    name: "get_outcomes",
+    description: [
+      "Recent skill_outcomes rows for introspection. Answers questions like",
+      "\"did my last test-plan-generator run succeed?\" without leaving the",
+      "IDE. Read-only; defaults to the session's bound project. Omit skillSlug",
+      "to see outcomes across every skill on the project.",
+    ].join(" "),
+    schema: getOutcomesInput,
+    run: runGetOutcomes,
   }),
   tool({
     name: "generate_tests",
