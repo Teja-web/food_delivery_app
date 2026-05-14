@@ -38,12 +38,14 @@ import {
   runDeleteDraftRequirement,
 } from "./tools/delete-draft-requirement.js";
 import { draftRequirementInput, runDraftRequirement } from "./tools/draft-requirement.js";
+import { generatePipelineInput, runGeneratePipeline } from "./tools/generate-pipeline.js";
 import { generateTestsInput, runGenerateTests } from "./tools/generate-tests.js";
 import { getAssignedWorkInput, runGetAssignedWork } from "./tools/get-assigned-work.js";
 import { getDesignContextInput, runGetDesignContext } from "./tools/get-design-context.js";
 import { getMyContextInput, runGetMyContext } from "./tools/get-my-context.js";
 import { getPhaseChecklistInput, runGetPhaseChecklist } from "./tools/get-phase-checklist.js";
 import { getPipelineStatusInput, runGetPipelineStatus } from "./tools/get-pipeline-status.js";
+import { getPlansInput, runGetPlans } from "./tools/get-plans.js";
 import { getProjectStatusInput, runGetProjectStatus } from "./tools/get-project-status.js";
 import { getRequirementsInput, runGetRequirements } from "./tools/get-requirements.js";
 import { invokeSkillInput, runInvokeSkill } from "./tools/invoke-skill.js";
@@ -78,6 +80,7 @@ import {
   updateWorkItemStatusInput,
   runUpdateWorkItemStatus,
 } from "./tools/update-work-item-status.js";
+import { upsertPlanInput, runUpsertPlan } from "./tools/upsert-plan.js";
 
 import { z, ZodTypeAny } from "zod";
 
@@ -232,6 +235,31 @@ export const tools = [
     run: runPushRequirements,
   }),
   tool({
+    name: "upsert_plan",
+    description: [
+      "File an authored markdown document as a plan. Upserts by",
+      "(projectId, kind, slug): creates a new draft on first call, appends",
+      "a plan_revisions row on subsequent calls with the same key. This is",
+      "how generator skills (test-plan-generator, release-notes-generator,",
+      "etc.) should land their output — plans ARE coznt's document",
+      "container, kind discriminates the type.",
+    ].join(" "),
+    schema: upsertPlanInput,
+    run: runUpsertPlan,
+  }),
+  tool({
+    name: "get_plans",
+    description: [
+      "Two modes: list (omit `id`) returns metadata for plans matching the",
+      "filters; fetch (provide `id`) returns full body + revisions +",
+      "approvals for that one plan. Use this BEFORE authoring a follow-on",
+      "plan — e.g. fetch approved requirements before running",
+      "test-plan-generator.",
+    ].join(" "),
+    schema: getPlansInput,
+    run: runGetPlans,
+  }),
+  tool({
     name: "get_design_context",
     description: [
       "Richer view than get_my_context for design/development/testing.",
@@ -272,6 +300,18 @@ export const tools = [
     ].join(" "),
     schema: getPipelineStatusInput,
     run: runGetPipelineStatus,
+  }),
+  tool({
+    name: "generate_pipeline",
+    description: [
+      "Render a CI/CD pipeline config (GitHub Actions, Azure DevOps,",
+      "GitLab CI, or Jenkins) tailored to the project's tech stack. Returns",
+      "{ filename, content } — the agent writes content to filename in the",
+      "consumer repo. Optional Docker and Kubernetes addons. Allowed in",
+      "development / testing / cicd.",
+    ].join(" "),
+    schema: generatePipelineInput,
+    run: runGeneratePipeline,
   }),
   // ── Tier 3 ────────────────────────────────────────────────────
   tool({

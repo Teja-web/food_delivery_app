@@ -91,6 +91,85 @@ export async function appendPlanRevision(args: {
   return next;
 }
 
+/**
+ * Upsert a plan by `(projectId, kind, slug)`.
+ *
+ * If a plan with that key exists, append a `plan_revisions` row and refresh
+ * the live body/details/title/summary. Otherwise create a new draft plan.
+ *
+ * Returns the live plan plus `revisionNumber` (0 on first create; 1, 2, …
+ * for subsequent revisions) and a `created` flag.
+ *
+ * Used by the `upsert_plan` MCP verb to land AI-authored documents
+ * (test plans, release notes, etc.) without the agent needing separate
+ * create/update verbs.
+ */
+export async function upsertPlanByKindAndSlug(args: {
+  projectId: string;
+  kind: PlanKind;
+  slug: string;
+  title: string;
+  summary?: string;
+  body: string;
+  details?: Record<string, unknown>;
+  parentPlanId?: string | null;
+  changeNote?: string;
+}): Promise<{
+  plan: typeof plans.$inferSelect;
+  revisionNumber: number;
+  created: boolean;
+}> {
+  const ctx = await getActionContext();
+
+  const existing = await db.query.plans.findFirst({
+    where: and(
+      eq(plans.organizationId, ctx.organizationId),
+      eq(plans.projectId, args.projectId),
+      eq(plans.kind, args.kind),
+      eq(plans.slug, args.slug),
+    ),
+  });
+
+  if (existing) {
+    const revisionNumber = await appendPlanRevision({
+      planId: existing.id,
+      body: args.body,
+      details: args.details,
+      changeNote: args.changeNote,
+    });
+    // appendPlanRevision already updated body/details; also refresh title/summary.
+    await db
+      .update(plans)
+      .set({
+        title: args.title,
+        summary: args.summary,
+        parentPlanId: args.parentPlanId ?? existing.parentPlanId,
+        updatedAt: new Date(),
+        updatedById: ctx.userId,
+        updatedByName: ctx.user.name,
+      })
+      .where(and(eq(plans.id, existing.id), eq(plans.organizationId, ctx.organizationId)));
+
+    const refreshed = await db.query.plans.findFirst({
+      where: and(eq(plans.id, existing.id), eq(plans.organizationId, ctx.organizationId)),
+    });
+    return { plan: refreshed!, revisionNumber, created: false };
+  }
+
+  const created = await planCrud.create({
+    projectId: args.projectId,
+    kind: args.kind,
+    slug: args.slug,
+    title: args.title,
+    summary: args.summary,
+    body: args.body,
+    details: args.details,
+    parentPlanId: args.parentPlanId ?? null,
+    status: "draft",
+  });
+  return { plan: created, revisionNumber: 0, created: true };
+}
+
 export async function listPlanRevisions(planId: string) {
   const ctx = await getActionContext();
   return db.query.planRevisions.findMany({

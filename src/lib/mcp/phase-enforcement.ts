@@ -30,6 +30,7 @@ export const ALWAYS_ALLOWED = new Set<string>([
   "get_my_context",
   "get_project_status",
   "get_requirements",
+  "get_plans",
   "get_assigned_work",
   "check_standards",
   "get_phase_checklist",
@@ -76,9 +77,16 @@ export const TOOL_PHASE_MAP: Record<string, ProjectPhase[]> = {
 
   // CI/CD + Monitoring
   get_pipeline_status: ["cicd", "monitoring"],
+  generate_pipeline: ["development", "testing", "cicd"],
 
   // Cross-phase external push
   push_to_external: ["requirements", "design", "development", "testing", "cicd"],
+
+  // Plan upsert is broadly available; `kind` discriminates intent. No
+  // per-kind phase rule yet — the agent picks the right kind and the route
+  // trusts it. Add a kind→phase guard here when an agent picks wrong in
+  // practice.
+  upsert_plan: ["requirements", "design", "development", "testing", "cicd", "monitoring"],
 };
 
 export interface PhaseCheckResult {

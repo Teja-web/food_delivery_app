@@ -9,7 +9,7 @@
  * row; the live row's body is also kept here for query efficiency.
  */
 
-import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { text, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
@@ -23,6 +23,10 @@ export const PLAN_KINDS = [
   "test_plan",
   "release_plan",
   "incident",
+  "storyboard",
+  "dev_summary",
+  "go_live_report",
+  "cicd_pipeline",
 ] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
@@ -33,6 +37,10 @@ export const PLAN_KIND_PARENTS: Partial<Record<PlanKind, PlanKind[]>> = {
   adr: ["epic", "feature"],
   test_plan: ["feature", "story"],
   release_plan: ["epic", "feature"],
+  storyboard: ["feature", "epic"],
+  dev_summary: ["feature", "story"],
+  go_live_report: ["release_plan"],
+  cicd_pipeline: ["release_plan", "epic"],
 };
 
 export const PLAN_STATUSES = [
@@ -94,6 +102,12 @@ export const plans = cozntSchema.table(
     index("plans_project_idx").on(table.projectId),
     index("plans_parent_idx").on(table.parentPlanId),
     index("plans_kind_status_idx").on(table.kind, table.status),
+    /**
+     * Upsert key for `upsertPlanByKindAndSlug` — the `(project, kind, slug)`
+     * triple is the agent-visible identifier. Null slug stays distinct (rows
+     * not authored via the upsert path).
+     */
+    uniqueIndex("plans_project_kind_slug_idx").on(table.projectId, table.kind, table.slug),
     index("plans_fts_idx").using(
       "gin",
       sql`coznt.fts_vector(${table.title}, ${table.summary}, ${table.body})`,

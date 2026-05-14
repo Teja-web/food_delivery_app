@@ -27,6 +27,7 @@
     "smoke:audit-chain": "tsx scripts/smoke-audit-chain.ts",
     "smoke:milestone-c": "tsx scripts/smoke-milestone-c.ts",
     "smoke:milestone-d": "tsx scripts/smoke-milestone-d.ts",
+    "smoke:milestone-e": "tsx scripts/smoke-milestone-e.ts",
     "verify-evidence-packet": "tsx scripts/verify-evidence-packet.ts",
     "backfill-mttr": "tsx scripts/backfill-mttr.ts",
     "e2e": "playwright test",

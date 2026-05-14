@@ -34,6 +34,7 @@ export const ALWAYS_ALLOWED = new Set<string>([
   "get_my_context",
   "get_project_status",
   "get_requirements",
+  "get_plans",
   "get_assigned_work",
   "check_standards",
   "get_phase_checklist",
@@ -66,8 +67,15 @@ export const TOOL_PHASE_MAP: Record<string, Phase[]> = {
   update_test_result: ["testing"],
 
   get_pipeline_status: ["cicd", "monitoring"],
+  generate_pipeline: ["development", "testing", "cicd"],
 
   push_to_external: ["requirements", "design", "development", "testing", "cicd"],
+
+  // upsert_plan is broadly available; `kind` discriminates intent. No
+  // per-kind phase rule yet — keeping the verb open avoids forcing a
+  // phase-switch just to file an artifact. Mirror the authoritative copy
+  // in src/lib/mcp/phase-enforcement.ts when you add one.
+  upsert_plan: ["requirements", "design", "development", "testing", "cicd", "monitoring"],
 };
 
 export interface LocalPhaseCheck {
