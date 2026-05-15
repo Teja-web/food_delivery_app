@@ -1,4 +1,4 @@
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { invokeSkill } from "@/operations/skill-invocation";
 
 /**

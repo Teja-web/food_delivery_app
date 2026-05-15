@@ -24,7 +24,7 @@ import { skills, type Skill } from "@/db/schema/skill";
 import { approvals } from "@/db/schema/approval";
 import { automationLog } from "@/db/schema/automation-log";
 import { intelligence } from "@/db/schema/intelligence";
-import type { ApiContext } from "@/lib/api/auth";
+import type { ApiContext } from "@/lib/auth/api-key";
 import { applyActionPolicyRules } from "@/operations/rule-engine";
 import { getSkillAutonomy, recordSkillOutcome, LEVEL_NAMES } from "@/operations/skill-autonomy";
 import { safeRevalidate } from "@/lib/safe-revalidate";

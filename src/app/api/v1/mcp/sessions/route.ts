@@ -10,7 +10,7 @@ import { nanoid } from "nanoid";
 
 import { db } from "@/db/client";
 import { auditLogs } from "@/db/schema/audit-log";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 interface Body {
   intent?: string | null;

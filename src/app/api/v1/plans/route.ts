@@ -1,5 +1,5 @@
 import { planCrud } from "@/operations/plans";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(req: Request) {
   return handleApi(req, async () => {

@@ -1,4 +1,4 @@
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { updateDeploymentStatus } from "@/operations/deployments";
 import { DEPLOYMENT_STATUSES, type DeploymentStatus } from "@/db/schema/deployment";
 

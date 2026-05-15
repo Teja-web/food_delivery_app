@@ -15,7 +15,7 @@ import { db } from "@/db/client";
 import { projects } from "@/db/schema/project";
 import { skillOutcomes } from "@/db/schema/skill-outcome";
 import { skills } from "@/db/schema/skill";
-import { handleApi, type ApiContext } from "@/lib/api/auth";
+import { handleApi, type ApiContext } from "@/lib/auth/api-key";
 
 export interface ListOutcomesForAgentQuery {
   projectId?: string | null;

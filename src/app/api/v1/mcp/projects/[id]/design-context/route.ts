@@ -14,7 +14,7 @@ import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
 import { workItems } from "@/db/schema/work-item";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 const ACTIVE_PLAN_STATUSES = ["in_review", "approved", "in_progress"] as const;
 

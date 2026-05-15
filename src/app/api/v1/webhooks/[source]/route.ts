@@ -14,7 +14,7 @@
  * which the worker drains via `processWebhookEvent`.
  */
 
-import { authenticate, UnauthorizedError, withApiContext } from "@/lib/api/auth";
+import { authenticate, UnauthorizedError, withApiContext } from "@/lib/auth/api-key";
 import { db } from "@/db/client";
 import { webhookEvents, WEBHOOK_SOURCES, type WebhookSource } from "@/db/schema/webhook-event";
 import {

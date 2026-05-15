@@ -1,5 +1,5 @@
 import { planCrud, appendPlanRevision } from "@/operations/plans";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -17,7 +17,7 @@ import { db } from "../src/db/client";
 import { projects } from "../src/db/schema/project";
 import { skillOutcomes } from "../src/db/schema/skill-outcome";
 import { skills } from "../src/db/schema/skill";
-import type { ApiContext } from "../src/lib/api/auth";
+import type { ApiContext } from "../src/lib/auth/api-key";
 import { recordSkillOutcome } from "../src/operations/skill-autonomy";
 import { listOutcomesForAgent } from "../src/app/api/v1/mcp/outcomes/route";
 

@@ -34,8 +34,8 @@
  *   }
  */
 
-import { handleApi } from "@/lib/api/auth";
-import { handlePreToolUse, preToolUseSchema } from "@/lib/agents/tool-events";
+import { handleApi } from "@/lib/auth/api-key";
+import { handlePreToolUse, preToolUseSchema } from "@/operations/tool-events";
 
 export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {

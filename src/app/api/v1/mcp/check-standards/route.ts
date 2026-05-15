@@ -17,7 +17,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { plans, PLAN_KINDS, type Plan, type PlanKind } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { applyActionPolicyRules, evaluatePlanAgainstRules } from "@/operations/rule-engine";
 
 const planCheckSchema = z.object({

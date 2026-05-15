@@ -14,7 +14,7 @@ import {
   authenticate,
   UnauthorizedError,
   withApiContext,
-} from "@/lib/api/auth";
+} from "@/lib/auth/api-key";
 import {
   buildMcpContext,
   McpProjectAmbiguousError,

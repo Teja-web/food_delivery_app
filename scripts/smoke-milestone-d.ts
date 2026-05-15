@@ -27,7 +27,7 @@ import { approvals } from "../src/db/schema/approval";
 import { automationLog } from "../src/db/schema/automation-log";
 import { projects } from "../src/db/schema/project";
 import { skills } from "../src/db/schema/skill";
-import { handlePreToolUse } from "../src/lib/agents/tool-events";
+import { handlePreToolUse } from "../src/operations/tool-events";
 
 const PROJECT_SLUG = "internal-payments-api";
 const SKILL_SLUG = `smoke-d-skill-${Date.now()}`;

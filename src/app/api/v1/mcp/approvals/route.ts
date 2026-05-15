@@ -9,7 +9,7 @@
 import { z } from "zod/v4";
 
 import { APPROVAL_ENTITY_TYPES } from "@/db/schema/approval";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { createApprovalWithProjectResolution } from "@/operations/approvals";
 
 const bodySchema = z.object({

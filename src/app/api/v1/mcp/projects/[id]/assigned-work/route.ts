@@ -16,7 +16,7 @@ import { user } from "@/db/schema/auth";
 import { plans } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
 import { workItems } from "@/db/schema/work-item";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 const OPEN_PLAN_STATUSES = ["in_review", "approved", "in_progress"] as const;
 const CLOSED_WORK_ITEM_STATUSES = [

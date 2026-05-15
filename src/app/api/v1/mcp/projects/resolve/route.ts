@@ -22,7 +22,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 const bodySchema = z.object({
   query: z.string().min(1).describe("Project id, slug, name, or substring."),

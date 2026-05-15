@@ -20,7 +20,7 @@ import {
   type PlanStatus,
 } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { planCrud } from "@/operations/plans";
 
 const DEFAULT_KIND: PlanKind = "story";

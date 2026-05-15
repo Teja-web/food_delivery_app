@@ -20,7 +20,7 @@ import { db } from "@/db/client";
 import { approvals } from "@/db/schema/approval";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { approvalCrud } from "@/operations/approvals";
 
 const bodySchema = z.object({

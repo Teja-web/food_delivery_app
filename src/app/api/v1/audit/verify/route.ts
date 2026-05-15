@@ -10,7 +10,7 @@
  *   - on drift:   { ok: false, checked, drift: { rowId, reason, ... } }
  */
 
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { verifyAuditChain } from "@/operations/audit-chain";
 
 export async function POST(req: Request) {

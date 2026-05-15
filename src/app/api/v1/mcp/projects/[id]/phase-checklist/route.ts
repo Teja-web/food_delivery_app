@@ -13,7 +13,7 @@ import { db } from "@/db/client";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(
   req: Request,

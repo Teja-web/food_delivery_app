@@ -1,4 +1,4 @@
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { requestPlanApproval } from "@/operations/approvals";
 
 /** POST /api/v1/plans/:id/submit — request approval on a draft plan. */

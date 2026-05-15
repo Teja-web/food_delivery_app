@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { planFilePath } from "@/lib/plan/markdown";
 
 /**

@@ -1,4 +1,4 @@
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { listSkillsForProject, skillCrud } from "@/operations/skills";
 
 export async function GET(req: Request) {

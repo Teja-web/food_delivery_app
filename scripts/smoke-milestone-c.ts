@@ -35,7 +35,7 @@ import { skillOutcomes } from "../src/db/schema/skill-outcome";
 import { skills } from "../src/db/schema/skill";
 import { CHANGE_RISK_CLASSIFIER_SLUG } from "../src/automations/agents/definitions/change-risk-classifier";
 import { classifyChangeRiskTask } from "../src/automations/tasks/classify-change-risk";
-import { handlePostToolUse, handlePreToolUse } from "../src/lib/agents/tool-events";
+import { handlePostToolUse, handlePreToolUse } from "../src/operations/tool-events";
 
 const PROJECT_SLUG = "internal-payments-api";
 const PR_REF = "github:northwind/payments-api#90042";

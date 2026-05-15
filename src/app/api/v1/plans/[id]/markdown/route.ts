@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
-import { authenticate, withApiContext, UnauthorizedError } from "@/lib/api/auth";
+import { authenticate, withApiContext, UnauthorizedError } from "@/lib/auth/api-key";
 import { serializePlanToMarkdown, planFilePath } from "@/lib/plan/markdown";
 
 /**

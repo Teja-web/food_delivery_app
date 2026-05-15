@@ -1,4 +1,4 @@
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { recordMetric, listMetrics } from "@/operations/metrics";
 import { METRIC_TYPES, type MetricType } from "@/db/schema/metric";
 

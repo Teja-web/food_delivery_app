@@ -5,7 +5,7 @@
  * /audit page, just JSON-shaped and capped for an agent's context window.
  */
 
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { queryAuditLog } from "@/operations/audit";
 
 const RANGE_MS: Record<string, number> = {

@@ -15,7 +15,7 @@ import { marked } from "marked";
 import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
-import { authenticate, UnauthorizedError } from "@/lib/api/auth";
+import { authenticate, UnauthorizedError } from "@/lib/auth/api-key";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { serializePlanToMarkdown } from "@/lib/plan/markdown";
 

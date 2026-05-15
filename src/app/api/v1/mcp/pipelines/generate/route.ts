@@ -13,7 +13,7 @@ import { z } from "zod/v4";
 import { db } from "@/db/client";
 import { projects, type Project } from "@/db/schema/project";
 import { PHASE_GUIDANCE } from "@/domain/phases";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import {
   PIPELINE_PLATFORMS,
   PIPELINE_STACKS,

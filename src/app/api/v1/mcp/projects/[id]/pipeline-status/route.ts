@@ -14,7 +14,7 @@ import { deployments } from "@/db/schema/deployment";
 import { plans } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
 import { testRuns } from "@/db/schema/test-run";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(
   req: Request,

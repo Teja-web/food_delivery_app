@@ -17,7 +17,7 @@ import { approvals } from "@/db/schema/approval";
 import { deployments } from "@/db/schema/deployment";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(
   req: Request,

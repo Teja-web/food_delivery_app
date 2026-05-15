@@ -23,7 +23,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
-import { handleApi } from "@/lib/api/auth";
+import { handleApi } from "@/lib/auth/api-key";
 import { tryAdvancePhase } from "@/operations/phase-advance";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
