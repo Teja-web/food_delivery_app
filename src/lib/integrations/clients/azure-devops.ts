@@ -42,6 +42,15 @@ export interface AzureDevOpsEnvironment {
   deploySteps: { status: string; lastModifiedOn: string }[];
 }
 
+export interface AzureDevOpsWorkItem {
+  id: number;
+  rev: number;
+  url: string;
+  title: string;
+  workItemType: string;
+  state: string;
+}
+
 export class AzureDevOpsClient {
   private orgUrl: string;
   private pat: string;
@@ -135,6 +144,56 @@ export class AzureDevOpsClient {
       requestedBy: b.requestedBy?.displayName ?? "Unknown",
       pipelineName: b.definition?.name ?? "Unknown",
     }));
+  }
+
+  /**
+   * Create an ADO work item via the JSON-Patch API. `workItemType` is the
+   * exact ADO type name ("User Story", "Task", "Bug"); the caller is
+   * responsible for matching the process template configured on the
+   * destination project.
+   */
+  async createWorkItem(
+    project: string,
+    options: {
+      workItemType: string;
+      title: string;
+      description?: string;
+      tags?: string[];
+    },
+  ): Promise<AzureDevOpsWorkItem> {
+    const ops: Array<Record<string, unknown>> = [
+      { op: "add", path: "/fields/System.Title", value: options.title },
+    ];
+    if (options.description) {
+      ops.push({
+        op: "add",
+        path: "/fields/System.Description",
+        value: options.description,
+      });
+    }
+    if (options.tags && options.tags.length > 0) {
+      ops.push({ op: "add", path: "/fields/System.Tags", value: options.tags.join("; ") });
+    }
+    const path = `/${encodeURIComponent(project)}/_apis/wit/workitems/$${encodeURIComponent(
+      options.workItemType,
+    )}?api-version=7.0`;
+    const response = await fetch(`${this.orgUrl}${path}`, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json-patch+json" },
+      body: JSON.stringify(ops),
+    });
+    if (!response.ok) {
+      throw new Error(`Azure DevOps API error: ${response.status} ${response.statusText}`);
+    }
+    const data: any = await response.json();
+    return {
+      id: data.id,
+      rev: data.rev,
+      url: data._links?.html?.href ?? data.url,
+      title: data.fields?.["System.Title"] ?? options.title,
+      workItemType: data.fields?.["System.WorkItemType"] ?? options.workItemType,
+      state: data.fields?.["System.State"] ?? "New",
+    };
   }
 
   async triggerPipeline(project: string, pipelineId: number, branch?: string) {

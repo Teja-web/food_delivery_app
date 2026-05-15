@@ -183,11 +183,63 @@ export class JiraClient {
     });
   }
 
+  async updateIssue(
+    issueKey: string,
+    options: { summary?: string; description?: string; labels?: string[] },
+  ): Promise<void> {
+    const fields: Record<string, unknown> = {};
+    if (options.summary !== undefined) fields.summary = options.summary;
+    if (options.description !== undefined) {
+      fields.description = {
+        type: "doc",
+        version: 1,
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: options.description }] },
+        ],
+      };
+    }
+    if (options.labels !== undefined) fields.labels = options.labels;
+    if (Object.keys(fields).length === 0) return;
+    await this.request(`/issue/${issueKey}`, {
+      method: "PUT",
+      body: JSON.stringify({ fields }),
+    });
+  }
+
   async transitionIssue(issueKey: string, transitionId: string) {
     await this.request(`/issue/${issueKey}/transitions`, {
       method: "POST",
       body: JSON.stringify({ transition: { id: transitionId } }),
     });
+  }
+
+  async getTransitions(issueKey: string): Promise<{ id: string; name: string; toStatusName: string }[]> {
+    const data = await this.request<any>(`/issue/${issueKey}/transitions`);
+    return (data.transitions ?? []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      toStatusName: t.to?.name ?? "",
+    }));
+  }
+
+  /**
+   * Transition by target-status name. Callers pass human names ("In Progress",
+   * "Done") rather than learning Jira's per-project numeric transition IDs.
+   * Matches `toStatusName` case-insensitively, falling back to `name`.
+   * Returns the chosen transition or null if no match.
+   */
+  async transitionIssueByName(
+    issueKey: string,
+    target: string,
+  ): Promise<{ id: string; name: string } | null> {
+    const transitions = await this.getTransitions(issueKey);
+    const needle = target.trim().toLowerCase();
+    const match =
+      transitions.find((t) => t.toStatusName.toLowerCase() === needle) ??
+      transitions.find((t) => t.name.toLowerCase() === needle);
+    if (!match) return null;
+    await this.transitionIssue(issueKey, match.id);
+    return { id: match.id, name: match.name };
   }
 
   async getSprints(boardId: number): Promise<JiraSprint[]> {

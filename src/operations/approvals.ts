@@ -9,6 +9,13 @@ import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 import { tryAdvancePhase } from "@/operations/phase-advance";
 import { getSkillAutonomy } from "@/operations/skill-autonomy";
+import {
+  pushPlanToConfluence,
+  pushPlanToJira,
+  pushPlanToAdo,
+  triggerAdoPipelineForGate,
+  transitionJiraIssueForPlan,
+} from "@/lib/integrations/outbound";
 
 const approvalSchema = z.object({
   entityType: z.enum(APPROVAL_ENTITY_TYPES),
@@ -158,6 +165,26 @@ export async function decideApproval(args: {
       })
       .where(and(eq(plans.id, existing.entityId), eq(plans.organizationId, ctx.organizationId)));
     safeRevalidate(`/plans/${existing.entityId}`);
+
+    // Outbound sync on approval. Best-effort — no-op when no binding exists,
+    // failures logged but never re-thrown.
+    if (args.decision === "approved") {
+      const plan = await db.query.plans.findFirst({
+        where: and(eq(plans.id, existing.entityId), eq(plans.organizationId, ctx.organizationId)),
+      });
+      if (plan) {
+        // ADRs → Confluence page (per the SDLC vision: "approved ADRs push to Confluence").
+        if (plan.kind === "adr") {
+          await pushPlanToConfluence(plan.id);
+        }
+        // Stories / features / epics → Jira issue + ADO work item (whichever is bound).
+        if (plan.kind === "story" || plan.kind === "feature" || plan.kind === "epic") {
+          await pushPlanToJira(plan.id);
+          await pushPlanToAdo(plan.id);
+          await transitionJiraIssueForPlan(plan.id, "approved");
+        }
+      }
+    }
   } else if (existing.entityType === "phase_gate") {
     await db
       .update(phaseGates)
@@ -180,6 +207,8 @@ export async function decideApproval(args: {
         ),
       });
       if (gate) {
+        // CI/CD gate pass → trigger the bound ADO pipeline (best-effort).
+        await triggerAdoPipelineForGate(gate.id);
         await tryAdvancePhase({
           organizationId: ctx.organizationId,
           projectId: gate.projectId,

@@ -59,3 +59,23 @@ export async function findProjectIdForBinding(
   });
   return row?.projectId ?? null;
 }
+
+/**
+ * Reverse lookup — given a (project, provider), return the binding (externalKey
+ * + config) used for outbound writes. Returns null when the project has no
+ * binding for this provider, which is the "no-op" signal for outbound helpers.
+ */
+export async function getOutboundBinding(
+  organizationId: string,
+  projectId: string,
+  provider: AdapterProvider,
+): Promise<AdapterBinding | null> {
+  const row = await db.query.adapterBindings.findFirst({
+    where: and(
+      eq(adapterBindings.organizationId, organizationId),
+      eq(adapterBindings.projectId, projectId),
+      eq(adapterBindings.provider, provider),
+    ),
+  });
+  return row ?? null;
+}

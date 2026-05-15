@@ -43,6 +43,7 @@ import {
   recordAssessorOutcome,
   recomputeSkillAutonomy,
 } from "@/operations/skill-autonomy";
+import { upsertWorkItem } from "@/operations/work-items";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -587,30 +588,15 @@ function hitsPath(files: ChangedFile[], rule: { tags: string[] | null }): boolea
 }
 
 // ---------------------------------------------------------------------------
-// Jira / ADO / Confluence — stubs
+// Jira — issue events → upsert work_items.
+//
+// Translates `issue_created` / `issue_updated` / `issue_deleted` from the
+// Jira webhook into a coznt `work_items` row keyed by `(source, externalId)`.
+// The `externalId` is the Jira issue key (ACME-42). Status sync from
+// Jira-side transitions arrives via `issue_updated` and updates the row's
+// `status`. Coznt's outbound transition uses Jira's transition API; the two
+// directions are independent.
 // ---------------------------------------------------------------------------
-
-async function handleSourceStub(
-  evt: WebhookEvent,
-  externalKey: string | null,
-): Promise<void> {
-  if (!evt.organizationId) {
-    return markProcessed(evt.id, "webhook has no organizationId");
-  }
-  if (!externalKey) {
-    return markProcessed(evt.id, `${evt.source} payload missing external key`);
-  }
-  const projectId = await resolveProjectForWebhook(
-    evt.organizationId,
-    evt.source,
-    externalKey,
-  );
-  if (!projectId) {
-    return markProcessed(evt.id, `no project binding for ${externalKey}`);
-  }
-  // TODO: implement per-source handler (issues → work items, deploys → deployments).
-  return markProcessed(evt.id);
-}
 
 function jiraExternalKey(payload: Json): string | null {
   // Jira sends the project key inside `issue.fields.project.key`.
@@ -619,6 +605,83 @@ function jiraExternalKey(payload: Json): string | null {
   const project = asObject(fields?.project);
   return asString(project?.key) ?? null;
 }
+
+async function handleJira(evt: WebhookEvent): Promise<void> {
+  if (!evt.organizationId) {
+    return markProcessed(evt.id, "webhook has no organizationId");
+  }
+  const payload = asObject(evt.payload) ?? {};
+  const externalKey = jiraExternalKey(payload);
+  if (!externalKey) {
+    return markProcessed(evt.id, "jira payload missing project.key");
+  }
+  const projectId = await resolveProjectForWebhook(evt.organizationId, "jira", externalKey);
+  if (!projectId) {
+    return markProcessed(evt.id, `no project binding for jira:${externalKey}`);
+  }
+
+  // Only act on issue events for v1. Comment / link events are ignored —
+  // they can be added without ceremony when needed.
+  const eventName = evt.event;
+  if (!eventName || !eventName.startsWith("jira:issue")) {
+    return markProcessed(evt.id);
+  }
+
+  const issue = asObject(payload.issue);
+  const issueKey = asString(issue?.key);
+  if (!issue || !issueKey) {
+    return markProcessed(evt.id, "jira payload missing issue.key");
+  }
+
+  const fields = asObject(issue.fields) ?? {};
+  const summary = asString(fields.summary) ?? issueKey;
+  const description = asString(fields.description) ?? null;
+  const statusObj = asObject(fields.status);
+  const status = asString(statusObj?.name) ?? null;
+  const typeObj = asObject(fields.issuetype);
+  const typeName = (asString(typeObj?.name) ?? "task").toLowerCase();
+  const assignee = asObject(fields.assignee);
+  const assigneeEmail = asString(assignee?.emailAddress);
+
+  const kind = typeName.includes("epic")
+    ? "epic"
+    : typeName.includes("bug")
+      ? "bug"
+      : typeName.includes("story")
+        ? "story"
+        : "task";
+
+  // Best-effort URL — derive from binding config or fall back to the self
+  // link Jira ships with the payload.
+  const externalUrl =
+    asString(asObject(issue.self) as unknown) ??
+    asString(issue.self) ??
+    undefined;
+
+  await upsertWorkItem({
+    organizationId: evt.organizationId,
+    projectId,
+    source: "jira",
+    externalId: issueKey,
+    externalUrl,
+    kind,
+    title: summary,
+    description: description ?? undefined,
+    status: status ?? undefined,
+    assigneeEmail,
+    raw: payload,
+  });
+
+  return markProcessed(evt.id);
+}
+
+// ---------------------------------------------------------------------------
+// Azure DevOps — build/release completion → recordDeployment.
+//
+// ADO Service Hooks fire `build.complete` and `ms.vss-release.deployment-completed`
+// among others. For v1 we treat any terminal build/release as a deployment row
+// so DORA + skill autonomy can flow off ADO just like off GitHub.
+// ---------------------------------------------------------------------------
 
 function adoExternalKey(payload: Json): string | null {
   // ADO Service Hook payloads put org/project in `resourceContainers`.
@@ -630,11 +693,182 @@ function adoExternalKey(payload: Json): string | null {
   return projectName && accountName ? `${accountName}/${projectName}` : null;
 }
 
+async function handleADO(evt: WebhookEvent): Promise<void> {
+  if (!evt.organizationId) {
+    return markProcessed(evt.id, "webhook has no organizationId");
+  }
+  const payload = asObject(evt.payload) ?? {};
+  const externalKey = adoExternalKey(payload);
+  if (!externalKey) {
+    return markProcessed(evt.id, "ado payload missing resourceContainers");
+  }
+  const projectId = await resolveProjectForWebhook(evt.organizationId, "ado", externalKey);
+  if (!projectId) {
+    return markProcessed(evt.id, `no project binding for ado:${externalKey}`);
+  }
+
+  const eventName = evt.event ?? "";
+  const resource = asObject(payload.resource) ?? {};
+
+  // Build completion: `build.complete`. Treat success as a deployment row.
+  if (eventName === "build.complete") {
+    const status = asString(resource.status); // "completed" / "inProgress" / ...
+    const result = asString(resource.result); // "succeeded" / "failed" / "canceled"
+    if (status !== "completed") return markProcessed(evt.id);
+    if (result !== "succeeded" && result !== "failed") {
+      return markProcessed(evt.id);
+    }
+    const buildNumber = asString(resource.buildNumber) ?? "unknown";
+    const sourceVersion = asString(resource.sourceVersion);
+    const sourceBranch = asString(resource.sourceBranch);
+    const ciRunUrl = asString(asObject(resource._links)?.web as unknown as string) ??
+      asString((asObject(resource._links)?.web as unknown as { href?: string } | null)?.href);
+    try {
+      await recordDeployment({
+        projectId,
+        environment: sourceBranch?.includes("release") ? "production" : "build",
+        version: buildNumber,
+        commitSha: sourceVersion,
+        status: result === "succeeded" ? "success" : "failed",
+        ciRunUrl: ciRunUrl ?? undefined,
+        raw: payload,
+        completedAt: new Date(),
+      });
+      return markProcessed(evt.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return markProcessed(evt.id, `recordDeployment failed: ${msg}`);
+    }
+  }
+
+  // Release deployment completion: `ms.vss-release.deployment-completed`.
+  if (eventName === "ms.vss-release.deployment-completed") {
+    const status = asString(resource.status); // "succeeded" / "failed" / ...
+    if (status !== "succeeded" && status !== "failed") return markProcessed(evt.id);
+    const release = asObject(resource.release) ?? {};
+    const environment = asObject(resource.environment) ?? {};
+    const envName = asString(environment.name) ?? "production";
+    const version = asString(release.name) ?? "unknown";
+    try {
+      await recordDeployment({
+        projectId,
+        environment: envName,
+        version,
+        status: status === "succeeded" ? "success" : "failed",
+        raw: payload,
+        completedAt: new Date(),
+      });
+      return markProcessed(evt.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return markProcessed(evt.id, `recordDeployment failed: ${msg}`);
+    }
+  }
+
+  // Work-item events arrive here too (`workitem.created` / `workitem.updated`).
+  // Upsert into work_items so coznt has a row to link plans against.
+  if (eventName.startsWith("workitem.")) {
+    const id = asString(resource.id) ?? (resource.id != null ? String(resource.id) : null);
+    if (!id) return markProcessed(evt.id, "ado workitem payload missing id");
+    const fields = asObject(resource.fields) ?? {};
+    const title =
+      asString(fields["System.Title"]) ?? asString(resource.title) ?? `work item ${id}`;
+    const description = asString(fields["System.Description"]) ?? null;
+    const state = asString(fields["System.State"]) ?? null;
+    const workItemType = (asString(fields["System.WorkItemType"]) ?? "task").toLowerCase();
+    const assignedTo = asObject(fields["System.AssignedTo"]);
+    const assigneeEmail = asString(assignedTo?.uniqueName);
+    const externalUrl = asString(asObject(resource._links)?.html as unknown) ??
+      asString((asObject(resource._links)?.html as unknown as { href?: string } | null)?.href);
+
+    const kind = workItemType.includes("epic")
+      ? "epic"
+      : workItemType.includes("bug")
+        ? "bug"
+        : workItemType.includes("story") || workItemType.includes("feature")
+          ? "story"
+          : "task";
+
+    await upsertWorkItem({
+      organizationId: evt.organizationId,
+      projectId,
+      source: "ado",
+      externalId: id,
+      externalUrl,
+      kind,
+      title,
+      description: description ?? undefined,
+      status: state ?? undefined,
+      assigneeEmail,
+      raw: payload,
+    });
+    return markProcessed(evt.id);
+  }
+
+  return markProcessed(evt.id);
+}
+
+// ---------------------------------------------------------------------------
+// Confluence — page events → upsert work_items (kind="page").
+//
+// Confluence's webhooks fire on page create/update/remove. We record the page
+// as a coznt `work_item` of kind "page" so audit log + portfolio rollups can
+// reference the link. This is the minimum viable surface for the v1 docs flow.
+// ---------------------------------------------------------------------------
+
 function confluenceExternalKey(payload: Json): string | null {
-  // Confluence webhook page events include `page.spaceKey` or `space.key`.
   const page = asObject(payload.page);
   const space = asObject(payload.space);
   return asString(page?.spaceKey) ?? asString(space?.key) ?? null;
+}
+
+async function handleConfluence(evt: WebhookEvent): Promise<void> {
+  if (!evt.organizationId) {
+    return markProcessed(evt.id, "webhook has no organizationId");
+  }
+  const payload = asObject(evt.payload) ?? {};
+  const externalKey = confluenceExternalKey(payload);
+  if (!externalKey) {
+    return markProcessed(evt.id, "confluence payload missing space key");
+  }
+  const projectId = await resolveProjectForWebhook(
+    evt.organizationId,
+    "confluence",
+    externalKey,
+  );
+  if (!projectId) {
+    return markProcessed(evt.id, `no project binding for confluence:${externalKey}`);
+  }
+
+  const eventName = evt.event ?? "";
+  if (!eventName.startsWith("page_")) {
+    return markProcessed(evt.id);
+  }
+
+  const page = asObject(payload.page);
+  const pageId = asString(page?.id) ?? (page?.id != null ? String(page.id) : null);
+  if (!pageId) return markProcessed(evt.id, "confluence payload missing page.id");
+
+  const title = asString(page?.title) ?? `page ${pageId}`;
+  const version = asObject(page?.version);
+  const versionNumber = typeof version?.number === "number" ? version.number : null;
+  const status = eventName === "page_removed" ? "Removed" : `Published v${versionNumber ?? 1}`;
+  const baseUrl = asString(page?.self);
+  const externalUrl = baseUrl ?? undefined;
+
+  await upsertWorkItem({
+    organizationId: evt.organizationId,
+    projectId,
+    source: "confluence",
+    externalId: pageId,
+    externalUrl,
+    kind: "page",
+    title,
+    status,
+    raw: payload,
+  });
+
+  return markProcessed(evt.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -664,14 +898,11 @@ export async function dispatchWebhookEvent(evt: WebhookEvent): Promise<void> {
       case "github":
         return await handleGitHub(evt);
       case "jira":
-        return await handleSourceStub(evt, jiraExternalKey(asObject(evt.payload) ?? {}));
+        return await handleJira(evt);
       case "ado":
-        return await handleSourceStub(evt, adoExternalKey(asObject(evt.payload) ?? {}));
+        return await handleADO(evt);
       case "confluence":
-        return await handleSourceStub(
-          evt,
-          confluenceExternalKey(asObject(evt.payload) ?? {}),
-        );
+        return await handleConfluence(evt);
       default:
         return await markProcessed(evt.id, `unknown source: ${evt.source}`);
     }
