@@ -24,7 +24,7 @@ import {
   ALWAYS_ALLOWED as SHARED_ALWAYS_ALLOWED,
   TOOL_PHASE_MAP as SHARED_TOOL_PHASE_MAP,
   type Phase,
-} from "../../mcp/phase-tool-map.js";
+} from "@/mcp/phase-tool-map";
 
 // Static guarantee: the shared `Phase` union must equal the schema's
 // `ProjectPhase`. If a phase is added to one without the other, this
