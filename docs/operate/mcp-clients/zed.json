@@ -1,0 +1,14 @@
+{
+  "context_servers": {
+    "coznt": {
+      "command": {
+        "path": "pnpm",
+        "args": ["--filter", "coznt", "mcp"],
+        "env": {
+          "COZNT_URL": "http://localhost:3029",
+          "COZNT_API_KEY": "sk_coznt_live_..."
+        }
+      }
+    }
+  }
+}

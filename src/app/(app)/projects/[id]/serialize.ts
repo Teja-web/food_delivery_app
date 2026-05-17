@@ -1,12 +1,18 @@
 import type { AdapterBinding } from "@/db/schema/adapter-binding";
 // AdapterBinding currently has no last-sync column; we surface externalKey
 // instead. Sync history will be added when integrations expose it.
+import type { Deployment, DeploymentStatus } from "@/db/schema/deployment";
 import type { PhaseGate } from "@/db/schema/phase-gate";
 import type { Plan } from "@/db/schema/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
 import type { Skill } from "@/db/schema/skill";
+import type { WorkItem, WorkItemKind, WorkItemSource } from "@/db/schema/work-item";
 import type { PhaseGuidance } from "@/domain/phases";
+import type {
+  PolicyMatrixCell,
+  ProjectOutcomeRow,
+} from "@/operations/project-trust";
 
 export interface CockpitProjectClient {
   id: string;
@@ -67,6 +73,40 @@ export interface CockpitSkillClient {
   isPlatform: boolean;
 }
 
+export interface CockpitWorkItemClient {
+  id: string;
+  source: WorkItemSource;
+  externalId: string;
+  externalUrl: string | null;
+  kind: WorkItemKind | null;
+  title: string;
+  status: string | null;
+  assigneeEmail: string | null;
+  planId: string | null;
+  lastSyncedAt: string | null;
+  updatedAt: string;
+}
+
+export interface CockpitDeploymentClient {
+  id: string;
+  environment: string;
+  version: string;
+  commitSha: string | null;
+  status: DeploymentStatus;
+  deployedByName: string | null;
+  ciRunUrl: string | null;
+  notes: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  rolledBackAt: string | null;
+}
+
+export interface CockpitGatesByPhase {
+  phase: ProjectPhase;
+  label: string;
+  gates: CockpitGateClient[];
+}
+
 export interface CockpitClient {
   project: CockpitProjectClient;
   nextPhase: ProjectPhase | null;
@@ -75,8 +115,12 @@ export interface CockpitClient {
   guidance: PhaseGuidance;
   gates: CockpitGateClient[];
   gatesAllPassed: boolean;
+  /** Gates grouped by phase — used by the Phases tab timeline. */
+  gatesByPhase: CockpitGatesByPhase[];
   bindings: CockpitBindingClient[];
   plans: CockpitPlanClient[];
+  workItems: CockpitWorkItemClient[];
+  deployments: CockpitDeploymentClient[];
   rules: CockpitRuleClient[];
   skills: CockpitSkillClient[];
   apiKey: {
@@ -84,6 +128,14 @@ export interface CockpitClient {
     /** Only present when newly minted in this request. */
     plaintext: string | null;
     isNew: boolean;
+  };
+  /**
+   * Per-project trust surface — recent skill outcomes + active autonomy
+   * policy matrix. Closes UI-audit P1.5 + P1.7.
+   */
+  trust: {
+    outcomes: ProjectOutcomeRow[];
+    policy: PolicyMatrixCell[];
   };
 }
 
@@ -166,5 +218,37 @@ export function serializeCockpitSkill(s: Skill, currentProjectId: string): Cockp
     description: s.description,
     scope: s.projectId === currentProjectId ? "project" : "org",
     isPlatform: Array.isArray(s.tags) ? s.tags.includes("platform") : false,
+  };
+}
+
+export function serializeCockpitWorkItem(w: WorkItem): CockpitWorkItemClient {
+  return {
+    id: w.id,
+    source: w.source,
+    externalId: w.externalId,
+    externalUrl: w.externalUrl,
+    kind: w.kind,
+    title: w.title,
+    status: w.status,
+    assigneeEmail: w.assigneeEmail,
+    planId: w.planId,
+    lastSyncedAt: w.lastSyncedAt?.toISOString() ?? null,
+    updatedAt: w.updatedAt.toISOString(),
+  };
+}
+
+export function serializeCockpitDeployment(d: Deployment): CockpitDeploymentClient {
+  return {
+    id: d.id,
+    environment: d.environment,
+    version: d.version,
+    commitSha: d.commitSha,
+    status: d.status,
+    deployedByName: d.deployedByName,
+    ciRunUrl: d.ciRunUrl,
+    notes: d.notes,
+    startedAt: d.startedAt.toISOString(),
+    completedAt: d.completedAt?.toISOString() ?? null,
+    rolledBackAt: d.rolledBackAt?.toISOString() ?? null,
   };
 }

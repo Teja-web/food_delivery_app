@@ -51,6 +51,14 @@ import { getProjectStatusInput, runGetProjectStatus } from "./tools/get-project-
 import { getRequirementsInput, runGetRequirements } from "./tools/get-requirements.js";
 import { invokeSkillInput, runInvokeSkill } from "./tools/invoke-skill.js";
 import {
+  listChoreographiesInput,
+  runListChoreographies,
+} from "./tools/list-choreographies.js";
+import {
+  syncChoreographiesInput,
+  runSyncChoreographies,
+} from "./tools/sync-choreographies.js";
+import {
   listDraftRequirementsInput,
   runListDraftRequirements,
 } from "./tools/list-draft-requirements.js";
@@ -434,6 +442,30 @@ export const tools = [
     ].join(" "),
     schema: sessionEndInput,
     run: runSessionEnd,
+  }),
+  tool({
+    name: "list_choreographies",
+    description: [
+      "Distribution: return the choreography manifest for the bound project.",
+      "Each entry has `slug`, `version`, `hash` (SHA-256), `description`,",
+      "and `minAutonomy`. The `coznt sync` CLI uses this to diff against",
+      "local `.lock` files before deciding which choreographies to fetch.",
+      "Read-only; available in every phase.",
+    ].join(" "),
+    schema: listChoreographiesInput,
+    run: runListChoreographies,
+  }),
+  tool({
+    name: "sync_choreographies",
+    description: [
+      "Distribution: return the full content bundle of choreographies for",
+      "the bound project. Pass `slugs` to fetch only a subset (preserves",
+      "order; unknown slugs error). The response carries a `manifestHash`",
+      "deterministic over the sorted slug→hash map. Read-only; available",
+      "in every phase.",
+    ].join(" "),
+    schema: syncChoreographiesInput,
+    run: runSyncChoreographies,
   }),
 ] as const;
 

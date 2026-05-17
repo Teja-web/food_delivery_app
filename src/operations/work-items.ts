@@ -38,6 +38,15 @@ export async function listWorkItemsForPlan(planId: string) {
   });
 }
 
+export async function listWorkItemsForProject(projectId: string, opts: { limit?: number } = {}) {
+  const ctx = await getActionContext();
+  return db.query.workItems.findMany({
+    where: and(eq(workItems.projectId, projectId), eq(workItems.organizationId, ctx.organizationId)),
+    orderBy: [desc(workItems.lastSyncedAt), desc(workItems.createdAt)],
+    limit: opts.limit ?? 100,
+  });
+}
+
 /**
  * Upsert by (source, externalId) — used by webhook handlers.
  */

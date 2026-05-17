@@ -1,4 +1,6 @@
-# Coznt audit evidence packet — format spec v1
+# Audit Evidence Packet
+
+*Purpose: v1 packet shape and hash-chain verification for the audit-log export consumed by SOC 2 / ISO 27001 reviewers.*
 
 Identifier: `coznt.audit.evidence.v1`
 
@@ -105,4 +107,4 @@ If `header.chainVerification.ok` was `false` at export time, the auditor was war
 - **Wrap external evidence.** Source-of-record links (GitHub PRs, Jira tickets, deploy logs) carry their own attestations. The packet is the coznt-side ledger only.
 - **Encode the full row payload.** `before` / `after` JSON columns from `audit_logs` are intentionally omitted to keep packets compact; the live ledger has them if a reviewer needs to drill in.
 
-A future v2 packet will add per-row DSSE signatures against a customer-held keypair — see `docs/architecture.md` §9 decision #1.
+A future v2 packet will add per-row DSSE signatures against a customer-held keypair — see [`../product/architecture.md`](../product/architecture.md) §9 decision #1.

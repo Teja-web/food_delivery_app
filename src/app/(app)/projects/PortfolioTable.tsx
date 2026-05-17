@@ -2,6 +2,8 @@
 
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useMemo } from "react";
 
 import { GateDot } from "@/components/trust/GateDot";
 import { StatusDot } from "@/components/trust/StatusDot";
@@ -11,6 +13,94 @@ import { Sparkline } from "@/components/viz/Sparkline";
 import { cn } from "@/lib/utils";
 
 import type { PortfolioClient, PortfolioProjectClient } from "./serialize";
+
+const FILTER_PARAM = "autonomy";
+
+type FilterKey = "below-merge" | "lead-only" | "recent-incidents";
+
+const FILTERS: { key: FilterKey; label: string; description: string }[] = [
+  {
+    key: "below-merge",
+    label: "Below Merge",
+    description: "At least one skill at Observe or Propose on this project",
+  },
+  {
+    key: "lead-only",
+    label: "Lead only",
+    description: "Every autonomy-bearing skill on this project is at Lead",
+  },
+  {
+    key: "recent-incidents",
+    label: "Recent incidents (7d)",
+    description: "Project saw a skill incident in the last 7 days",
+  },
+];
+
+function projectMatchesFilters(
+  project: PortfolioProjectClient,
+  active: Set<FilterKey>,
+): boolean {
+  if (active.size === 0) return true;
+  const p = project.autonomyPosture;
+  // AND-combine: every active chip must be satisfied.
+  for (const key of active) {
+    if (key === "below-merge") {
+      if (p.intern + p.junior === 0) return false;
+    } else if (key === "lead-only") {
+      if (p.total === 0 || p.intern + p.junior + p.senior !== 0) return false;
+    } else if (key === "recent-incidents") {
+      if (p.incidentsLast7d === 0) return false;
+    }
+  }
+  return true;
+}
+
+function AutonomyFilterChips({
+  active,
+  onToggle,
+}: {
+  active: Set<FilterKey>;
+  onToggle: (key: FilterKey) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        Filter
+      </span>
+      {FILTERS.map((f) => {
+        const on = active.has(f.key);
+        return (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => onToggle(f.key)}
+            title={f.description}
+            className={cn(
+              "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+              on
+                ? "border-foreground/50 bg-foreground/10 text-foreground"
+                : "border-border/60 text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+            )}
+            aria-pressed={on}
+          >
+            {f.label}
+          </button>
+        );
+      })}
+      {active.size > 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            for (const k of active) onToggle(k);
+          }}
+          className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          clear
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 const PHASE_LABEL: Record<PortfolioProjectClient["phase"], string> = {
   requirements: "REQUIREMENTS",
@@ -45,6 +135,57 @@ function PhasePill({ phase }: { phase: PortfolioProjectClient["phase"] }) {
     >
       {PHASE_LABEL[phase]}
     </Badge>
+  );
+}
+
+function AutonomyPostureCluster({
+  posture,
+}: {
+  posture: PortfolioProjectClient["autonomyPosture"];
+}) {
+  if (posture.total === 0) {
+    return <span className="text-xs text-muted-foreground/60">—</span>;
+  }
+  const cells: { count: number; tone: string; label: string }[] = [
+    { count: posture.intern, tone: "bg-muted text-muted-foreground", label: "Intern" },
+    { count: posture.junior, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-300", label: "Junior" },
+    { count: posture.senior, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", label: "Senior" },
+    { count: posture.principal, tone: "bg-violet-500/15 text-violet-700 dark:text-violet-300", label: "Principal" },
+  ];
+  return (
+    <span
+      className="inline-flex items-center gap-0.5"
+      title={cells
+        .map((c) => `${c.label}: ${c.count}`)
+        .concat(
+          posture.incidentsLast7d > 0
+            ? [`Incidents (7d): ${posture.incidentsLast7d}`]
+            : [],
+        )
+        .join("\n")}
+    >
+      {cells.map((c) =>
+        c.count > 0 ? (
+          <span
+            key={c.label}
+            className={cn(
+              "inline-flex h-4 min-w-[14px] items-center justify-center rounded-sm px-1 font-mono text-[9px] font-medium tabular-nums",
+              c.tone,
+            )}
+          >
+            {c.count}
+          </span>
+        ) : null,
+      )}
+      {posture.incidentsLast7d > 0 ? (
+        <span
+          className="ml-0.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-sm bg-trend-down/15 px-1 font-mono text-[9px] font-medium text-trend-down tabular-nums"
+          aria-label={`${posture.incidentsLast7d} recent incident${posture.incidentsLast7d === 1 ? "" : "s"}`}
+        >
+          !{posture.incidentsLast7d}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -119,7 +260,7 @@ function RollupStrip({ rollup }: { rollup: PortfolioClient["rollup"] }) {
         className="flex items-baseline gap-2 transition-opacity hover:opacity-80"
       >
         <span className="font-display text-3xl font-bold tabular-nums">
-          {Math.round(rollup.portfolioCFR.value * 100)}%
+          {rollup.portfolioCFR.value !== null ? `${Math.round(rollup.portfolioCFR.value * 100)}%` : "—"}
         </span>
         <span className="text-xs text-muted-foreground">portfolio CFR</span>
         <TrendIndicator
@@ -138,7 +279,7 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
     <Link
       href={`/projects/${project.id}`}
       className={cn(
-        "group grid h-9 grid-cols-[18px_minmax(0,1.6fr)_120px_140px_72px_72px_72px_88px_24px] items-center gap-3 border-b border-border/40 px-3 text-sm transition-colors duration-[var(--motion-short)]",
+        "group grid h-9 grid-cols-[18px_minmax(0,1.6fr)_120px_140px_72px_72px_72px_96px_88px_24px] items-center gap-3 border-b border-border/40 px-3 text-sm transition-colors duration-[var(--motion-short)]",
         "hover:bg-muted/40",
         project.isStale && "opacity-55 hover:opacity-90",
       )}
@@ -189,6 +330,9 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
           <span className="text-muted-foreground/50">—</span>
         )}
       </span>
+      <span className="inline-flex items-center justify-start">
+        <AutonomyPostureCluster posture={project.autonomyPosture} />
+      </span>
       <span className="inline-flex items-center justify-end gap-2">
         {project.cfrSparkline ? (
           <Sparkline
@@ -232,7 +376,38 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
 }
 
 export function PortfolioTable({ data }: { data: PortfolioClient }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const active = useMemo<Set<FilterKey>>(() => {
+    const raw = searchParams.get(FILTER_PARAM);
+    if (!raw) return new Set();
+    const valid = new Set(FILTERS.map((f) => f.key));
+    return new Set(raw.split(",").filter((k): k is FilterKey => valid.has(k as FilterKey)));
+  }, [searchParams]);
+
+  const toggle = useCallback(
+    (key: FilterKey) => {
+      const next = new Set(active);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next.size === 0) params.delete(FILTER_PARAM);
+      else params.set(FILTER_PARAM, Array.from(next).join(","));
+      const qs = params.toString();
+      router.replace(qs ? `?${qs}` : "?");
+    },
+    [active, searchParams, router],
+  );
+
+  const filteredProjects = useMemo(
+    () => data.projects.filter((p) => projectMatchesFilters(p, active)),
+    [data.projects, active],
+  );
+
   const noProjects = data.projects.length === 0;
+  const filteredEmpty = !noProjects && filteredProjects.length === 0;
+
   return (
     <div className="space-y-6">
       <RollupStrip rollup={data.rollup} />
@@ -248,24 +423,39 @@ export function PortfolioTable({ data }: { data: PortfolioClient }) {
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-card/30">
-          <div className="grid h-8 grid-cols-[18px_minmax(0,1.6fr)_120px_140px_72px_72px_72px_88px_24px] items-center gap-3 border-b bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            <span />
-            <span>Project</span>
-            <span>Phase</span>
-            <span>Gates</span>
-            <span className="text-center">Open</span>
-            <span className="text-center">Lead</span>
-            <span className="text-center">Deploys</span>
-            <span className="text-right">CFR 30d</span>
-            <span />
+        <>
+          <AutonomyFilterChips active={active} onToggle={toggle} />
+          <div className="overflow-hidden rounded-lg border bg-card/30">
+            <div className="grid h-8 grid-cols-[18px_minmax(0,1.6fr)_120px_140px_72px_72px_72px_96px_88px_24px] items-center gap-3 border-b bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              <span />
+              <span>Project</span>
+              <span>Phase</span>
+              <span>Gates</span>
+              <span className="text-center">Open</span>
+              <span className="text-center">Lead</span>
+              <span className="text-center">Deploys</span>
+              <span>Autonomy</span>
+              <span className="text-right">CFR 30d</span>
+              <span />
+            </div>
+            {filteredEmpty ? (
+              <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                No projects match the active filters.
+              </div>
+            ) : (
+              <div>
+                {filteredProjects.map((p) => (
+                  <ProjectRow key={p.id} project={p} />
+                ))}
+              </div>
+            )}
           </div>
-          <div>
-            {data.projects.map((p) => (
-              <ProjectRow key={p.id} project={p} />
-            ))}
-          </div>
-        </div>
+          {active.size > 0 ? (
+            <p className="text-[11px] text-muted-foreground/70">
+              Showing {filteredProjects.length} of {data.projects.length} projects.
+            </p>
+          ) : null}
+        </>
       )}
 
       <p className="text-[11px] text-muted-foreground/70">

@@ -36,6 +36,15 @@ export interface PortfolioGateClient {
   state: GateStateClient;
 }
 
+export interface AutonomyPostureClient {
+  intern: number;
+  junior: number;
+  senior: number;
+  principal: number;
+  total: number;
+  incidentsLast7d: number;
+}
+
 export interface PortfolioProjectClient {
   id: string;
   name: string;
@@ -59,13 +68,14 @@ export interface PortfolioProjectClient {
   cfrSparkline: number[] | null;
   cfrTrendDirection: TrendDir | null;
   cfrWowDeltaPoints: number | null;
+  autonomyPosture: AutonomyPostureClient;
 }
 
 export interface PortfolioRollupClient {
   openApprovals: number;
   deploysThisWeek: number;
   autonomyEvents: { promotions: number; demotions: number };
-  portfolioCFR: { value: number; wowDeltaPoints: number };
+  portfolioCFR: { value: number | null; wowDeltaPoints: number };
 }
 
 export interface PortfolioClient {
@@ -97,6 +107,7 @@ function serializePortfolioProject(row: PortfolioProjectRow): PortfolioProjectCl
     cfrSparkline: row.cfrSparkline,
     cfrTrendDirection: row.cfrTrendDirection,
     cfrWowDeltaPoints: row.cfrWowDeltaPoints,
+    autonomyPosture: row.autonomyPosture,
   };
 }
 

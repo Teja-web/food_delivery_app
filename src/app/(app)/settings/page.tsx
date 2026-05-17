@@ -231,6 +231,15 @@ export default async function SettingsPage() {
               <Link href="/api-keys">Open</Link>
             </Button>
           </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div>Tool discipline</div>
+              <div className="text-xs text-muted-foreground">Which MCP verbs are allowed in which phase. Platform-declared, read-only.</div>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/settings/policy">Open</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

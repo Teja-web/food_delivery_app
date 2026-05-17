@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SmallMultiples } from "@/components/viz/SmallMultiples";
 import { Sparkline } from "@/components/viz/Sparkline";
 
-const AUTONOMY_LEVELS: AutonomyLevel[] = ["INTERN", "JUNIOR", "SENIOR", "PRINCIPAL"];
+const AUTONOMY_LEVELS: AutonomyLevel[] = ["OBSERVE", "PROPOSE", "MERGE", "LEAD"];
 const GATE_STATES: GateState[] = ["pending", "passed", "failed", "skipped"];
 const STATUS_LEVELS: StatusLevel[] = ["healthy", "warning", "danger", "neutral"];
 
@@ -52,9 +52,9 @@ function Playground() {
       </Section>
 
       <Section title="Level change">
-        <LevelChange from="JUNIOR" to="SENIOR" />
-        <LevelChange from="SENIOR" to="PRINCIPAL" />
-        <LevelChange from="SENIOR" to="JUNIOR" />
+        <LevelChange from="PROPOSE" to="MERGE" />
+        <LevelChange from="MERGE" to="LEAD" />
+        <LevelChange from="MERGE" to="PROPOSE" />
       </Section>
 
       <Section title="Gate dots">
@@ -81,15 +81,15 @@ function Playground() {
 
       <Section title="Skill track record">
         <SkillTrackRecord
-          level="SENIOR"
+          level="MERGE"
           stats={{ success: 92, rollback: 1, incident: 0, windowDays: 30 }}
         />
         <SkillTrackRecord
-          level="PRINCIPAL"
+          level="LEAD"
           stats={{ success: 218, rollback: 0, incident: 0, windowDays: 30 }}
         />
         <SkillTrackRecord
-          level="JUNIOR"
+          level="PROPOSE"
           stats={{ success: 8, rollback: 2, incident: 1, windowDays: 30 }}
         />
       </Section>

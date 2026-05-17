@@ -14,7 +14,7 @@ Core domain (real, ground truth in `src/db/schema/`):
 - **Skill Outcome** — append-only ledger row. `verdict`: `success` | `rolled_back` | `incident`. `sourceKind`: `invocation` (AI path) or one of the Milestone-A deterministic assessors (`pr_merge`, `pr_revert`, `pr_abandon`, `deploy_clean`, `deploy_incident`). Drives autonomy recompute.
 - **Skill Autonomy** — current level per `(skillId, projectId)` pair. Recomputed from the trailing 30-day window of outcomes.
 
-See `docs/architecture.md` and `docs/ux/build-plan.md` for the milestone framing (A: deterministic-signal ledger, B: portfolio audit, C: first AI agent joins, D: dispatch gate, E: IDE input).
+See `docs/product/architecture.md` and `docs/ux/build-plan.md` for the milestone framing (A: deterministic-signal ledger, B: portfolio audit, C: first AI agent joins, D: dispatch gate, E: IDE input).
 
 ## Two Sources of Truth
 

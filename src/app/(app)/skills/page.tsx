@@ -3,9 +3,11 @@ import { listSkills } from "@/actions/skills";
 import type { Project } from "@/db/schema/project";
 import type { Skill } from "@/db/schema/skill";
 import { getActionContext } from "@/lib/auth/context";
+import { listAllChoreographyFiles } from "@/operations/choreographies";
 import {
   getRecentAutonomyEvents,
   getSkillAutonomy,
+  getSkillAutonomyAcrossProjects,
   getSkillStats30d,
 } from "@/operations/skill-autonomy";
 
@@ -40,21 +42,40 @@ export default async function SkillsPage({
   // null, we read the legacy / org-wide rows (the projectId=null lane that
   // pre-Milestone-A data uses). New (skill, project) pairs default to
   // level-0 intern until `recomputeSkillAutonomy` runs at least once.
-  const [autonomy, stats, recentEvents] = await Promise.all([
+  const [autonomy, stats, recentEvents, acrossProjects] = await Promise.all([
     Promise.all(skills.map((s) => getSkillAutonomy(s.id, filterProjectId))),
     Promise.all(skills.map((s) => getSkillStats30d(s.id, filterProjectId))),
     getRecentAutonomyEvents(ctx.organizationId, 14),
+    // For each skill, the per-project rows that drive the "lowest autonomy" column.
+    // Only meaningful in the org-wide view (filterProjectId === null); in a
+    // project-filtered view the table's level column already answers the
+    // question per-row.
+    filterProjectId
+      ? Promise.resolve<{ level: number }[][]>(skills.map(() => []))
+      : Promise.all(
+          skills.map((s) =>
+            getSkillAutonomyAcrossProjects(s.id).then((rows) =>
+              rows.filter((r) => r.projectId !== null).map((r) => ({ level: r.level })),
+            ),
+          ),
+        ),
   ]);
 
-  const rows = skills.map((s, i) => serializeSkillRow(s, autonomy[i], stats[i]));
+  // Filesystem scan for choreography files — joined by slug into each row.
+  // Synchronous + cheap (small directory); fine to do once per request.
+  const choreographyBySlug = listAllChoreographyFiles();
+
+  const rows = skills.map((s, i) =>
+    serializeSkillRow(s, autonomy[i], stats[i], acrossProjects[i], choreographyBySlug.get(s.slug) ?? null),
+  );
 
   const distribution: AutonomyDistribution = rows.reduce(
     (acc, r) => {
       const label = levelLabel(r.level);
-      if (label === "INTERN") acc.intern += 1;
-      else if (label === "JUNIOR") acc.junior += 1;
-      else if (label === "SENIOR") acc.senior += 1;
-      else if (label === "PRINCIPAL") acc.principal += 1;
+      if (label === "OBSERVE") acc.intern += 1;
+      else if (label === "PROPOSE") acc.junior += 1;
+      else if (label === "MERGE") acc.senior += 1;
+      else if (label === "LEAD") acc.principal += 1;
       acc.total += 1;
       return acc;
     },
@@ -79,7 +100,7 @@ export default async function SkillsPage({
         projectId: e.projectId,
         organizationId: ctx.organizationId,
         level: e.level,
-        levelName: (["intern", "junior", "senior", "principal"] as const)[e.level] ?? "intern",
+        levelName: (["observe", "propose", "merge", "lead"] as const)[e.level] ?? "observe",
         levelSetAt: e.levelSetAt,
         lastReviewedAt: null,
         nextReviewAt: null,
@@ -101,7 +122,7 @@ export default async function SkillsPage({
           <h1 className="font-display text-2xl font-semibold">Skills — autonomy ledger</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {selectedProject
-              ? `Trust earned on ${selectedProject.name}. Each skill restarts at intern on a new project.`
+              ? `Trust earned on ${selectedProject.name}. Each skill restarts at Observe on a new project.`
               : "Trust over time across the org. Use the project filter to see per-project autonomy."}
           </p>
         </div>

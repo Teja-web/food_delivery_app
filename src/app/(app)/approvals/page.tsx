@@ -69,7 +69,7 @@ export default async function ApprovalsPage() {
       if (!slug) return;
       const skill = skillBySlug.get(slug);
       if (!skill) return;
-      const requiredName = LEVEL_NAMES[skill.minAutonomyLevel] ?? "intern";
+      const requiredName = LEVEL_NAMES[skill.minAutonomyLevel] ?? "observe";
       const requiredAutonomyLevel = AUTONOMY_LABELS[requiredName];
 
       if (a.entityType === "skill_invocation") {

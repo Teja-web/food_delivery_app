@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "coznt": {
+      "command": "pnpm",
+      "args": ["--filter", "coznt", "mcp"],
+      "cwd": "/absolute/path/to/coznt",
+      "env": {
+        "COZNT_URL": "http://localhost:3029",
+        "COZNT_API_KEY": "sk_coznt_live_..."
+      }
+    }
+  }
+}

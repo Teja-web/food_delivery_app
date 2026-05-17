@@ -12,6 +12,7 @@ import type { RuleSeverity } from "@/db/schema/rule";
 import { cn } from "@/lib/utils";
 
 import type { RuleRowClient, RulesPageClient } from "./serialize";
+import { AutonomyThresholdDialog } from "./AutonomyThresholdDialog";
 
 const SEVERITY_TONE_CLASS: Record<RuleSeverity, string> = {
   info: "border-autonomy-junior/40 bg-autonomy-junior/10 text-autonomy-junior",
@@ -172,6 +173,7 @@ export function RulesClient({ data }: { data: RulesPageClient }) {
             Constraints agents validate against on demand. Org-wide rules apply everywhere; project rules layer on top.
           </p>
         </div>
+        <AutonomyThresholdDialog projects={data.projects} />
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -4,10 +4,10 @@ import { AutonomyPill, type AutonomyLevel } from "@/components/trust/AutonomyPil
 import { cn } from "@/lib/utils";
 
 const RANK: Record<AutonomyLevel, number> = {
-  INTERN: 0,
-  JUNIOR: 1,
-  SENIOR: 2,
-  PRINCIPAL: 3,
+  OBSERVE: 0,
+  PROPOSE: 1,
+  MERGE: 2,
+  LEAD: 3,
 };
 
 export function LevelChange({

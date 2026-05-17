@@ -1,4 +1,6 @@
-# Coznt
+# Coznt — Positioning
+
+*Purpose: definitive product positioning. What coznt is, what it claims, the loop it tightens. Source of truth — every other doc derives from this.*
 
 **Coznt is autonomy with observability for AI-assisted software delivery.**
 
@@ -38,6 +40,19 @@ The result: faster delivery without losing operational control.
 
 ---
 
+## The architecture: daemon + choreography
+
+Coznt is the daemon. Your AI editor — Cursor, Claude Code, Cline, Continue, Zed, or any MCP-compliant agent — is the client.
+
+- **Workflow choreography** distributes to each developer's repository via `coznt sync` as MCP-discoverable SKILL files under `.coznt/skills/`. Claude Code reads the frontmatter natively, Cursor surfaces them as slash-commands, the same files work for every host. The choreography tells the AI *when* to call *which* governed verb — it is the playbook, not the prompt.
+- **Governed actions stay on the server.** Every `invoke_skill`, `upsert_plan`, `mark_gate_passed`, `submit_for_approval` call hits Coznt. The autonomy gate fires *before* dispatch. The outcome ledger writes *during* execution. Schema validation happens server-side, never in the agent.
+
+The AI does the creative work — drafting, reasoning, suggesting. Coznt does the governed work — project state, autonomy gating, outcome writes, approvals. **Push the choreography, keep the daemon.**
+
+This split is what makes a per-project autonomy ledger possible. If the LLM call ran locally, the ledger could only ever be reactive — a record of what already happened. With the daemon as the single execution chokepoint, the gate is *preventive*: a skill operating below its required autonomy on a given project is denied before the LLM is ever invoked, and the call routes into the approval inbox instead. Trust is graded per project from evidence, not granted at install.
+
+---
+
 ## What makes Coznt different
 
 Most AI coding tools optimize code generation. **Coznt optimizes organizational throughput** — the rate at which a team can ship safely without each new piece of AI work re-paying the review tax of the first.
@@ -52,10 +67,11 @@ It continuously converts proven execution patterns into safe autonomous delivery
 | Sonar / Snyk | Risk signal | Action — they detect, they don't allow more |
 | ai-sdlc-framework (OSS) | The loop, single-repo | Multi-project, hosted, portfolio-wide |
 | Cursor-first SDLC platforms (e.g. SDLC Transformation Platform) | Hosted IDE-write surface — real MCP server, write tools for requirements / ADRs / tests / PRs, the agent's daily workplace | Cross-project portfolio observability, causal DORA attribution, audit-grade execution history, earned-autonomy ledger as a trust artifact |
+| Local-AI workflow toolkits (gstack, `.claude/skills`, `.cursor/rules`) | Frictionless skill files distributed with the repo and loaded natively by the AI editor — the pattern Coznt borrows for choreography distribution | A server-side governed runtime. They *distribute* but never *execute* centrally — no observable invocations, no autonomy ledger, no per-project trust budget |
 
 Coznt is the layer above all of these — the only one that closes the loop between AI taking action and an organization being able to trust it with more.
 
-**Coznt is MCP-compatible, not Cursor-bound.** Coznt ships a Model Context Protocol server any compliant agent client mounts — Cursor, Claude Code, Cline, Continue, Zed, custom agents via the MCP SDK. The server is distributed privately (bundled with the coznt deployment or via the customer's internal artifact registry) — coznt is for governed orgs whose supply-chain policy won't tolerate public-registry pulls. The platform never requires a specific IDE; the IDE is one of several inputs the organization observes.
+**Coznt is MCP-compatible, not Cursor-bound.** The MCP server is distributed privately — bundled with the Coznt deployment or pulled from the customer's internal artifact registry — because Coznt is for governed orgs whose supply-chain policy won't tolerate public-registry pulls. The platform never requires a specific IDE; the IDE is one of several inputs the organization observes. Bootstrap is `coznt connect` (wires the editor's MCP config and `.coznt/config.json`) followed by `coznt sync` (pulls the project's choreography bundle). No JSON copy-paste, no per-developer config drift.
 
 **A trace, end-to-end:** Devin's agent in Cursor pulls his context — project, phase, allowed/forbidden, his skill's autonomy level. The agent opens a PR; coznt evaluates and posts a `success` check-run because the skill is Senior and the change is medium-risk. A week later the same skill ships an incident on a sibling project — the ledger demotes it to Intern within 5 minutes, and the agent's three other open PRs flip from passing to blocked automatically. The CISO queries `/audit` filtered to that skill's window and gets a reproducible CSV with the full chain: who reviewed, what was approved, when autonomy changed, which PRs were affected.
 

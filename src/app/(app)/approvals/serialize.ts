@@ -132,7 +132,7 @@ export function serializeApprovalRow(
   // Auto-eligibility: a Senior or Principal originating skill earns auto-approve
   // for low-risk entity types within a 7d window. Falls back to "bot-requested"
   // heuristic when we can't resolve the skill (preserves prior behavior).
-  const trustedLevel = skillLevel === "SENIOR" || skillLevel === "PRINCIPAL";
+  const trustedLevel = skillLevel === "MERGE" || skillLevel === "LEAD";
   const autoEligible =
     (trustedLevel || (isBot && !skillLevel)) &&
     (a.entityType === "work_item" || a.entityType === "plan") &&

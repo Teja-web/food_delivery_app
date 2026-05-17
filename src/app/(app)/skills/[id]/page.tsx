@@ -9,7 +9,13 @@ import { Sparkline } from "@/components/viz/Sparkline";
 import type { Skill } from "@/db/schema/skill";
 import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
 import { getSkill } from "@/actions/skills";
+import { computeAutonomyDistance } from "@/domain/autonomy-distance";
+import { readChoreographyBody } from "@/operations/choreographies";
 import { countBlockedPrsForSkill } from "@/operations/execution-gate";
+import {
+  getRecentApprovalsForSkill,
+  type SkillApprovalRow,
+} from "@/operations/project-trust";
 import {
   getRecentSkillOutcomes,
   getSkillAutonomy,
@@ -22,13 +28,13 @@ import { getActionContext } from "@/lib/auth/context";
 
 import { levelLabel } from "../serialize";
 
-type LevelKey = "INTERN" | "JUNIOR" | "SENIOR" | "PRINCIPAL";
+type LevelKey = "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD";
 
 const LEVEL_CRITERIA: Record<LevelKey, string> = {
-  INTERN: "5+ successful invocations to reach Junior",
-  JUNIOR: "≥90% success rate across 5+ invocations and ≥14 days at level to reach Senior",
-  SENIOR: "≥90% success rate, no critical incidents, ≥14 days at level to reach Principal",
-  PRINCIPAL: "Top of the ladder. Stays until a critical incident demotes.",
+  OBSERVE: "5+ successful invocations to reach Propose",
+  PROPOSE: "≥90% success rate across 5+ invocations and ≥14 days at level to reach Merge",
+  MERGE: "≥90% success rate, no critical incidents, ≥14 days at level to reach Lead",
+  LEAD: "Top of the ladder. Stays until a critical incident demotes.",
 };
 
 /**
@@ -39,28 +45,28 @@ const LEVEL_CRITERIA: Record<LevelKey, string> = {
  * doesn't drift from runtime behaviour.
  */
 const LEVEL_PERMISSIONS: Record<LevelKey, { granted: string[]; gated: string[] }> = {
-  INTERN: {
+  OBSERVE: {
     granted: ["Read-only access to project context", "Can draft plans, gates, and PR comments"],
     gated: ["Cannot self-approve any change", "Cannot mutate releases or production state"],
   },
-  JUNIOR: {
+  PROPOSE: {
     granted: [
       "Can open PRs and propose plan revisions",
       "Can request approval — every change still routes through a human",
     ],
     gated: ["No auto-approve", "No release-channel writes"],
   },
-  SENIOR: {
+  MERGE: {
     granted: [
       "Auto-approve eligible for low-risk PRs (work_item, plan)",
       "Can advance phase gates of type APPROVAL when scoped to its project",
     ],
     gated: ["Production releases still require human sign-off", "Demotes on a single critical incident"],
   },
-  PRINCIPAL: {
+  LEAD: {
     granted: [
       "Auto-approve eligible for all entity types within its project",
-      "Can promote junior skills it co-signs with",
+      "Can co-sign promotions of other skills",
       "Minimal oversight on routine changes",
     ],
     gated: ["Cannot demote peer skills", "Demotes on a single critical incident (no warning)"],
@@ -99,12 +105,13 @@ export default async function SkillDetailPage({
   // Transitional: org-wide view (projectId=null). Per-project breakdown lands
   // in Milestone B alongside the skills ledger redesign.
   const ctx = await getActionContext();
-  const [autonomy, stats, recent, blockedPrs, perProject] = await Promise.all([
+  const [autonomy, stats, recent, blockedPrs, perProject, skillApprovals] = await Promise.all([
     getSkillAutonomy(skill.id, null),
     getSkillStats30d(skill.id, null),
     getRecentSkillOutcomes(skill.id, 20),
     countBlockedPrsForSkill(ctx.organizationId, skill.id, null),
     getSkillAutonomyAcrossProjects(skill.id),
+    getRecentApprovalsForSkill(ctx.organizationId, skill.slug, 20),
   ]);
 
   // Resolve project names for the cross-project rollup pane. The autonomy
@@ -125,6 +132,32 @@ export default async function SkillDetailPage({
   const label = levelLabel(autonomy.level);
   const sparkDirection = stats.success === 0 ? "flat" : stats.incident > 0 ? "down" : "up";
   const permissions = LEVEL_PERMISSIONS[label];
+  const choreographyBody = readChoreographyBody(skill.slug);
+
+  // Per-project stats + distance-to-next, for the cross-project pane.
+  // N+1 query is fine for the small number of projects per skill; revisit if
+  // we ever materialise hundreds of (skill, project) pairs.
+  const perProjectStats = await Promise.all(
+    perProject.map(async (row) => {
+      const s = await getSkillStats30d(skill.id, row.projectId);
+      const daysAtLevel = (Date.now() - row.levelSetAt.getTime()) / (24 * 60 * 60 * 1000);
+      const distance = computeAutonomyDistance({
+        level: row.level,
+        daysAtLevel,
+        windowStats: {
+          total: s.success + s.rollback + s.incident,
+          successes: s.success,
+          rollbacks: s.rollback,
+          incidents: s.incident,
+          criticalIncidents: s.criticalIncidents,
+        },
+      });
+      return { projectId: row.projectId, sparkline: s.sparkline, distance };
+    }),
+  );
+  const perProjectByKey = new Map(
+    perProjectStats.map((p) => [p.projectId ?? "__org__", p]),
+  );
 
   return (
     <div className="space-y-6">
@@ -302,6 +335,44 @@ export default async function SkillDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {choreographyBody ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Choreography · pushed to dev repos
+                  </CardTitle>
+                  <span className="font-mono text-[10px] text-muted-foreground/80">
+                    .coznt/skills/{skill.slug}/SKILL.md
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="mb-3 text-xs text-muted-foreground">
+                  This file is what the developer&apos;s AI editor sees. It tells the AI <em>when</em>{" "}
+                  to call which governed verb. The actual LLM prompt for this skill stays server-side.
+                </p>
+                <pre className="max-h-[420px] overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 font-mono text-[11px] leading-relaxed">
+                  {choreographyBody}
+                </pre>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Choreography
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 text-xs text-muted-foreground">
+                No <span className="font-mono">CHOREOGRAPHY.md</span> exists for this skill yet —
+                it&apos;s server-only. Authoring a choreography lets developers&apos; AI editors
+                discover and invoke this skill natively via{" "}
+                <span className="font-mono">coznt sync</span>.
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6 lg:col-span-2">
@@ -393,33 +464,65 @@ export default async function SkillDetailPage({
                     const projectMeta = row.projectId ? projectsById.get(row.projectId) : null;
                     const projectLabel = projectMeta?.name ?? (row.projectId ? row.projectId.slice(0, 8) : "org-wide");
                     const rowLabel = (
-                      ["INTERN", "JUNIOR", "SENIOR", "PRINCIPAL"] as const
-                    )[row.level] ?? "INTERN";
+                      ["OBSERVE", "PROPOSE", "MERGE", "LEAD"] as const
+                    )[row.level] ?? "OBSERVE";
+                    const stats = perProjectByKey.get(row.projectId ?? "__org__");
+                    const distance = stats?.distance;
+                    const distanceTone =
+                      distance?.kind === "demotion-pending"
+                        ? "border-state-failed/40 text-state-failed"
+                        : distance?.kind === "eligible"
+                          ? "border-trend-up/40 text-trend-up"
+                          : "border-border/60 text-muted-foreground";
+                    const rowSparkDirection = !stats
+                      ? "flat"
+                      : stats.sparkline.some((n) => n > 0)
+                        ? "up"
+                        : "flat";
                     return (
                       <li
                         key={`${row.projectId ?? "org"}-${row.levelSetAt.getTime()}`}
-                        className="flex items-center justify-between gap-2 rounded-sm border border-border/40 px-2 py-1.5"
+                        className="flex flex-col gap-2 rounded-sm border border-border/40 px-2 py-1.5"
                       >
-                        <div className="min-w-0">
-                          <div className="truncate text-xs font-medium text-foreground">
-                            {row.projectId && projectMeta ? (
-                              <Link
-                                href={`/projects/${row.projectId}`}
-                                className="hover:underline"
-                              >
-                                {projectLabel}
-                              </Link>
-                            ) : (
-                              <span className={row.projectId ? "" : "text-muted-foreground"}>
-                                {projectLabel}
-                              </span>
-                            )}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-xs font-medium text-foreground">
+                              {row.projectId && projectMeta ? (
+                                <Link
+                                  href={`/projects/${row.projectId}`}
+                                  className="hover:underline"
+                                >
+                                  {projectLabel}
+                                </Link>
+                              ) : (
+                                <span className={row.projectId ? "" : "text-muted-foreground"}>
+                                  {projectLabel}
+                                </span>
+                              )}
+                            </div>
+                            <div className="truncate font-mono text-[10px] text-muted-foreground">
+                              since {row.levelSetAt.toLocaleDateString()}
+                            </div>
                           </div>
-                          <div className="truncate font-mono text-[10px] text-muted-foreground">
-                            since {row.levelSetAt.toLocaleDateString()}
-                          </div>
+                          <AutonomyPill level={rowLabel} title={row.lastReason ?? undefined} />
                         </div>
-                        <AutonomyPill level={rowLabel} title={row.lastReason ?? undefined} />
+                        {stats ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge
+                              variant="outline"
+                              className={`shrink-0 px-1.5 py-0 font-mono text-[10px] ${distanceTone}`}
+                              title={distance?.label}
+                            >
+                              {distance?.label ?? "—"}
+                            </Badge>
+                            <Sparkline
+                              points={stats.sparkline}
+                              direction={rowSparkDirection}
+                              width={80}
+                              height={20}
+                            />
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}
@@ -427,8 +530,82 @@ export default async function SkillDetailPage({
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Approval history · {skillApprovals.length}
+                </CardTitle>
+                <Link
+                  href="/approvals"
+                  className="font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  open approvals →
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {skillApprovals.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No approvals requested by this skill yet. When the dispatch gate denies a
+                  call (autonomy below the required level), it lands here.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {skillApprovals.map((a) => (
+                    <SkillApprovalListItem key={a.id} approval={a} />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+const APPROVAL_TONE: Record<SkillApprovalRow["status"], string> = {
+  pending: "border-state-pending/40 text-state-pending",
+  approved: "border-trend-up/40 text-trend-up",
+  rejected: "border-state-failed/40 text-state-failed",
+  cancelled: "border-muted-foreground/30 text-muted-foreground",
+};
+
+function SkillApprovalListItem({ approval }: { approval: SkillApprovalRow }) {
+  return (
+    <li className="flex items-center gap-2 py-1.5 first:pt-0 last:pb-0">
+      <Badge
+        variant="outline"
+        className={`shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase ${APPROVAL_TONE[approval.status]}`}
+      >
+        {approval.status}
+      </Badge>
+      <Badge
+        variant="outline"
+        className="shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
+      >
+        {approval.entityType}
+      </Badge>
+      <span className="min-w-0 flex-1 truncate text-xs text-foreground/85">
+        {approval.projectName && approval.projectId ? (
+          <Link href={`/projects/${approval.projectId}`} className="hover:underline">
+            {approval.projectName}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">org-wide</span>
+        )}
+        {approval.requesterNote ? (
+          <span className="ml-2 text-muted-foreground/70">— {approval.requesterNote}</span>
+        ) : null}
+      </span>
+      <span
+        className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums"
+        title={approval.decidedAt ? `Decided ${approval.decidedAt.toISOString()}` : "Pending"}
+      >
+        {formatAge(approval.createdAt)}
+      </span>
+    </li>
   );
 }

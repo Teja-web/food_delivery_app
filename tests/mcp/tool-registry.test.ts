@@ -110,6 +110,14 @@ describe("MCP tool registry", () => {
       expect(names.has(v), `missing Tier-3 verb: ${v}`).toBe(true);
     }
   });
+
+  it("includes all Tier 4 (distribution) verbs", () => {
+    const names = new Set(tools.map((t) => t.name));
+    const tier4 = ["list_choreographies", "sync_choreographies"];
+    for (const v of tier4) {
+      expect(names.has(v), `missing Tier-4 verb: ${v}`).toBe(true);
+    }
+  });
 });
 
 describe("MCP resource registry", () => {

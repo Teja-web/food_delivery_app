@@ -32,22 +32,35 @@ export interface GateInput {
   prHeadSha?: string | null;
 
   skillId: string | null;
-  /** 0=intern, 1=junior, 2=senior, 3=principal */
+  /** 0=observe, 1=propose, 2=merge, 3=lead */
   skillLevel: number | null;
 
   changeRisk: ChangeRisk;
   ruleViolations: Array<{ ruleId: string; severity: RuleSeverity }>;
   phase: ProjectPhase;
   hasHumanApproval: boolean;
+
+  /**
+   * Optional policy override. When provided, replaces the default
+   * autonomy → behavior binding for this evaluation. `enforcedByRuleId`
+   * is null for default-fallback decisions, non-null when a customer
+   * rule was the policy source.
+   */
+  policy?: {
+    minLevel: number;
+    enforcedByRuleId: string | null;
+  };
 }
 
 export interface GateVerdictResult {
   verdict: GateVerdict;
   reason: string;
   details: string[];
+  /** Rule id that authorized this verdict, when applicable. */
+  enforcedByRuleId?: string | null;
 }
 
-const LEVEL_LABEL = ["intern", "junior", "senior", "principal"] as const;
+const LEVEL_LABEL = ["observe", "propose", "merge", "lead"] as const;
 
 /** The 5-rule policy from `docs/execution-gate-plan.md`. Pure function. */
 export function decideExecutionGate(input: GateInput): GateVerdictResult {
@@ -103,18 +116,29 @@ export function decideExecutionGate(input: GateInput): GateVerdictResult {
     };
   }
 
-  // Rule 5: autonomy × risk threshold.
-  const levelLabel = LEVEL_LABEL[input.skillLevel] ?? "intern";
-  const allow = isAllowedByLevel(input.skillLevel, input.changeRisk);
-  if (allow) {
+  // Rule 5: autonomy × risk threshold. Resolved from a customer rule
+  // (`policy.minLevel + policy.enforcedByRuleId`) when supplied,
+  // otherwise from the default-fallback table.
+  const levelLabel = LEVEL_LABEL[input.skillLevel] ?? "observe";
+  const required = input.policy?.minLevel ?? defaultMinLevelFor(input.changeRisk);
+  const enforcedByRuleId = input.policy?.enforcedByRuleId ?? null;
+  const requiredLabel = LEVEL_LABEL[Math.min(required, 3)] ?? "lead";
+  const sourceDetail = enforcedByRuleId
+    ? `Policy: enforced by rule ${enforcedByRuleId}`
+    : `Policy: default fallback`;
+  const isAllowed = required !== Infinity && input.skillLevel >= required;
+
+  if (isAllowed) {
     return {
       verdict: "success",
       reason: `${levelLabel} skill cleared for ${input.changeRisk}-risk change`,
       details: [
         `Originating skill: autonomy ${levelLabel}`,
         `Change risk: ${input.changeRisk}`,
+        sourceDetail,
         ...details,
       ],
+      enforcedByRuleId,
     };
   }
   return {
@@ -123,28 +147,30 @@ export function decideExecutionGate(input: GateInput): GateVerdictResult {
     details: [
       `Originating skill: autonomy ${levelLabel}`,
       `Change risk: ${input.changeRisk}`,
-      `Required level for ${input.changeRisk} changes: ${minLevelFor(input.changeRisk)} or higher`,
+      required === Infinity
+        ? `Auto-merge disabled for ${input.changeRisk}-risk changes — always requires human approval`
+        : `Required minimum autonomy: ${requiredLabel}`,
+      sourceDetail,
       "Get an explicit human approval to bypass, or split the PR into lower-risk pieces.",
       ...details,
     ],
+    enforcedByRuleId,
   };
 }
 
-function isAllowedByLevel(level: number, risk: ChangeRisk): boolean {
-  if (level >= 3) return true; // principal: all
-  if (level === 2) return risk !== "high"; // senior: low/medium
-  if (level === 1) return risk === "low"; // junior: low
-  return false; // intern: nothing
-}
-
-function minLevelFor(risk: ChangeRisk): string {
-  if (risk === "high") return "principal";
-  if (risk === "medium") return "senior";
-  return "junior";
+function defaultMinLevelFor(risk: ChangeRisk): number {
+  // Mirrors the pre-policy hardcoded behavior in `isAllowedByLevel`
+  // (low → ≥1, medium → ≥2, high → ≥3). Customer-authored
+  // `autonomy-threshold` rules override per-row via `input.policy.minLevel`.
+  if (risk === "high") return 3; // lead
+  if (risk === "medium") return 2; // merge
+  return 1; // low — propose (was: junior allowed)
 }
 
 /**
- * Evaluate + persist. Appends a row to `gate_evaluations` and writes an
+ * Evaluate + persist. Resolves the active `autonomy-threshold` policy
+ * for this org/project/risk tuple, threads it into the pure decision
+ * function, appends a row to `gate_evaluations`, and writes an
  * `audit_log` entry so the verdict is queryable from the /audit screen.
  * The GitHub Checks POST is the caller's responsibility (it needs a
  * GitHub App installation token, which the webhook handler owns).
@@ -153,7 +179,18 @@ export async function evaluatePullRequest(input: GateInput): Promise<{
   evaluation: GateEvaluation;
   verdict: GateVerdictResult;
 }> {
-  const verdict = decideExecutionGate(input);
+  const { resolveAutonomyThreshold } = await import("@/operations/autonomy-policy");
+  const policy = await resolveAutonomyThreshold({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    actionKind: "merge_pr",
+    changeRisk: input.changeRisk,
+  });
+
+  const verdict = decideExecutionGate({
+    ...input,
+    policy: { minLevel: policy.minLevel, enforcedByRuleId: policy.enforcedByRuleId },
+  });
 
   const [evaluation] = await db
     .insert(gateEvaluations)
@@ -187,6 +224,8 @@ export async function evaluatePullRequest(input: GateInput): Promise<{
       skillLevel: input.skillLevel,
       changeRisk: input.changeRisk,
       humanOverride: input.hasHumanApproval,
+      enforcedByRuleId: verdict.enforcedByRuleId ?? null,
+      policySource: policy.source,
     } as Record<string, unknown>,
   });
 

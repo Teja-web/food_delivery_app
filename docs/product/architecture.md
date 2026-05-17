@@ -1,4 +1,6 @@
-# coznt — Architecture Plan
+# Architecture
+
+*Purpose: how the daemon + choreography spine works, plus the decision log behind it. Implementation-level companion to [`positioning.md`](../positioning.md).*
 
 Coznt closes a loop between AI-assisted action and earned organizational trust, hosted, multi-project. Built on the recruit/tanznt template (single Next.js app, Drizzle, Better Auth, pgmq workers, AI agents, hybrid search).
 
@@ -94,8 +96,9 @@ One `plans` table; six template kinds differentiated by `kind` enum. Phase-speci
 
 - **Rule** — a constraint, validated on demand (e.g. "all PRs must reference a requirement"). Stored as markdown with YAML frontmatter, served via API.
 - **Skill** — a reusable workflow definition (system prompt + I/O schema). Server-side, callable from any agent over HTTP — same shape as Claude Code skills, OpenAI tools, or Cursor commands. Autonomy is scored per `(skill, project)`.
+- **Choreography** — the workflow guide pushed to each developer's repo so their AI editor (Cursor, Claude Code, Cline, Continue, Zed) knows when to call which governed verb. Lives at `src/automations/skills/<slug>/CHOREOGRAPHY.md` on the platform and gets pushed to `<repo>/.coznt/skills/<slug>/SKILL.md`. Format documented in [`../spec/skill-choreography.md`](../spec/skill-choreography.md). **Push the choreography, keep the daemon.**
 
-Distribution: agents fetch rules and skills by `project_id` + `phase` over HTTP. No SDK required — `curl` works.
+Distribution: agents fetch rules and skills by `project_id` + `phase` over HTTP. No SDK required — `curl` works. Choreographies sync via the `coznt sync` CLI after Phase 2; for now the file convention is in place and the linter passes.
 
 ---
 

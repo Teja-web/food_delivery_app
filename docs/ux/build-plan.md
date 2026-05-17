@@ -25,8 +25,7 @@ A self-contained execution plan for implementing the five hero screens and the M
 | 7 | `docs/ux/sample-data.md` | Cross-domain fixture with the live storyline (doc-updater promotion, schema-migration-reviewer demotion, auth-service CFR regression) |
 | 8 | `docs/ux/briefs/H1-portfolio.md` | The first screen to build. Validated by Lovable mockup. |
 | 9-13 | `docs/ux/briefs/H2-cockpit.md` through `H5-metrics.md`, `DX-mcp-context.md` | Read each as you start that phase. |
-| 14 | `docs/architecture.md` | Vision + plan-driven SDLC model + 6 plan kinds |
-| 15 | `docs/borrowings-from-ai-sdlc-framework.md` | What's in v1, what's deferred. Crucial for not re-adding deferred work. |
+| 14 | `docs/product/architecture.md` | Vision + plan-driven SDLC model + 6 plan kinds |
 
 ## Reference codebases (for UI patterns only — do NOT copy verbatim)
 
@@ -57,7 +56,7 @@ A self-contained execution plan for implementing the five hero screens and the M
 - Marcus's v2 audit-export UI (kept as forward design intent in `personas.md` but not built)
 - Mobile responsive — desktop-first for v1
 - Web-side plan editor — Devin authors plans in Cursor; web is viewer-only
-- Three-reviewer cross-harness pattern (explicitly deferred per `borrowings-from-ai-sdlc-framework.md`)
+- Three-reviewer cross-harness pattern (explicitly deferred)
 - DSSE attestation envelopes (deferred)
 - CLI surface (deferred)
 - Any feature not present in `docs/ux/screens.md`
@@ -66,7 +65,7 @@ A self-contained execution plan for implementing the five hero screens and the M
 
 ## Milestone alignment (added 2026-05-12)
 
-`docs/architecture.md` defines five milestones A–E, each gated on the autonomy-with-observability loop being demonstrably closed at that scope. This UI build plan is one track inside that framing. The mapping below tells you which UI phase ships against which milestone, and which runtime prerequisites have to land first.
+`docs/product/architecture.md` defines five milestones A–E, each gated on the autonomy-with-observability loop being demonstrably closed at that scope. This UI build plan is one track inside that framing. The mapping below tells you which UI phase ships against which milestone, and which runtime prerequisites have to land first.
 
 | Milestone | Loop scope | Runtime prerequisite (not in this doc) | UI phases that ship here |
 |---|---|---|---|

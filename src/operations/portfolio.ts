@@ -16,6 +16,7 @@ import { phaseGates, type GateStatus } from "@/db/schema/phase-gate";
 import { projects, type Project, type ProjectPhase } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { computePortfolioRollup, computeProjectDora } from "@/operations/dora-compose";
+import { getProjectAutonomyAggregate } from "@/operations/skill-autonomy";
 
 export type ProjectHealth = "healthy" | "warning" | "danger" | "neutral";
 export type TrendDir = "up" | "down" | "flat";
@@ -23,6 +24,15 @@ export type TrendDir = "up" | "down" | "flat";
 export type PortfolioGate = {
   name: string;
   status: GateStatus;
+};
+
+export type AutonomyPosture = {
+  intern: number;
+  junior: number;
+  senior: number;
+  principal: number;
+  total: number;
+  incidentsLast7d: number;
 };
 
 export type PortfolioProjectRow = {
@@ -40,84 +50,19 @@ export type PortfolioProjectRow = {
   cfrSparkline: number[] | null;
   cfrTrendDirection: TrendDir | null;
   cfrWowDeltaPoints: number | null;
+  autonomyPosture: AutonomyPosture;
 };
 
 export type PortfolioRollup = {
   openApprovals: number;
   deploysThisWeek: number;
   autonomyEvents: { promotions: number; demotions: number };
-  portfolioCFR: { value: number; wowDeltaPoints: number };
+  portfolioCFR: { value: number | null; wowDeltaPoints: number };
 };
 
 export type PortfolioData = {
   rollup: PortfolioRollup;
   rows: PortfolioProjectRow[];
-};
-
-/**
- * Per-project fixture overlay — sourced from docs/ux/sample-data.md.
- * Replace with reads from `metrics` + `skill_outcomes` once those pipelines
- * are populated. TODO(metrics-backfill): drop in favor of getMetricsForProject().
- */
-const PROJECT_FIXTURES: Record<
-  string,
-  Pick<
-    PortfolioProjectRow,
-    | "leadTimeDays"
-    | "deploys30d"
-    | "cfr30d"
-    | "cfrSparkline"
-    | "cfrTrendDirection"
-    | "cfrWowDeltaPoints"
-    | "hasRegression"
-    | "health"
-    | "shortKey"
-  >
-> = {
-  "internal-payments-api": {
-    shortKey: "IPA",
-    health: "healthy",
-    hasRegression: false,
-    leadTimeDays: 3.4,
-    deploys30d: 6.2,
-    cfr30d: 0.08,
-    cfrSparkline: [12, 11, 10, 9, 10, 9, 8, 8, 9, 8, 8, 8],
-    cfrTrendDirection: "down",
-    cfrWowDeltaPoints: -1,
-  },
-  "data-warehouse-v2": {
-    shortKey: "DW2",
-    health: "healthy",
-    hasRegression: false,
-    leadTimeDays: null,
-    deploys30d: null,
-    cfr30d: null,
-    cfrSparkline: null,
-    cfrTrendDirection: null,
-    cfrWowDeltaPoints: null,
-  },
-  "auth-service-migration": {
-    shortKey: "ASM",
-    health: "danger",
-    hasRegression: true,
-    leadTimeDays: 5.7,
-    deploys30d: 4.8,
-    cfr30d: 0.18,
-    cfrSparkline: [7, 8, 9, 9, 11, 12, 13, 14, 16, 17, 17, 18],
-    cfrTrendDirection: "up",
-    cfrWowDeltaPoints: 3,
-  },
-  "kafka-pipeline-modernization": {
-    shortKey: "KAF",
-    health: "healthy",
-    hasRegression: false,
-    leadTimeDays: null,
-    deploys30d: null,
-    cfr30d: null,
-    cfrSparkline: null,
-    cfrTrendDirection: null,
-    cfrWowDeltaPoints: null,
-  },
 };
 
 /** Generic fallback shortKey: first letters of name words, max 3 chars. */
@@ -222,45 +167,43 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     .orderBy(projects.createdAt);
 
   const projectIds = projectRows.map((p) => p.id);
-  const [gateByProject, openByProject, doraByProject, realRollup] = await Promise.all([
-    fetchGatesForProjects(ctx.organizationId, projectIds),
-    fetchOpenApprovalCounts(ctx.organizationId, projectIds),
-    Promise.all(projectIds.map((id) => computeProjectDora(id, 30))),
-    computePortfolioRollup(ctx.organizationId, 7),
-  ]);
+  const [gateByProject, openByProject, doraByProject, realRollup, autonomyByProject] =
+    await Promise.all([
+      fetchGatesForProjects(ctx.organizationId, projectIds),
+      fetchOpenApprovalCounts(ctx.organizationId, projectIds),
+      Promise.all(projectIds.map((id) => computeProjectDora(id, 30))),
+      computePortfolioRollup(ctx.organizationId, 7),
+      Promise.all(
+        projectIds.map((id) => getProjectAutonomyAggregate(id, ctx.organizationId)),
+      ),
+    ]);
   const doraIndex = new Map(projectIds.map((id, i) => [id, doraByProject[i]]));
+  const autonomyIndex = new Map(
+    projectIds.map((id, i) => [id, autonomyByProject[i]]),
+  );
 
   const now = Date.now();
   const rows: PortfolioProjectRow[] = projectRows.map((p) => {
-    const fixture = PROJECT_FIXTURES[p.slug];
     const gates = gateByProject.get(p.id) ?? { passed: 0, total: 0, items: [] };
     const staleDays = Math.floor((now - p.updatedAt.getTime()) / (24 * 60 * 60 * 1000));
     const dora = doraIndex.get(p.id);
 
-    // Real metrics where present; fixture overlay as fallback so seeded
-    // dev workspaces still demo. The fixture path is intentionally NOT
-    // keyed off slug as authoritative — once metric rows exist for a
-    // project, the fixture is ignored even if the slug still matches.
-    const leadTimeDays = dora?.cells.lead_time?.value ?? fixture?.leadTimeDays ?? null;
+    const leadTimeDays = dora?.cells.lead_time?.value ?? null;
     const deployCell = dora?.cells.deployment_frequency;
     // deployment_frequency is /wk; portfolio shows 30d total.
-    const deploys30d =
-      deployCell?.value != null
-        ? Math.round((deployCell.value / 7) * 30)
-        : fixture?.deploys30d ?? null;
+    const deploys30d = deployCell?.value != null ? Math.round((deployCell.value / 7) * 30) : null;
     const cfrCell = dora?.cells.change_failure_rate;
     const cfrPct = cfrCell?.value ?? null;
-    const cfrFraction = cfrPct !== null ? cfrPct / 100 : fixture?.cfr30d ?? null;
-    const cfrSparkline = cfrCell?.sparkline ?? fixture?.cfrSparkline ?? null;
-    const cfrDirection = cfrCell?.direction ?? fixture?.cfrTrendDirection ?? null;
-    const cfrWowPoints = cfrCell?.wowDelta ?? fixture?.cfrWowDeltaPoints ?? null;
-    const hasRegression =
-      cfrWowPoints !== null && cfrWowPoints >= 3 ? true : fixture?.hasRegression ?? false;
+    const cfrFraction = cfrPct !== null ? cfrPct / 100 : null;
+    const cfrSparkline = cfrCell?.sparkline ?? null;
+    const cfrDirection = cfrCell?.direction ?? null;
+    const cfrWowPoints = cfrCell?.wowDelta ?? null;
+    const hasRegression = cfrWowPoints !== null && cfrWowPoints >= 3;
 
     return {
       project: p,
-      shortKey: fixture?.shortKey ?? deriveShortKey(p.name),
-      health: fixture?.health ?? deriveHealth(p, cfrFraction),
+      shortKey: deriveShortKey(p.name),
+      health: deriveHealth(p, cfrFraction),
       hasRegression,
       isStale: staleDays >= 30,
       staleDays,
@@ -272,24 +215,28 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       cfrSparkline,
       cfrTrendDirection: cfrDirection,
       cfrWowDeltaPoints: cfrWowPoints,
+      autonomyPosture: autonomyIndex.get(p.id) ?? {
+        intern: 0,
+        junior: 0,
+        senior: 0,
+        principal: 0,
+        total: 0,
+        incidentsLast7d: 0,
+      },
     };
   });
 
-  // Rollup — real values from metrics + skill_autonomy. The `|| <fixture>`
-  // OR-fallback only kicks in for empty dev workspaces, so the seeded demo
-  // still renders. Once real signal flows, the fixture is invisible.
-  const realOpen = rows.reduce((acc, r) => acc + r.openApprovals, 0);
   const rollup: PortfolioRollup = {
-    openApprovals: realOpen || 12,
-    deploysThisWeek: realRollup.deploysInWindow || 18,
-    autonomyEvents:
-      realRollup.autonomyPromotions + realRollup.autonomyDemotions > 0
-        ? { promotions: realRollup.autonomyPromotions, demotions: realRollup.autonomyDemotions }
-        : { promotions: 1, demotions: 1 },
+    openApprovals: rows.reduce((acc, r) => acc + r.openApprovals, 0),
+    deploysThisWeek: realRollup.deploysInWindow,
+    autonomyEvents: {
+      promotions: realRollup.autonomyPromotions,
+      demotions: realRollup.autonomyDemotions,
+    },
     portfolioCFR:
       realRollup.cfrPct !== null
         ? { value: realRollup.cfrPct / 100, wowDeltaPoints: realRollup.cfrWowDeltaPoints ?? 0 }
-        : { value: 0.11, wowDeltaPoints: 3 },
+        : { value: null, wowDeltaPoints: 0 },
   };
 
   return { rollup, rows };

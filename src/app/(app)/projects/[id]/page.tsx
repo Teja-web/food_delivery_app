@@ -1,24 +1,35 @@
 import { notFound } from "next/navigation";
 
-import { listGatesForPhase } from "@/actions/phase-gates";
+import { listGatesForPhase, listGatesForProject } from "@/actions/phase-gates";
 import { getProject } from "@/actions/projects";
-import type { Project } from "@/db/schema/project";
+import type { PhaseGate } from "@/db/schema/phase-gate";
+import { PROJECT_PHASES, type Project, type ProjectPhase } from "@/db/schema/project";
 import { canAdvanceFrom, nextPhase, PHASE_GUIDANCE } from "@/domain/phases";
 import { listBindingsForProject } from "@/operations/adapter-bindings";
 import { getOrCreateProjectKey } from "@/operations/api-keys";
+import { listDeployments } from "@/operations/deployments";
 import { listPlansByProject } from "@/operations/plans";
+import {
+  getProjectAutonomyPolicyMatrix,
+  getRecentProjectOutcomes,
+} from "@/operations/project-trust";
 import { listRulesForProject } from "@/operations/rules";
 import { listSkillsForProject } from "@/operations/skills";
+import { listWorkItemsForProject } from "@/operations/work-items";
+import { getActionContext } from "@/lib/auth/context";
 
 import { CockpitClient } from "./CockpitClient";
 import {
   serializeCockpitBinding,
+  serializeCockpitDeployment,
   serializeCockpitGate,
   serializeCockpitPlan,
   serializeCockpitProject,
   serializeCockpitRule,
   serializeCockpitSkill,
+  serializeCockpitWorkItem,
   type CockpitClient as CockpitData,
+  type CockpitGatesByPhase,
 } from "./serialize";
 
 export default async function ProjectDetailPage({
@@ -30,21 +41,54 @@ export default async function ProjectDetailPage({
   const project = (await getProject(id)) as Project | null;
   if (!project) notFound();
 
-  const [plans, gates, bindings, rules, skills, apiKey] = await Promise.all([
-    listPlansByProject(id, { limit: 50 }),
+  const ctx = await getActionContext();
+  const [
+    plans,
+    currentPhaseGates,
+    allGates,
+    bindings,
+    rules,
+    skills,
+    workItems,
+    deployments,
+    apiKey,
+    trustOutcomes,
+    trustPolicy,
+  ] = await Promise.all([
+    listPlansByProject(id, { limit: 100 }),
     listGatesForPhase(id, project.phase),
+    listGatesForProject(id),
     listBindingsForProject(id),
     listRulesForProject(id, project.phase),
     listSkillsForProject(id),
+    listWorkItemsForProject(id, { limit: 200 }),
+    listDeployments({ projectId: id, limit: 50 }),
     getOrCreateProjectKey(id),
+    getRecentProjectOutcomes(id, 30),
+    getProjectAutonomyPolicyMatrix(ctx.organizationId, id),
   ]);
 
-  const gatesAllPassed = gates.every((g) => g.status === "passed" || g.status === "skipped");
+  const gatesAllPassed = currentPhaseGates.every(
+    (g) => g.status === "passed" || g.status === "skipped",
+  );
   const next = nextPhase(project.phase);
   const canAdvance = canAdvanceFrom(project.phase) && gatesAllPassed;
   const blockedReason = !gatesAllPassed
-    ? `${gates.filter((g) => g.status !== "passed" && g.status !== "skipped").length} gate(s) not yet cleared`
+    ? `${currentPhaseGates.filter((g) => g.status !== "passed" && g.status !== "skipped").length} gate(s) not yet cleared`
     : null;
+
+  // Group all gates by phase so the Phases tab can render a timeline.
+  const byPhase = new Map<ProjectPhase, PhaseGate[]>();
+  for (const g of allGates) {
+    const arr = byPhase.get(g.phase) ?? [];
+    arr.push(g);
+    byPhase.set(g.phase, arr);
+  }
+  const gatesByPhase: CockpitGatesByPhase[] = PROJECT_PHASES.map((p) => ({
+    phase: p,
+    label: PHASE_GUIDANCE[p].label,
+    gates: (byPhase.get(p) ?? []).map(serializeCockpitGate),
+  }));
 
   const data: CockpitData = {
     project: serializeCockpitProject(project),
@@ -52,13 +96,17 @@ export default async function ProjectDetailPage({
     canAdvance,
     blockedReason,
     guidance: PHASE_GUIDANCE[project.phase],
-    gates: gates.map(serializeCockpitGate),
+    gates: currentPhaseGates.map(serializeCockpitGate),
     gatesAllPassed,
+    gatesByPhase,
     bindings: bindings.map(serializeCockpitBinding),
     plans: plans.map(serializeCockpitPlan),
+    workItems: workItems.map(serializeCockpitWorkItem),
+    deployments: deployments.map(serializeCockpitDeployment),
     rules: rules.map((r) => serializeCockpitRule(r, id)),
     skills: skills.map((s) => serializeCockpitSkill(s, id)),
     apiKey,
+    trust: { outcomes: trustOutcomes, policy: trustPolicy },
   };
 
   return <CockpitClient data={data} />;

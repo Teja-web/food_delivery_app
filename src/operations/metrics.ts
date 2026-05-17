@@ -101,7 +101,7 @@ export interface AttributionFinding {
   /** Specific deploys / PRs / rollbacks attributed. */
   timeline: Array<{ when: string; what: string; link: string | null }>;
   skillState: {
-    currentLevel: "INTERN" | "JUNIOR" | "SENIOR" | "PRINCIPAL";
+    currentLevel: "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD";
     levelChangedAt: string | null;
   } | null;
 }
@@ -128,25 +128,6 @@ const METRIC_UNIT: Record<DoraMetric, string> = {
   mttr: "h",
 };
 
-// Per-project demo overlay — keep in sync with docs/ux/sample-data.md.
-type FixtureCell = { value: number | null; sparkline: number[]; direction: DoraCell["direction"]; wowDelta: number | null };
-const PROJECT_FIXTURES: Record<string, Partial<Record<DoraMetric, FixtureCell>>> = {
-  "internal-payments-api": {
-    lead_time: { value: 3.4, sparkline: [4, 4, 3.8, 3.5, 3.4], direction: "down", wowDelta: -0.4 },
-    deployment_frequency: { value: 6.2, sparkline: [4, 5, 5, 6, 6.2], direction: "up", wowDelta: 0.6 },
-    change_failure_rate: { value: 8, sparkline: [11, 10, 9, 9, 8], direction: "down", wowDelta: -1 },
-    mttr: { value: 1.8, sparkline: [2.5, 2.2, 2.0, 1.9, 1.8], direction: "down", wowDelta: -0.1 },
-  },
-  "auth-service-migration": {
-    lead_time: { value: 5.7, sparkline: [4.5, 4.8, 5.0, 5.4, 5.7], direction: "up", wowDelta: 0.6 },
-    deployment_frequency: { value: 4.8, sparkline: [6, 5.5, 5, 4.8, 4.8], direction: "down", wowDelta: -0.4 },
-    change_failure_rate: { value: 18, sparkline: [8, 10, 12, 15, 18], direction: "up", wowDelta: 3 },
-    mttr: { value: 4.2, sparkline: [2, 2.5, 3, 3.5, 4.2], direction: "up", wowDelta: 0.7 },
-  },
-  "data-warehouse-v2": {},
-  "kafka-pipeline-modernization": {},
-};
-
 function deriveShortKey(name: string): string {
   return (
     name
@@ -159,98 +140,6 @@ function deriveShortKey(name: string): string {
   );
 }
 
-function aggregateFixture(window: number): {
-  aggregates: DoraAggregate[];
-  attribution: AttributionFinding | null;
-} {
-  // Sample-data portfolio aggregates (90d window in source — we scale labels
-  // by `window` but values are stub for v1).
-  const aggregates: DoraAggregate[] = [
-    {
-      metric: "lead_time",
-      label: METRIC_LABEL.lead_time,
-      unit: METRIC_UNIT.lead_time,
-      value: 4.8,
-      wowDelta: 0.6,
-      tone: "danger",
-      sparkline: [4.2, 4.3, 4.4, 4.6, 4.8],
-    },
-    {
-      metric: "deployment_frequency",
-      label: METRIC_LABEL.deployment_frequency,
-      unit: METRIC_UNIT.deployment_frequency,
-      value: 4.2,
-      wowDelta: 0,
-      tone: "neutral",
-      sparkline: [4.0, 4.1, 4.2, 4.2, 4.2],
-    },
-    {
-      metric: "change_failure_rate",
-      label: METRIC_LABEL.change_failure_rate,
-      unit: METRIC_UNIT.change_failure_rate,
-      value: 11,
-      wowDelta: 3,
-      tone: "danger",
-      sparkline: [8, 9, 9, 10, 11],
-    },
-    {
-      metric: "mttr",
-      label: METRIC_LABEL.mttr,
-      unit: METRIC_UNIT.mttr,
-      value: 2.3,
-      wowDelta: 0,
-      tone: "neutral",
-      sparkline: [2.3, 2.2, 2.3, 2.4, 2.3],
-    },
-  ];
-
-  // Heuristic attribution for the demo regression — auth-service-migration's
-  // CFR went 8% → 18% in 14d, correlated with 3 auto-merges by
-  // schema-migration-reviewer. Marked TODO so a proper causal model can
-  // replace this without UI changes.
-  // TODO(causal-model): swap heuristic for statistical attribution once
-  // skill_outcomes + metrics carry enough signal.
-  const attribution: AttributionFinding | null =
-    window <= 90
-      ? {
-          metric: "change_failure_rate",
-          projectName: "Auth Service Migration",
-          projectId: "proj_auth",
-          skillName: "schema-migration-reviewer",
-          skillSlug: "schema-migration-reviewer",
-          actionsCount: 3,
-          timeline: [
-            {
-              when: "2026-04-28",
-              what: "Auto-merge: PR #438 session-cookie-set schema",
-              link: null,
-            },
-            {
-              when: "2026-05-02",
-              what: "Auto-merge: PR #441 add issuer column (nullable)",
-              link: null,
-            },
-            {
-              when: "2026-05-09",
-              what: "Auto-merge: PR #447 backfill issuer (NOT NULL)",
-              link: null,
-            },
-            {
-              when: "2026-05-10",
-              what: "Production incident: session validation 500s",
-              link: null,
-            },
-          ],
-          skillState: {
-            currentLevel: "JUNIOR" as const,
-            levelChangedAt: "2026-05-10",
-          },
-        }
-      : null;
-
-  return { aggregates, attribution };
-}
-
 export async function getPortfolioMetrics(windowDays = 30): Promise<PortfolioMetricsData> {
   const ctx = await getActionContext();
   const projectRows: Project[] = await db
@@ -259,39 +148,20 @@ export async function getPortfolioMetrics(windowDays = 30): Promise<PortfolioMet
     .where(and(eq(projects.organizationId, ctx.organizationId), eq(projects.status, "active")))
     .orderBy(projects.createdAt);
 
-  // Real per-project DORA from the metrics table. Fixture overlay only fills
-  // gaps when no metric rows exist for a project — once data flows, the
-  // fixture is invisible.
+  // Real per-project DORA from the metrics table. Empty cells stay null —
+  // the panel renders an empty-state for unseeded orgs.
   const doraResults = await Promise.all(
     projectRows.map((p) => computeProjectDora(p.id, windowDays)),
   );
 
   const columns: DoraProjectColumn[] = projectRows.map((p, i) => {
-    const fixture = PROJECT_FIXTURES[p.slug] ?? {};
     const real = doraResults[i];
     const cells: DoraProjectColumn["cells"] = {
-      lead_time: null,
-      deployment_frequency: null,
-      change_failure_rate: null,
-      mttr: null,
+      lead_time: real.cells.lead_time ?? null,
+      deployment_frequency: real.cells.deployment_frequency ?? null,
+      change_failure_rate: real.cells.change_failure_rate ?? null,
+      mttr: real.cells.mttr ?? null,
     };
-    for (const m of ["lead_time", "deployment_frequency", "change_failure_rate", "mttr"] as DoraComposeMetric[]) {
-      const realCell = real.cells[m];
-      if (realCell) {
-        cells[m] = realCell;
-        continue;
-      }
-      const f = fixture[m];
-      if (f) {
-        cells[m] = {
-          value: f.value,
-          unit: METRIC_UNIT[m],
-          sparkline: f.sparkline,
-          direction: f.direction,
-          wowDelta: f.wowDelta,
-        };
-      }
-    }
     return {
       id: p.id,
       slug: p.slug,
@@ -301,27 +171,12 @@ export async function getPortfolioMetrics(windowDays = 30): Promise<PortfolioMet
     };
   });
 
-  // Portfolio aggregates: average non-null per-project values. If every
-  // project lacks real data, fall back to the demo fixture aggregates so
-  // a freshly-seeded workspace still renders the H5 panel.
-  const hasAnyReal = doraResults.some((d) => d.hasData);
-  let aggregates: DoraAggregate[];
-  let attribution: AttributionFinding | null;
-  if (hasAnyReal) {
-    aggregates = aggregateFromColumns(columns, windowDays);
-    attribution = null; // causal-attribution heuristic is fixture-only until the model lands
-  } else {
-    const fixtureBundle = aggregateFixture(windowDays);
-    aggregates = fixtureBundle.aggregates;
-    attribution = fixtureBundle.attribution;
-  }
-
   return {
     windowDays,
     refreshedAt: new Date().toISOString(),
-    aggregates,
+    aggregates: aggregateFromColumns(columns, windowDays),
     columns,
-    attribution,
+    attribution: null,
   };
 }
 

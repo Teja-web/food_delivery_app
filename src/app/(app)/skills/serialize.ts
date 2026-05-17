@@ -1,13 +1,13 @@
 import type { Skill } from "@/db/schema/skill";
 import type { LevelName, SkillAutonomyState } from "@/operations/skill-autonomy";
 
-export type LevelLabel = "INTERN" | "JUNIOR" | "SENIOR" | "PRINCIPAL";
+export type LevelLabel = "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD";
 
 export function levelLabel(level: number): LevelLabel {
-  if (level >= 3) return "PRINCIPAL";
-  if (level >= 2) return "SENIOR";
-  if (level >= 1) return "JUNIOR";
-  return "INTERN";
+  if (level >= 3) return "LEAD";
+  if (level >= 2) return "MERGE";
+  if (level >= 1) return "PROPOSE";
+  return "OBSERVE";
 }
 
 export interface SkillStats30d {
@@ -16,6 +16,13 @@ export interface SkillStats30d {
   incident: number;
   windowDays: number;
   sparkline: number[];
+}
+
+export interface ChoreographyIndicator {
+  version: string;
+  hash: string;
+  /** Advisory minimum autonomy declared in frontmatter. */
+  minAutonomy: "observe" | "propose" | "merge" | "lead" | null;
 }
 
 export interface SkillLedgerRowClient {
@@ -32,6 +39,20 @@ export interface SkillLedgerRowClient {
   nextReviewAt: string | null;
   lastReason: string | null;
   stats: SkillStats30d;
+  /**
+   * Lowest autonomy this skill holds across all projects where it has a
+   * per-project autonomy row. `null` when the skill has no per-project
+   * autonomy data yet (org-wide view falls back to `level`).
+   */
+  lowestAutonomyAcrossProjects: LevelLabel | null;
+  /** Number of distinct projects with a `skill_autonomy` row for this skill. */
+  projectAutonomyCount: number;
+  /**
+   * Presence + identity of the pushed `CHOREOGRAPHY.md` for this skill.
+   * `null` when no choreography file exists yet (the skill is server-only
+   * for now). The skill list doubles as the choreography catalog.
+   */
+  choreography: ChoreographyIndicator | null;
 }
 
 export interface AutonomyEventClient {
@@ -74,7 +95,25 @@ export function serializeSkillRow(
   skill: Skill,
   autonomy: SkillAutonomyState,
   stats: SkillStats30d,
+  acrossProjects?: { level: number }[],
+  choreography?: ChoreographyIndicator | null,
 ): SkillLedgerRowClient {
+  // Lowest autonomy across projects: scan rows from getSkillAutonomyAcrossProjects.
+  // We only include rows whose projectId is non-null — the legacy org-wide
+  // row (projectId=null) is a default and would always be 0/Observe.
+  let lowestAutonomyAcrossProjects: LevelLabel | null = null;
+  let projectAutonomyCount = 0;
+  if (acrossProjects && acrossProjects.length > 0) {
+    projectAutonomyCount = acrossProjects.length;
+    const minLevel = acrossProjects.reduce(
+      (m, r) => Math.min(m, r.level),
+      Number.POSITIVE_INFINITY,
+    );
+    if (Number.isFinite(minLevel)) {
+      lowestAutonomyAcrossProjects = levelLabel(minLevel);
+    }
+  }
+
   return {
     id: skill.id,
     slug: skill.slug,
@@ -89,6 +128,9 @@ export function serializeSkillRow(
     nextReviewAt: autonomy.nextReviewAt?.toISOString() ?? null,
     lastReason: autonomy.lastReason,
     stats,
+    lowestAutonomyAcrossProjects,
+    projectAutonomyCount,
+    choreography: choreography ?? null,
   };
 }
 

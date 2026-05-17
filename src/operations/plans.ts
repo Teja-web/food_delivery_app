@@ -57,6 +57,18 @@ export async function listPlansByProject(projectId: string, opts: { limit?: numb
   return rows;
 }
 
+/** List plans by kind across the entire org, with project rows joined. */
+export async function listPlansByKind(kind: PlanKind, opts: { limit?: number } = {}) {
+  const ctx = await getActionContext();
+  const rows = await db.query.plans.findMany({
+    where: and(eq(plans.organizationId, ctx.organizationId), eq(plans.kind, kind)),
+    orderBy: [desc(plans.updatedAt)],
+    limit: opts.limit ?? 100,
+    with: { project: true },
+  });
+  return rows;
+}
+
 /** Append a revision and update the live plan's body. Returns the new revision number. */
 export async function appendPlanRevision(args: {
   planId: string;

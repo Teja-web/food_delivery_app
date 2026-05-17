@@ -3,14 +3,19 @@ import {
   getBindingCountsByProviderAction,
   listBindingsWithProjectAction,
 } from "@/actions/integrations";
+import { getActionContext } from "@/lib/auth/context";
+import { getMcpDaemonStatus } from "@/operations/mcp-status";
 import { IntegrationsClient } from "./IntegrationsClient";
+import { McpDaemonCard } from "./McpDaemonCard";
 import { serializeIntegrationsOverview } from "./serialize";
 
 export default async function IntegrationsPage() {
-  const [creds, counts, bindings] = await Promise.all([
+  const ctx = await getActionContext();
+  const [creds, counts, bindings, mcpStatus] = await Promise.all([
     listOrgIntegrationCredentialsAction(),
     getBindingCountsByProviderAction(),
     listBindingsWithProjectAction(),
+    getMcpDaemonStatus(ctx.organizationId),
   ]);
 
   const overview = serializeIntegrationsOverview(creds, counts, bindings);
@@ -24,6 +29,14 @@ export default async function IntegrationsPage() {
           workspace; individual projects bind to a specific repo/board via per-project bindings.
         </p>
       </div>
+      <McpDaemonCard
+        lastSessionAtIso={mcpStatus.lastSession?.startedAt.toISOString() ?? null}
+        lastSessionIntent={mcpStatus.lastSession?.intent ?? null}
+        lastKeyUseAtIso={mcpStatus.lastKeyUseAt?.toISOString() ?? null}
+        activeKeysLast7d={mcpStatus.activeKeysLast7d}
+        everUsedKeys={mcpStatus.everUsedKeys}
+        activeKeysTotal={mcpStatus.activeKeysTotal}
+      />
       <IntegrationsClient overview={overview} />
     </div>
   );

@@ -4,10 +4,8 @@
  * Reads from `audit_logs` (domain-level state changes) and `skill_outcomes`
  * (every skill verdict) and normalizes both into a single chronological feed
  * for the /audit page (Audit log in the sidebar). Designed for the H7 "CISO 24-hour
- * drill" parameterized query → export workflow.
- *
- * When neither table has rows for the org yet, we synthesize a short fixture
- * so the UI is never empty during early dev (gated by the row counts).
+ * drill" parameterized query → export workflow. An empty org yields an empty
+ * list — operators bring data via `pnpm db:onboard --sample`.
  */
 
 import { and, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
@@ -67,121 +65,6 @@ function hashSignature(parts: Array<string | number | null | undefined>): string
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return ((h >>> 0).toString(16) + (s.length.toString(16))).padStart(10, "0").slice(0, 10);
-}
-
-function fixtureRows(orgId: string): UnifiedAuditRow[] {
-  const now = Date.now();
-  const at = (minsAgo: number) => new Date(now - minsAgo * 60_000);
-  const mk = (
-    o: Partial<UnifiedAuditRow> & Pick<UnifiedAuditRow, "occurredAt" | "action" | "entityType" | "entityId">,
-  ): UnifiedAuditRow => ({
-    id: `fx-${o.entityId}-${o.occurredAt.getTime()}`,
-    source: "audit_log",
-    actorType: "system",
-    actorName: null,
-    entityLabel: null,
-    projectId: null,
-    projectName: null,
-    summary: null,
-    severity: null,
-    verdict: null,
-    signature: hashSignature([orgId, o.action, o.entityType, o.entityId, o.occurredAt.getTime()]),
-    ...o,
-  });
-  return [
-    mk({
-      occurredAt: at(12),
-      action: "skill.invocation",
-      entityType: "skill_outcome",
-      entityId: "doc-updater-2042",
-      actorType: "skill",
-      actorName: "doc-updater",
-      entityLabel: "doc-updater",
-      projectName: "docs-portal",
-      summary: "Auto-merged README typo fix",
-      verdict: "success",
-    }),
-    mk({
-      occurredAt: at(35),
-      action: "plan.status",
-      entityType: "plan",
-      entityId: "pl_2k9a",
-      actorType: "user",
-      actorName: "Sam Chen",
-      entityLabel: "Add 2FA enforcement",
-      projectName: "auth-service",
-      summary: "in_review → approved",
-    }),
-    mk({
-      occurredAt: at(91),
-      action: "phase_gate.advance",
-      entityType: "phase_gate",
-      entityId: "pg_82lk",
-      actorType: "user",
-      actorName: "Sam Chen",
-      entityLabel: "design → development",
-      projectName: "billing-v2",
-      summary: "All 4 gate criteria passed",
-    }),
-    mk({
-      occurredAt: at(143),
-      action: "skill.demotion",
-      entityType: "skill_autonomy",
-      entityId: "smr-7281",
-      actorType: "system",
-      actorName: "autonomy-engine",
-      entityLabel: "schema-migration-reviewer",
-      projectName: "billing-v2",
-      summary: "SENIOR → JUNIOR — rolled_back × 2 in 7d",
-      severity: "high",
-      verdict: "rolled_back",
-    }),
-    mk({
-      occurredAt: at(220),
-      action: "approval.decision",
-      entityType: "approval",
-      entityId: "ap_4nf2",
-      actorType: "user",
-      actorName: "Priya Subramanian",
-      entityLabel: "release-plan: payouts-v3.4",
-      projectName: "payouts",
-      summary: "approved",
-    }),
-    mk({
-      occurredAt: at(360),
-      action: "deployment.event",
-      entityType: "deployment",
-      entityId: "dp_092p",
-      actorType: "integration",
-      actorName: "github-actions",
-      entityLabel: "v3.4.0 → production",
-      projectName: "payouts",
-      summary: "success · commit a91f23e",
-    }),
-    mk({
-      occurredAt: at(720),
-      action: "rule.violation",
-      entityType: "rule",
-      entityId: "rl_8nk2",
-      actorType: "system",
-      actorName: "rule-engine",
-      entityLabel: "no-direct-db-import",
-      projectName: "auth-service",
-      summary: "Violation in plan pl_2k9a — flagged for review",
-      severity: "low",
-    }),
-    mk({
-      occurredAt: at(1440),
-      action: "skill.promotion",
-      entityType: "skill_autonomy",
-      entityId: "du-001",
-      actorType: "system",
-      actorName: "autonomy-engine",
-      entityLabel: "doc-updater",
-      summary: "JUNIOR → SENIOR — 47 successes, 0 rollbacks in 30d",
-      verdict: "success",
-    }),
-  ];
 }
 
 export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[]> {
@@ -307,16 +190,6 @@ export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[
 
   // Merge & sort.
   unified.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
-
-  if (unified.length === 0) {
-    return fixtureRows(ctx.organizationId).filter(
-      (r) =>
-        r.occurredAt >= query.from &&
-        r.occurredAt <= query.to &&
-        (!query.actorType || r.actorType === query.actorType) &&
-        (!entityFilter || entityFilter.includes(r.entityType)),
-    );
-  }
 
   return unified.slice(0, limit);
 }

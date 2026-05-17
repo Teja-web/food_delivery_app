@@ -26,6 +26,8 @@ export type RulesPageClient = {
     enabled: number;
     bySeverity: Record<RuleSeverity, number>;
   };
+  /** All projects in the org — for the autonomy-threshold dialog's scope picker. */
+  projects: { id: string; name: string; slug: string }[];
 };
 
 export function serializeRuleRow(

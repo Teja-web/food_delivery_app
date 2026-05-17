@@ -1,34 +1,38 @@
 "use client";
 
 import {
-  Check,
+  Activity,
   ChevronLeft,
-  CircleAlert,
-  CircleCheck,
-  CircleDashed,
-  CircleX,
+  ClipboardCheck,
   ExternalLink,
+  FileText,
+  Files,
+  GitBranch,
+  LayoutDashboard,
+  Milestone,
   Plus,
+  Rocket,
+  ScrollText,
   Shield,
   Sparkles,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { ConnectCursorModal } from "./ConnectCursorModal";
-import type { CockpitClient as CockpitData, CockpitGateClient, CockpitRuleClient } from "./serialize";
-
-const SEVERITY_CLASS: Record<CockpitRuleClient["severity"], string> = {
-  info: "border-border/60 text-muted-foreground",
-  warn: "border-state-pending/40 text-state-pending",
-  error: "border-state-failed/40 text-state-failed",
-};
+import type { CockpitClient as CockpitData } from "./serialize";
+import { CICDTab } from "./tabs/CICDTab";
+import { DocumentsTab } from "./tabs/DocumentsTab";
+import { OverviewTab } from "./tabs/OverviewTab";
+import { PhasesTab } from "./tabs/PhasesTab";
+import { PlansTab } from "./tabs/PlansTab";
+import { RulesSkillsTab } from "./tabs/RulesSkillsTab";
+import { TrustTab } from "./tabs/TrustTab";
+import { WorkItemsTab } from "./tabs/WorkItemsTab";
 
 const PHASE_LABEL: Record<CockpitData["project"]["phase"], string> = {
   requirements: "REQUIREMENTS",
@@ -39,52 +43,17 @@ const PHASE_LABEL: Record<CockpitData["project"]["phase"], string> = {
   monitoring: "MONITORING",
 };
 
-function GateIcon({ status }: { status: CockpitGateClient["status"] }) {
-  const map = {
-    passed: <CircleCheck className="h-4 w-4 text-state-passed" aria-hidden />,
-    failed: <CircleX className="h-4 w-4 text-state-failed" aria-hidden />,
-    pending: <CircleDashed className="h-4 w-4 text-state-pending" aria-hidden />,
-    skipped: <CircleAlert className="h-4 w-4 text-muted-foreground/60" aria-hidden />,
-  };
-  return map[status];
-}
-
-function GateRow({ gate }: { gate: CockpitGateClient }) {
-  const failedOrPending = gate.status === "failed" || gate.status === "pending";
-  return (
-    <li className="flex items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0">
-      <GateIcon status={gate.status} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{gate.name}</span>
-          <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] uppercase">
-            {gate.type}
-          </Badge>
-        </div>
-        {failedOrPending && gate.unmetCriterion ? (
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            {gate.unmetCriterion}
-            {gate.assigneeName ? (
-              <span className="ml-1 text-foreground/80">@{gate.assigneeName}</span>
-            ) : null}
-            {gate.ageLabel ? <span className="ml-1 opacity-70">({gate.ageLabel})</span> : null}
-          </div>
-        ) : null}
-        {gate.status === "failed" && gate.lastGreenAt ? (
-          <div className="mt-0.5 text-[11px] text-trend-down/80">
-            Was green {new Date(gate.lastGreenAt).toLocaleDateString()} — what changed?
-          </div>
-        ) : null}
-      </div>
-    </li>
-  );
-}
+const REQUIREMENT_KINDS = ["epic", "feature", "story", "requirement"];
+const ADR_KINDS = ["adr"];
+const TEST_KINDS = ["test_plan"];
 
 export function CockpitClient({ data }: { data: CockpitData }) {
   const [cursorOpen, setCursorOpen] = useState(false);
-  const { project, guidance, gates, gatesAllPassed, plans, bindings, rules, skills, nextPhase, canAdvance, blockedReason } = data;
-  const projectScopedRules = rules.filter((r) => r.scope === "project").length;
-  const orgScopedRules = rules.length - projectScopedRules;
+  const { project, plans, workItems, deployments, rules, skills } = data;
+
+  const requirementCount = plans.filter((p) => REQUIREMENT_KINDS.includes(p.kind)).length;
+  const testCount = plans.filter((p) => TEST_KINDS.includes(p.kind)).length;
+  const adrCount = plans.filter((p) => ADR_KINDS.includes(p.kind)).length;
 
   return (
     <div className="space-y-6">
@@ -98,9 +67,7 @@ export function CockpitClient({ data }: { data: CockpitData }) {
       <header className="flex items-start justify-between gap-6 border-b pb-5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold tracking-tight">
-              {project.name}
-            </h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight">{project.name}</h1>
             <Badge
               variant="outline"
               className="border-state-pending/40 px-1.5 py-0 font-mono text-[10px] uppercase tracking-wide text-state-pending"
@@ -108,7 +75,10 @@ export function CockpitClient({ data }: { data: CockpitData }) {
               {PHASE_LABEL[project.phase]}
             </Badge>
           </div>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+          {project.description ? (
+            <p className="mt-1.5 max-w-3xl text-sm text-muted-foreground">{project.description}</p>
+          ) : null}
+          <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
             {project.slug} · created {new Date(project.createdAt).toLocaleDateString()}
             {project.repoUrl ? (
               <>
@@ -123,11 +93,17 @@ export function CockpitClient({ data }: { data: CockpitData }) {
                 </a>
               </>
             ) : null}
+            {project.jiraProjectKey ? (
+              <>
+                <span className="mx-2 opacity-40">·</span>
+                <span>Jira {project.jiraProjectKey}</span>
+              </>
+            ) : null}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setCursorOpen(true)}>
-            Connect Cursor
+            Open in Cursor
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href={`/plans/new?projectId=${project.id}`}>
@@ -137,314 +113,125 @@ export function CockpitClient({ data }: { data: CockpitData }) {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="space-y-6 lg:col-span-3">
-          <Card className="border-primary/30 bg-card/60">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  This phase · {guidance.label}
-                </CardTitle>
-                {nextPhase ? (
-                  <Button
-                    size="sm"
-                    disabled={!canAdvance}
-                    className={cn(gatesAllPassed && "shadow-sm")}
-                    title={blockedReason ?? undefined}
-                  >
-                    Advance to {PHASE_LABEL[nextPhase].toLowerCase()} →
-                  </Button>
-                ) : (
-                  <Badge variant="outline" className="text-trend-up">
-                    Terminal phase
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              <p className="text-sm text-foreground/85">{guidance.description}</p>
-              <div>
-                <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                  Suggested actions
-                </div>
-                <ul className="space-y-1 text-sm">
-                  {guidance.suggestedActions.map((a) => (
-                    <li key={a} className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary/60" />
-                      <span className="text-foreground/85">{a}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-trend-up/30 bg-trend-up/[0.04] px-3 py-2">
-                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-trend-up/85">
-                    Allowed for agents
-                  </div>
-                  <ul className="space-y-1 text-xs">
-                    {guidance.allowed.map((a) => (
-                      <li key={a} className="flex items-start gap-1.5 text-foreground/85">
-                        <Check className="mt-0.5 h-3 w-3 shrink-0 text-trend-up" aria-hidden />
-                        <span>{a}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="rounded-md border border-state-failed/30 bg-state-failed/[0.04] px-3 py-2">
-                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-state-failed/85">
-                    Forbidden in this phase
-                  </div>
-                  <ul className="space-y-1 text-xs">
-                    {guidance.forbidden.map((a) => (
-                      <li key={a} className="flex items-start gap-1.5 text-muted-foreground">
-                        <X className="mt-0.5 h-3 w-3 shrink-0 text-state-failed/80" aria-hidden />
-                        <span>{a}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-                <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                  Next phase opens when
-                </span>
-                <div className="mt-0.5 text-xs text-foreground/85">{guidance.nextCondition}</div>
-              </div>
-              {blockedReason ? (
-                <div className="rounded-md border border-state-failed/40 bg-state-failed/10 px-3 py-2 text-xs text-state-failed">
-                  Blocked: {blockedReason}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+          <TabsTrigger value="overview" className="gap-1.5 data-[state=active]:bg-muted">
+            <LayoutDashboard className="h-3.5 w-3.5" aria-hidden /> Overview
+          </TabsTrigger>
+          <TabsTrigger value="requirements" className="gap-1.5 data-[state=active]:bg-muted">
+            <ClipboardCheck className="h-3.5 w-3.5" aria-hidden /> Requirements
+            {requirementCount > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{requirementCount}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="work-items" className="gap-1.5 data-[state=active]:bg-muted">
+            <GitBranch className="h-3.5 w-3.5" aria-hidden /> Work items
+            {workItems.length > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{workItems.length}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="test-cases" className="gap-1.5 data-[state=active]:bg-muted">
+            <Activity className="h-3.5 w-3.5" aria-hidden /> Test plans
+            {testCount > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{testCount}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="adrs" className="gap-1.5 data-[state=active]:bg-muted">
+            <ScrollText className="h-3.5 w-3.5" aria-hidden /> ADRs
+            {adrCount > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{adrCount}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="gap-1.5 data-[state=active]:bg-muted">
+            <FileText className="h-3.5 w-3.5" aria-hidden /> Documents
+          </TabsTrigger>
+          <TabsTrigger value="rules-skills" className="gap-1.5 data-[state=active]:bg-muted">
+            <Shield className="h-3.5 w-3.5" aria-hidden /> Rules & skills
+            {(rules.length > 0 || skills.length > 0) && (
+              <span className="ml-0.5 font-mono text-[10px] opacity-70">{rules.length + skills.length}</span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="phases" className="gap-1.5 data-[state=active]:bg-muted">
+            <Milestone className="h-3.5 w-3.5" aria-hidden /> Phases
+          </TabsTrigger>
+          <TabsTrigger value="cicd" className="gap-1.5 data-[state=active]:bg-muted">
+            <Rocket className="h-3.5 w-3.5" aria-hidden /> CI/CD
+            {deployments.length > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{deployments.length}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="trust" className="gap-1.5 data-[state=active]:bg-muted">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden /> Trust
+            {data.trust.outcomes.length > 0 && (
+              <span className="ml-0.5 font-mono text-[10px] opacity-70">
+                {data.trust.outcomes.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="all-plans" className="gap-1.5 data-[state=active]:bg-muted">
+            <Files className="h-3.5 w-3.5" aria-hidden /> All plans
+            {plans.length > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{plans.length}</span>}
+          </TabsTrigger>
+        </TabsList>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                Gates · {gates.filter((g) => g.status === "passed" || g.status === "skipped").length}/{gates.length} cleared
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {gates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No gates configured for this phase — advancement is allowed.
-                </p>
-              ) : (
-                <ul className="divide-y-0 rounded-md border">
-                  {gates.map((g) => (
-                    <GateRow key={g.id} gate={g} />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <TabsContent value="overview" className="mt-0">
+          <OverviewTab data={data} />
+        </TabsContent>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                Adapter bindings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {bindings.length === 0 ? (
-                <Link
-                  href="/integrations"
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  No bindings · + Bind a provider
-                </Link>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {bindings.map((b) => (
-                    <li key={b.id} className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className="px-1.5 py-0 font-mono text-[10px] uppercase"
-                        >
-                          {b.provider}
-                        </Badge>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {b.externalKey}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="requirements" className="mt-0">
+          <PlansTab
+            plans={plans}
+            projectId={project.id}
+            kinds={REQUIREMENT_KINDS}
+            title="Requirements"
+            emptyHint="No requirements yet — capture user stories, features, or epics here"
+          />
+        </TabsContent>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                Plans · {plans.length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {plans.length === 0 ? (
-                <Link
-                  href={`/plans/new?projectId=${project.id}`}
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  No plans yet · + Draft a plan
-                </Link>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {plans.slice(0, 8).map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-2">
-                      <Link href={`/plans/${p.id}`} className="min-w-0 truncate hover:underline">
-                        {p.title}
-                      </Link>
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase"
-                      >
-                        {p.kind}
-                      </Badge>
-                    </li>
-                  ))}
-                  {plans.length > 8 ? (
-                    <li className="pt-1 text-xs text-muted-foreground">
-                      + {plans.length - 8} more
-                    </li>
-                  ) : null}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="work-items" className="mt-0">
+          <WorkItemsTab items={workItems} />
+        </TabsContent>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3" aria-hidden />
-                    Skills · {skills.length}
-                  </span>
-                </CardTitle>
-                <Link
-                  href="/skills"
-                  className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground"
-                >
-                  All
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {skills.length === 0 ? (
-                <span className="text-sm text-muted-foreground">
-                  No skills available. Platform skills are seeded by db-setup.
-                </span>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {skills.slice(0, 8).map((s) => (
-                    <li key={s.id} className="flex items-center justify-between gap-2">
-                      <Link
-                        href={`/skills/${s.id}`}
-                        className="min-w-0 truncate hover:underline"
-                        title={s.description ?? s.name}
-                      >
-                        {s.name}
-                      </Link>
-                      <span className="flex shrink-0 items-center gap-1">
-                        {s.isPlatform ? (
-                          <Badge
-                            variant="outline"
-                            className="border-autonomy-principal/40 px-1.5 py-0 font-mono text-[10px] uppercase text-autonomy-principal"
-                            title="Platform-authored skill — invoke from Cursor via invoke_skill"
-                          >
-                            platform
-                          </Badge>
-                        ) : null}
-                        <Badge
-                          variant="outline"
-                          className="px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
-                          title={s.scope === "project" ? "Scoped to this project" : "Available org-wide"}
-                        >
-                          {s.scope === "project" ? "proj" : "org"}
-                        </Badge>
-                      </span>
-                    </li>
-                  ))}
-                  {skills.length > 8 ? (
-                    <li className="pt-1 text-xs text-muted-foreground">
-                      + {skills.length - 8} more · <Link href="/skills" className="hover:underline">open ledger</Link>
-                    </li>
-                  ) : null}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="test-cases" className="mt-0">
+          <PlansTab
+            plans={plans}
+            projectId={project.id}
+            kinds={TEST_KINDS}
+            title="Test plans"
+            emptyHint="No test plans yet"
+          />
+        </TabsContent>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Shield className="h-3 w-3" aria-hidden />
-                    Policies in force · {rules.length}
-                  </span>
-                </CardTitle>
-                {rules.length > 0 ? (
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {projectScopedRules}p · {orgScopedRules}o
-                  </span>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {rules.length === 0 ? (
-                <Link
-                  href="/rules"
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  No policies apply at this phase · + Declare a rule
-                </Link>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {rules.slice(0, 8).map((r) => (
-                    <li key={r.id} className="flex items-center justify-between gap-2">
-                      <Link
-                        href={`/rules?slug=${encodeURIComponent(r.slug)}`}
-                        className="min-w-0 truncate hover:underline"
-                        title={r.title}
-                      >
-                        {r.title}
-                      </Link>
-                      <span className="flex shrink-0 items-center gap-1">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "px-1.5 py-0 font-mono text-[10px] uppercase",
-                            SEVERITY_CLASS[r.severity],
-                          )}
-                        >
-                          {r.severity}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
-                          title={r.scope === "project" ? "Scoped to this project" : "Applies org-wide"}
-                        >
-                          {r.scope === "project" ? "proj" : "org"}
-                        </Badge>
-                      </span>
-                    </li>
-                  ))}
-                  {rules.length > 8 ? (
-                    <li className="pt-1 text-xs text-muted-foreground">
-                      + {rules.length - 8} more · <Link href="/rules" className="hover:underline">open rules</Link>
-                    </li>
-                  ) : null}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        <TabsContent value="adrs" className="mt-0">
+          <PlansTab
+            plans={plans}
+            projectId={project.id}
+            kinds={ADR_KINDS}
+            title="Architecture decision records"
+            emptyHint="No ADRs yet — record the load-bearing technical decisions for this project"
+          />
+        </TabsContent>
+
+        <TabsContent value="documents" className="mt-0">
+          <DocumentsTab plans={plans} workItems={workItems} />
+        </TabsContent>
+
+        <TabsContent value="rules-skills" className="mt-0">
+          <RulesSkillsTab rules={rules} skills={skills} />
+        </TabsContent>
+
+        <TabsContent value="phases" className="mt-0">
+          <PhasesTab data={data} />
+        </TabsContent>
+
+        <TabsContent value="cicd" className="mt-0">
+          <CICDTab deployments={deployments} />
+        </TabsContent>
+
+        <TabsContent value="trust" className="mt-0">
+          <TrustTab outcomes={data.trust.outcomes} policy={data.trust.policy} />
+        </TabsContent>
+
+        <TabsContent value="all-plans" className="mt-0">
+          <PlansTab
+            plans={plans}
+            projectId={project.id}
+            kinds={null}
+            title="All plans"
+            emptyHint="No plans authored yet"
+          />
+        </TabsContent>
+      </Tabs>
 
       <ConnectCursorModal
         open={cursorOpen}

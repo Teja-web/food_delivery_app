@@ -50,6 +50,8 @@ export const ALWAYS_ALLOWED = new Set<string>([
   "session_end",
   "mark_gate_passed",
   "invoke_skill",
+  "list_choreographies",
+  "sync_choreographies",
 ]);
 
 /**

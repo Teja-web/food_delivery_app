@@ -95,7 +95,7 @@ describe("getSkillAutonomy", () => {
     state.autonomyRow = null;
     const s = await getSkillAutonomy("skill-1", null);
     expect(s.level).toBe(0);
-    expect(s.levelName).toBe("intern");
+    expect(s.levelName).toBe("observe");
     expect(s.lastReviewedAt).toBeNull();
   });
 });
@@ -121,7 +121,7 @@ describe("recomputeSkillAutonomy", () => {
     const result = await recomputeSkillAutonomy("skill-1", null);
     expect(result.promoted).toBe(true);
     expect(result.level).toBe(2);
-    expect(result.levelName).toBe("senior");
+    expect(result.levelName).toBe("merge");
     expect(state.autonomyRow?.level).toBe(2);
   });
 
@@ -140,7 +140,7 @@ describe("recomputeSkillAutonomy", () => {
     const result = await recomputeSkillAutonomy("skill-1", null);
     expect(result.promoted).toBe(false);
     expect(result.level).toBe(1);
-    expect(result.reason).toMatch(/holding at junior/);
+    expect(result.reason).toMatch(/holding at propose/);
   });
 
   it("demotes immediately to level 0 on a critical incident regardless of history", async () => {
@@ -172,6 +172,6 @@ describe("recomputeSkillAutonomy", () => {
     expect(result.level).toBe(0);
     expect(result.promoted).toBe(false);
     expect(result.demoted).toBe(false);
-    expect(LEVEL_NAMES[result.level]).toBe("intern");
+    expect(LEVEL_NAMES[result.level]).toBe("observe");
   });
 });

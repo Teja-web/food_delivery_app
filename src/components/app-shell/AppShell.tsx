@@ -2,12 +2,14 @@
 
 import {
   Activity,
+  Bell,
   CheckCircle2,
   FileCheck,
   FolderKanban,
   Key,
   Plug,
   Plus,
+  Rocket,
   ScrollText,
   Search,
   Settings,
@@ -41,6 +43,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/projects", label: "Projects", Icon: FolderKanban, matchPrefix: "/projects" },
       { href: "/plans", label: "Plans", Icon: ScrollText, matchPrefix: "/plans" },
+      { href: "/releases", label: "Releases", Icon: Rocket, matchPrefix: "/releases" },
       { href: "/approvals", label: "Approvals", Icon: CheckCircle2 },
     ],
   },
@@ -62,6 +65,7 @@ const GROUPS: NavGroup[] = [
   {
     label: "Access",
     items: [
+      { href: "/notifications", label: "Notifications", Icon: Bell, matchPrefix: "/notifications" },
       { href: "/settings", label: "Settings", Icon: Settings },
       { href: "/api-keys", label: "API keys", Icon: Key },
     ],
@@ -80,6 +84,8 @@ const SECTION_LABELS: Record<string, string> = {
   "/settings": "Settings",
   "/api-keys": "API keys",
   "/playground": "Playground",
+  "/releases": "Releases",
+  "/notifications": "Notifications",
 };
 
 function deriveSectionLabel(pathname: string): string {

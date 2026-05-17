@@ -37,6 +37,16 @@ export async function listGatesForPhase(projectId: string, phase: ProjectPhase) 
   });
 }
 
+export async function listGatesForProject(projectId: string) {
+  const ctx = await getActionContext();
+  return db.query.phaseGates.findMany({
+    where: and(
+      eq(phaseGates.projectId, projectId),
+      eq(phaseGates.organizationId, ctx.organizationId),
+    ),
+  });
+}
+
 export async function setGateStatus(gateId: string, status: GateStatus, comment?: string) {
   const ctx = await getActionContext();
   await db

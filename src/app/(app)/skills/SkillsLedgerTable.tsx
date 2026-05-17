@@ -25,7 +25,7 @@ function SkillRow({ row }: { row: SkillLedgerRowClient }) {
   return (
     <Link
       href={`/skills/${row.id}`}
-      className="group grid grid-cols-[minmax(0,1.6fr)_120px_minmax(0,1fr)_64px_72px] items-center gap-3 border-b border-border/40 px-4 py-3 transition-colors hover:bg-muted/40"
+      className="group grid grid-cols-[minmax(0,1.6fr)_120px_minmax(0,1fr)_120px_84px_64px_72px] items-center gap-3 border-b border-border/40 px-4 py-3 transition-colors hover:bg-muted/40"
     >
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{row.name}</div>
@@ -45,6 +45,41 @@ function SkillRow({ row }: { row: SkillLedgerRowClient }) {
         <span className="text-verdict-incident">{row.stats.incident}⚡</span>
         <span className="ml-2 opacity-50">{row.stats.windowDays}d</span>
       </div>
+      <div
+        className="flex items-center justify-start gap-1.5"
+        title={
+          row.lowestAutonomyAcrossProjects
+            ? `Lowest across ${row.projectAutonomyCount} project${row.projectAutonomyCount === 1 ? "" : "s"}`
+            : "No per-project autonomy yet"
+        }
+      >
+        {row.lowestAutonomyAcrossProjects ? (
+          <>
+            <AutonomyPill level={row.lowestAutonomyAcrossProjects} />
+            <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+              ×{row.projectAutonomyCount}
+            </span>
+          </>
+        ) : (
+          <span className="font-mono text-[11px] text-muted-foreground/60">—</span>
+        )}
+      </div>
+      <div
+        className="font-mono text-[10px] tabular-nums"
+        title={
+          row.choreography
+            ? `Choreography v${row.choreography.version} · hash ${row.choreography.hash.slice(0, 12)}…`
+            : "No CHOREOGRAPHY.md file — this skill is server-only for now"
+        }
+      >
+        {row.choreography ? (
+          <span className="inline-flex items-center gap-1 rounded border border-trend-up/40 bg-trend-up/10 px-1.5 py-0 text-trend-up">
+            <span>v{row.choreography.version}</span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground/60">no file</span>
+        )}
+      </div>
       <div className="text-right font-mono text-[11px] text-muted-foreground tabular-nums">
         {row.nextReviewAt ? relativeFromNow(row.nextReviewAt) : "—"}
       </div>
@@ -58,10 +93,10 @@ function SkillRow({ row }: { row: SkillLedgerRowClient }) {
 function DistributionBar({ dist }: { dist: AutonomyDistribution }) {
   if (dist.total === 0) return null;
   const segments = [
-    { key: "intern", n: dist.intern, color: "bg-autonomy-intern" },
-    { key: "junior", n: dist.junior, color: "bg-autonomy-junior" },
-    { key: "senior", n: dist.senior, color: "bg-autonomy-senior" },
-    { key: "principal", n: dist.principal, color: "bg-autonomy-principal" },
+    { key: "observe", n: dist.intern, color: "bg-autonomy-intern" },
+    { key: "propose", n: dist.junior, color: "bg-autonomy-junior" },
+    { key: "merge", n: dist.senior, color: "bg-autonomy-senior" },
+    { key: "lead", n: dist.principal, color: "bg-autonomy-principal" },
   ];
   return (
     <div className="space-y-2">
@@ -122,10 +157,12 @@ export function SkillsLedgerTable({
           </Link>
         </div>
         <div className="overflow-hidden rounded-lg border bg-card/30">
-          <div className="grid grid-cols-[minmax(0,1.6fr)_120px_minmax(0,1fr)_64px_72px] items-center gap-3 border-b bg-muted/20 px-4 py-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          <div className="grid grid-cols-[minmax(0,1.6fr)_120px_minmax(0,1fr)_120px_84px_64px_72px] items-center gap-3 border-b bg-muted/20 px-4 py-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             <span>Skill</span>
             <span>Level</span>
             <span>30-day stats</span>
+            <span>Lowest / projects</span>
+            <span>Choreo</span>
             <span className="text-right">Review</span>
             <span className="text-right">Trend</span>
           </div>

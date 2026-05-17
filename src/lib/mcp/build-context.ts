@@ -16,11 +16,11 @@ function appUrl(path: string): string {
   return `${base.replace(/\/$/, "")}${path}`;
 }
 
-const LEVEL_LABEL: Record<LevelName, "INTERN" | "JUNIOR" | "SENIOR" | "PRINCIPAL"> = {
-  intern: "INTERN",
-  junior: "JUNIOR",
-  senior: "SENIOR",
-  principal: "PRINCIPAL",
+const LEVEL_LABEL: Record<LevelName, "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD"> = {
+  observe: "OBSERVE",
+  propose: "PROPOSE",
+  merge: "MERGE",
+  lead: "LEAD",
 };
 
 export class McpProjectAmbiguousError extends Error {

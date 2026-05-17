@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint src/",
+    "lint:choreographies": "tsx scripts/lint-choreographies.ts --warn-missing",
     "dev": "next dev -H 0.0.0.0 --port 3029",
     "build": "next build",
     "start": "concurrently --kill-others --names web,worker --prefix-colors blue,green \"next start --port 3029\" \"node --import tsx scripts/worker.ts\"",
@@ -34,15 +35,18 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "mcp": "tsx src/mcp/bin.ts",
-    "mcp:build": "tsc -p tsconfig.mcp.json && chmod +x dist/mcp/bin.js"
+    "mcp:build": "tsc -p tsconfig.mcp.json && chmod +x dist/mcp/bin.js",
+    "cli": "tsx src/cli/cli.ts"
   },
   "bin": {
-    "coznt-mcp": "./src/mcp/bin.ts"
+    "coznt-mcp": "./src/mcp/bin.ts",
+    "coznt": "./src/cli/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^3.0.33",
     "@ai-sdk/openai": "^3.0.50",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@octokit/rest": "^22.0.1",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "ai": "^6.0.146",

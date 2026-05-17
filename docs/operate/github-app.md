@@ -1,4 +1,6 @@
-# GitHub App setup (execution gate)
+# GitHub App
+
+*Purpose: one-time GitHub App registration so coznt's execution gate can post check-runs back to PRs.*
 
 Coznt's execution gate needs a GitHub App so it can POST check-runs back to the PR. Without one, the gate still evaluates and writes verdicts to `gate_evaluations` — the merge UI just doesn't get the block signal. This doc is the one-time install.
 

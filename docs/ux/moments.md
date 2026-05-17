@@ -6,7 +6,7 @@ A moment is not a feature. It's a **trigger → outcome** loop with a visible **
 
 ## Load-bearing vs second-tier (added 2026-05-12)
 
-Under the autonomy-with-observability spine (`docs/positioning.md`, `docs/architecture.md`), three of the seven moments carry the loop. The other four are second-tier — still worth designing, but they ship after the load-bearing three are real.
+Under the autonomy-with-observability spine (`docs/positioning.md`, `docs/product/architecture.md`), three of the seven moments carry the loop. The other four are second-tier — still worth designing, but they ship after the load-bearing three are real.
 
 | Tier | Moment | Loop role | Milestone |
 |---|---|---|---|

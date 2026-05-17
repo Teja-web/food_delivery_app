@@ -1,6 +1,12 @@
 "use server";
 
-import { phaseGateCrud, listGatesForPhase, setGateStatus, findUnmetGates } from "@/operations/phase-gates";
+import {
+  phaseGateCrud,
+  listGatesForPhase,
+  listGatesForProject,
+  setGateStatus,
+  findUnmetGates,
+} from "@/operations/phase-gates";
 
 export async function createGate(input: Parameters<typeof phaseGateCrud.create>[0]) {
   return phaseGateCrud.create(input);
@@ -14,4 +20,4 @@ export async function deleteGate(id: string) {
   return phaseGateCrud.delete(id);
 }
 
-export { listGatesForPhase, setGateStatus, findUnmetGates };
+export { listGatesForPhase, listGatesForProject, setGateStatus, findUnmetGates };

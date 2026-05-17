@@ -29,9 +29,11 @@ import { phaseGates, type GateStatus, type GateType } from "@/db/schema/phase-ga
 import { plans, type PlanKind, type PlanStatus } from "@/db/schema/plan";
 import { projects, type ProjectPhase } from "@/db/schema/project";
 import { rules, type RuleSeverity } from "@/db/schema/rule";
+import { notifications } from "@/db/schema/notification";
 import { skillAutonomy } from "@/db/schema/skill-autonomy";
 import { skillOutcomes, type SkillOutcomeSeverity, type SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
 import { skills } from "@/db/schema/skill";
+import { workItems, type WorkItemKind, type WorkItemSource } from "@/db/schema/work-item";
 
 const DAY = 86_400_000;
 
@@ -285,6 +287,111 @@ const APPROVAL_SPECS: ApprovalSpec[] = [
   { projectKey: "proj_pay", entityType: "work_item", entityId: "PR-1290", title: "PR #1290 docs-updater output (Principal — auto-eligible)", requestedByName: "doc-updater (bot)", hoursAgo: 0.5, phase: "development" },
 ];
 
+type WorkItemSpec = {
+  projectKey: ProjectSpec["key"];
+  source: WorkItemSource;
+  externalId: string;
+  externalUrl: string;
+  kind: WorkItemKind;
+  title: string;
+  status: string;
+  assigneeEmail: string;
+  daysAgoUpdated: number;
+};
+
+const WORK_ITEM_SPECS: WorkItemSpec[] = [
+  // proj_pay — active development on idempotency keys + outbox + rollout
+  { projectKey: "proj_pay", source: "github", externalId: "PR-1284", externalUrl: "https://github.com/northwind/payments-api/pull/1284", kind: "pull_request", title: "Add idempotency-key support to POST /captures", status: "open", assigneeEmail: "devin.reyes@northwind.test", daysAgoUpdated: 0 },
+  { projectKey: "proj_pay", source: "github", externalId: "PR-1290", externalUrl: "https://github.com/northwind/payments-api/pull/1290", kind: "pull_request", title: "docs: payment-webhook outbox reference", status: "open", assigneeEmail: "doc-updater@bot.coznt", daysAgoUpdated: 0 },
+  { projectKey: "proj_pay", source: "github", externalId: "PR-1278", externalUrl: "https://github.com/northwind/payments-api/pull/1278", kind: "pull_request", title: "Refactor capture retry loop", status: "merged", assigneeEmail: "aisha.patel@northwind.test", daysAgoUpdated: 3 },
+  { projectKey: "proj_pay", source: "jira", externalId: "PAY-1284", externalUrl: "https://northwind.atlassian.net/browse/PAY-1284", kind: "story", title: "Idempotent retry for failed payment captures", status: "In Progress", assigneeEmail: "devin.reyes@northwind.test", daysAgoUpdated: 1 },
+  { projectKey: "proj_pay", source: "jira", externalId: "PAY-1290", externalUrl: "https://northwind.atlassian.net/browse/PAY-1290", kind: "task", title: "Document outbox pattern in API guide", status: "Done", assigneeEmail: "doc-updater@bot.coznt", daysAgoUpdated: 0 },
+  { projectKey: "proj_pay", source: "jira", externalId: "PAY-1305", externalUrl: "https://northwind.atlassian.net/browse/PAY-1305", kind: "bug", title: "Webhook retries duplicate on transient 500", status: "In Progress", assigneeEmail: "lena.volkov@northwind.test", daysAgoUpdated: 2 },
+  { projectKey: "proj_pay", source: "confluence", externalId: "CONF-2104", externalUrl: "https://northwind.atlassian.net/wiki/spaces/PAY/pages/2104", kind: "page", title: "Payments API — runbook v2.4", status: "current", assigneeEmail: "sam.okafor@northwind.test", daysAgoUpdated: 4 },
+
+  // proj_dw — design phase, ADRs in review
+  { projectKey: "proj_dw", source: "github", externalId: "PR-93", externalUrl: "https://github.com/northwind/data-warehouse-v2/pull/93", kind: "pull_request", title: "Initial schema for v2 warehouse (under manual review)", status: "open", assigneeEmail: "yuki.tanaka@northwind.test", daysAgoUpdated: 0 },
+  { projectKey: "proj_dw", source: "jira", externalId: "DW-204", externalUrl: "https://northwind.atlassian.net/browse/DW-204", kind: "story", title: "Sub-hour data freshness for analytics dashboards", status: "Approved", assigneeEmail: "yuki.tanaka@northwind.test", daysAgoUpdated: 21 },
+  { projectKey: "proj_dw", source: "confluence", externalId: "CONF-3001", externalUrl: "https://northwind.atlassian.net/wiki/spaces/DW/pages/3001", kind: "page", title: "Data Warehouse v2 — Design Doc", status: "draft", assigneeEmail: "yuki.tanaka@northwind.test", daysAgoUpdated: 3 },
+
+  // proj_auth — testing phase, recent rollback
+  { projectKey: "proj_auth", source: "github", externalId: "PR-441", externalUrl: "https://github.com/northwind/auth-service/pull/441", kind: "pull_request", title: "Fix session cookie path after migration", status: "open", assigneeEmail: "marco.bianchi@northwind.test", daysAgoUpdated: 0 },
+  { projectKey: "proj_auth", source: "github", externalId: "PR-438", externalUrl: "https://github.com/northwind/auth-service/pull/438", kind: "pull_request", title: "Revert v1.8.1 — session-cookie regression", status: "merged", assigneeEmail: "marco.bianchi@northwind.test", daysAgoUpdated: 4 },
+  { projectKey: "proj_auth", source: "jira", externalId: "AUTH-310", externalUrl: "https://northwind.atlassian.net/browse/AUTH-310", kind: "story", title: "Migrate /auth/login from Devise to Better-Auth", status: "In Progress", assigneeEmail: "marco.bianchi@northwind.test", daysAgoUpdated: 2 },
+  { projectKey: "proj_auth", source: "jira", externalId: "AUTH-318", externalUrl: "https://northwind.atlassian.net/browse/AUTH-318", kind: "bug", title: "Mass sign-out after v1.8.1 deploy", status: "Done", assigneeEmail: "marco.bianchi@northwind.test", daysAgoUpdated: 4 },
+
+  // proj_kafka — requirements phase
+  { projectKey: "proj_kafka", source: "jira", externalId: "KAF-12", externalUrl: "https://northwind.atlassian.net/browse/KAF-12", kind: "story", title: "Replace v1 consumer-lag monitoring with continuous sampling", status: "Draft", assigneeEmail: "rohan.desai@northwind.test", daysAgoUpdated: 1 },
+];
+
+type NotificationSpec = {
+  subject: string;
+  body: string;
+  link: string;
+  entityType: string;
+  hoursAgo: number;
+  read: boolean;
+};
+
+const NOTIFICATION_SPECS: NotificationSpec[] = [
+  {
+    subject: "Approval requested: Q3 v2.4 rollout",
+    body: "Devin Reyes is asking you to sign off on the Q3 payments-API v2.4 release plan.",
+    link: "/approvals",
+    entityType: "release",
+    hoursAgo: 2,
+    read: false,
+  },
+  {
+    subject: "Gate failed: Code review coverage",
+    body: "internal-payments-api · Development phase — Security Scan gate awaiting manual review (@Jordan Mwangi).",
+    link: "/projects",
+    entityType: "phase_gate",
+    hoursAgo: 1,
+    read: false,
+  },
+  {
+    subject: "Skill promoted: doc-updater Senior → Principal",
+    body: "30-day clean run across 4 projects. New permissions unlocked: auto-eligible PR comments on principal-flagged repos.",
+    link: "/skills",
+    entityType: "skill_outcome",
+    hoursAgo: 6,
+    read: false,
+  },
+  {
+    subject: "Deployment rolled back: auth-service v1.8.1",
+    body: "session cookie path mismatch caused mass sign-outs. Rolled back at T+11m.",
+    link: "/releases",
+    entityType: "deployment",
+    hoursAgo: 96,
+    read: true,
+  },
+  {
+    subject: "ADR approved: Outbox pattern for payment webhooks",
+    body: "in_review → approved by Aisha Patel.",
+    link: "/plans",
+    entityType: "plan",
+    hoursAgo: 216,
+    read: true,
+  },
+  {
+    subject: "Skill demoted: schema-migration-reviewer Senior → Junior",
+    body: "1 incident on auth-service migration. Now requires manual sign-off on data-warehouse-v2 schema changes.",
+    link: "/skills",
+    entityType: "skill_outcome",
+    hoursAgo: 168,
+    read: true,
+  },
+  {
+    subject: "Approval requested: ADR-0014 logical decoding",
+    body: "Yuki Tanaka is asking for sign-off on the CDC choice — Postgres logical decoding over Debezium.",
+    link: "/approvals",
+    entityType: "plan",
+    hoursAgo: 72,
+    read: true,
+  },
+];
+
 const DEPLOYMENT_SPECS: DeploymentSpec[] = [
   // proj_pay — healthy: 6.2/wk × ~4 weeks ≈ 25 deploys; sample 7 with mostly success
   { projectKey: "proj_pay", environment: "production", version: "v2.3.4", status: "success", daysAgo: 3, deployedByName: "Devin Reyes" },
@@ -412,6 +519,8 @@ export type SeedResult = {
     autonomyRows: number;
     bindings: number;
     auditLogs: number;
+    workItems: number;
+    notifications: number;
   };
 };
 
@@ -431,7 +540,8 @@ export async function seedSampleWorkspace(args: {
       inserted: false,
       counts: {
         projects: 0, skills: 0, plans: 0, rules: 0, gates: 0, approvals: 0,
-        deployments: 0, metrics: 0, skillOutcomes: 0, autonomyRows: 0, bindings: 0, auditLogs: 0,
+        deployments: 0, metrics: 0, skillOutcomes: 0, autonomyRows: 0, bindings: 0,
+        auditLogs: 0, workItems: 0, notifications: 0,
       },
     };
   }
@@ -807,6 +917,45 @@ export async function seedSampleWorkspace(args: {
 
   await db.insert(auditLogs).values(auditRows);
 
+  // 12. Work items — what coznt has synced from GitHub / Jira / Confluence
+  await db.insert(workItems).values(
+    WORK_ITEM_SPECS.map((w) => ({
+      id: nanoid(),
+      organizationId: args.organizationId,
+      projectId: projectIdByKey.get(w.projectKey)!,
+      planId: null,
+      source: w.source,
+      externalId: w.externalId,
+      externalUrl: w.externalUrl,
+      kind: w.kind,
+      title: w.title,
+      status: w.status,
+      assigneeEmail: w.assigneeEmail,
+      lastSyncedAt: at(w.daysAgoUpdated),
+      createdAt: at(w.daysAgoUpdated + 1),
+      updatedAt: at(w.daysAgoUpdated),
+    })),
+  );
+
+  // 13. Notifications — seeded so the bell icon actually rings on demo
+  await db.insert(notifications).values(
+    NOTIFICATION_SPECS.map((n) => ({
+      id: nanoid(),
+      organizationId: args.organizationId,
+      recipientId: args.userId,
+      channel: "in_app" as const,
+      subject: n.subject,
+      body: n.body,
+      link: n.link,
+      entityType: n.entityType,
+      entityId: null,
+      read: n.read,
+      readAt: n.read ? atHours(n.hoursAgo - 1) : null,
+      sentAt: atHours(n.hoursAgo),
+      createdAt: atHours(n.hoursAgo),
+    })),
+  );
+
   return {
     inserted: true,
     counts: {
@@ -822,6 +971,8 @@ export async function seedSampleWorkspace(args: {
       autonomyRows: SKILL_SPECS.length + SKILL_PROJECT_AUTONOMY.length,
       bindings: BINDING_SPECS.length,
       auditLogs: auditRows.length,
+      workItems: WORK_ITEM_SPECS.length,
+      notifications: NOTIFICATION_SPECS.length,
     },
   };
 }

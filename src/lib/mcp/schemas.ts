@@ -31,7 +31,7 @@ export const McpRuleSchema = z.object({
 
 export const McpSkillSchema = z.object({
   slug: z.string(),
-  level: z.enum(["INTERN", "JUNIOR", "SENIOR", "PRINCIPAL"]),
+  level: z.enum(["OBSERVE", "PROPOSE", "MERGE", "LEAD"]),
   autonomyDescription: z.string(),
   url: z.string(),
 });

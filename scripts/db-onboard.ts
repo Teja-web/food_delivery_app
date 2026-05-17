@@ -1,12 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * Coznt Onboarding Script
+ * Coznt Onboarding Script — interactive CLI.
  *
- * Creates organization + owner account, and optionally seeds a fully
- * cross-linked sample workspace (4 projects, 5 skills with 30-day autonomy
- * history, 12 plans, 8 rules, 15 phase gates, 12 approvals, deployments,
- * DORA metrics, audit log entries) so every UI surface looks alive on first
- * sign-in.
+ * Asks for organization + owner details, then delegates to the shared
+ * `bootstrapOrg()` helper in `scripts/lib/bootstrap-org.ts` so this CLI
+ * and `walkthrough-seed.ts` share a single audited code path. Demo data
+ * always comes from `seedSampleWorkspace` — never inserted ad-hoc here.
  *
  * Usage:
  *   pnpm db:onboard                 # interactive (asks about sample data)
@@ -15,12 +14,10 @@
  */
 
 import "dotenv/config";
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 import { createInterface } from "readline/promises";
-import { randomBytes } from "crypto";
-import { hashPassword } from "better-auth/crypto";
 
-import { seedSampleWorkspace } from "../src/operations/seed-sample-workspace";
+import { bootstrapOrg, slugify } from "./lib/bootstrap-org";
 
 const argv = new Set(process.argv.slice(2));
 const SAMPLE_FLAG: "yes" | "no" | "ask" = argv.has("--sample")
@@ -38,17 +35,6 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-function generateId(prefix: string): string {
-  return `${prefix}_${randomBytes(8).toString("hex")}`;
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 async function ask(question: string, defaultValue?: string): Promise<string> {
   const suffix = defaultValue ? ` (${defaultValue})` : "";
   const answer = (await rl.question(`  ${question}${suffix}: `)).trim();
@@ -61,47 +47,6 @@ async function confirm(question: string, defaultYes = false): Promise<boolean> {
   if (!answer) return defaultYes;
   return answer === "y" || answer === "yes";
 }
-
-// ============================================
-// Seed Functions
-// ============================================
-
-async function seedOrganization(client: PoolClient, orgName: string, orgSlug: string): Promise<string> {
-  const orgId = generateId("org");
-  await client.query(`
-    INSERT INTO auth.organization (id, name, slug, created_at, updated_at)
-    VALUES ($1, $2, $3, NOW(), NOW())
-  `, [orgId, orgName, orgSlug]);
-  console.log(`  ${orgName} (${orgSlug})`);
-  return orgId;
-}
-
-async function seedOwner(client: PoolClient, orgId: string, name: string, email: string, password: string): Promise<{ userId: string; name: string; email: string }> {
-  const userId = generateId("user");
-  const hashedPassword = await hashPassword(password);
-
-  await client.query(`
-    INSERT INTO auth."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-    VALUES ($1, $2, $3, true, NOW(), NOW())
-  `, [userId, name, email]);
-
-  await client.query(`
-    INSERT INTO auth.account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-    VALUES ($1, $2, 'credential', $3, $4, NOW(), NOW())
-  `, [generateId("acc"), userId, userId, hashedPassword]);
-
-  await client.query(`
-    INSERT INTO auth.member (id, organization_id, user_id, role, created_at)
-    VALUES ($1, $2, $3, 'owner', NOW())
-  `, [generateId("mem"), orgId, userId]);
-
-  console.log(`  ${name} <${email}> (owner)`);
-  return { userId, name, email };
-}
-
-// ============================================
-// Main
-// ============================================
 
 async function main() {
   console.log("");
@@ -121,6 +66,7 @@ async function main() {
     await pool.end();
     process.exit(1);
   }
+  await pool.end();
 
   console.log("\nOwner Account:");
   const ownerName = await ask("Full name");
@@ -130,7 +76,6 @@ async function main() {
   if (!ownerName || !ownerEmail) {
     console.log("\n  Owner name and email are required.\n");
     rl.close();
-    await pool.end();
     process.exit(1);
   }
 
@@ -140,8 +85,8 @@ async function main() {
   else {
     console.log("\nSample workspace:");
     console.log("  Populates the org with 4 projects, 12 plans, 5 skills (with autonomy");
-    console.log("  history), 8 rules, gates, approvals, deployments, and DORA metrics.");
-    console.log("  Every UI surface lights up on first sign-in.");
+    console.log("  history), 8 rules, gates, approvals, deployments, work items, and");
+    console.log("  notifications. Every UI surface lights up on first sign-in.");
     seedSample = await confirm("Seed sample workspace?", true);
   }
 
@@ -155,56 +100,34 @@ async function main() {
   if (!proceed) {
     console.log("\nAborted.\n");
     rl.close();
-    await pool.end();
     process.exit(0);
   }
   rl.close();
 
-  const client = await pool.connect();
-  let owner: { userId: string; name: string; email: string } | undefined;
-  let orgIdForSeed: string | undefined;
+  console.log("\nCreating organization & owner...");
+  const result = await bootstrapOrg({
+    databaseUrl: DATABASE_URL!,
+    orgName,
+    orgSlug,
+    ownerName,
+    ownerEmail,
+    password,
+    seedSample,
+  });
+  console.log(`  ${orgName} (${orgSlug})`);
+  console.log(`  ${ownerName} <${ownerEmail}> (owner)`);
+  console.log("  Default department");
 
-  try {
-    await client.query("BEGIN");
-
-    await client.query("CREATE SCHEMA IF NOT EXISTS coznt");
-
-    console.log("\nCreating organization...");
-    const orgId = await seedOrganization(client, orgName, orgSlug);
-    orgIdForSeed = orgId;
-    console.log("Creating owner...");
-    owner = await seedOwner(client, orgId, ownerName, ownerEmail, password);
-
-    console.log("Seeding default department...");
-    await client.query(`
-      INSERT INTO coznt.departments (id, organization_id, name, created_at, updated_at)
-      VALUES ($1, $2, 'Default', NOW(), NOW())
-    `, [generateId("dept"), orgId]);
-    console.log("  Default");
-
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-    await pool.end();
-  }
-
-  if (seedSample && owner && orgIdForSeed) {
-    console.log("\nSeeding sample workspace...");
-    const result = await seedSampleWorkspace({
-      organizationId: orgIdForSeed,
-      userId: owner.userId,
-      userName: owner.name,
-    });
-    if (result.inserted) {
-      const c = result.counts;
+  if (result.seed) {
+    if (result.seed.inserted) {
+      const c = result.seed.counts;
+      console.log("\nSeeded sample workspace:");
       console.log(`  ${c.projects} projects · ${c.plans} plans · ${c.skills} skills (${c.autonomyRows} autonomy rows, ${c.skillOutcomes} outcomes)`);
       console.log(`  ${c.rules} rules · ${c.gates} gates · ${c.approvals} approvals · ${c.bindings} adapter bindings`);
       console.log(`  ${c.deployments} deployments · ${c.metrics} metric rows · ${c.auditLogs} audit entries`);
+      console.log(`  ${c.workItems} work items · ${c.notifications} notifications`);
     } else {
-      console.log("  Skipped — org already has projects.");
+      console.log("\n  Sample seed skipped — org already has projects.");
     }
   }
 
@@ -216,7 +139,7 @@ async function main() {
 }
 
 main().then(() => process.exit(0)).catch((error) => {
-  console.error("\nOnboarding failed:", error.message);
+  console.error("\nOnboarding failed:", error?.message ?? error);
   rl.close();
   process.exit(1);
 });

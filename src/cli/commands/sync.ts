@@ -1,0 +1,157 @@
+/**
+ * `coznt sync` — align `<repo>/.coznt/skills/` with the server's
+ * current choreography bundle for the bound project.
+ *
+ * Flow:
+ *   1. Read `.coznt/config.json`
+ *   2. Fetch manifest from `/api/v1/mcp/choreographies`
+ *   3. Classify each entry (new / unchanged / remote-only / drift / conflict)
+ *   4. For non-unchanged entries:
+ *        - prompt the user on conflicts (overwrite / keep / diff)
+ *        - fetch the bundle for entries that need updating
+ *        - verify each entry's hash against the manifest before writing
+ *   5. Write SKILL.md + .lock per fetched entry
+ *
+ * Flags:
+ *   --force    skip drift prompts (always overwrite)
+ *   --dry-run  print planned actions, write nothing
+ */
+
+import { readConfig } from "../lib/config.js";
+import { fetchManifest, fetchBundle } from "../lib/api.js";
+import { sha256 } from "../lib/hashing.js";
+import {
+  writeLock,
+  writeLocalSkill,
+  readLocalSkill,
+} from "../lib/lock-file.js";
+import { classify, summarize, type Classification } from "../lib/diff.js";
+import { askChoice } from "../lib/prompt.js";
+
+export interface SyncOptions {
+  force?: boolean;
+  dryRun?: boolean;
+}
+
+export async function runSync(options: SyncOptions = {}): Promise<number> {
+  const cfg = readConfig();
+  console.log(`coznt sync — project ${cfg.projectId} @ ${cfg.serverUrl}`);
+
+  const manifest = await fetchManifest(cfg);
+  console.log(
+    `Manifest: ${manifest.choreographies.length} choreographies, manifestHash=${manifest.manifestHash.slice(0, 12)}…`,
+  );
+
+  const classes = classify(process.cwd(), manifest.choreographies);
+  const summary = summarize(classes);
+  console.log(
+    `Comparing locks: ${summary.new} new, ${summary.unchanged} unchanged, ${summary.remoteOnly} updated remote, ${summary.localEditNoRemote} local-only edits, ${summary.conflict} conflicts`,
+  );
+
+  if (summary.unchanged === classes.length) {
+    console.log("Nothing to do — every choreography is in sync.");
+    return 0;
+  }
+
+  // Resolve conflicts and locally-edited-no-remote-change entries
+  const slugsToFetch: string[] = [];
+  const skipped: string[] = [];
+
+  for (const cls of classes) {
+    if (cls.kind === "unchanged") continue;
+    if (cls.kind === "new" || cls.kind === "remote-only") {
+      slugsToFetch.push(cls.slug);
+      continue;
+    }
+    if (cls.kind === "locally-edited-no-remote-change") {
+      // Server hasn't changed; respect the local edit.
+      console.warn(
+        `  [skip] ${cls.slug}: local edits present, remote unchanged. Leaving as-is.`,
+      );
+      skipped.push(cls.slug);
+      continue;
+    }
+    // conflict
+    if (options.force) {
+      console.warn(`  [force] ${cls.slug}: overwriting local edits.`);
+      slugsToFetch.push(cls.slug);
+      continue;
+    }
+    if (options.dryRun) {
+      console.log(`  [dry-run] ${cls.slug}: would prompt about conflict.`);
+      continue;
+    }
+    const choice = await askChoice(
+      `${cls.slug}: local edits AND remote changes both diverge from lock. (overwrite / keep / diff)?`,
+      ["overwrite", "keep", "diff"],
+    );
+    if (choice === "diff") {
+      printConflictDiff(cls);
+      // Re-prompt after showing diff
+      const second = await askChoice(
+        `${cls.slug}: overwrite or keep?`,
+        ["overwrite", "keep"],
+      );
+      if (second === "overwrite") slugsToFetch.push(cls.slug);
+      else skipped.push(cls.slug);
+    } else if (choice === "overwrite") {
+      slugsToFetch.push(cls.slug);
+    } else {
+      skipped.push(cls.slug);
+    }
+  }
+
+  if (options.dryRun) {
+    console.log(
+      `[dry-run] Would fetch: ${slugsToFetch.join(", ") || "(none)"}`,
+    );
+    console.log(`[dry-run] Would skip:  ${skipped.join(", ") || "(none)"}`);
+    return 0;
+  }
+
+  if (slugsToFetch.length === 0) {
+    console.log("No fetches needed.");
+    return 0;
+  }
+
+  const bundle = await fetchBundle(cfg, slugsToFetch);
+  console.log(`Fetched ${bundle.choreographies.length} entries; verifying hashes…`);
+
+  // Verify hashes before writing
+  for (const entry of bundle.choreographies) {
+    const computed = sha256(entry.content);
+    if (computed !== entry.hash) {
+      console.error(
+        `Hash mismatch on ${entry.slug}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
+      );
+      return 1;
+    }
+  }
+
+  // All verified — write files + locks
+  const repoRoot = process.cwd();
+  const now = new Date().toISOString();
+  for (const entry of bundle.choreographies) {
+    writeLocalSkill(repoRoot, entry.slug, entry.content);
+    writeLock(repoRoot, entry.slug, {
+      hash: entry.hash,
+      version: entry.version,
+      syncedAt: now,
+    });
+    console.log(`  [write] .coznt/skills/${entry.slug}/SKILL.md (v${entry.version})`);
+  }
+
+  console.log(
+    `\nSync complete: ${bundle.choreographies.length} written, ${skipped.length} skipped, ${summary.unchanged} already current.`,
+  );
+  return 0;
+}
+
+function printConflictDiff(cls: Classification): void {
+  if (cls.kind !== "conflict") return;
+  const repoRoot = process.cwd();
+  const local = readLocalSkill(repoRoot, cls.slug) ?? "(missing)";
+  console.log(`\n--- ${cls.slug}: local edits (sha=${cls.localHash.slice(0, 8)}…) ---`);
+  console.log(local.split("\n").slice(0, 30).join("\n"));
+  console.log("--- (showing first 30 lines; use git diff for full) ---\n");
+}

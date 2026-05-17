@@ -41,23 +41,23 @@ import { skills } from "@/db/schema/skill";
 import { projects } from "@/db/schema/project";
 import type { AssessorResult } from "@/domain/outcomes";
 
-export const LEVEL_NAMES = ["intern", "junior", "senior", "principal"] as const;
+import {
+  LEVEL_NAMES as SHARED_LEVEL_NAMES,
+  LEVEL_BLURBS as SHARED_LEVEL_BLURBS,
+  levelToName,
+  WINDOW_DAYS,
+  PROMOTE_SUCCESS_RATE,
+  PROMOTE_MIN_AT_LEVEL_DAYS,
+  REVIEW_INTERVAL_HOURS,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  MIN_SAMPLES_FOR_PROMOTION,
+} from "./autonomy-constants";
+
+export const LEVEL_NAMES = SHARED_LEVEL_NAMES;
 export type LevelName = (typeof LEVEL_NAMES)[number];
 
-export const LEVEL_BLURBS: Record<LevelName, string> = {
-  intern: "read-only, no auto-approve",
-  junior: "PRs need human review",
-  senior: "auto-merge low-complexity",
-  principal: "minimal oversight",
-};
-
-const WINDOW_DAYS = 30;
-const PROMOTE_SUCCESS_RATE = 0.9;
-const PROMOTE_MIN_AT_LEVEL_DAYS = 14;
-const REVIEW_INTERVAL_HOURS = 24;
-const MAX_LEVEL = 3;
-const MIN_LEVEL = 0;
-const MIN_SAMPLES_FOR_PROMOTION = 5;
+export const LEVEL_BLURBS = SHARED_LEVEL_BLURBS;
 
 function projectIdMatches(column: AnyPgColumn, projectId: string | null): SQL {
   return projectId === null ? isNull(column) : eq(column, projectId);
@@ -174,7 +174,7 @@ function asState(
     projectId,
     organizationId,
     level: row.level,
-    levelName: LEVEL_NAMES[row.level] ?? "intern",
+    levelName: levelToName(row.level),
     levelSetAt: row.levelSetAt,
     lastReviewedAt: row.lastReviewedAt,
     nextReviewAt: row.nextReviewAt,
@@ -206,7 +206,7 @@ export async function getSkillAutonomy(
     projectId,
     organizationId: null,
     level: 0,
-    levelName: "intern",
+    levelName: "observe",
     levelSetAt: new Date(0),
     lastReviewedAt: null,
     nextReviewAt: null,
@@ -369,7 +369,7 @@ export async function recomputeSkillAutonomy(
 
   return {
     level: newLevel,
-    levelName: LEVEL_NAMES[newLevel] ?? "intern",
+    levelName: levelToName(newLevel),
     reason,
     promoted,
     demoted,
@@ -471,13 +471,18 @@ export async function getSkillStats30d(
   success: number;
   rollback: number;
   incident: number;
+  criticalIncidents: number;
   windowDays: number;
   sparkline: number[];
 }> {
   const windowDays = 30;
   const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   const rows = await db
-    .select({ verdict: skillOutcomes.verdict, recordedAt: skillOutcomes.recordedAt })
+    .select({
+      verdict: skillOutcomes.verdict,
+      severity: skillOutcomes.severity,
+      recordedAt: skillOutcomes.recordedAt,
+    })
     .from(skillOutcomes)
     .where(
       and(
@@ -490,19 +495,23 @@ export async function getSkillStats30d(
   let success = 0;
   let rollback = 0;
   let incident = 0;
+  let criticalIncidents = 0;
   const dayBuckets = Array.from({ length: windowDays }, () => 0);
   const start = since.getTime();
   for (const r of rows) {
     if (r.verdict === "success") success += 1;
     else if (r.verdict === "rolled_back") rollback += 1;
-    else if (r.verdict === "incident") incident += 1;
+    else if (r.verdict === "incident") {
+      incident += 1;
+      if (r.severity === "critical") criticalIncidents += 1;
+    }
     const idx = Math.min(
       windowDays - 1,
       Math.max(0, Math.floor((r.recordedAt.getTime() - start) / (24 * 60 * 60 * 1000))),
     );
     if (r.verdict === "success") dayBuckets[idx] += 1;
   }
-  return { success, rollback, incident, windowDays, sparkline: dayBuckets };
+  return { success, rollback, incident, criticalIncidents, windowDays, sparkline: dayBuckets };
 }
 
 /**
@@ -579,7 +588,7 @@ export async function getSkillAutonomyAcrossProjects(
     .orderBy(desc(skillAutonomy.level), desc(skillAutonomy.levelSetAt));
   return rows.map((r) => ({
     ...r,
-    levelName: LEVEL_NAMES[r.level] ?? "intern",
+    levelName: levelToName(r.level),
   }));
 }
 
@@ -613,4 +622,62 @@ export async function getRecentAutonomyEvents(
     .where(
       and(eq(skillAutonomy.organizationId, organizationId), gte(skillAutonomy.levelSetAt, since)),
     );
+}
+
+/**
+ * Aggregate the autonomy posture of every (skill, project) pair on a
+ * given project: counts at each level + a recent-incident flag.
+ *
+ * Used by the portfolio view to surface "this project has skills below
+ * Senior" or "this project saw a critical incident this week" without
+ * needing per-row drill-down.
+ */
+export async function getProjectAutonomyAggregate(
+  projectId: string,
+  organizationId: string,
+): Promise<{
+  intern: number;
+  junior: number;
+  senior: number;
+  principal: number;
+  total: number;
+  incidentsLast7d: number;
+}> {
+  const autonomyRows = await db
+    .select({ level: skillAutonomy.level })
+    .from(skillAutonomy)
+    .where(
+      and(
+        eq(skillAutonomy.organizationId, organizationId),
+        eq(skillAutonomy.projectId, projectId),
+      ),
+    );
+
+  let intern = 0;
+  let junior = 0;
+  let senior = 0;
+  let principal = 0;
+  for (const r of autonomyRows) {
+    if (r.level >= 3) principal++;
+    else if (r.level >= 2) senior++;
+    else if (r.level >= 1) junior++;
+    else intern++;
+  }
+  const total = autonomyRows.length;
+
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const incidentRows = await db
+    .select({ id: skillOutcomes.id })
+    .from(skillOutcomes)
+    .where(
+      and(
+        eq(skillOutcomes.organizationId, organizationId),
+        eq(skillOutcomes.projectId, projectId),
+        eq(skillOutcomes.verdict, "incident"),
+        gte(skillOutcomes.recordedAt, since),
+      ),
+    );
+  const incidentsLast7d = incidentRows.length;
+
+  return { intern, junior, senior, principal, total, incidentsLast7d };
 }
