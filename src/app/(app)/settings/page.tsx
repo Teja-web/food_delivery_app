@@ -240,6 +240,15 @@ export default async function SettingsPage() {
               <Link href="/settings/policy">Open</Link>
             </Button>
           </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div>Repo trust policy</div>
+              <div className="text-xs text-muted-foreground">Per-repo three-state policy (read-write / read-only / deny). Auto-registers when a dev runs <code>coznt connect</code>.</div>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/settings/repos">Open</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

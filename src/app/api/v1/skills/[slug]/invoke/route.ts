@@ -1,4 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
+import { enforceWriteVerbFromHeader } from "@/lib/auth/repo-policy";
 import { invokeSkill } from "@/operations/skill-invocation";
 
 /**
@@ -13,10 +14,15 @@ import { invokeSkill } from "@/operations/skill-invocation";
  *   }
  *
  * Returns: { skillId, runId, output, text, durationMs, intelligenceId }
+ *
+ * Repo policy: enforced via the `X-Coznt-Repo-Url` header. `deny` rejects;
+ * `read-only` denies this verb (it's in WRITE_VERBS). Read-write or no
+ * header passes through.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  return handleApi(req, async () => {
+  return handleApi(req, async (ctx) => {
+    await enforceWriteVerbFromHeader(req, ctx.organizationId, "invoke_skill");
     const body = await req.json().catch(() => ({}));
     return invokeSkill({
       slug,

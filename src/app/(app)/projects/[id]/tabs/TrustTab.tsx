@@ -16,10 +16,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
 import { cn } from "@/lib/utils";
 
+import type { ProjectLearning } from "@/db/schema/project-learning";
 import type {
   ProjectOutcomeRow,
   PolicyMatrixCell,
 } from "@/operations/project-trust";
+
+import { LearningsCard } from "./LearningsCard";
 
 const VERDICT_META: Record<
   SkillOutcomeVerdict,
@@ -264,14 +267,28 @@ function RecentOutcomes({ outcomes }: { outcomes: ProjectOutcomeRow[] }) {
 }
 
 export function TrustTab({
+  projectId,
   outcomes,
   policy,
+  learnings,
 }: {
+  projectId: string;
   outcomes: ProjectOutcomeRow[];
   policy: PolicyMatrixCell[];
+  learnings: ProjectLearning[];
 }) {
   return (
     <div className="space-y-6">
+      <LearningsCard
+        projectId={projectId}
+        learnings={learnings.map((l) => ({
+          id: l.id,
+          body: l.body,
+          pinOrder: l.pinOrder,
+          createdAt: l.createdAt.toISOString(),
+          createdByName: l.createdByName,
+        }))}
+      />
       <ActivePolicyMatrix cells={policy} />
       <RecentOutcomes outcomes={outcomes} />
     </div>

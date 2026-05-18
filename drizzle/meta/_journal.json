@@ -22,6 +22,27 @@
       "when": 1778779418808,
       "tag": "0002_workable_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779072304619,
+      "tag": "0003_odd_mandrill",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779075181115,
+      "tag": "0004_greedy_madame_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779075599578,
+      "tag": "0005_thin_abomination",
+      "breakpoints": true
     }
   ]
 }

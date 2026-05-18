@@ -132,17 +132,45 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   const repoRoot = process.cwd();
   const now = new Date().toISOString();
   for (const entry of bundle.choreographies) {
-    writeLocalSkill(repoRoot, entry.slug, entry.content);
-    writeLock(repoRoot, entry.slug, {
-      hash: entry.hash,
-      version: entry.version,
-      syncedAt: now,
-    });
+    writeLocalSkill(repoRoot, entry.slug, entry.content, "platform");
+    writeLock(
+      repoRoot,
+      entry.slug,
+      { hash: entry.hash, version: entry.version, syncedAt: now },
+      "platform",
+    );
     console.log(`  [write] .coznt/skills/${entry.slug}/SKILL.md (v${entry.version})`);
   }
 
+  // Customer-authored choreographies — write to .coznt/skills/custom/<slug>/.
+  // For v1 we always sync these (no drift detection); the customer-authored
+  // body changes with every UI edit, and the server is the source of truth.
+  let customWritten = 0;
+  if (bundle.custom && bundle.custom.length > 0) {
+    for (const entry of bundle.custom) {
+      const computed = sha256(entry.content);
+      if (computed !== entry.hash) {
+        console.error(
+          `Hash mismatch on custom/${entry.slug}: ${computed} != ${entry.hash}. Aborting; some custom entries unwritten.`,
+        );
+        return 1;
+      }
+      writeLocalSkill(repoRoot, entry.slug, entry.content, "custom");
+      writeLock(
+        repoRoot,
+        entry.slug,
+        { hash: entry.hash, version: entry.version, syncedAt: now },
+        "custom",
+      );
+      console.log(
+        `  [write] .coznt/skills/custom/${entry.slug}/SKILL.md (v${entry.version}, scope=${entry.scope})`,
+      );
+      customWritten++;
+    }
+  }
+
   console.log(
-    `\nSync complete: ${bundle.choreographies.length} written, ${skipped.length} skipped, ${summary.unchanged} already current.`,
+    `\nSync complete: ${bundle.choreographies.length} platform, ${customWritten} custom written, ${skipped.length} skipped, ${summary.unchanged} already current.`,
   );
   return 0;
 }

@@ -10,6 +10,7 @@
  */
 
 import { assessOutcomesTask } from "@/automations/tasks/assess-outcomes";
+import { embedProjectLearningTask } from "@/automations/tasks/embed-project-learning";
 import { processWebhookEvent } from "@/automations/tasks/process-webhook-event";
 import { computeWorkItemLeadTime } from "@/automations/tasks/compute-work-item-lead-time";
 import { recomputeSkillAutonomyTask } from "@/automations/tasks/recompute-skill-autonomy";
@@ -92,6 +93,24 @@ const rules: Rule[] = [
     operation: "insert",
     condition: (e) => e.entityId === "assess-outcomes",
     tasks: [assessOutcomesTask],
+  },
+  {
+    // Project learnings become semantically searchable. The task fetches
+    // the row, generates an embedding, and upserts `coznt.documents`.
+    // Soft-deletes (deletedAt set on update) trigger removal from the
+    // index. See `add-coznt-knowledge-surface`.
+    id: "project_learning:insert",
+    entityType: "projectLearning",
+    operation: "insert",
+    tasks: [embedProjectLearningTask],
+  },
+  {
+    id: "project_learning:update",
+    entityType: "projectLearning",
+    operation: "update",
+    condition: (e) =>
+      changed(e, "body") || changed(e, "deletedAt"),
+    tasks: [embedProjectLearningTask],
   },
 ];
 

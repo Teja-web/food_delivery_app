@@ -52,6 +52,11 @@ export const ALWAYS_ALLOWED = new Set<string>([
   "invoke_skill",
   "list_choreographies",
   "sync_choreographies",
+  "search_learnings",
+  "search_plans",
+  "search_outcomes",
+  "search_audit",
+  "list_custom_choreographies",
 ]);
 
 /**

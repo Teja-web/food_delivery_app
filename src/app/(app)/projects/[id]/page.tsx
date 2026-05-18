@@ -9,6 +9,7 @@ import { listBindingsForProject } from "@/operations/adapter-bindings";
 import { getOrCreateProjectKey } from "@/operations/api-keys";
 import { listDeployments } from "@/operations/deployments";
 import { listPlansByProject } from "@/operations/plans";
+import { listProjectLearnings } from "@/operations/project-learnings";
 import {
   getProjectAutonomyPolicyMatrix,
   getRecentProjectOutcomes,
@@ -54,6 +55,7 @@ export default async function ProjectDetailPage({
     apiKey,
     trustOutcomes,
     trustPolicy,
+    trustLearnings,
   ] = await Promise.all([
     listPlansByProject(id, { limit: 100 }),
     listGatesForPhase(id, project.phase),
@@ -66,6 +68,7 @@ export default async function ProjectDetailPage({
     getOrCreateProjectKey(id),
     getRecentProjectOutcomes(id, 30),
     getProjectAutonomyPolicyMatrix(ctx.organizationId, id),
+    listProjectLearnings(id, { limit: 20 }),
   ]);
 
   const gatesAllPassed = currentPhaseGates.every(
@@ -106,7 +109,7 @@ export default async function ProjectDetailPage({
     rules: rules.map((r) => serializeCockpitRule(r, id)),
     skills: skills.map((s) => serializeCockpitSkill(s, id)),
     apiKey,
-    trust: { outcomes: trustOutcomes, policy: trustPolicy },
+    trust: { outcomes: trustOutcomes, policy: trustPolicy, learnings: trustLearnings },
   };
 
   return <CockpitClient data={data} />;

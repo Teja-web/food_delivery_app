@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { and, eq, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { customChoreographies } from "@/db/schema/custom-choreography";
 import { skills } from "@/db/schema/skill";
 
 const APP_DIR = process.cwd();
@@ -41,8 +42,16 @@ export interface ChoreographyBundleEntry extends ChoreographyManifestEntry {
   content: string;
 }
 
+export interface CustomChoreographyBundleEntry extends ChoreographyBundleEntry {
+  /** "org" or "project" — distinguishes scope of the customer-authored row. */
+  scope: "org" | "project";
+}
+
 export interface ChoreographyBundle {
+  /** Platform-shipped choreographies (filesystem). */
   choreographies: ChoreographyBundleEntry[];
+  /** Customer-authored choreographies (DB-stored). */
+  custom: CustomChoreographyBundleEntry[];
   manifestHash: string;
 }
 
@@ -243,5 +252,49 @@ export async function getChoreographyBundle(
     bundle.push({ ...entry, content: file.content });
   }
 
-  return { choreographies: bundle, manifestHash: manifest.manifestHash };
+  // Customer-authored choreographies — DB-stored, separate sub-bundle.
+  // Listed alongside platform entries so the CLI can route them to a
+  // distinct subdirectory in the dev's repo.
+  const custom = await loadCustomBundle(organizationId, projectId);
+
+  return {
+    choreographies: bundle,
+    custom,
+    manifestHash: manifest.manifestHash,
+  };
+}
+
+async function loadCustomBundle(
+  organizationId: string,
+  projectId: string,
+): Promise<CustomChoreographyBundleEntry[]> {
+  const { listCustomChoreographies } = await import("./custom-choreographies");
+  // Reuse the operation but bypass the action-context check by going
+  // direct to the DB filter — server-side composition for the manifest path.
+  const rows = await db
+    .select()
+    .from(customChoreographies)
+    .where(
+      and(
+        eq(customChoreographies.organizationId, organizationId),
+        eq(customChoreographies.enabled, true),
+        isNull(customChoreographies.deletedAt),
+        or(
+          eq(customChoreographies.projectId, projectId),
+          isNull(customChoreographies.projectId),
+        ),
+      ),
+    );
+  return rows.map((r) => ({
+    slug: r.slug,
+    version: r.version,
+    hash: sha256(r.body),
+    description: r.name,
+    minAutonomy: null,
+    content: r.body,
+    scope: (r.projectId ? "project" : "org") as "project" | "org",
+  }));
+  // listCustomChoreographies is also used by the UI; kept inline here to
+  // avoid requiring an active actor context.
+  void listCustomChoreographies;
 }

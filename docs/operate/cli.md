@@ -153,3 +153,105 @@ Every fetched choreography body is re-hashed locally before being written. If th
 | `API key env var 'X' is not set` | `apiKeyRef.kind=env` but the env var is empty | `export X=...` then retry |
 | `Hash mismatch on <slug>` | Network corruption or server misconfiguration | Retry; if persistent, contact your coznt admin |
 | `API key is bound to a different project` | API key is project-scoped to a different project than `config.projectId` | Issue a new key for this project from `/api-keys` |
+
+---
+
+## See it work
+
+Below is a real terminal walkthrough — the kind a new developer would see on their first pass through coznt's daemon-and-choreography flow.
+
+### First-time bootstrap on a fresh repo
+
+```
+$ cd ~/code/payments-service
+$ ls -la .coznt
+ls: .coznt: No such file or directory
+
+$ coznt connect
+coznt connect — server https://coznt.acme.internal
+✓ Detected Claude Code (.claude/)
+? Project: payments-service
+✓ Project: Payments Service (payments-service, proj_4f2c1)
+? API key: ********************
+✓ Stored API key in OS keychain (account: coznt:proj_4f2c1)
+✓ Wrote .coznt/config.json
+✓ Added .coznt/.local/ to .gitignore
+✓ Wrote .claude/mcp.json (new)
+
+Running initial sync …
+coznt sync — project proj_4f2c1 @ https://coznt.acme.internal
+Manifest: 12 choreographies, manifestHash=4f8a2b1c9d3e…
+Comparing locks: 12 new, 0 unchanged, 0 updated remote, 0 local-only edits, 0 conflicts
+Fetched 12 entries; verifying hashes…
+  [write] .coznt/skills/adr-extractor/SKILL.md (v1.0.0)
+  [write] .coznt/skills/cicd-pipeline-authoring/SKILL.md (v1.0.0)
+  [write] .coznt/skills/dev-summary-generator/SKILL.md (v1.0.0)
+  [write] .coznt/skills/epic-decomposer/SKILL.md (v1.0.0)
+  [write] .coznt/skills/feature-spec-generator/SKILL.md (v1.0.0)
+  [write] .coznt/skills/go-live-report-generator/SKILL.md (v1.0.0)
+  [write] .coznt/skills/incident-postmortem/SKILL.md (v1.0.0)
+  [write] .coznt/skills/release-notes-generator/SKILL.md (v1.0.0)
+  [write] .coznt/skills/requirements-document/SKILL.md (v1.0.0)
+  [write] .coznt/skills/storyboard-generator/SKILL.md (v1.0.0)
+  [write] .coznt/skills/test-execution-report-generator/SKILL.md (v1.0.0)
+  [write] .coznt/skills/test-plan-generator/SKILL.md (v1.0.0)
+
+Sync complete: 12 written, 0 skipped, 0 already current.
+
+Connected. Restart Claude Code to load the MCP server.
+```
+
+After restarting Claude Code, the 12 skills appear in the skill picker. Each one is invokable by description — typing "draft release notes" or "what shipped" triggers `release-notes-generator`; "postmortem" or "RCA" triggers `incident-postmortem`.
+
+### A normal sync (no remote changes)
+
+```
+$ coznt sync
+coznt sync — project proj_4f2c1 @ https://coznt.acme.internal
+Manifest: 12 choreographies, manifestHash=4f8a2b1c9d3e…
+Comparing locks: 0 new, 12 unchanged, 0 updated remote, 0 local-only edits, 0 conflicts
+Nothing to do — every choreography is in sync.
+```
+
+### A sync that finds an upstream version bump
+
+```
+$ coznt sync
+coznt sync — project proj_4f2c1 @ https://coznt.acme.internal
+Manifest: 12 choreographies, manifestHash=8b1e4c9a2f5d…
+Comparing locks: 0 new, 10 unchanged, 2 updated remote, 0 local-only edits, 0 conflicts
+Fetched 2 entries; verifying hashes…
+  [write] .coznt/skills/test-plan-generator/SKILL.md (v1.1.0)
+  [write] .coznt/skills/release-notes-generator/SKILL.md (v1.0.1)
+
+Sync complete: 2 written, 0 skipped, 10 already current.
+```
+
+The `.lock` diff in the next PR shows exactly which choreographies moved and to what version — reviewers see "release-notes-generator v1.0.0 → v1.0.1" without reading the body.
+
+### A sync where a teammate's local edit is respected
+
+```
+$ coznt sync
+coznt sync — project proj_4f2c1 @ https://coznt.acme.internal
+Manifest: 12 choreographies, manifestHash=2a4f8c1e9b3d…
+Comparing locks: 0 new, 11 unchanged, 0 updated remote, 1 local-only edits, 0 conflicts
+  [skip] release-notes-generator: local edits present, remote unchanged. Leaving as-is.
+
+Sync complete: 0 written, 1 skipped, 11 already current.
+```
+
+If the upstream later changes too, `sync` flips that entry to a conflict and prompts overwrite / keep / diff. Use `--force` to skip the prompt in CI.
+
+### Dry-run before a teammate's PR review
+
+```
+$ coznt sync --dry-run
+coznt sync — project proj_4f2c1 @ https://coznt.acme.internal
+Manifest: 12 choreographies, manifestHash=8b1e4c9a2f5d…
+Comparing locks: 0 new, 10 unchanged, 2 updated remote, 0 local-only edits, 0 conflicts
+[dry-run] Would fetch: test-plan-generator, release-notes-generator
+[dry-run] Would skip:  (none)
+```
+
+Useful in CI: a `coznt sync --dry-run` step that fails the build when local choreographies have drifted from the server keeps the repo honest without doing destructive writes.

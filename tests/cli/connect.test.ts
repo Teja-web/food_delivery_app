@@ -20,12 +20,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { detectEditors } from "@/cli/lib/editor-detect";
-import {
-  writeClaudeCode,
-  writeCursor,
-  writeZed,
-} from "@/cli/lib/mcp-config-writers";
+import { writeForEditor } from "@/cli/lib/mcp-config-writers";
 import { ensureCozntLocalGitignored } from "@/cli/lib/gitignore";
+
+const writeClaudeCode = (ctx: { repoRoot: string; cozntEntry: typeof cozntEntry }) =>
+  writeForEditor("claude-code", ctx);
+const writeCursor = (ctx: { repoRoot: string; cozntEntry: typeof cozntEntry }) =>
+  writeForEditor("cursor", ctx);
+const writeZed = (ctx: { repoRoot: string; cozntEntry: typeof cozntEntry }) =>
+  writeForEditor("zed", ctx);
+
+const cozntEntry = {
+  command: "pnpm",
+  args: ["--filter", "coznt", "mcp"],
+  env: { COZNT_URL: "http://test", COZNT_API_KEY: "${COZNT_API_KEY}" },
+};
 
 let tmpRoot = "";
 
@@ -59,12 +68,6 @@ describe("editor detection", () => {
 });
 
 describe("MCP config writers", () => {
-  const cozntEntry = {
-    command: "pnpm",
-    args: ["--filter", "coznt", "mcp"],
-    env: { COZNT_URL: "http://test", COZNT_API_KEY: "${COZNT_API_KEY}" },
-  };
-
   it("Claude Code writes a fresh config when none exists", () => {
     const result = writeClaudeCode({ repoRoot: tmpRoot, cozntEntry });
     expect(result.merged).toBe(false);

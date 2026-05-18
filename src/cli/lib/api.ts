@@ -28,8 +28,16 @@ export interface BundleEntry extends ManifestEntry {
   content: string;
 }
 
+export interface CustomBundleEntry extends BundleEntry {
+  /** "project" or "org" — distinguishes scope of the customer-authored row. */
+  scope: "project" | "org";
+}
+
 export interface Bundle {
+  /** Platform-shipped choreographies. */
   choreographies: BundleEntry[];
+  /** Customer-authored choreographies (may be absent from older servers). */
+  custom?: CustomBundleEntry[];
   manifestHash: string;
 }
 

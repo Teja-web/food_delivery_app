@@ -61,6 +61,20 @@ export const McpMetaSchema = z.object({
   computedAt: z.string(),
 });
 
+/**
+ * Per-project learnings — short operator-authored notes the agent
+ * sees at the top of every session. Equivalent to gstack's
+ * `~/.gstack/projects/<slug>/learnings.jsonl` but stored server-side
+ * and propagated via MCP context (no local cache to stale).
+ */
+export const McpLearningSchema = z.object({
+  id: z.string(),
+  body: z.string(),
+  pinned: z.boolean(),
+  createdAt: z.string(),
+  createdByName: z.string().nullable(),
+});
+
 export const McpResponseSchema = z.object({
   project: McpProjectSchema,
   workItem: McpWorkItemSchema.nullable(),
@@ -74,6 +88,12 @@ export const McpResponseSchema = z.object({
   rules: z.array(McpRuleSchema),
   skills: z.array(McpSkillSchema),
   adrs: z.array(McpAdrSchema),
+  /**
+   * Pinned + recent learnings for this project. Empty when no learnings
+   * have been authored. Surfaces on every `get_my_context` call so the
+   * agent sees them before deciding what to do.
+   */
+  learnings: z.array(McpLearningSchema),
   meta: McpMetaSchema,
 });
 export type McpResponse = z.infer<typeof McpResponseSchema>;

@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Workflow,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -59,6 +60,7 @@ const GROUPS: NavGroup[] = [
     label: "Runtime",
     items: [
       { href: "/rules", label: "Rules", Icon: Shield },
+      { href: "/choreographies", label: "Choreographies", Icon: Workflow, matchPrefix: "/choreographies" },
       { href: "/integrations", label: "Adapters", Icon: Plug },
     ],
   },
@@ -79,6 +81,7 @@ const SECTION_LABELS: Record<string, string> = {
   "/skills": "Skills",
   "/audit": "Audit log",
   "/rules": "Rules",
+  "/choreographies": "Choreographies",
   "/integrations": "Adapters",
   "/metrics": "DORA metrics",
   "/settings": "Settings",

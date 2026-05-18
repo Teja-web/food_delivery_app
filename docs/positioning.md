@@ -4,15 +4,15 @@
 
 **Coznt is autonomy with observability for AI-assisted software delivery.**
 
-AI agents earn the right to do more. Humans always see what they did and why.
+Cursor, Devin, Copilot, and Claude Code already make individual developers dramatically faster. Coznt is the layer that turns that individual velocity into **organizational** delivery throughput — safely. Every successful AI-assisted action earns the next one less friction; every action lands with the evidence a governed organization needs.
 
-Neither half is a product on its own:
+Coznt sits one layer above the tools developers already use:
 
-- Observability without autonomy is a dashboard. Linear and Jira already do that.
-- Autonomy without observability is unsafe AI. Cursor and Devin do that; governed organizations won't deploy it into real delivery work.
-- **Autonomy with observability** is the only formulation that earns its way into a governed organization.
+- **Individual AI productivity tools** (Cursor, Devin, Copilot, Claude Code) make each developer faster — they're great at that. They don't know the project's phase, the org's policy, or whether a workflow has earned the right to ship this kind of change without human review. Coznt does.
+- **Work trackers** (Linear, Jira, Asana) record what's planned and shipped. They don't act on it, and they don't grade the quality of AI-assisted action. Coznt does.
+- **Autonomy with observability** is what lets AI velocity compound at organizational scale instead of paying for itself in reviews.
 
-For organizations that have to ship faster *and* show their work.
+For organizations that have to ship faster *and* show their work — without each new piece of AI work re-paying the review tax of the first.
 
 ---
 

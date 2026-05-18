@@ -219,7 +219,12 @@ export function CockpitClient({ data }: { data: CockpitData }) {
         </TabsContent>
 
         <TabsContent value="trust" className="mt-0">
-          <TrustTab outcomes={data.trust.outcomes} policy={data.trust.policy} />
+          <TrustTab
+            projectId={data.project.id}
+            outcomes={data.trust.outcomes}
+            policy={data.trust.policy}
+            learnings={data.trust.learnings}
+          />
         </TabsContent>
 
         <TabsContent value="all-plans" className="mt-0">

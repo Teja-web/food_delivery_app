@@ -1,7 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan";
+import { projectLearnings } from "@/db/schema/project-learning";
 import { projects, type Project } from "@/db/schema/project";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill";
@@ -97,7 +98,7 @@ export async function buildMcpContext(args: {
 
   const project = await resolveProject(args.organizationId, args.keyProjectId, args.repoUrl);
 
-  const [activeRules, projectSkills, adrPlans] = await Promise.all([
+  const [activeRules, projectSkills, adrPlans, learnings] = await Promise.all([
     db.query.rules.findMany({
       where: and(
         eq(rules.organizationId, project.organizationId),
@@ -121,6 +122,15 @@ export async function buildMcpContext(args: {
       ),
       orderBy: [desc(plans.updatedAt)],
       limit: 10,
+    }),
+    db.query.projectLearnings.findMany({
+      where: and(
+        eq(projectLearnings.organizationId, project.organizationId),
+        eq(projectLearnings.projectId, project.id),
+        isNull(projectLearnings.deletedAt),
+      ),
+      orderBy: [asc(projectLearnings.pinOrder), desc(projectLearnings.createdAt)],
+      limit: 20,
     }),
   ]);
 
@@ -173,6 +183,13 @@ export async function buildMcpContext(args: {
       id: p.id,
       title: p.title,
       url: appUrl(`/plans/${p.id}`),
+    })),
+    learnings: learnings.map((l) => ({
+      id: l.id,
+      body: l.body,
+      pinned: l.pinOrder !== null,
+      createdAt: l.createdAt.toISOString(),
+      createdByName: l.createdByName,
     })),
     meta: {
       responseTimeMs: Date.now() - started,

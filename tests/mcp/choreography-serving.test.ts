@@ -11,20 +11,49 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 
 // Mock the DB before importing the operation module. The mock returns
 // a chainable builder whose final `.where(...)` resolves to a fixture row set.
+// Skill rows and custom-choreography rows are routed by the table object
+// passed to `.from(...)` — the `_.name` field of each Drizzle PgTable is
+// the table name string, so we match on that.
 const mockSkillRows = vi.hoisted(() => ({
   rows: [
     { slug: "release-notes-generator", enabled: true, projectId: null as string | null },
   ],
 }));
 
-vi.mock("@/db/client", () => {
-  const builder = {
-    from: () => builder,
-    where: () => Promise.resolve(mockSkillRows.rows),
-  };
+const mockCustomChoreographyRows = vi.hoisted(() => ({
+  rows: [] as Array<{
+    slug: string;
+    name: string;
+    version: string;
+    body: string;
+    projectId: string | null;
+  }>,
+}));
+
+vi.mock("@/db/client", async () => {
+  const { getTableName } = await import("drizzle-orm");
+  function buildFor(table: unknown) {
+    let tableName: string | undefined;
+    try {
+      tableName = getTableName(table as Parameters<typeof getTableName>[0]);
+    } catch {
+      tableName = undefined;
+    }
+    return {
+      from: (t: unknown) => buildFor(t),
+      where: () => {
+        if (tableName === "custom_choreographies") {
+          return Promise.resolve(mockCustomChoreographyRows.rows);
+        }
+        return Promise.resolve(mockSkillRows.rows);
+      },
+    };
+  }
   return {
     db: {
-      select: () => builder,
+      select: () => ({
+        from: (t: unknown) => buildFor(t),
+      }),
     },
   };
 });

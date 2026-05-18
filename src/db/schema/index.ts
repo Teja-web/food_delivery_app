@@ -30,5 +30,8 @@ export * from "./deployment";
 export * from "./test-run";
 export * from "./adapter-binding";
 export * from "./gate-evaluation";
+export * from "./project-learning";
+export * from "./repo-policy";
+export * from "./custom-choreography";
 
 export * from "./relations";

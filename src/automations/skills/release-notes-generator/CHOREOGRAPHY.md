@@ -1,6 +1,13 @@
 ---
 name: Release Notes Generator
 description: Draft release notes for a coznt-tracked project — features shipped, bug fixes, test summary, deployment checklist, rollback plan. Use when: "release notes", "changelog", "what shipped", "PR rollup", end-of-sprint, pre-deploy. Voice triggers (speech-to-text aliases): "release notes", "rel notes", "ship notes", "what's in the release".
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_pipeline_status
+  - mcp__coznt__get_requirements
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
 coznt:
   version: 1.0.0
   triggers:

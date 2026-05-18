@@ -55,6 +55,17 @@ import {
   runListChoreographies,
 } from "./tools/list-choreographies.js";
 import {
+  listCustomChoreographiesInput,
+  runListCustomChoreographies,
+} from "./tools/list-custom-choreographies.js";
+import { searchAuditInput, runSearchAudit } from "./tools/search-audit.js";
+import {
+  searchLearningsInput,
+  runSearchLearnings,
+} from "./tools/search-learnings.js";
+import { searchOutcomesInput, runSearchOutcomes } from "./tools/search-outcomes.js";
+import { searchPlansInput, runSearchPlans } from "./tools/search-plans.js";
+import {
   syncChoreographiesInput,
   runSyncChoreographies,
 } from "./tools/sync-choreographies.js";
@@ -466,6 +477,58 @@ export const tools = [
     ].join(" "),
     schema: syncChoreographiesInput,
     run: runSyncChoreographies,
+  }),
+  tool({
+    name: "search_learnings",
+    description: [
+      "Knowledge: semantic + keyword search over project learnings. Use when",
+      "the user asks 'what did we decide about X?' or 'have we noted Y?'.",
+      "Returns ranked hits with body, pinned flag, project, and relevance",
+      "score. Defaults to hybrid mode (vector + BM25); pass `mode: \"vector\"`",
+      "or `mode: \"keyword\"` for single-signal search.",
+    ].join(" "),
+    schema: searchLearningsInput,
+    run: runSearchLearnings,
+  }),
+  tool({
+    name: "search_plans",
+    description: [
+      "Knowledge: semantic + keyword search over plans (ADRs, features,",
+      "stories, release_plans, etc.). 'Where was that ADR about authn?'",
+      "Filter by `kinds` and/or `statuses` to narrow.",
+    ].join(" "),
+    schema: searchPlansInput,
+    run: runSearchPlans,
+  }),
+  tool({
+    name: "search_outcomes",
+    description: [
+      "Knowledge: keyword search over skill_outcomes.rationale. 'Have we",
+      "seen this failure before?' Filter by verdicts and time range.",
+    ].join(" "),
+    schema: searchOutcomesInput,
+    run: runSearchOutcomes,
+  }),
+  tool({
+    name: "search_audit",
+    description: [
+      "Knowledge: keyword search over audit_logs (summary + action).",
+      "CISO-style 'show me everything around the v2.3 incident' queries.",
+      "Filter by actorType and time range. Ranked by recency.",
+    ].join(" "),
+    schema: searchAuditInput,
+    run: runSearchAudit,
+  }),
+  tool({
+    name: "list_custom_choreographies",
+    description: [
+      "Distribution: return the manifest of customer-authored choreographies",
+      "for the bound project (project-scoped + org-wide). Companion to",
+      "`list_choreographies` which returns platform-shipped entries.",
+      "Read-only; available in every phase.",
+    ].join(" "),
+    schema: listCustomChoreographiesInput,
+    run: runListCustomChoreographies,
   }),
 ] as const;
 

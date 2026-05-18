@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/api-keys";
 import type { ApiKeyRow } from "./serialize";
+import { HostConfigPanel } from "./HostConfigPanel";
 
 const STATUS_COLOR: Record<ApiKeyRow["status"], string> = {
   active: "text-green-600",
@@ -88,20 +89,14 @@ function ConnectPanel({ revealedKey }: { revealedKey: string | null }) {
           ) : null}
 
           <p className="text-[11px] text-muted-foreground">
-            Full reference:{" "}
+            CLI reference:{" "}
             <Link
               href="https://github.com/coznt/coznt/blob/main/docs/operate/cli.md"
               className="underline hover:text-foreground"
             >
               docs/operate/cli.md
-            </Link>{" "}
-            · MCP verification:{" "}
-            <Link
-              href="https://github.com/coznt/coznt/blob/main/docs/operate/mcp-clients/verify.md"
-              className="underline hover:text-foreground"
-            >
-              docs/operate/mcp-clients/verify.md
             </Link>
+            . If you can&apos;t run the CLI on a host, use the manual config panel below.
           </p>
         </div>
       </div>
@@ -176,6 +171,8 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
       ) : null}
 
       <ConnectPanel revealedKey={revealedPlaintext} />
+
+      <HostConfigPanel plaintext={revealedPlaintext} />
 
       <form onSubmit={handleMint} className="grid grid-cols-[1fr_180px_auto] items-end gap-3 rounded border p-4">
         <div className="space-y-1">

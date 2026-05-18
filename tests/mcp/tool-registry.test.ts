@@ -118,6 +118,14 @@ describe("MCP tool registry", () => {
       expect(names.has(v), `missing Tier-4 verb: ${v}`).toBe(true);
     }
   });
+
+  it("includes all Tier 5 (knowledge) verbs", () => {
+    const names = new Set(tools.map((t) => t.name));
+    const tier5 = ["search_learnings", "search_plans", "search_outcomes", "search_audit"];
+    for (const v of tier5) {
+      expect(names.has(v), `missing Tier-5 verb: ${v}`).toBe(true);
+    }
+  });
 });
 
 describe("MCP resource registry", () => {

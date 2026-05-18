@@ -7,6 +7,7 @@ import type { Plan } from "@/db/schema/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
 import type { Skill } from "@/db/schema/skill";
+import type { ProjectLearning } from "@/db/schema/project-learning";
 import type { WorkItem, WorkItemKind, WorkItemSource } from "@/db/schema/work-item";
 import type { PhaseGuidance } from "@/domain/phases";
 import type {
@@ -131,11 +132,13 @@ export interface CockpitClient {
   };
   /**
    * Per-project trust surface — recent skill outcomes + active autonomy
-   * policy matrix. Closes UI-audit P1.5 + P1.7.
+   * policy matrix + project learnings. Closes UI-audit P1.5 + P1.7 and
+   * the gstack-knowledge gap-1.
    */
   trust: {
     outcomes: ProjectOutcomeRow[];
     policy: PolicyMatrixCell[];
+    learnings: ProjectLearning[];
   };
 }
 

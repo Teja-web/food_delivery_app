@@ -46,7 +46,7 @@ For organizations that have to ship faster *and* show their work.
 
 ### What coznt is not
 
-- **Not a code-generation tool.** Cursor / Devin / Copilot already do that. Coznt sits above them — it governs what their output is allowed to do.
+- **Not a code-generation tool.** Cursor, Devin, and Copilot already make individual developers dramatically faster — Coznt assumes they're in the loop. It's the layer above that turns their output into safe organizational delivery: phase context, policy, earned autonomy, audit trail.
 - **Not a work tracker.** Jira / Linear / Asana are systems of record. Coznt ingests them.
 - **Not a pipeline runner.** GitLab / Azure DevOps already do that. Coznt observes deploys and routes governance.
 - **Not a Cursor plugin.** MCP is one *input* surface among many (HTTP API, CLI, webhooks). Never the primary one.

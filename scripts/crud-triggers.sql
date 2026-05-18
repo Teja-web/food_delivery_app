@@ -78,7 +78,8 @@ DECLARE
 BEGIN
   FOR tbl IN
     SELECT * FROM (VALUES
-      ('entity_notes', 'entityNote')
+      ('entity_notes', 'entityNote'),
+      ('project_learnings', 'projectLearning')
     ) AS t(table_name, entity_type)
   LOOP
     trigger_name := 'trg_crud_' || tbl.table_name;

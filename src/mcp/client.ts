@@ -38,12 +38,19 @@ export class CozntClient {
   constructor(private readonly cfg: CozntClientConfig) {}
 
   async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.cfg.apiKey}`,
+      "Content-Type": "application/json",
+    };
+    // Repo policy enforcement (Change `add-per-repo-trust-policy`): when the
+    // CLI / MCP launcher set `COZNT_REPO_URL`, forward it on every request
+    // so server-side write routes can resolve the per-repo policy.
+    const repoUrl = process.env.COZNT_REPO_URL;
+    if (repoUrl) headers["X-Coznt-Repo-Url"] = repoUrl;
+
     const res = await fetch(`${this.cfg.baseUrl}${path}`, {
       method,
-      headers: {
-        Authorization: `Bearer ${this.cfg.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
