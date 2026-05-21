@@ -3,11 +3,13 @@
  *
  * Inbound webhook receiver. Two auth paths coexist:
  *
- *   1. Bearer token   — the integrator pastes a coznt API key into GitHub.
- *                       Org context is the api key's org.
- *   2. HMAC signature — GitHub App deliveries. Verified against
- *                       COZNT_GITHUB_WEBHOOK_SECRET; org resolved from the
- *                       installation id on the payload.
+ *   1. Bearer token   — the integrator pastes a coznt API key into the
+ *                       webhook headers. Org context is the API key's org.
+ *   2. HMAC signature — verified against COZNT_GITHUB_WEBHOOK_SECRET.
+ *                       Org resolution tries `installation.id` first (App
+ *                       deliveries), then falls back to `repository.full_name`
+ *                       against `adapter_bindings` so plain repo/org-level
+ *                       webhooks work without a GitHub App install.
  *
  * The route is intentionally thin: it dedupes on `(source, externalId)`
  * and inserts into `webhook_events`. The PG trigger fires `webhook_event:insert`
@@ -20,6 +22,7 @@ import { webhookEvents, WEBHOOK_SOURCES, type WebhookSource } from "@/db/schema/
 import {
   GITHUB_SIGNATURE_HEADER,
   resolveOrgFromInstallation,
+  resolveOrgFromRepo,
   verifyGithubSignature,
 } from "@/lib/integrations/github-webhook-hmac";
 import { nanoid } from "nanoid";
@@ -44,6 +47,17 @@ function readHeader(req: Request, names: string[]): string | undefined {
     if (v) return v;
   }
   return undefined;
+}
+
+/** Extract host from a GitHub repo URL so GHE webhooks resolve to the right
+ * adapter_binding (which stores externalKey as `<host>/<owner>/<repo>`). */
+function hostFromHtmlUrl(htmlUrl: string | undefined): string | null {
+  if (!htmlUrl) return null;
+  try {
+    return new URL(htmlUrl).host;
+  } catch {
+    return null;
+  }
 }
 
 interface InsertParams {
@@ -107,17 +121,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ source:
         ? (payload.installation as { id?: number | string })
         : null;
     const installationId = installation?.id != null ? String(installation.id) : null;
-    if (!installationId) {
-      return Response.json(
-        { error: "Signed webhook missing installation id" },
-        { status: 400 },
-      );
+
+    // App deliveries: resolve via installation.id. Repo/org-level webhooks
+    // (no App installed): fall back to repository.full_name against
+    // adapter_bindings so the integrator just needs a binding row, not an App.
+    let orgId: string | null = null;
+    if (installationId) {
+      orgId = await resolveOrgFromInstallation(installationId);
+    } else {
+      const repo =
+        payload.repository && typeof payload.repository === "object"
+          ? (payload.repository as { full_name?: string; html_url?: string })
+          : null;
+      const fullName = typeof repo?.full_name === "string" ? repo.full_name : null;
+      if (fullName) {
+        const host = hostFromHtmlUrl(repo?.html_url) ?? "github.com";
+        orgId = await resolveOrgFromRepo(fullName, host);
+      }
     }
-    const orgId = await resolveOrgFromInstallation(installationId);
     if (!orgId) {
-      // Honest 404: we don't have a binding for this installation. Drop
-      // silently from the App's perspective by returning success — replay
-      // would just be noise.
+      // No binding: drop silently. Replaying would just be noise. This covers
+      // both unknown installations and unbound repos (incl. App meta events
+      // like `github_app_authorization` that legitimately omit installation).
       return Response.json({ status: "no-binding" });
     }
     const event = readHeader(req, EVENT_HEADERS.github) ?? "unknown";

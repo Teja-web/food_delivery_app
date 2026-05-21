@@ -57,3 +57,37 @@ export async function resolveOrgFromInstallation(
     .limit(1);
   return row?.organizationId ?? null;
 }
+
+/**
+ * Resolve the org for an HMAC-authenticated repo-level (non-App) webhook.
+ *
+ * Repo and org webhooks configured via Settings → Webhooks sign deliveries
+ * with `x-hub-signature-256` but the payload has no `installation.id` — the
+ * only stable identifier is `repository.full_name`. We map that to the
+ * `adapter_bindings.externalKey` row (`<host>/<owner>/<repo>`) and read the
+ * org from there.
+ *
+ * `host` defaults to `github.com` and should be overridden for GHE.
+ * Returns null when no binding row matches.
+ */
+export async function resolveOrgFromRepo(
+  fullName: string,
+  host: string = "github.com",
+): Promise<string | null> {
+  if (!fullName) return null;
+  const { db } = await import("@/db/client");
+  const { adapterBindings } = await import("@/db/schema/adapter-binding");
+  const { and, eq } = await import("drizzle-orm");
+  const externalKey = `${host}/${fullName}`;
+  const [row] = await db
+    .select({ organizationId: adapterBindings.organizationId })
+    .from(adapterBindings)
+    .where(
+      and(
+        eq(adapterBindings.provider, "github"),
+        eq(adapterBindings.externalKey, externalKey),
+      ),
+    )
+    .limit(1);
+  return row?.organizationId ?? null;
+}
