@@ -12,8 +12,28 @@
  *   - Context tools: read + session telemetry
  *   - Discipline writes: only where coznt is the system of record
  *
- * Excluded by design (let GitHub/Jira stay the source of truth, observe
- * via webhook): create-pr, push-to-external, setup-workspace.
+ * Excluded by design — coznt writes governance metadata (verdicts,
+ * check-runs, approvals, ledger rows) but never the underlying work
+ * product. The autonomy ledger is only credible if the grader is not
+ * also the actor for the thing it grades.
+ *
+ *   - create-pr        — the agent/dev opens the PR; coznt grades it.
+ *                        Posting check-runs back is allowed (governance
+ *                        metadata about existing work), creating the PR
+ *                        itself is not (that is the work product).
+ *   - push-to-external — Jira / Confluence own their record. Reverse-sync
+ *                        from coznt creates a drift problem with no clean
+ *                        reconciliation; the inbound webhook is the only
+ *                        sync direction.
+ *   - setup-workspace  — the `coznt connect` CLI does this in the open,
+ *                        with a diff the developer can see. A server-side
+ *                        MCP verb would hide the side-effect inside a
+ *                        tool call.
+ *
+ * Rule of thumb: if it changes a file on the dev's machine, a branch in
+ * their repo, or a ticket in their tracker, it belongs to the agent/dev
+ * surface. If it changes a verdict, an approval, or a ledger row, it
+ * belongs here.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
