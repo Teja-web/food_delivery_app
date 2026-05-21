@@ -247,13 +247,29 @@ You land on the project cockpit at `/projects/[id]` with nine tabs:
 
 ## B7. Point GitHub at the webhook
 
-In your GitHub repo: **Settings → Webhooks → Add webhook**
+You have two options. **A GitHub App is not required** — a repo (or org) webhook is enough for the deterministic loop. Use the App only when you also want PR check-runs (red/green merge gate).
 
-- **Payload URL**: `https://<your-host>/api/v1/webhooks/github`
-- **Content type**: `application/json`
-- **Events**: at minimum send **Pull requests** and **Deployment statuses**. Subscribe to everything if you want richer signal.
+### Option 1 — Repo/org webhook (no App)
+
+1. Generate a shared secret and put it in `.env`:
+
+   ```bash
+   COZNT_GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 32)
+   ```
+
+2. In your GitHub repo: **Settings → Webhooks → Add webhook**
+   - **Payload URL**: `https://<your-host>/api/v1/webhooks/github`
+   - **Content type**: `application/json`
+   - **Secret**: the value of `COZNT_GITHUB_WEBHOOK_SECRET`
+   - **Events**: at minimum send **Pull requests** and **Deployment statuses**. Subscribe to everything for richer signal.
+
+3. Make sure the `adapter_bindings` row exists for the repo (B6 writes it automatically when you create the project). The route resolves the org via `repository.full_name` → `adapter_bindings.external_key` (`<host>/<owner>/<repo>`).
 
 For local dev, use `ngrok http 3029` (or similar) and the tunnel URL as the payload URL.
+
+### Option 2 — GitHub App (adds PR check-runs)
+
+See [`docs/operate/github-app.md`](operate/github-app.md) for the full registration walkthrough. In short: register an App, install it on the org/repo, set `COZNT_GITHUB_APP_ID` + `COZNT_GITHUB_APP_PRIVATE_KEY` + `COZNT_GITHUB_WEBHOOK_SECRET`, and store the install's `installationId` on the `adapter_bindings.config` row. The route resolves the org via `installation.id` and `postCheckRun` becomes active.
 
 ## B8. What happens when a PR ships
 
@@ -311,12 +327,16 @@ Commit the generated `drizzle/00XX_*.sql` and the updated `drizzle/meta/_journal
 
 ## C2. Troubleshooting
 
-**Webhook fires but nothing shows up in the project.** The binding row probably wasn't created (older projects, or a non-GitHub URL). Check `adapter_bindings` for a row with `provider='github'` and `external_key='github.com/<owner>/<repo>'`. Insert manually if needed:
+**Webhook fires but nothing shows up in the project.** The binding row probably wasn't created (older projects, or a non-GitHub URL). The route returns `200 {"status":"no-binding"}` in this case (silent drop — no 4xx in GitHub's delivery history). Check `adapter_bindings` for a row with `provider='github'` and `external_key='github.com/<owner>/<repo>'`. Insert manually if needed:
 
 ```sql
 insert into coznt.adapter_bindings (id, organization_id, project_id, provider, external_key)
 values (gen_random_uuid()::text, '<org>', '<project>', 'github', 'github.com/<owner>/<repo>');
 ```
+
+**Webhook returns 401 `Invalid webhook signature`.** The secret in `COZNT_GITHUB_WEBHOOK_SECRET` doesn't match what you set in the GitHub UI. Regenerate, update both sides, and click **Redeliver** on a recent delivery to test.
+
+**Webhook returns 200 `no-binding` but `adapter_bindings` looks right.** The host probably mismatches — for GHE the row needs `external_key='ghe.acme.com/<owner>/<repo>'`, not `github.com/...`. The route reads host from `repository.html_url`.
 
 **Worker isn't draining the queue.** `pnpm dev` runs the worker inline. If you're running the Next server alone (`pnpm next dev`), start the worker too: `pnpm tsx scripts/worker.ts`.
 
