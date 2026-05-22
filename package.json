@@ -7,7 +7,7 @@
     "lint": "eslint src/",
     "lint:choreographies": "tsx scripts/lint-choreographies.ts --warn-missing",
     "dev": "next dev -H 0.0.0.0 --port 3029",
-    "prebuild": "tsx scripts/mcp-pack.ts",
+    "prebuild": "tsx scripts/mcp-pack.ts && tsx scripts/cli-pack.ts",
     "build": "next build",
     "start": "concurrently --kill-others --names web,worker --prefix-colors blue,green \"next start --port 3029\" \"node --import tsx scripts/worker.ts\"",
     "start:server": "next start --port 3029",
@@ -38,7 +38,9 @@
     "mcp": "tsx src/mcp/bin.ts",
     "mcp:build": "tsc -p tsconfig.mcp.json && chmod +x dist/mcp/bin.js",
     "mcp:pack": "tsx scripts/mcp-pack.ts",
-    "cli": "tsx src/cli/cli.ts"
+    "cli": "tsx src/cli/cli.ts",
+    "cli:build": "tsc -p tsconfig.cli.json && chmod +x dist/cli/cli.js",
+    "cli:pack": "tsx scripts/cli-pack.ts"
   },
   "bin": {
     "coznt-mcp": "./src/mcp/bin.ts",

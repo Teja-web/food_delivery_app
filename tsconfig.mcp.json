@@ -23,6 +23,7 @@
   "include": [
     "src/mcp/**/*.ts",
     "src/db/schema/plan-kinds.ts",
-    "src/lib/pipelines/templates.ts"
+    "src/lib/pipelines/templates.ts",
+    "src/lib/mcp/version.ts"
   ]
 }

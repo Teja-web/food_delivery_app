@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { HOST_SHAPES, type HostName } from "@/lib/mcp/host-config";
+import { HOST_SHAPES, type HostName } from "../../../lib/mcp/host-config.js";
 import type { EditorName } from "../editor-detect.js";
 import type { CozntMcpEntry, WriteResult, WriterContext } from "./types.js";
 

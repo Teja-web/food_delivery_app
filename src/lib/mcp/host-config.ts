@@ -18,7 +18,7 @@
  * Pure module — no I/O. Isomorphic, safe to import client- or server-side.
  */
 
-import { MCP_VERSION } from "./version";
+import { MCP_VERSION } from "./version.js";
 
 export const SUPPORTED_HOSTS = [
   "claude-code",

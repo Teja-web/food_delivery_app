@@ -72,7 +72,7 @@ async function request<T>(
   if (!res.ok) {
     let detail = "";
     try {
-      const errBody = await res.json();
+      const errBody = (await res.json()) as { error?: string; message?: string };
       detail = errBody?.error ?? errBody?.message ?? "";
     } catch {
       detail = await res.text().catch(() => "");

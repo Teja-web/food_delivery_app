@@ -12,6 +12,7 @@
 
 import { runSync } from "./commands/sync.js";
 import { runConnect } from "./commands/connect.js";
+import { MCP_VERSION } from "../lib/mcp/version.js";
 
 interface ParsedArgs {
   subcommand: string | null;
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
   if (args.flags.has("version") || args.subcommand === "version") {
-    console.log("coznt 0.1.0");
+    console.log(MCP_VERSION);
     process.exit(0);
   }
 
