@@ -95,40 +95,32 @@ Steps A1 → A4 cover the IDE side (top half of the diagram). **A7 — Walking t
   - **Cursor** (also covers `cursor-agent`)
   - **Codex** (also covers `codex exec`)
   - **Continue**
-- An **API key** from the coznt UI: visit `<your-coznt-url>/api-keys`, click **Create key**, and bind it to the project you'll work on. The plaintext is shown once — copy it.
-- The **coznt MCP server**, served as a tarball by your coznt deployment itself at `<your-coznt-url>/install/coznt-mcp/latest` (always redirects to the deployment's current pinned version). Your editor pulls it via `npx -y <that-url>` on first use — no separate install step, no public npm. If your platform team has also distributed an internal **`coznt` CLI** (the `connect` / `sync` / `status` helper), grab that too — it's optional but smoother for first-time setup.
+- An **API key** from the coznt UI: visit `<your-coznt-url>/api-keys`, pick the **Project** to bind the key to, set a **Name** (e.g. `cursor-laptop`) and optional expiry, click **Mint key**, and copy the plaintext immediately — it's shown once. Every key is pinned to exactly one project; the MCP session auto-binds on first tool call. If you work across multiple projects, mint one key per project (run `coznt connect` in each repo).
+- The **coznt MCP server** and the **`coznt` CLI** — both served as tarballs by your coznt deployment itself, at `<your-coznt-url>/install/coznt-mcp/latest` and `<your-coznt-url>/install/coznt-cli/latest` respectively (each redirects to the deployment's current pinned version). No public npm, no separate install step. The editor pulls the MCP server via `npx -y <mcp-url>` on first use. Install the CLI once with `npm i -g <cli-url>` (or invoke ad-hoc with `npx -y <cli-url> <command>`). Both are required: the MCP server is what the AI talks to on every turn; the CLI does the local repo wiring (`coznt connect`) and the choreography sync (`coznt sync`).
 
 ## A2. Connect your editor or CLI
 
-Three paths — pick whichever fits your workflow. All three end with the same MCP entry in your editor's config, pointing at `npx -y <your-coznt-url>/install/coznt-mcp/latest`.
+Goal: bind your repo to a coznt project, and wire the editor's MCP config to talk to the daemon.
 
-**Path 1 — In-UI host config panel (zero install).** Visit `<your-coznt-url>/api-keys`, mint a key, and open the **Host Config** panel. Pick your host (Claude Code / Cursor / Codex / Continue). The panel renders a JSON snippet pre-filled with your coznt URL, the install endpoint (`npx -y <coznt>/install/coznt-mcp-<version>.tgz`), and the API key. Copy → paste into the editor's MCP config (or click **Download** for the file). First time you start the editor, `npx` fetches the tarball, caches it, and runs it. No CLI required.
-
-**Path 2 — `coznt connect` CLI.** If your platform team has handed you the internal `coznt` CLI, from inside your project repo:
+**Do this from inside your project repo:**
 
 ```bash
+npm i -g <your-coznt-url>/install/coznt-cli/latest    # one-time, ~13 KB
 coznt connect
 ```
 
-The command:
-1. Auto-detects your editor by scanning for `.claude/`, `.cursor/`, `.codex/`, or `.continue/` markers (prompts if multiple, asks if none).
+`coznt connect`:
+
+1. Auto-detects your editor by scanning for `.claude/`, `.cursor/`, `.codex/`, `.continue/` markers (prompts if multiple, asks if none). Override with `--editor=<host>`.
 2. Asks for the coznt server URL and your API key.
 3. Picks the project to bind (fuzzy-matches by slug, name, or id).
-4. Writes two files:
-   - The editor's MCP config (e.g. `.cursor/mcp.json`, `.claude/mcp.json`, `.codex/mcp.json`) pointing at the same install URL.
-   - `.coznt/config.json` recording the project binding and server URL.
+4. Writes the editor's MCP config (pointing at `npx -y <your-coznt-url>/install/coznt-mcp/latest`) and `.coznt/config.json` (project binding + server URL).
 
-Override detection with `--editor=<host>` if needed.
+Restart the editor. Sanity-check by asking the agent to call `get_my_context` — it should return your project, current phase, allowed tools, active rules, and your skills' autonomy levels.
 
-**Path 3 — Raw `npx`.** If you just want to verify the install endpoint works before wiring up the editor:
+> **No-CLI fallback.** If you can't install the CLI (locked-down machine, etc.), visit `<your-coznt-url>/api-keys` and use the **Host Config** panel: it renders the same MCP config JSON pre-filled with your coznt URL, install endpoint, and API key. Copy → paste into the editor's config file. You'll still need to run `coznt sync` later (or skip choreographies entirely).
 
-```bash
-npx -y <your-coznt-url>/install/coznt-mcp/latest --version
-```
-
-This prints the MCP version and exits — confirms your coznt deployment is serving the tarball and `npx` can fetch it. If this fails, the host-config panel will fail too.
-
-Restart your editor. The `coznt-mcp` server should appear in its MCP tool list. Sanity-check by asking the agent to call `get_my_context` — it should return your project, current phase, allowed tools, active rules, and your skills' autonomy levels.
+> **If it doesn't work.** Verify both endpoints with `npx -y <your-coznt-url>/install/coznt-mcp/latest --version` and `npx -y <your-coznt-url>/install/coznt-cli/latest --version`. If either fails, check that your coznt URL is reachable and that the deployment ran `pnpm build` (which populates `public/install/`).
 
 ## A3. Sync the project's choreographies
 
@@ -148,7 +140,7 @@ A choreography is the **playbook**, not the prompt. It tells the AI *when* to ca
 
 ## A4. Your first AI turn
 
-Every agent turn starts with `get_my_context`. A typical response (shape is illustrative):
+Every API key is pinned to exactly one project (see A1), so the **MCP session auto-binds on the first tool call** — the server resolves the key's project via `GET /api/v1/mcp/me` and caches it for the life of the MCP process. The agent never has to call a binding verb; `get_my_context` is genuinely the first thing it runs. A typical `get_my_context` response (shape is illustrative):
 
 ```json
 {

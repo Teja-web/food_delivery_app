@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/api-keys";
-import type { ApiKeyRow } from "./serialize";
+import type { ApiKeyRow, ProjectOption } from "./serialize";
 import { HostConfigPanel } from "./HostConfigPanel";
 
 const STATUS_COLOR: Record<ApiKeyRow["status"], string> = {
@@ -104,10 +104,17 @@ function ConnectPanel({ revealedKey }: { revealedKey: string | null }) {
   );
 }
 
-export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
+export function ApiKeysClient({
+  initialKeys,
+  projects,
+}: {
+  initialKeys: ApiKeyRow[];
+  projects: ProjectOption[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
+  const [projectId, setProjectId] = useState<string>(projects[0]?.id ?? "");
   const [expiresInDays, setExpiresInDays] = useState("");
   const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +126,10 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
       setError("Name is required");
       return;
     }
+    if (!projectId) {
+      setError("Pick a project");
+      return;
+    }
     const days = expiresInDays.trim() ? Number(expiresInDays) : null;
     if (days !== null && (!Number.isFinite(days) || days <= 0)) {
       setError("Expiration must be a positive number of days");
@@ -128,7 +139,7 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
 
     startTransition(async () => {
       try {
-        const result = await mintApiKeyAction({ name: name.trim(), expiresAt });
+        const result = await mintApiKeyAction({ name: name.trim(), projectId, expiresAt });
         setRevealedPlaintext(result.plaintext);
         setName("");
         setExpiresInDays("");
@@ -174,34 +185,68 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
 
       <HostConfigPanel plaintext={revealedPlaintext} />
 
-      <form onSubmit={handleMint} className="grid grid-cols-[1fr_180px_auto] items-end gap-3 rounded border p-4">
-        <div className="space-y-1">
-          <Label htmlFor="api-key-name">Name</Label>
-          <Input
-            id="api-key-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. github-ci-runner"
-            disabled={pending}
-          />
+      {projects.length === 0 ? (
+        <div className="rounded border border-amber-300 bg-amber-50/40 p-4 text-sm dark:bg-amber-950/40">
+          <div className="font-medium text-amber-900 dark:text-amber-200">
+            No projects yet.
+          </div>
+          <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
+            Keys are bound to a project. Create one at{" "}
+            <Link href="/projects/new" className="underline">
+              /projects/new
+            </Link>{" "}
+            before minting a key.
+          </p>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="api-key-expiry">Expires in (days)</Label>
-          <Input
-            id="api-key-expiry"
-            type="number"
-            min="1"
-            value={expiresInDays}
-            onChange={(e) => setExpiresInDays(e.target.value)}
-            placeholder="never"
-            disabled={pending}
-          />
-        </div>
-        <Button type="submit" disabled={pending}>
-          {pending ? "Minting…" : "Mint key"}
-        </Button>
-        {error ? <div className="col-span-3 text-sm text-destructive">{error}</div> : null}
-      </form>
+      ) : (
+        <form
+          onSubmit={handleMint}
+          className="grid grid-cols-[1fr_minmax(0,1fr)_140px_auto] items-end gap-3 rounded border p-4"
+        >
+          <div className="space-y-1">
+            <Label htmlFor="api-key-name">Name</Label>
+            <Input
+              id="api-key-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. cursor-laptop"
+              disabled={pending}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="api-key-project">Project</Label>
+            <select
+              id="api-key-project"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={pending}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.slug})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="api-key-expiry">Expires in (days)</Label>
+            <Input
+              id="api-key-expiry"
+              type="number"
+              min="1"
+              value={expiresInDays}
+              onChange={(e) => setExpiresInDays(e.target.value)}
+              placeholder="never"
+              disabled={pending}
+            />
+          </div>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Minting…" : "Mint key"}
+          </Button>
+          {error ? <div className="col-span-4 text-sm text-destructive">{error}</div> : null}
+        </form>
+      )}
 
       {initialKeys.length === 0 ? (
         <div className="rounded border bg-muted/30 p-8 text-sm text-muted-foreground">
@@ -212,6 +257,7 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
           <thead className="text-left text-muted-foreground">
             <tr>
               <th className="border-b py-2 font-medium">Name</th>
+              <th className="border-b py-2 font-medium">Project</th>
               <th className="border-b py-2 font-medium">Prefix</th>
               <th className="border-b py-2 font-medium">Status</th>
               <th className="border-b py-2 font-medium">Last used</th>
@@ -223,6 +269,15 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
             {initialKeys.map((k) => (
               <tr key={k.id} className="border-b">
                 <td className="py-2">{k.name}</td>
+                <td className="py-2 text-xs text-muted-foreground">
+                  {k.projectSlug ? (
+                    <Link href={`/projects/${k.projectId}`} className="hover:underline">
+                      {k.projectName}
+                    </Link>
+                  ) : (
+                    <span className="italic">{k.projectName}</span>
+                  )}
+                </td>
                 <td className="py-2 font-mono text-xs">{k.prefix}…</td>
                 <td className={`py-2 ${STATUS_COLOR[k.status]}`}>{k.status}</td>
                 <td className="py-2 text-xs text-muted-foreground">

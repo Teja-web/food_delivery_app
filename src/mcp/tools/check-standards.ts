@@ -60,7 +60,7 @@ export async function runCheckStandards(client: CozntClient, input: CheckStandar
   bumpToolCall();
   const projectId = input.projectId ?? getSessionProject()?.id;
   if (!projectId) {
-    throw new Error("No active project. Call `set_project` first, or pass `projectId`.");
+    throw new Error("No active project. API key resolution failed — verify COZNT_API_KEY is valid, or pass `projectId` explicitly.");
   }
   if (!input.plan && !input.action) {
     throw new Error("Provide either `plan` or `action` to check.");

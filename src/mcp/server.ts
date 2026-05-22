@@ -49,7 +49,7 @@ import { checkLocalPhase, type Phase } from "./phase-data.js";
 import { readConventions } from "./resources/conventions.js";
 import { readHistory } from "./resources/history.js";
 import { readMyTasks } from "./resources/my-tasks.js";
-import { getSessionProject } from "./session.js";
+import { getSessionProject, setSessionProject, type SessionProject } from "./session.js";
 import { advancePhaseInput, runAdvancePhase } from "./tools/advance-phase.js";
 import { checkStandardsInput, runCheckStandards } from "./tools/check-standards.js";
 import { createRequirementInput, runCreateRequirement } from "./tools/create-requirement.js";
@@ -98,7 +98,6 @@ import { markGatePassedInput, runMarkGatePassed } from "./tools/mark-gate-passed
 import { pushRequirementsInput, runPushRequirements } from "./tools/push-requirements.js";
 import { sessionEndInput, runSessionEnd } from "./tools/session-end.js";
 import { sessionStartInput, runSessionStart } from "./tools/session-start.js";
-import { setProjectInput, runSetProject } from "./tools/set-project.js";
 import {
   submitForApprovalInput,
   runSubmitForApproval,
@@ -107,7 +106,6 @@ import {
   submitPhaseForReviewInput,
   runSubmitPhaseForReview,
 } from "./tools/submit-phase-for-review.js";
-import { switchProjectInput, runSwitchProject } from "./tools/switch-project.js";
 import {
   updateDraftRequirementInput,
   runUpdateDraftRequirement,
@@ -140,35 +138,14 @@ function tool<T extends ZodTypeAny>(def: ToolDef<T>): ToolDef<T> {
 
 export const tools = [
   tool({
-    name: "set_project",
-    description: [
-      "Bind a project to this MCP session. Fuzzy-matches the input against",
-      "id, slug, and name. Call this first when starting work, or when the",
-      "API key is org-scoped and doesn't already pin a project. Subsequent",
-      "tools auto-resolve the project from the session — no need to pass",
-      "projectId repeatedly.",
-    ].join(" "),
-    schema: setProjectInput,
-    run: runSetProject,
-  }),
-  tool({
-    name: "switch_project",
-    description: [
-      "Re-bind the session to a different project, or clear the binding by",
-      "omitting `project`. Same fuzzy-match semantics as set_project. Use",
-      "when the agent moves between projects mid-IDE without restarting.",
-    ].join(" "),
-    schema: switchProjectInput,
-    run: runSwitchProject,
-  }),
-  tool({
     name: "get_my_context",
     description: [
       "Orient at session start. Returns the active project, current phase,",
       "phase discipline (allowed/forbidden lists), active rules, available",
       "skills (with their autonomy levels), and recent ADRs.",
-      "Call this FIRST in any session — every other tool's behavior depends",
-      "on what's in the response.",
+      "Call this FIRST in any session — the session auto-binds to the project",
+      "the API key is pinned to, and every other tool's behavior depends on",
+      "what's in the response.",
     ].join(" "),
     schema: getMyContextInput,
     run: runGetMyContext,
@@ -616,6 +593,33 @@ export function createCozntMcpServer(): Server {
         content: [{ type: "text" as const, text: `Invalid input: ${parsed.error.message}` }],
         isError: true,
       };
+    }
+    // Lazy session bind: every API key is project-pinned, so the first
+    // tool call resolves the key's project and caches it in the session.
+    // After that, getSessionProject() is populated for the lifetime of
+    // the MCP process. A failure here is fatal — without a bound project
+    // no governed verb can run.
+    if (!getSessionProject()) {
+      try {
+        const { project } = await client.get<{ project: SessionProject }>("/api/v1/mcp/me");
+        setSessionProject(project);
+      } catch (err) {
+        const msg =
+          err instanceof CozntApiError
+            ? `${err.message} (status ${err.status})`
+            : err instanceof Error
+              ? err.message
+              : "unknown error";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to resolve project from API key: ${msg}. Check that COZNT_API_KEY is valid and bound to a live project.`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
     // Local phase pre-check: fail fast without a network roundtrip when
     // the current phase clearly disallows the verb. The route is still

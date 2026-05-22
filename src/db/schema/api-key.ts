@@ -2,8 +2,9 @@
  * API Key — bearer token for the generic `/api/v1` agent surface.
  *
  * `keyHash` is `sha256(plaintext)`. `prefix` is the first 8 chars of the
- * plaintext, used for fast lookups + UI display. `projectId` null = the
- * key is org-scoped (can read any project in the org).
+ * plaintext, used for fast lookups + UI display. Every key is bound to
+ * exactly one project — IDE sessions auto-bind from the key at handshake,
+ * no `set_project` round-trip needed.
  */
 
 import { text, timestamp, index, unique } from "drizzle-orm/pg-core";
@@ -16,8 +17,9 @@ export const apiKeys = cozntSchema.table(
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
-    /** null = org-wide. */
-    projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
 
     name: text().notNull(),
     prefix: text().notNull(),

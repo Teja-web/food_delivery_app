@@ -33,8 +33,6 @@ export type Phase = (typeof PHASES)[number];
  * `invoke_skill` (phase-policing happens inside the skill).
  */
 export const ALWAYS_ALLOWED = new Set<string>([
-  "set_project",
-  "switch_project",
   "get_my_context",
   "get_project_status",
   "get_requirements",

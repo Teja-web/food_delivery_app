@@ -105,9 +105,11 @@ async function main() {
       verdict: "success",
     });
 
+    // Both contexts are project-pinned now that org-scoped keys are gone.
+    // `orgCtx` is kept under that name for step 3's cross-project denial check.
     const orgCtx: ApiContext = {
       organizationId,
-      projectId: null,
+      projectId: project.id,
       apiKeyId: "smoke-out-org-key",
     };
     const projectCtx: ApiContext = {

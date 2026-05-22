@@ -36,7 +36,7 @@ function readBearerToken(req: Request): string | null {
 
 export interface ApiContext {
   organizationId: string;
-  projectId: string | null;
+  projectId: string;
   apiKeyId: string;
 }
 

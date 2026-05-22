@@ -57,15 +57,15 @@ export function checkPhaseAllowed(
   currentPhase: ProjectPhase | null,
 ): PhaseCheckResult {
   if (currentPhase === null) {
-    if (toolName === "set_project" || toolName === "get_my_context") {
+    if (toolName === "get_my_context") {
       return { allowed: true, currentPhase: null, message: "" };
     }
     return {
       allowed: false,
       currentPhase: null,
       message:
-        "No active project. Call `set_project` first to bind a project to this session, " +
-        "or pass `repoUrl` to `get_my_context` so coznt can resolve one.",
+        "No active project on the session. The API key's bound project couldn't be resolved — " +
+        "check COZNT_API_KEY, or pass `repoUrl` to `get_my_context` to disambiguate.",
     };
   }
 
@@ -107,7 +107,7 @@ export function checkPhaseAllowed(
 
 /** Return the list of tools callable in the given phase. */
 export function getAllowedTools(currentPhase: ProjectPhase | null): string[] {
-  if (currentPhase === null) return ["set_project", "get_my_context"];
+  if (currentPhase === null) return ["get_my_context"];
   const tools = [...ALWAYS_ALLOWED];
   for (const [tool, phases] of Object.entries(TOOL_PHASE_MAP)) {
     if (phases.includes(currentPhase)) tools.push(tool);

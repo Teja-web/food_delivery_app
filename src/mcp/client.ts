@@ -29,7 +29,7 @@ export function readConfig(): CozntClientConfig {
   const baseUrl = (process.env.COZNT_URL ?? "http://localhost:3029").replace(/\/$/, "");
   const apiKey = process.env.COZNT_API_KEY;
   if (!apiKey) {
-    throw new Error("COZNT_API_KEY is required (project or org-scoped API key from coznt).");
+    throw new Error("COZNT_API_KEY is required (project-pinned API key minted at /api-keys).");
   }
   return { baseUrl, apiKey };
 }

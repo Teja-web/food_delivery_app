@@ -1,0 +1,1 @@
+ALTER TABLE "coznt"."api_keys" ALTER COLUMN "project_id" SET NOT NULL;

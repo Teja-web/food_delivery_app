@@ -43,7 +43,7 @@ export function checkLocalPhase(
   currentPhase: Phase | null,
 ): LocalPhaseCheck {
   if (currentPhase === null) {
-    if (toolName === "set_project" || toolName === "get_my_context") {
+    if (toolName === "get_my_context") {
       return { allowed: true, message: "" };
     }
     if (DRAFT_VERBS.has(toolName)) {
@@ -54,7 +54,7 @@ export function checkLocalPhase(
     return {
       allowed: false,
       message:
-        "No active project. Call `set_project` first, or pass `repoUrl` to `get_my_context`.",
+        "No active project on the session. The API key's bound project couldn't be resolved — check COZNT_API_KEY.",
     };
   }
   if (ALWAYS_ALLOWED.has(toolName)) return { allowed: true, message: "" };

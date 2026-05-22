@@ -10,6 +10,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
 import { db } from "@/db/client";
 import { apiKeys, type ApiKey } from "@/db/schema/api-key";
+import { projects } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 
@@ -26,7 +27,7 @@ function hash(plaintext: string): string {
 
 export interface MintInput {
   name: string;
-  projectId?: string | null;
+  projectId: string;
   expiresAt?: Date | null;
 }
 
@@ -38,6 +39,16 @@ export interface MintResult {
 
 export async function mintApiKey(input: MintInput): Promise<MintResult> {
   const ctx = await getActionContext();
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, input.projectId), eq(projects.organizationId, ctx.organizationId)))
+    .limit(1);
+  if (!project) {
+    throw new Error("Project not found in this organization");
+  }
+
   const plaintext = generatePlaintext();
   const prefix = plaintext.slice(0, PREFIX_CHARS);
 
@@ -45,7 +56,7 @@ export async function mintApiKey(input: MintInput): Promise<MintResult> {
     .insert(apiKeys)
     .values({
       organizationId: ctx.organizationId,
-      projectId: input.projectId ?? null,
+      projectId: input.projectId,
       name: input.name,
       prefix,
       keyHash: hash(plaintext),

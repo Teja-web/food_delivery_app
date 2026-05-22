@@ -43,7 +43,8 @@ export interface SessionInfo {
   intent: string | null;
   toolCalls: number;
   /**
-   * Project bound to this session via `set_project` / `switch_project`.
+   * Project bound to this session — populated lazily on the first tool
+   * call by resolving the API key's pinned project via `/api/v1/mcp/me`.
    * Mirrors what the platform knows; routes still re-validate org match
    * and refresh phase, so a slightly-stale cache here is fine.
    */
@@ -74,16 +75,12 @@ export function startLocalSession(intent: string | null): SessionInfo {
 
 /**
  * Bind a project to the session. Lazily creates a session if none is
- * active so `set_project` can be the agent's first call (no need to
- * mandate `session_start` first).
+ * active so the server's auto-bind path (`/api/v1/mcp/me` on first tool
+ * call) doesn't need to mandate `session_start` first.
  */
 export function setSessionProject(project: SessionProject): void {
   if (!current) startLocalSession(null);
   current!.project = project;
-}
-
-export function clearSessionProject(): void {
-  if (current) current.project = null;
 }
 
 export function getSessionProject(): SessionProject | null {

@@ -10,7 +10,8 @@
  * work or deciding to advance phase.
  *
  * Ported from `/Users/ram/Projects/SDLC/apps/mcp-server/src/tools/get-project-status.ts`.
- * Resolves projectId from the local session (set by `set_project`).
+ * Resolves projectId from the local session (auto-bound from the API key's
+ * pinned project on the first tool call).
  */
 
 import { z } from "zod";
@@ -23,7 +24,7 @@ export const getProjectStatusInput = z.object({
     .string()
     .optional()
     .describe(
-      "Project id. Optional — defaults to the session's bound project (set by set_project).",
+      "Project id. Optional — defaults to the session's bound project (auto-resolved from the API key).",
     ),
 });
 
@@ -34,7 +35,7 @@ export async function runGetProjectStatus(client: CozntClient, input: GetProject
   const projectId = input.projectId ?? getSessionProject()?.id;
   if (!projectId) {
     throw new Error(
-      "No active project. Call `set_project` first, or pass `projectId` explicitly.",
+      "No active project. API key resolution failed — verify COZNT_API_KEY is valid, or pass `projectId` explicitly.",
     );
   }
   return client.get<unknown>(`/api/v1/mcp/projects/${encodeURIComponent(projectId)}/status`);

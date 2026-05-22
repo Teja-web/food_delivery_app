@@ -43,7 +43,7 @@ export async function runGetRequirements(client: CozntClient, input: GetRequirem
   bumpToolCall();
   const projectId = input.projectId ?? getSessionProject()?.id;
   if (!projectId) {
-    throw new Error("No active project. Call `set_project` first, or pass `projectId`.");
+    throw new Error("No active project. API key resolution failed — verify COZNT_API_KEY is valid, or pass `projectId` explicitly.");
   }
   const params = new URLSearchParams();
   if (input.kind) params.set("kind", input.kind);
