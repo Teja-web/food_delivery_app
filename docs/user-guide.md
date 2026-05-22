@@ -4,9 +4,83 @@ Coznt is the AI-assisted SDLC governance daemon. Your AI editor or CLI agent tal
 
 This guide has three parts:
 
-- **Part A — For developers.** You've landed on a project where coznt is already running. Wire up your editor or CLI, sync the project's choreographies, run your first governed AI turn.
+- **Part A — For developers.** You've landed on a project where coznt is already running. Wire up your editor or CLI, sync the project's choreographies, run your first governed AI turn, and walk the loop end-to-end.
 - **Part B — For operators.** You're standing coznt up for a team. Install the daemon, bind GitHub, create projects, verify the loop end-to-end.
 - **Part C — Reference.** Screens, troubleshooting, where to go next.
+
+---
+
+## The loop, in one picture
+
+Coznt is one feedback loop. The developer ships → webhooks become ledger rows → autonomy recomputes per project → the next IDE turn reads the fresh autonomy. Everything below is how to run each node.
+
+```
+                          DEVELOPER ENGAGEMENT FLOW — COZNT
+                          ─────────────────────────────────
+
+  ┌──────────────┐    install     ┌────────────────────────────────────┐
+  │  Developer   │───────────────▶│  IDE (Cursor) + Coznt MCP server   │
+  │  (IDE/CLI)   │◀───skills──────│  .coznt/skills/  ·  invoke_skill() │
+  └──────┬───────┘                └────────────────┬───────────────────┘
+         │                                         │
+         │  1. pick / create Project               │
+         ▼                                         │
+  ┌────────────────────────────────────────────┐   │
+  │  PROJECT  (phase: requirements → design →  │   │
+  │           development → testing → cicd →   │   │
+  │           monitoring)                      │   │
+  └──────┬─────────────────────────────────────┘   │
+         │                                         │
+         │  2. author work                         │
+         ▼                                         │
+  ┌────────────────────────────────────────────┐   │
+  │  PLAN  (epic | feature | story | adr |     │   │
+  │   test_plan | release_plan)                │   │
+  │   draft → in_review → approved → …         │   │
+  └──────┬─────────────────────────────────────┘   │
+         │                                         │
+         │  3. request sign-off                    │
+         ▼                                         │
+  ┌────────────────────────────────────────────┐   │
+  │  APPROVAL  (polymorphic: plan / gate /     │   │
+  │             release / work_item)           │   │
+  └──────┬─────────────────────────────────────┘   │
+         │ approved                                │
+         ▼                                         ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │  4. CODE  →  open PR  →  CI  →  deploy                         │
+  └──────┬─────────────────────────────────────────────────────────┘
+         │ GitHub / deploy webhooks
+         ▼
+  ┌────────────────────────────────────────────┐
+  │  process-webhook-event  (pgmq task)        │
+  │     ↓ deterministic assessors              │
+  │  pr_merge · pr_revert · pr_abandon ·       │
+  │  deploy_clean · deploy_incident            │
+  └──────┬─────────────────────────────────────┘
+         │ append-only
+         ▼
+  ┌────────────────────────────────────────────┐         ┌──────────────────────┐
+  │  SKILL_OUTCOMES ledger                     │────────▶│  PHASE GATE eval     │
+  │  verdict: success | rolled_back | incident │         │  approval · coverage │
+  └──────┬─────────────────────────────────────┘         │  lint · security     │
+         │ trigger → pgmq                                └──────┬───────────────┘
+         ▼                                                      │ PASS/SKIP
+  ┌────────────────────────────────────────────┐                ▼
+  │  recomputeSkillAutonomyTask                │         project advances phase
+  │  30-day window → level per (skill,project) │
+  │  0 intern · 1 junior · 2 senior · 3 princ. │
+  └──────┬─────────────────────────────────────┘
+         │
+         ▼
+  ┌────────────────────────────────────────────┐    visible to dev
+  │  PORTFOLIO / AUDIT / METRICS               │◀────────────────── back to IDE
+  │  "trust observable" — every claim links    │      autonomy upgrades unlock
+  │  to a source-of-record                     │      more skill autonomy in IDE
+  └────────────────────────────────────────────┘
+```
+
+Steps A1 → A4 cover the IDE side (top half of the diagram). **A7 — Walking the full loop** drives the bottom half: plan, approval, code, webhook, ledger, autonomy, phase advance.
 
 ---
 
@@ -22,13 +96,15 @@ This guide has three parts:
   - **Codex** (also covers `codex exec`)
   - **Continue**
 - An **API key** from the coznt UI: visit `<your-coznt-url>/api-keys`, click **Create key**, and bind it to the project you'll work on. The plaintext is shown once — copy it.
-- The **`coznt` CLI**, distributed internally by your platform team (private artifact registry, vendored install, or bundled binary). It is **not** on public npm.
+- The **coznt MCP server**, served as a tarball by your coznt deployment itself at `<your-coznt-url>/install/coznt-mcp/latest` (always redirects to the deployment's current pinned version). Your editor pulls it via `npx -y <that-url>` on first use — no separate install step, no public npm. If your platform team has also distributed an internal **`coznt` CLI** (the `connect` / `sync` / `status` helper), grab that too — it's optional but smoother for first-time setup.
 
 ## A2. Connect your editor or CLI
 
-Two paths — pick whichever fits your workflow:
+Three paths — pick whichever fits your workflow. All three end with the same MCP entry in your editor's config, pointing at `npx -y <your-coznt-url>/install/coznt-mcp/latest`.
 
-**Path 1 — `coznt connect` CLI (recommended).** From inside your project repo:
+**Path 1 — In-UI host config panel (zero install).** Visit `<your-coznt-url>/api-keys`, mint a key, and open the **Host Config** panel. Pick your host (Claude Code / Cursor / Codex / Continue). The panel renders a JSON snippet pre-filled with your coznt URL, the install endpoint (`npx -y <coznt>/install/coznt-mcp-<version>.tgz`), and the API key. Copy → paste into the editor's MCP config (or click **Download** for the file). First time you start the editor, `npx` fetches the tarball, caches it, and runs it. No CLI required.
+
+**Path 2 — `coznt connect` CLI.** If your platform team has handed you the internal `coznt` CLI, from inside your project repo:
 
 ```bash
 coznt connect
@@ -39,12 +115,18 @@ The command:
 2. Asks for the coznt server URL and your API key.
 3. Picks the project to bind (fuzzy-matches by slug, name, or id).
 4. Writes two files:
-   - The editor's MCP config (e.g. `.cursor/mcp.json`, `.claude/mcp.json`, `.codex/mcp.json`) pointing at your coznt MCP server.
+   - The editor's MCP config (e.g. `.cursor/mcp.json`, `.claude/mcp.json`, `.codex/mcp.json`) pointing at the same install URL.
    - `.coznt/config.json` recording the project binding and server URL.
 
 Override detection with `--editor=<host>` if needed.
 
-**Path 2 — In-UI host config panel.** Visit `<your-coznt-url>/api-keys`, mint a key, and open the **Host Config** panel. Pick your host, copy or download the rendered JSON, paste into your editor's MCP config file. Same result; useful when the CLI isn't installed yet.
+**Path 3 — Raw `npx`.** If you just want to verify the install endpoint works before wiring up the editor:
+
+```bash
+npx -y <your-coznt-url>/install/coznt-mcp/latest --version
+```
+
+This prints the MCP version and exits — confirms your coznt deployment is serving the tarball and `npx` can fetch it. If this fails, the host-config panel will fail too.
 
 Restart your editor. The `coznt-mcp` server should appear in its MCP tool list. Sanity-check by asking the agent to call `get_my_context` — it should return your project, current phase, allowed tools, active rules, and your skills' autonomy levels.
 
@@ -134,6 +216,94 @@ pnpm tsx scripts/demo-execution-gate.ts
 
 This prints a 7-step trace: snapshot starting state → open synthetic PR → gate evaluates → record incident → recompute autonomy → demote → confirm PRs flipped to blocked. It's the single best way to see the autonomy ledger become physical.
 
+## A7. Walking the full loop
+
+This section maps each node of the diagram above to a concrete action so you can drive the full loop yourself. Allow ~30 minutes start to finish. Pre-reqs: A1–A3 done (editor connected, choreographies synced), the project's repo has webhooks landing on coznt (see operator section B7 if not).
+
+### Step 1 — Confirm your starting state
+
+```bash
+# If you have the coznt CLI:
+coznt status               # prints project, phase, your skill autonomy levels
+
+# Otherwise, hit the install endpoint directly to verify the MCP can be fetched:
+npx -y <your-coznt-url>/install/coznt-mcp/latest --version
+```
+
+Open `<your-coznt-url>/projects/<id>` in a browser and keep it open in a second tab — you'll watch rows land here as you work.
+
+### Step 2 — Pick a phase-appropriate piece of work
+
+The project's current phase decides what verbs the agent can call. Confirm with `get_my_context` (your agent will do this automatically on its next turn). If you're early in the project lifecycle:
+
+- **requirements** — author the epic/feature plan first
+- **design** — author an ADR or interface contract
+- **development** — author a story, then code
+- **testing** — author the test_plan
+- **cicd** — wire deploy gates
+- **monitoring** — log incidents, post-mortems
+
+If the project is in the wrong phase for what you want to do, advance it: ask the agent to call `submit_phase_for_review`. That opens an approval request on `/approvals`; once approved, the phase moves and the allowed-verb set changes on the next turn.
+
+### Step 3 — Author a Plan
+
+From your agent:
+
+> "Create a story plan for adding idempotency keys to `POST /payments`. Acceptance: same `Idempotency-Key` returns the original response within 24h."
+
+The agent calls `upsert_plan` (it's in the allowed list during `development`). The plan lands at `<coznt>/projects/<id>` → **Plans** tab in `draft` status. Open it; you should see the title, body, and metadata the agent wrote.
+
+Move it to review:
+
+> "Mark the plan as in_review and request approval from the tech lead."
+
+The agent calls `request_approval`. A row appears at `<coznt>/approvals`.
+
+### Step 4 — Approve the plan
+
+Open `<coznt>/approvals`, find the request, click **Approve** (or **Deny** with a reason — both are recorded immutably). The plan status flips to `approved` and the agent sees it on the next `get_my_context`.
+
+### Step 5 — Code, PR, ship
+
+Do the work in your editor. Two flavors of governed AI action are possible here:
+
+- **Choreographed.** Ask the agent to *"run the test-author choreography on this diff."* It opens `.coznt/skills/test-author/SKILL.md` and calls `invoke_skill('test-author')`. If the skill is at sufficient autonomy on this project, it runs unattended; otherwise it routes to `/approvals`.
+- **Manual.** Write the code yourself, commit, push, open the PR via your normal git tooling.
+
+Either way: **open the PR**. Coznt is now watching.
+
+### Step 6 — Watch the webhook → ledger trip
+
+When you push and the PR opens, GitHub fires a webhook to coznt. The `process-webhook-event` task drains the queue, the deterministic assessors in `src/domain/outcomes.ts` grade the event, and a `skill_outcomes` row lands.
+
+Watch it happen:
+
+```bash
+coznt ledger --project payments-api --follow      # tails new outcome rows
+```
+
+Or in the UI, refresh the project's **Trust** tab. You should see a new row appear within seconds of the webhook firing. `verdict` will be `success` on a clean merge, `rolled_back` on revert, `incident` on a failed deploy. Each row links to its source-of-record PR or deploy — click through and the trail is end-to-end.
+
+### Step 7 — Watch autonomy recompute
+
+The ledger insert triggers `recomputeSkillAutonomyTask`. It walks the 30-day window for the affected `(skill, project)` pair and promotes / demotes. Refresh `<coznt>/skills/<slug>` or the project's **Trust** tab — the level may or may not move depending on the sample size, but the row should be there.
+
+A single success rarely promotes. Burst-merge a few clean PRs to feel a promotion; introduce a deliberate revert (push a bad commit, revert it within 7 days) to feel a demotion. The `demo-execution-gate.ts` script in A6 is the fastest way to see this without touching a real repo.
+
+### Step 8 — Advance the phase
+
+When the gates on the current phase have passed (open the project's **Phases** tab to see them green), ask the agent:
+
+> "Submit this project for advancement to the testing phase."
+
+Agent calls `submit_phase_for_review`. Operator (or self, if you have the role) approves at `/approvals`. Phase moves. Allowed verbs change on the next agent turn. Loop closes.
+
+### Step 9 — Read the audit
+
+Everything you just did is in `/audit` — an append-only log with a row-hash chain. Filter by your user or by the project. Each row links back to the entity it mutated. This is the "trust observable" claim: nothing on screen is unbacked.
+
+If any step above doesn't fire the way you expect, jump to **C2 Troubleshooting**.
+
 ---
 
 # Part B — For operators
@@ -164,6 +334,25 @@ pnpm dev                   # Next.js dev server + background worker
 `pnpm dev` runs the web app **and the worker** together. The worker drains pgmq, processes inbound webhooks, and recomputes skill autonomy as outcomes accumulate.
 
 Open <http://localhost:3029> and sign up. Your account is the owner of a new organization.
+
+### What `pnpm build` does (and why developers care)
+
+`pnpm build` runs a **`prebuild` hook (`tsx scripts/mcp-pack.ts`)** before `next build`. The hook:
+
+1. Compiles the MCP server (`tsc -p tsconfig.mcp.json`).
+2. Stages a slim package (only `@modelcontextprotocol/sdk` + `zod` as runtime deps).
+3. Runs `npm pack` to produce `coznt-mcp-<version>.tgz`.
+4. Drops the tarball into `public/install/` so Next serves it as a static asset.
+5. Updates `src/lib/mcp/version.ts` so the in-UI **Host Config** panel emits the matching versioned URL.
+
+End result: every coznt deployment self-hosts its own MCP client tarball at:
+
+- `<your-coznt-url>/install/coznt-mcp-<version>.tgz` — pinned, what the host-config panel recommends (npm caches by URL, so pinning keeps the cache hot)
+- `<your-coznt-url>/install/coznt-mcp/latest` — redirects to the deployment's current pinned version (handy for local dev, internal demos)
+
+Developers paste `npx -y <coznt>/install/coznt-mcp-<version>.tgz` into their editor's MCP config — no public npm, no internal artifact registry, no separate install script to ship. Re-running `pnpm build` after bumping the version in `package.json` re-packs the tarball and updates `version.ts` in one step; the next `coznt connect` (or a refresh of `/api-keys`) hands developers the new pinned URL.
+
+For local dev where you want to iterate on MCP server code with hot reload, skip the tarball and point your own editor at `pnpm mcp` (tsx, source-based). The tarball flow is for distributing to other developers, not for your own iteration loop.
 
 ## B3. Bootstrap a demo and verify the loop
 
@@ -323,6 +512,7 @@ Commit the generated `drizzle/00XX_*.sql` and the updated `drizzle/meta/_journal
 | `/rules` | Declarative policy validators (keyword-presence, action-policy) |
 | `/integrations` | Provider credentials + binding overview |
 | `/api-keys` | Mint MCP keys; in-UI host config panel |
+| `/install/coznt-mcp/latest` | Self-hosted MCP tarball (redirects to current pinned version) |
 | `/settings` | Org-wide preferences |
 
 ## C2. Troubleshooting

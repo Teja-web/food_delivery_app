@@ -1,1 +1,0 @@
-ALTER TABLE "coznt"."skills" ADD COLUMN "min_autonomy_level" integer DEFAULT 0 NOT NULL;

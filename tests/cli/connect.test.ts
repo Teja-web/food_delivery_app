@@ -31,8 +31,8 @@ const writeZed = (ctx: { repoRoot: string; cozntEntry: typeof cozntEntry }) =>
   writeForEditor("zed", ctx);
 
 const cozntEntry = {
-  command: "pnpm",
-  args: ["--filter", "coznt", "mcp"],
+  command: "npx",
+  args: ["-y", "http://test/install/coznt-mcp-0.1.0.tgz"],
   env: { COZNT_URL: "http://test", COZNT_API_KEY: "${COZNT_API_KEY}" },
 };
 
@@ -73,7 +73,7 @@ describe("MCP config writers", () => {
     expect(result.merged).toBe(false);
     expect(result.overwrote).toBe(false);
     const content = JSON.parse(readFileSync(result.path, "utf-8"));
-    expect(content.mcpServers.coznt.command).toBe("pnpm");
+    expect(content.mcpServers.coznt.command).toBe(cozntEntry.command);
     expect(content.mcpServers.coznt.env.COZNT_URL).toBe("http://test");
   });
 
@@ -108,7 +108,7 @@ describe("MCP config writers", () => {
     const result = writeClaudeCode({ repoRoot: tmpRoot, cozntEntry });
     expect(result.overwrote).toBe(true);
     const content = JSON.parse(readFileSync(result.path, "utf-8"));
-    expect(content.mcpServers.coznt.command).toBe("pnpm");
+    expect(content.mcpServers.coznt.command).toBe(cozntEntry.command);
     expect(content.mcpServers.filesystem.command).toBe("npx");
   });
 
@@ -122,8 +122,8 @@ describe("MCP config writers", () => {
   it("Zed uses the context_servers shape with a nested command object", () => {
     const result = writeZed({ repoRoot: tmpRoot, cozntEntry });
     const content = JSON.parse(readFileSync(result.path, "utf-8"));
-    expect(content.context_servers.coznt.command.path).toBe("pnpm");
-    expect(content.context_servers.coznt.command.args).toEqual(["--filter", "coznt", "mcp"]);
+    expect(content.context_servers.coznt.command.path).toBe(cozntEntry.command);
+    expect(content.context_servers.coznt.command.args).toEqual(cozntEntry.args);
   });
 
   it("Zed merges into existing settings.json without destroying user settings", () => {

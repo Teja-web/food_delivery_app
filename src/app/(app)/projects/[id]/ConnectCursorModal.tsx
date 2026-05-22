@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { renderHostConfig } from "@/lib/mcp/host-config";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -23,24 +24,13 @@ type Props = {
   isNewKey: boolean;
 };
 
-function buildSnippet(slug: string, key: string): string {
-  return JSON.stringify(
-    {
-      mcpServers: {
-        coznt: {
-          command: "npx",
-          args: ["-y", "@coznt/mcp"],
-          env: {
-            COZNT_API_KEY: key,
-            COZNT_PROJECT: slug,
-            COZNT_URL: "https://coznt.example.com",
-          },
-        },
-      },
-    },
-    null,
-    2,
-  );
+function buildSnippet(slug: string, key: string, serverUrl: string): string {
+  const { content } = renderHostConfig("cursor", {
+    serverUrl,
+    apiKey: key,
+    extraEnv: { COZNT_PROJECT: slug },
+  });
+  return JSON.stringify(content, null, 2);
 }
 
 export function ConnectCursorModal({
@@ -53,7 +43,9 @@ export function ConnectCursorModal({
 }: Props) {
   const [copied, setCopied] = useState(false);
   const keyShown = apiKeyPlaintext ?? `${apiKeyPrefix}…`;
-  const snippet = buildSnippet(projectSlug, keyShown);
+  const serverUrl =
+    typeof window !== "undefined" ? window.location.origin : "https://your.coznt.host";
+  const snippet = buildSnippet(projectSlug, keyShown, serverUrl);
 
   const handleCopy = async () => {
     try {

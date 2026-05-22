@@ -15,6 +15,7 @@ import {
   HOST_SHAPES,
   SUPPORTED_HOSTS,
   renderHostConfig,
+  tarballUrl,
 } from "@/lib/mcp/host-config";
 import { writeForEditor } from "@/cli/lib/mcp-config-writers";
 
@@ -78,18 +79,17 @@ describe("renderHostConfig", () => {
 
   it("CLI writer produces the same per-host entry shape as the renderer", () => {
     // Both should agree on the `coznt` entry — renderer builds a fresh
-    // file, writer merges into an empty dir. The `coznt` value must match.
+    // file, writer merges into an empty dir. Feed the writer the same
+    // launcher tuple the renderer uses (npx + tarball URL).
+    const cozntEntry = {
+      command: "npx",
+      args: ["-y", tarballUrl(SERVER_URL)],
+      env: { COZNT_URL: SERVER_URL, COZNT_API_KEY: KEY_PLAINTEXT },
+    };
     const tmp = mkdtempSync(join(tmpdir(), "host-config-parity-"));
     try {
       for (const host of SUPPORTED_HOSTS) {
-        writeForEditor(host, {
-          repoRoot: tmp,
-          cozntEntry: {
-            command: "pnpm",
-            args: ["--filter", "coznt", "mcp"],
-            env: { COZNT_URL: SERVER_URL, COZNT_API_KEY: KEY_PLAINTEXT },
-          },
-        });
+        writeForEditor(host, { repoRoot: tmp, cozntEntry });
         const written = JSON.parse(
           readFileSync(join(tmp, HOST_SHAPES[host].path), "utf-8"),
         );
@@ -98,7 +98,9 @@ describe("renderHostConfig", () => {
           apiKey: KEY_PLAINTEXT,
         }).content;
         const field = HOST_SHAPES[host].field;
-        expect(written[field].coznt).toEqual((rendered as Record<string, unknown>)[field] && (rendered as { [k: string]: Record<string, unknown> })[field].coznt);
+        expect(written[field].coznt).toEqual(
+          (rendered as { [k: string]: Record<string, unknown> })[field].coznt,
+        );
       }
     } finally {
       rmSync(tmp, { recursive: true, force: true });

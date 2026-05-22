@@ -18,6 +18,8 @@
  * Pure module — no I/O. Isomorphic, safe to import client- or server-side.
  */
 
+import { MCP_VERSION } from "./version";
+
 export const SUPPORTED_HOSTS = [
   "claude-code",
   "cursor",
@@ -140,9 +142,17 @@ export interface RenderInput {
   serverUrl: string;
   /** Either the plaintext API key or a placeholder like `${COZNT_API_KEY}`. */
   apiKey: string;
-  /** Default: `pnpm` + `--filter coznt mcp`. */
+  /**
+   * Default: `npx -y ${serverUrl}/install/coznt-mcp-${MCP_VERSION}.tgz`. The
+   * tarball is served by this very coznt instance — no public npm involvement,
+   * version pinned to the running server.
+   */
   launcher?: string;
   launcherArgs?: string[];
+  /** Optional override; defaults to {@link MCP_VERSION}. */
+  mcpVersion?: string;
+  /** Extra env vars merged into the entry's `env` (e.g. `COZNT_PROJECT`). */
+  extraEnv?: Record<string, string>;
 }
 
 export interface RenderedHostConfig {
@@ -150,6 +160,11 @@ export interface RenderedHostConfig {
   path: string;
   /** Full file contents. */
   content: Record<string, unknown>;
+}
+
+/** Tarball URL the host should fetch via `npx -y <url>`. */
+export function tarballUrl(serverUrl: string, version: string = MCP_VERSION): string {
+  return `${serverUrl.replace(/\/$/, "")}/install/coznt-mcp-${version}.tgz`;
 }
 
 /**
@@ -162,10 +177,15 @@ export function renderHostConfig(
   input: RenderInput,
 ): RenderedHostConfig {
   const shape = HOST_SHAPES[host];
+  const url = tarballUrl(input.serverUrl, input.mcpVersion ?? MCP_VERSION);
   const cozntEntry: CozntMcpEntry = {
-    command: input.launcher ?? "pnpm",
-    args: input.launcherArgs ?? ["--filter", "coznt", "mcp"],
-    env: { COZNT_URL: input.serverUrl, COZNT_API_KEY: input.apiKey },
+    command: input.launcher ?? "npx",
+    args: input.launcherArgs ?? ["-y", url],
+    env: {
+      COZNT_URL: input.serverUrl,
+      COZNT_API_KEY: input.apiKey,
+      ...(input.extraEnv ?? {}),
+    },
   };
   const content: Record<string, unknown> = {
     [shape.field]: { coznt: shape.entry(cozntEntry) },

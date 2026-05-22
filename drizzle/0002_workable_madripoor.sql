@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX "plans_project_kind_slug_idx" ON "coznt"."plans" USING btree ("project_id","kind","slug");

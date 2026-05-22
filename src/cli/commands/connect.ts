@@ -27,6 +27,7 @@ import { ensureCozntLocalGitignored } from "../lib/gitignore.js";
 import { pickProject } from "../lib/project-picker.js";
 import { ask, askChoice, askSecret } from "../lib/prompt.js";
 import { runSync } from "./sync.js";
+import { tarballUrl } from "../../lib/mcp/host-config.js";
 
 export interface ConnectOptions {
   editor?: string;
@@ -166,10 +167,12 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
   // 7. .coznt/README.md
   writeReadme(repoRoot);
 
-  // 8. Editor MCP config
-  const launcher = options.mcpLauncher ?? "pnpm";
+  // 8. Editor MCP config — default to the tarball this coznt instance serves
+  // (`npx -y https://<server>/install/coznt-mcp-<version>.tgz`). Mirrors
+  // renderHostConfig's default; --mcp-launcher overrides for monorepo dev.
+  const launcher = options.mcpLauncher ?? "npx";
   const launcherArgs =
-    options.mcpLauncher === undefined ? ["--filter", "coznt", "mcp"] : [];
+    options.mcpLauncher === undefined ? ["-y", tarballUrl(serverUrl)] : [];
   const cozntEntry = {
     command: launcher,
     args: launcherArgs,
