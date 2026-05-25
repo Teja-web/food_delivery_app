@@ -73,8 +73,5 @@ const tarballSrc = join(distDir, tarballName);
 const tarballDst = join(publicInstallDir, tarballName);
 renameSync(tarballSrc, tarballDst);
 
-// Write a version pointer file the install endpoint reads.
-writeFileSync(join(publicInstallDir, "coznt-prompt-hook-version.txt"), version + "\n");
-
 console.log(`[prompt-hook:pack] → ${tarballDst}`);
 console.log("[prompt-hook:pack] done.");

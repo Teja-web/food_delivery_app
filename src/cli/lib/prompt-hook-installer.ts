@@ -141,19 +141,32 @@ export function uninstallClaudePromptHook(repoRoot: string): UninstallResult {
 }
 
 /**
- * Fetch the current hook version served by the deployment.
- * Returns null on any failure — version drift is a warning, never fatal.
+ * Fetch the current version of a published artifact (prompt-hook, mcp, cli)
+ * by reading the redirect target of its `/install/<slug>/latest` endpoint.
+ * The redirect points at `coznt-<slug>-<version>.tgz` — the version sits in
+ * the path. Saves a second route just for the version string.
+ *
+ * Returns null on any failure — drift is a warning, never fatal.
  */
-export async function fetchCurrentHookVersion(serverUrl: string): Promise<string | null> {
+export async function fetchCurrentArtifactVersion(
+  serverUrl: string,
+  slug: "coznt-prompt-hook" | "coznt-mcp" | "coznt-cli",
+): Promise<string | null> {
   try {
     const res = await fetch(
-      `${serverUrl.replace(/\/$/, "")}/install/coznt-prompt-hook/version`,
-      { redirect: "follow" },
+      `${serverUrl.replace(/\/$/, "")}/install/${slug}/latest`,
+      { redirect: "manual" },
     );
-    if (!res.ok) return null;
-    const text = (await res.text()).trim();
-    return text.length > 0 ? text : null;
+    const location = res.headers.get("location");
+    if (!location) return null;
+    const match = location.match(new RegExp(`${slug}-(.+)\\.tgz$`));
+    return match?.[1] ?? null;
   } catch {
     return null;
   }
+}
+
+/** Convenience wrapper for the prompt-hook (the only drift-checked artifact today). */
+export function fetchCurrentHookVersion(serverUrl: string): Promise<string | null> {
+  return fetchCurrentArtifactVersion(serverUrl, "coznt-prompt-hook");
 }
