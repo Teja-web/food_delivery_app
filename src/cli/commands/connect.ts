@@ -28,6 +28,7 @@ import { pickProject } from "../lib/project-picker.js";
 import { ask, askChoice, askSecret } from "../lib/prompt.js";
 import { runSync } from "./sync.js";
 import { tarballUrl } from "../../lib/mcp/host-config.js";
+import { MCP_VERSION } from "../../lib/mcp/version.js";
 import {
   installClaudePromptHook,
   fetchCurrentHookVersion,
@@ -220,7 +221,7 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
   // renderHostConfig's default; --mcp-launcher overrides for monorepo dev.
   const launcher = options.mcpLauncher ?? "npx";
   const launcherArgs =
-    options.mcpLauncher === undefined ? ["-y", tarballUrl(serverUrl)] : [];
+    options.mcpLauncher === undefined ? ["-y", tarballUrl(serverUrl, MCP_VERSION)] : [];
   const cozntEntry = {
     command: launcher,
     args: launcherArgs,

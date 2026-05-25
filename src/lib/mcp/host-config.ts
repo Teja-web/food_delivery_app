@@ -16,9 +16,10 @@
  *     `disable-model-invocation`, `autoApprove`).
  *
  * Pure module — no I/O. Isomorphic, safe to import client- or server-side.
+ * Version-agnostic: callers pass `mcpVersion` explicitly so this file can be
+ * consumed by both Turbopack (bundler resolution) and the CLI tarball
+ * (NodeNext) without a build-system clash on `./version` import spelling.
  */
-
-import { MCP_VERSION } from "./version.js";
 
 export const SUPPORTED_HOSTS = [
   "claude-code",
@@ -142,15 +143,15 @@ export interface RenderInput {
   serverUrl: string;
   /** Either the plaintext API key or a placeholder like `${COZNT_API_KEY}`. */
   apiKey: string;
+  /** MCP tarball version. Callers import `MCP_VERSION` themselves. */
+  mcpVersion: string;
   /**
-   * Default: `npx -y ${serverUrl}/install/coznt-mcp-${MCP_VERSION}.tgz`. The
+   * Default: `npx -y ${serverUrl}/install/coznt-mcp-${mcpVersion}.tgz`. The
    * tarball is served by this very coznt instance — no public npm involvement,
    * version pinned to the running server.
    */
   launcher?: string;
   launcherArgs?: string[];
-  /** Optional override; defaults to {@link MCP_VERSION}. */
-  mcpVersion?: string;
   /** Extra env vars merged into the entry's `env` (e.g. `COZNT_PROJECT`). */
   extraEnv?: Record<string, string>;
 }
@@ -163,7 +164,7 @@ export interface RenderedHostConfig {
 }
 
 /** Tarball URL the host should fetch via `npx -y <url>`. */
-export function tarballUrl(serverUrl: string, version: string = MCP_VERSION): string {
+export function tarballUrl(serverUrl: string, version: string): string {
   return `${serverUrl.replace(/\/$/, "")}/install/coznt-mcp-${version}.tgz`;
 }
 
@@ -177,7 +178,7 @@ export function renderHostConfig(
   input: RenderInput,
 ): RenderedHostConfig {
   const shape = HOST_SHAPES[host];
-  const url = tarballUrl(input.serverUrl, input.mcpVersion ?? MCP_VERSION);
+  const url = tarballUrl(input.serverUrl, input.mcpVersion);
   const cozntEntry: CozntMcpEntry = {
     command: input.launcher ?? "npx",
     args: input.launcherArgs ?? ["-y", url],

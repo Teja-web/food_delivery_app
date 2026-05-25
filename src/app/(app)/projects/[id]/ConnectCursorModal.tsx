@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { renderHostConfig } from "@/lib/mcp/host-config";
+import { MCP_VERSION } from "@/lib/mcp/version";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -28,6 +29,7 @@ function buildSnippet(slug: string, key: string, serverUrl: string): string {
   const { content } = renderHostConfig("cursor", {
     serverUrl,
     apiKey: key,
+    mcpVersion: MCP_VERSION,
     extraEnv: { COZNT_PROJECT: slug },
   });
   return JSON.stringify(content, null, 2);

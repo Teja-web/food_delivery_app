@@ -21,6 +21,7 @@ import { writeForEditor } from "@/cli/lib/mcp-config-writers";
 
 const SERVER_URL = "https://coznt.example.com";
 const KEY_PLAINTEXT = "ck_test_abc123";
+const VERSION = "0.0.0-test";
 
 describe("renderHostConfig", () => {
   it("supports all 10 hosts the CLI knows about", () => {
@@ -33,6 +34,7 @@ describe("renderHostConfig", () => {
       const { path, content } = renderHostConfig(host, {
         serverUrl: SERVER_URL,
         apiKey: KEY_PLAINTEXT,
+        mcpVersion: VERSION,
       });
       expect(path).toBe(HOST_SHAPES[host].path);
       const field = HOST_SHAPES[host].field;
@@ -48,6 +50,7 @@ describe("renderHostConfig", () => {
     const { content } = renderHostConfig("zed", {
       serverUrl: SERVER_URL,
       apiKey: KEY_PLAINTEXT,
+      mcpVersion: VERSION,
     });
     expect(content).toHaveProperty("context_servers");
     expect(content).not.toHaveProperty("mcpServers");
@@ -57,6 +60,7 @@ describe("renderHostConfig", () => {
     const { content } = renderHostConfig("factory", {
       serverUrl: SERVER_URL,
       apiKey: KEY_PLAINTEXT,
+      mcpVersion: VERSION,
     });
     const coznt = (content as { mcpServers: { coznt: Record<string, unknown> } }).mcpServers.coznt;
     expect(coznt["disable-model-invocation"]).toEqual([
@@ -71,6 +75,7 @@ describe("renderHostConfig", () => {
     const { content } = renderHostConfig("cline", {
       serverUrl: SERVER_URL,
       apiKey: KEY_PLAINTEXT,
+      mcpVersion: VERSION,
     });
     const coznt = (content as { mcpServers: { coznt: Record<string, unknown> } }).mcpServers.coznt;
     expect(coznt.disabled).toBe(false);
@@ -83,7 +88,7 @@ describe("renderHostConfig", () => {
     // launcher tuple the renderer uses (npx + tarball URL).
     const cozntEntry = {
       command: "npx",
-      args: ["-y", tarballUrl(SERVER_URL)],
+      args: ["-y", tarballUrl(SERVER_URL, VERSION)],
       env: { COZNT_URL: SERVER_URL, COZNT_API_KEY: KEY_PLAINTEXT },
     };
     const tmp = mkdtempSync(join(tmpdir(), "host-config-parity-"));
@@ -96,6 +101,7 @@ describe("renderHostConfig", () => {
         const rendered = renderHostConfig(host, {
           serverUrl: SERVER_URL,
           apiKey: KEY_PLAINTEXT,
+          mcpVersion: VERSION,
         }).content;
         const field = HOST_SHAPES[host].field;
         expect(written[field].coznt).toEqual(

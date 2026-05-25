@@ -17,6 +17,7 @@ import {
   renderHostConfig,
   type HostName,
 } from "@/lib/mcp/host-config";
+import { MCP_VERSION } from "@/lib/mcp/version";
 
 interface Props {
   plaintext: string | null;
@@ -40,7 +41,7 @@ export function HostConfigPanel({ plaintext }: Props) {
   const apiKey = plaintext ?? "${COZNT_API_KEY}";
 
   const rendered = useMemo(
-    () => renderHostConfig(host, { serverUrl, apiKey }),
+    () => renderHostConfig(host, { serverUrl, apiKey, mcpVersion: MCP_VERSION }),
     [host, serverUrl, apiKey],
   );
 
