@@ -18,6 +18,11 @@ import { listRulesForProject } from "@/operations/rules";
 import { listSkillsForProject } from "@/operations/skills";
 import { listWorkItemsForProject } from "@/operations/work-items";
 import { getActionContext } from "@/lib/auth/context";
+import {
+  attenuationFactorForProject,
+  listRecentPromptsForProject,
+} from "@/operations/prompt-log";
+import { isPromptGovernanceEnabled } from "@/lib/prompt-quality/feature-flag";
 
 import { CockpitClient } from "./CockpitClient";
 import {
@@ -71,6 +76,17 @@ export default async function ProjectDetailPage({
     listProjectLearnings(id, { limit: 20 }),
   ]);
 
+  // Prompt-quality surface (feature-flagged). When disabled, ship an empty
+  // shape so the Trust tab doesn't render a setup callout in deployments
+  // that haven't opted in.
+  const promptGovEnabled = isPromptGovernanceEnabled();
+  const [promptAttenuation, recentPrompts] = promptGovEnabled
+    ? await Promise.all([
+        attenuationFactorForProject(ctx.organizationId, id),
+        listRecentPromptsForProject(ctx.organizationId, id, { limit: 25 }),
+      ])
+    : [null, [] as Awaited<ReturnType<typeof listRecentPromptsForProject>>];
+
   const gatesAllPassed = currentPhaseGates.every(
     (g) => g.status === "passed" || g.status === "skipped",
   );
@@ -109,7 +125,33 @@ export default async function ProjectDetailPage({
     rules: rules.map((r) => serializeCockpitRule(r, id)),
     skills: skills.map((s) => serializeCockpitSkill(s, id)),
     apiKey,
-    trust: { outcomes: trustOutcomes, policy: trustPolicy, learnings: trustLearnings },
+    trust: {
+      outcomes: trustOutcomes,
+      policy: trustPolicy,
+      learnings: trustLearnings,
+      promptGovernanceEnabled: promptGovEnabled,
+      promptQuality: promptGovEnabled
+        ? {
+            attenuationFactor: promptAttenuation?.factor ?? 1.0,
+            distribution: promptAttenuation?.distribution ?? {
+              good: 0,
+              needsImprovement: 0,
+              poor: 0,
+              total: 0,
+            },
+            recent: recentPrompts.map((p) => ({
+              id: p.id,
+              role: p.role,
+              source: p.source,
+              content: p.content,
+              promptScore: p.promptScore,
+              promptTier: p.promptTier,
+              authorName: p.authorName,
+              createdAt: p.createdAt.toISOString(),
+            })),
+          }
+        : null,
+    },
   };
 
   return <CockpitClient data={data} />;

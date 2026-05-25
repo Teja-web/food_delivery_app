@@ -119,6 +119,11 @@ import {
   runUpdateWorkItemStatus,
 } from "./tools/update-work-item-status.js";
 import { upsertPlanInput, runUpsertPlan } from "./tools/upsert-plan.js";
+import { logPromptInput, runLogPrompt } from "./tools/log-prompt.js";
+import { ratePromptInput, runRatePrompt } from "./tools/rate-prompt.js";
+import { getPromptAuthorInput, runGetPromptAuthor } from "./tools/get-prompt-author.js";
+import { flushLocalPromptsInput, runFlushLocalPrompts } from "./tools/flush-local-prompts.js";
+import { triggerPipelineInput, runTriggerPipeline } from "./tools/trigger-pipeline.js";
 
 import { z, ZodTypeAny } from "zod";
 
@@ -526,6 +531,61 @@ export const tools = [
     ].join(" "),
     schema: listCustomChoreographiesInput,
     run: runListCustomChoreographies,
+  }),
+  // ── Agent-loop governance (Tier 1/2) ──────────────────────────
+  tool({
+    name: "log_prompt",
+    description: [
+      "Persist a USER / ASSISTANT / SYSTEM message to the agent-loop ledger",
+      "so coznt can grade prompt quality and feed the autonomy attenuation",
+      "factor. Idempotent on (projectId, clientLocalId). On platform-side",
+      "failure, the prompt is buffered to .coznt/prompt-buffer.jsonl and",
+      "drained later via `flush_local_prompts`. Available in every phase.",
+    ].join(" "),
+    schema: logPromptInput,
+    run: runLogPrompt,
+  }),
+  tool({
+    name: "rate_prompt",
+    description: [
+      "Score a prompt against the canonical 6-dimension rubric (clarity,",
+      "context, specificity, constraints, phaseFit, safety) without",
+      "persisting. Returns overallScore, tier (GOOD / NEEDS_IMPROVEMENT /",
+      "POOR), dimension breakdown, suggestions, and flags. Provide either",
+      "`content` (inline) or `promptLogId` (re-score an existing row).",
+    ].join(" "),
+    schema: ratePromptInput,
+    run: runRatePrompt,
+  }),
+  tool({
+    name: "get_prompt_author",
+    description: [
+      "Resolve the local developer's identity for prompt attribution.",
+      "Reads git config user.name / user.email and OS username; respects",
+      "COZNT_PROMPT_AUTHOR / COZNT_PROMPT_AUTHOR_EMAIL env overrides.",
+      "Pure-local — no platform call.",
+    ].join(" "),
+    schema: getPromptAuthorInput,
+    run: runGetPromptAuthor as never,
+  }),
+  tool({
+    name: "flush_local_prompts",
+    description: [
+      "Drain `.coznt/prompt-buffer.jsonl` to the platform. Atomic on success",
+      "— only failed entries remain in the buffer. Returns { flushed, errors }.",
+    ].join(" "),
+    schema: flushLocalPromptsInput,
+    run: runFlushLocalPrompts,
+  }),
+  tool({
+    name: "trigger_pipeline",
+    description: [
+      "Actively trigger a CI/CD pipeline run on GitHub Actions or Azure",
+      "DevOps for the bound project. Phase-gated to CICD only. Returns the",
+      "run id (when the provider exposes one) and queued status.",
+    ].join(" "),
+    schema: triggerPipelineInput,
+    run: runTriggerPipeline,
   }),
 ] as const;
 

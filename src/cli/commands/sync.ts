@@ -27,6 +27,7 @@ import {
 } from "../lib/lock-file.js";
 import { classify, summarize, type Classification } from "../lib/diff.js";
 import { askChoice } from "../lib/prompt.js";
+import { fetchCurrentHookVersion } from "../lib/prompt-hook-installer.js";
 
 export interface SyncOptions {
   force?: boolean;
@@ -36,6 +37,17 @@ export interface SyncOptions {
 export async function runSync(options: SyncOptions = {}): Promise<number> {
   const cfg = readConfig();
   console.log(`coznt sync — project ${cfg.projectId} @ ${cfg.serverUrl}`);
+
+  // Prompt-hook version drift — warn but never fail the sync.
+  if (cfg.promptHook?.installed && cfg.promptHook.version) {
+    const current = await fetchCurrentHookVersion(cfg.serverUrl);
+    if (current && current !== cfg.promptHook.version) {
+      console.warn(
+        `[warn] prompt-hook drift detected: installed=${cfg.promptHook.version}, deployment=${current}. ` +
+          `Run \`coznt connect --install-prompt-hook\` to refresh.`,
+      );
+    }
+  }
 
   const manifest = await fetchManifest(cfg);
   console.log(

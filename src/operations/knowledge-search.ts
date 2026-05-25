@@ -12,7 +12,7 @@
  * we express each mode at the SQL layer.
  */
 
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { auditLogs, type AuditActorType } from "@/db/schema/audit-log";
@@ -213,6 +213,8 @@ export async function searchOutcomes(args: {
     .where(
       and(
         eq(skillOutcomes.organizationId, ctx.organizationId),
+        // Exclude signal rows (prompt_quality_signal) — they have null verdict.
+        isNotNull(skillOutcomes.verdict),
         sql`lower(coalesce(${skillOutcomes.rationale}, '')) LIKE ${q}`,
         args.projectId ? eq(skillOutcomes.projectId, args.projectId) : undefined,
         args.verdicts && args.verdicts.length > 0
@@ -227,7 +229,8 @@ export async function searchOutcomes(args: {
 
   return rows.map((r) => ({
     id: r.id,
-    verdict: r.verdict,
+    // Non-null due to isNotNull predicate above.
+    verdict: r.verdict as SkillOutcomeVerdict,
     severity: r.severity,
     rationale: r.rationale,
     skillSlug: r.skillSlug,

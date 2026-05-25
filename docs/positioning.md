@@ -61,14 +61,49 @@ The result: faster delivery without losing operational control.
 
 Coznt is the daemon. The client is your AI editor or CLI agent — Cursor, Claude Code, Cline, Continue, Zed, `claude -p`, `cursor-agent`, `codex exec`, or any MCP-compliant host.
 
+Every agent turn involves **two distinct LLM call sites**, and the architecture splits them deliberately:
+
+- **Agent-loop LLM** — the host LLM inside Cursor / Claude Code / Codex. Reads the user's prompt, follows the choreography, picks the right verb to call. Runs client-side; coznt doesn't try to replace it. The developer's IDE subscription pays for these tokens.
+- **Governed-skill LLM** — the call that fires when the agent invokes `invoke_skill('test-author')` or any other generator skill. Runs **server-side**, inside coznt's `generate()`, under autonomy gate. The skill's prompt template, system prompt, model selection, retry policy, and Zod-validated output schema all live in the daemon. The agent never sees the prompt; it sees the structured result.
+
+The two pieces that distribute:
+
 - **Workflow choreography** distributes to each developer's repository via `coznt sync` as MCP-discoverable SKILL files under `.coznt/skills/`. Claude Code reads the frontmatter natively, Cursor surfaces them as slash-commands, the same files work for every host. The choreography tells the AI *when* to call *which* governed verb — it is the playbook, not the prompt.
-- **Governed actions stay on the server.** Every `invoke_skill`, `upsert_plan`, `mark_gate_passed`, `submit_for_approval` call hits Coznt. The autonomy gate fires *before* dispatch. The outcome ledger writes *during* execution. Schema validation happens server-side, never in the agent.
+- **Governed actions stay on the server.** Every `invoke_skill`, `upsert_plan`, `mark_gate_passed`, `submit_for_approval` call hits Coznt. The autonomy gate fires *before* dispatch. The outcome ledger writes *during* execution. Both input and output are validated server-side against the same Zod schemas that write to the database.
 
-The AI does the creative work — drafting, reasoning, suggesting. Coznt does the governed work — project state, autonomy gating, outcome writes, approvals. **Push the choreography, keep the daemon.**
+**Push the choreography, keep the daemon.** The AI does the creative work — drafting, reasoning, picking the right verb at the right step. Coznt does the governed work — running the skill prompt under policy, recording the outcome, recomputing autonomy, surfacing approvals.
 
-There is a hard line in what the daemon writes. **Coznt writes governance metadata — verdicts, check-runs, approvals, ledger rows. It does not write the underlying work product — branches, PRs, tickets, source code.** That separation is load-bearing: the autonomy ledger is only credible if the grader isn't also the actor for the thing it grades. The agent opens the PR; coznt grades it. Jira owns the ticket; coznt records the outcome. This is why MCP verbs like `create_pr` and `push_to_external` are excluded from the surface — not because they're hard, but because shipping them would compromise the trust property that makes the ledger worth anything.
+### Why the daemon stays load-bearing
 
-This split is what makes a per-project autonomy ledger possible. If the LLM call ran locally, the ledger could only ever be reactive — a record of what already happened. With the daemon as the single execution chokepoint, the gate is *preventive*: a skill operating below its required autonomy on a given project is denied before the LLM is ever invoked, and the call routes into the approval inbox instead. Trust is graded per project from evidence, not granted at install.
+Four properties of server-side skill execution are hard to reproduce with host-LLM execution plus post-hoc observation:
+
+1. **Typed dispatch via Zod-validated output.** `generate()` parses the response against the same Zod schema that writes to the database and retries on parse failure. Host-LLM execution can ask for JSON but cannot enforce schema match at the call layer — parse failures bounce around the conversation as the agent re-prompts itself.
+2. **Deterministic outcome attribution.** Every `invoke_skill` call appends a `skill_outcomes` row by construction. The autonomy ledger is causally tied to the LLM call rather than to whatever the agent self-reports afterward.
+3. **Server-assembled context.** The skill prompt can inject full project history, related ADRs, hybrid-search hits from `coznt.documents`, recent outcomes — stitched together server-side from data the host has no read path to.
+4. **Audit completeness.** Every governed prompt, system prompt, model, temperature, and structured output is logged by construction. With host-LLM, you only have what the agent volunteered.
+
+Secondary but real: prompt versioning (bump once server-side, every project gets it on the next call); model routing by skill level (Intern-tier skills on cheap models, Principal-tier on expensive ones); prompt IP (specialized org-tuned prompts stay in the daemon, not shipped to every dev repo).
+
+### What the daemon doesn't gate (and where prompt capture fits)
+
+The daemon governs the **skill-invocation** path. It does not govern the **agent-loop** path — the host LLM's reasoning that runs between governed `invoke_skill` calls, on the developer's tokens, under the developer's process. That's the same blind spot every IDE-MCP architecture has by design.
+
+Coznt closes it with two converging layers, both shipped:
+
+1. **MCP verbs** — `log_prompt`, `rate_prompt`, `get_prompt_author`, `flush_local_prompts` make every agent turn observable from any host (Cursor, Cline, Continue, Zed). Sub-GOOD prompts emit a `prompt_quality_signal` row that feeds the autonomy ledger as a *leading indicator* — sustained low-quality input slows promotion on that project but never triggers demotion, which stays outcome-driven.
+2. **Claude Code `UserPromptSubmit` hook** — installed by `coznt connect --install-prompt-hook` (default-on for Claude Code, opt-in elsewhere). Scores every prompt locally against the canonical 6-dim rubric and can block below `COZNT_PROMPT_MIN_SCORE` *before* the prompt reaches the model. Pre-flight gating where the host supports it.
+
+**Prompt capture is observability + pre-flight gating for the agent loop. The daemon is typed, audited execution for skill calls.** They solve different problems and both feed one ledger.
+
+### Hard line: what the daemon writes
+
+Coznt writes governance metadata — verdicts, check-runs, approvals, ledger rows. **It does not write the underlying work product — branches, PRs, tickets, source code.** That separation is load-bearing: the autonomy ledger is only credible if the grader isn't also the actor for the thing it grades. The agent opens the PR; coznt grades it. Jira owns the ticket; coznt records the outcome. This is why MCP verbs like `create_pr` and `push_to_external` are excluded from the surface — not because they're hard, but because shipping them would compromise the trust property that makes the ledger worth anything.
+
+This split is what makes a per-project autonomy ledger possible. If the **governed-skill LLM call** ran locally, the ledger could only ever be reactive — a record of what already happened. With the daemon as the chokepoint for skill invocations, the gate is *preventive*: a skill operating below its required autonomy on a given project is denied before any governed tokens are spent, and the call routes into the approval inbox instead. Trust is graded per project from evidence, not granted at install.
+
+### Convergence on chassis, divergence on engine
+
+The substrate of this category — six-phase SDLC model, MCP-as-governance-surface, phase-tool gating, session correlation, generated-skills catalog — is converging across products. The differentiation lives in where the skill LLM call runs. Host-LLM platforms push the skill prompt to the IDE and observe the side effects. Coznt pushes only the choreography and runs the skill prompt server-side under autonomy gate. That's the architectural fork the comparison table below traces — not an MCP surface detail, a load-bearing decision about where the governance line sits.
 
 ---
 

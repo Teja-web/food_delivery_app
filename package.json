@@ -7,7 +7,7 @@
     "lint": "eslint src/",
     "lint:choreographies": "tsx scripts/lint-choreographies.ts --warn-missing",
     "dev": "next dev -H 0.0.0.0 --port 3029",
-    "prebuild": "tsx scripts/mcp-pack.ts && tsx scripts/cli-pack.ts",
+    "prebuild": "tsx scripts/mcp-pack.ts && tsx scripts/cli-pack.ts && tsx scripts/prompt-hook-pack.ts",
     "build": "next build",
     "start": "concurrently --kill-others --names web,worker --prefix-colors blue,green \"next start --port 3029\" \"node --import tsx scripts/worker.ts\"",
     "start:server": "next start --port 3029",

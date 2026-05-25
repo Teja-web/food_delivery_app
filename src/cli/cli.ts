@@ -12,6 +12,7 @@
 
 import { runSync } from "./commands/sync.js";
 import { runConnect } from "./commands/connect.js";
+import { runPromptHook } from "./commands/prompt-hook.js";
 import { MCP_VERSION } from "../lib/mcp/version.js";
 
 interface ParsedArgs {
@@ -64,8 +65,14 @@ function printUsage(): void {
       "",
       "  coznt connect [--editor=<name>] [--project=<slug>] [--server=<url>]",
       "                 [--api-key-env=<NAME>] [--mcp-launcher=<cmd>]",
+      "                 [--install-prompt-hook|--no-install-prompt-hook]",
+      "                 [--force]",
       "      Bootstrap MCP wiring + initial sync. Detects editor, prompts",
       "      for API key, stores it in OS keychain (default) or env-var.",
+      "      Default-installs the Claude Code prompt hook when editor=claude-code.",
+      "",
+      "  coznt prompt-hook <uninstall|status>",
+      "      Manage the Claude Code UserPromptSubmit prompt-capture hook.",
       "",
       "  coznt --version",
       "  coznt --help",
@@ -99,12 +106,31 @@ async function main(): Promise<void> {
         break;
       }
       case "connect": {
+        // Parse tri-state --install-prompt-hook flag:
+        //   not present     → undefined (default-by-editor)
+        //   --install-prompt-hook       → true
+        //   --no-install-prompt-hook    → false
+        let installPromptHook: boolean | undefined;
+        if (args.flags.has("install-prompt-hook")) {
+          installPromptHook = true;
+        } else if (args.flags.has("no-install-prompt-hook")) {
+          installPromptHook = false;
+        }
         const code = await runConnect({
           editor: args.flags.get("editor") as string | undefined,
           project: args.flags.get("project") as string | undefined,
           serverUrl: args.flags.get("server") as string | undefined,
           apiKeyEnv: args.flags.get("api-key-env") as string | undefined,
           mcpLauncher: args.flags.get("mcp-launcher") as string | undefined,
+          installPromptHook,
+          force: Boolean(args.flags.get("force")),
+        });
+        process.exit(code);
+        break;
+      }
+      case "prompt-hook": {
+        const code = await runPromptHook({
+          subcommand: args.positional[0] ?? null,
         });
         process.exit(code);
         break;

@@ -55,6 +55,11 @@ export const ALWAYS_ALLOWED = new Set<string>([
   "search_outcomes",
   "search_audit",
   "list_custom_choreographies",
+  // Agent-loop governance — observability layer, available in all phases.
+  "log_prompt",
+  "rate_prompt",
+  "get_prompt_author",
+  "flush_local_prompts",
 ]);
 
 /**
@@ -89,6 +94,8 @@ export const TOOL_PHASE_MAP: Record<string, Phase[]> = {
   // CI/CD + Monitoring
   get_pipeline_status: ["cicd", "monitoring"],
   generate_pipeline: ["development", "testing", "cicd"],
+  // Actively kicking off a CI run is a CICD-phase verb.
+  trigger_pipeline: ["cicd"],
 
   // Cross-phase external push
   push_to_external: ["requirements", "design", "development", "testing", "cicd"],

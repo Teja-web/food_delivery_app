@@ -36,6 +36,13 @@ export const SKILL_OUTCOME_SOURCE_KINDS = [
   "pr_abandon",
   "deploy_clean",
   "deploy_incident",
+  /**
+   * Agent-loop signal: emitted when a `prompt_logs` row scores
+   * NEEDS_IMPROVEMENT or POOR. Carries `skillId=null`, `verdict=null` —
+   * read by `recomputeSkillAutonomyTask` purely for the project-level
+   * promotion-attenuation factor.
+   */
+  "prompt_quality_signal",
 ] as const;
 export type SkillOutcomeSourceKind = (typeof SKILL_OUTCOME_SOURCE_KINDS)[number];
 
@@ -44,9 +51,13 @@ export const skillOutcomes = cozntSchema.table(
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
-    skillId: text("skill_id")
-      .notNull()
-      .references(() => skills.id, { onDelete: "cascade" }),
+    /**
+     * Skill the outcome was produced for. Required for all source kinds
+     * except `prompt_quality_signal`, which is a project-level leading
+     * indicator and carries `skillId=null`. CHECK enforced in
+     * `assertSkillOutcomeShape` at insert time.
+     */
+    skillId: text("skill_id").references(() => skills.id, { onDelete: "cascade" }),
 
     /**
      * Project the outcome was produced for. Autonomy is scored per
@@ -62,7 +73,11 @@ export const skillOutcomes = cozntSchema.table(
      */
     invocationId: text("invocation_id"),
 
-    verdict: text().$type<SkillOutcomeVerdict>().notNull(),
+    /**
+     * Outcome verdict. NULL only for `prompt_quality_signal` rows — those
+     * are signal-only and never roll up into success/failure counts.
+     */
+    verdict: text().$type<SkillOutcomeVerdict>(),
     severity: text().$type<SkillOutcomeSeverity>(),
 
     /**
@@ -84,6 +99,13 @@ export const skillOutcomes = cozntSchema.table(
     /** Human-readable explanation written by the assessor. */
     rationale: text(),
 
+    /**
+     * For `prompt_quality_signal` rows only: the prompt that produced this
+     * signal. Not an FK because `prompt_logs` is in a different lifecycle
+     * (deletable) and outcomes are append-only. Lookup via index below.
+     */
+    promptLogId: text("prompt_log_id"),
+
     recordedAt: timestamp("recorded_at").defaultNow().notNull(),
   },
   (table) => [
@@ -92,6 +114,11 @@ export const skillOutcomes = cozntSchema.table(
     index("skill_outcomes_project_skill_time_idx").on(
       table.projectId,
       table.skillId,
+      table.recordedAt,
+    ),
+    index("skill_outcomes_project_kind_time_idx").on(
+      table.projectId,
+      table.sourceKind,
       table.recordedAt,
     ),
     // Idempotency: assessors that re-fire on retry must not double-write.

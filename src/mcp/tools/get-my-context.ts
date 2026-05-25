@@ -15,6 +15,7 @@ import { z } from "zod";
 
 import { CozntClient } from "../client.js";
 import { bumpToolCall } from "../session.js";
+import { writeProjectPhaseCache } from "../lib/cache-project-phase.js";
 
 export const getMyContextInput = z.object({
   repoUrl: z.string().optional().describe(
@@ -34,5 +35,17 @@ export async function runGetMyContext(client: CozntClient, input: GetMyContextIn
   if (input.workItemKey) params.set("workItemKey", input.workItemKey);
   const qs = params.toString();
   const path = `/api/v1/mcp/context${qs ? `?${qs}` : ""}`;
-  return client.get<unknown>(path);
+  const result = await client.get<unknown>(path);
+  // Side effect: write phase to `.coznt/project-phase.txt` so the
+  // UserPromptSubmit hook can score offline. Best-effort — a missing
+  // workspace dir or read-only fs is not a context failure.
+  try {
+    const phase = (result as { project?: { phase?: string } } | undefined)?.project?.phase;
+    if (typeof phase === "string" && phase.length > 0) {
+      await writeProjectPhaseCache(process.cwd(), phase);
+    }
+  } catch {
+    // ignore — the file cache is a convenience, not a contract
+  }
+  return result;
 }

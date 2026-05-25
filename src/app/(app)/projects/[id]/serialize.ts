@@ -139,6 +139,23 @@ export interface CockpitClient {
     outcomes: ProjectOutcomeRow[];
     policy: PolicyMatrixCell[];
     learnings: ProjectLearning[];
+    /** Whether the deployment exposes the agent-loop governance surface. */
+    promptGovernanceEnabled: boolean;
+    /** Prompt-quality summary when enabled; null otherwise. */
+    promptQuality: {
+      attenuationFactor: number;
+      distribution: { good: number; needsImprovement: number; poor: number; total: number };
+      recent: Array<{
+        id: string;
+        role: "USER" | "ASSISTANT" | "SYSTEM";
+        source: string;
+        content: string;
+        promptScore: number | null;
+        promptTier: "GOOD" | "NEEDS_IMPROVEMENT" | "POOR" | null;
+        authorName: string | null;
+        createdAt: string;
+      }>;
+    } | null;
   };
 }
 

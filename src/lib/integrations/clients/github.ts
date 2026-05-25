@@ -284,4 +284,27 @@ export class GitHubClient {
       workflowName: run.name ?? "unknown",
     }));
   }
+
+  /**
+   * Trigger a workflow_dispatch event for a `workflow_id` (filename or
+   * numeric id). Backs the `trigger_pipeline` MCP verb. Returns no run id
+   * because GitHub's dispatch API doesn't return one; the caller can poll
+   * `listWorkflowRuns` if it needs to correlate.
+   */
+  async dispatchWorkflow(options: {
+    owner: string;
+    repo: string;
+    workflowId: string;
+    ref?: string;
+    inputs?: Record<string, string>;
+  }): Promise<{ status: "queued" }> {
+    await this.octokit.actions.createWorkflowDispatch({
+      owner: options.owner,
+      repo: options.repo,
+      workflow_id: options.workflowId,
+      ref: options.ref ?? "main",
+      inputs: options.inputs,
+    });
+    return { status: "queued" };
+  }
 }

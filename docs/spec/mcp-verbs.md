@@ -81,6 +81,20 @@ Choreography distribution. Read-only verbs that serve workflow guides to the dev
 
 **2 of 2 shipped.** Source of truth is filesystem (`src/automations/skills/<slug>/CHOREOGRAPHY.md`); DB `coznt.skills` enforces `enabled` flag and project scoping (project-id match OR `NULL` for org-wide). See [`./skill-choreography.md`](./skill-choreography.md).
 
+### Tier 5 — agent-loop governance
+
+Closes the gap on the agent loop — the host LLM's reasoning that runs *between* governed `invoke_skill` calls. Feature-flagged via `COZNT_PROMPT_GOVERNANCE_ENABLED=1`. Sub-GOOD prompts emit a `prompt_quality_signal` row that feeds the autonomy ledger as a leading indicator (attenuates promotion; never triggers demotion).
+
+| Verb | Phase | Status | Notes |
+|---|---|---|---|
+| `log_prompt` | all | ✅ | Persists USER / ASSISTANT / SYSTEM message to `prompt_logs`. Idempotent on `(projectId, clientLocalId)`. On platform failure, buffers to `.coznt/prompt-buffer.jsonl`. |
+| `rate_prompt` | all | ✅ | Scores against the canonical 6-dim rubric without persisting. Provide `content` or `promptLogId`. |
+| `get_prompt_author` | all | ✅ | Pure-local — reads git config + OS user; respects `COZNT_PROMPT_AUTHOR` / `COZNT_PROMPT_AUTHOR_EMAIL`. |
+| `flush_local_prompts` | all | ✅ | Drains `.coznt/prompt-buffer.jsonl` to the platform. Atomic on success — partial failures preserve unflushed entries. |
+| `trigger_pipeline` | cicd | ✅ | Actively dispatches a GitHub Actions or Azure DevOps run via `src/lib/integrations/outbound.ts`. |
+
+**5 of 5 shipped.** Canonical rubric in `src/lib/prompt-quality/rubric.ts`; JS port at `scripts/hook-src/coznt-prompt-quality.mjs` ships in the prompt-hook tarball. See [`./prompt-quality-rubric.md`](./prompt-quality-rubric.md).
+
 ---
 
 ## Blocked by design exclusion

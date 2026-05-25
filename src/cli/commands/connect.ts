@@ -28,6 +28,10 @@ import { pickProject } from "../lib/project-picker.js";
 import { ask, askChoice, askSecret } from "../lib/prompt.js";
 import { runSync } from "./sync.js";
 import { tarballUrl } from "../../lib/mcp/host-config.js";
+import {
+  installClaudePromptHook,
+  fetchCurrentHookVersion,
+} from "../lib/prompt-hook-installer.js";
 
 export interface ConnectOptions {
   editor?: string;
@@ -35,6 +39,15 @@ export interface ConnectOptions {
   serverUrl?: string;
   apiKeyEnv?: string;
   mcpLauncher?: string;
+  /**
+   * Override the prompt-hook install default. Default behavior:
+   *   - claude-code editor: install
+   *   - any other editor: skip
+   * Pass `false` to suppress, `true` to force-install regardless of editor.
+   */
+  installPromptHook?: boolean;
+  /** Overwrite a foreign UserPromptSubmit hook instead of erroring. */
+  force?: boolean;
 }
 
 const DEFAULT_SERVER = "http://localhost:3029";
@@ -156,18 +169,53 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
     }
   }
 
-  // 5. .coznt/config.json
-  writeConfig({ serverUrl, projectId: picked.id, apiKeyRef }, repoRoot);
+  // 5. Prompt-hook install (Claude Code only by default).
+  const shouldInstallHook =
+    options.installPromptHook ?? editor === "claude-code";
+  let promptHookEntry: { installed: boolean; version: string | null; editor: string | null } = {
+    installed: false,
+    version: null,
+    editor: null,
+  };
+  if (shouldInstallHook) {
+    if (editor !== "claude-code" && options.installPromptHook !== true) {
+      console.log(`Skipping prompt-hook install: editor=${editor} not supported.`);
+    } else {
+      const res = installClaudePromptHook({ repoRoot, serverUrl, force: options.force });
+      if (res.conflict) {
+        console.error(
+          `A non-coznt UserPromptSubmit hook already exists in ${res.path}. Re-run with --force to overwrite.`,
+        );
+        return 1;
+      }
+      const version = await fetchCurrentHookVersion(serverUrl);
+      promptHookEntry = { installed: true, version, editor };
+      console.log(
+        `✓ Installed prompt-hook in ${res.path}${res.overwrote ? " (replaced prior coznt entry)" : ""}`,
+      );
+    }
+  }
+
+  // 6. .coznt/config.json
+  writeConfig(
+    {
+      serverUrl,
+      projectId: picked.id,
+      apiKeyRef,
+      promptHook: promptHookEntry,
+    },
+    repoRoot,
+  );
   console.log(`✓ Wrote .coznt/config.json`);
 
-  // 6. .gitignore
+  // 7. .gitignore
   const gi = ensureCozntLocalGitignored(repoRoot);
   if (gi.changed) console.log(`✓ Added .coznt/.local/ to .gitignore`);
 
-  // 7. .coznt/README.md
+  // 8. .coznt/README.md
   writeReadme(repoRoot);
 
-  // 8. Editor MCP config — default to the tarball this coznt instance serves
+  // 9. Editor MCP config — default to the tarball this coznt instance serves
   // (`npx -y https://<server>/install/coznt-mcp-<version>.tgz`). Mirrors
   // renderHostConfig's default; --mcp-launcher overrides for monorepo dev.
   const launcher = options.mcpLauncher ?? "npx";
@@ -190,7 +238,7 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
     `✓ Wrote ${wrote.path} (${wrote.merged ? "merged" : "new"}${wrote.overwrote ? ", overwrote prior coznt entry" : ""})`,
   );
 
-  // 9. Initial sync
+  // 10. Initial sync
   console.log("");
   console.log("Running initial sync …");
   const syncCode = await runSync({});

@@ -13,10 +13,19 @@ export type ApiKeyRef =
   | { kind: "env"; name: string }
   | { kind: "keychain"; account: string };
 
+export interface PromptHookConfig {
+  installed: boolean;
+  /** Server-provided version of the hook script. */
+  version: string | null;
+  /** Editor the hook is wired into (today: claude-code). */
+  editor: string | null;
+}
+
 export interface CozntConfig {
   serverUrl: string;
   projectId: string;
   apiKeyRef: ApiKeyRef;
+  promptHook?: PromptHookConfig;
 }
 
 const CONFIG_PATH = ".coznt/config.json";
@@ -54,10 +63,20 @@ function validateConfig(raw: unknown): CozntConfig {
   } else {
     throw new ConfigError("apiKeyRef.kind must be 'env' or 'keychain'");
   }
+  let promptHook: PromptHookConfig | undefined;
+  if (c.promptHook && typeof c.promptHook === "object") {
+    const ph = c.promptHook as Record<string, unknown>;
+    promptHook = {
+      installed: Boolean(ph.installed),
+      version: typeof ph.version === "string" ? ph.version : null,
+      editor: typeof ph.editor === "string" ? ph.editor : null,
+    };
+  }
   return {
     serverUrl: c.serverUrl.replace(/\/$/, ""),
     projectId: c.projectId,
     apiKeyRef: c.apiKeyRef as ApiKeyRef,
+    promptHook,
   };
 }
 

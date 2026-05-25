@@ -224,6 +224,8 @@ export function CockpitClient({ data }: { data: CockpitData }) {
             outcomes={data.trust.outcomes}
             policy={data.trust.policy}
             learnings={data.trust.learnings}
+            promptQuality={data.trust.promptQuality}
+            promptGovernanceEnabled={data.trust.promptGovernanceEnabled}
           />
         </TabsContent>
 

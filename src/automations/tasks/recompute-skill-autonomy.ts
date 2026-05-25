@@ -27,9 +27,28 @@ export async function recomputeSkillAutonomyTask(params: TaskParams): Promise<vo
   if (!skillId || projectId === undefined) {
     const outcome = await db.query.skillOutcomes.findFirst({
       where: eq(skillOutcomes.id, params.entityId),
-      columns: { skillId: true, projectId: true },
+      columns: { skillId: true, projectId: true, sourceKind: true },
     });
     if (!outcome) return; // outcome row may have been deleted; nothing to do
+    // `prompt_quality_signal` rows have skillId=null — they fan out per
+    // skill on the project rather than recomputing a single pair.
+    if (outcome.sourceKind === "prompt_quality_signal") {
+      if (!outcome.projectId) return;
+      const { skills } = await import("@/db/schema/skill");
+      const { and: andOp, eq: eqOp, or: orOp, isNull } = await import("drizzle-orm");
+      const affected = await db
+        .select({ id: skills.id })
+        .from(skills)
+        .where(
+          andOp(
+            eqOp(skills.enabled, true),
+            orOp(eqOp(skills.projectId, outcome.projectId), isNull(skills.projectId)),
+          ),
+        );
+      for (const s of affected) await recompute(s.id, outcome.projectId);
+      return;
+    }
+    if (!outcome.skillId) return;
     skillId = outcome.skillId;
     projectId = outcome.projectId;
   }

@@ -21,6 +21,12 @@ interface Body {
   intent?: string | null;
   repoUrl?: string | null;
   localId?: string | null;
+  /**
+   * Editor declared at handshake — used as the default `source` for
+   * `prompt_logs` rows in this session. Persisted in audit_log.after
+   * (sessions live in audit_logs; no standalone table).
+   */
+  vibeSource?: "CURSOR" | "CLAUDE_CODE" | "COPILOT" | "WINDSURF" | "CODEX" | "OTHER" | null;
 }
 
 export async function POST(req: Request) {
@@ -72,8 +78,14 @@ export async function POST(req: Request) {
         repoUrl: body.repoUrl ?? null,
         localId: body.localId ?? null,
         repoPolicy,
+        vibeSource: body.vibeSource ?? null,
       } as Record<string, unknown>,
     });
-    return { id: sessionId, createdAt: new Date().toISOString(), repoPolicy };
+    return {
+      id: sessionId,
+      createdAt: new Date().toISOString(),
+      repoPolicy,
+      vibeSource: body.vibeSource ?? null,
+    };
   });
 }

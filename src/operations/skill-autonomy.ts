@@ -27,7 +27,8 @@
  * in-memory default when no row exists yet.
  */
 
-import { and, desc, eq, gte, isNull, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { attenuationFactorForProject } from "./prompt-log";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
@@ -97,6 +98,45 @@ export async function recordSkillOutcome(input: RecordSkillOutcomeInput) {
     })
     .returning();
   return row;
+}
+
+export interface RecordPromptQualitySignalInput {
+  organizationId: string;
+  projectId: string;
+  /** PromptLog row id that originated this signal. */
+  promptLogId: string;
+  /** Score (0–100) from the rubric. */
+  score: number;
+  /** Tier label — only NEEDS_IMPROVEMENT / POOR produce signal rows. */
+  tier: "NEEDS_IMPROVEMENT" | "POOR";
+}
+
+/**
+ * Append a `prompt_quality_signal` outcome row. `skillId=null` (project-level
+ * signal) and `verdict=null` (signal-only — never rolls into success counts).
+ * Idempotent on `(skill_id, source_kind, source_ref)` where
+ * `source_ref = "prompt:<id>"`.
+ */
+export async function recordPromptQualitySignal(input: RecordPromptQualitySignalInput) {
+  const inserted = await db
+    .insert(skillOutcomes)
+    .values({
+      organizationId: input.organizationId,
+      skillId: null,
+      projectId: input.projectId,
+      verdict: null,
+      severity: null,
+      sourceKind: "prompt_quality_signal",
+      sourceRef: `prompt:${input.promptLogId}`,
+      rationale: `Prompt scored ${input.score}/${input.tier}`,
+      promptLogId: input.promptLogId,
+    })
+    .onConflictDoNothing({
+      target: [skillOutcomes.skillId, skillOutcomes.sourceKind, skillOutcomes.sourceRef],
+      where: sql`${skillOutcomes.sourceRef} is not null`,
+    })
+    .returning();
+  return inserted[0] ?? null;
 }
 
 export interface RecordAssessorOutcomeInput {
@@ -240,6 +280,7 @@ async function loadWindowStats(
         eq(skillOutcomes.skillId, skillId),
         projectIdMatches(skillOutcomes.projectId, projectId),
         gte(skillOutcomes.recordedAt, since),
+        isNotNull(skillOutcomes.verdict),
       ),
     );
 
@@ -295,6 +336,17 @@ export async function recomputeSkillAutonomy(
   const now = new Date();
   const nextReviewAt = new Date(now.getTime() + REVIEW_INTERVAL_HOURS * 60 * 60 * 1000);
 
+  // Agent-loop signal: sustained low-quality prompts on this project raise
+  // the bar for promotion (don't trigger demotion). Project-scoped only —
+  // org-wide (projectId=null) recompute is unaffected.
+  const attenuation = projectId
+    ? await attenuationFactorForProject(skill.organizationId, projectId).catch(() => ({
+        factor: 1.0,
+        distribution: { good: 0, needsImprovement: 0, poor: 0, total: 0 },
+      }))
+    : { factor: 1.0, distribution: { good: 0, needsImprovement: 0, poor: 0, total: 0 } };
+  const requiredSamples = Math.ceil(MIN_SAMPLES_FOR_PROMOTION * attenuation.factor);
+
   let newLevel = current.level;
   let reason = `holding at ${current.levelName}`;
   let promoted = false;
@@ -313,18 +365,20 @@ export async function recomputeSkillAutonomy(
         ? Number.POSITIVE_INFINITY
         : (now.getTime() - current.levelSetAt.getTime()) / (24 * 60 * 60 * 1000);
     const meetsRate = stats.successRate >= PROMOTE_SUCCESS_RATE;
-    const meetsSamples = stats.successes >= MIN_SAMPLES_FOR_PROMOTION;
+    const meetsSamples = stats.successes >= requiredSamples;
     const meetsTime = daysAtLevel >= PROMOTE_MIN_AT_LEVEL_DAYS;
     const safe = stats.criticalIncidents === 0;
 
     if (meetsRate && meetsSamples && meetsTime && safe) {
       newLevel = current.level + 1;
       promoted = true;
-      reason = `promoted to ${LEVEL_NAMES[newLevel]}: ${Math.round(stats.successRate * 100)}% success across ${stats.total} runs (${WINDOW_DAYS}d)`;
+      const attenNote = attenuation.factor > 1.0 ? ` (×${attenuation.factor} prompt attenuation)` : "";
+      reason = `promoted to ${LEVEL_NAMES[newLevel]}: ${Math.round(stats.successRate * 100)}% success across ${stats.total} runs (${WINDOW_DAYS}d)${attenNote}`;
     } else if (!meetsTime) {
       reason = `holding at ${current.levelName}: ${Math.floor(daysAtLevel)}d at level (<${PROMOTE_MIN_AT_LEVEL_DAYS}d)`;
     } else if (!meetsSamples) {
-      reason = `holding at ${current.levelName}: only ${stats.successes} successes in window (<${MIN_SAMPLES_FOR_PROMOTION})`;
+      const attenNote = attenuation.factor > 1.0 ? ` (×${attenuation.factor} prompt attenuation)` : "";
+      reason = `holding at ${current.levelName}: only ${stats.successes} successes in window (<${requiredSamples}${attenNote})`;
     } else if (!meetsRate) {
       reason = `holding at ${current.levelName}: ${Math.round(stats.successRate * 100)}% success (<${Math.round(PROMOTE_SUCCESS_RATE * 100)}%)`;
     }
@@ -546,10 +600,19 @@ export async function getRecentSkillOutcomes(
     })
     .from(skillOutcomes)
     .leftJoin(projects, eq(projects.id, skillOutcomes.projectId))
-    .where(eq(skillOutcomes.skillId, skillId))
+    // skillId NOT NULL filter (signal rows have skillId=null) + recipient skill.
+    .where(and(eq(skillOutcomes.skillId, skillId), isNotNull(skillOutcomes.verdict)))
     .orderBy(desc(skillOutcomes.recordedAt))
     .limit(limit);
-  return rows;
+  return rows as Array<{
+    id: string;
+    verdict: SkillOutcomeVerdict;
+    severity: SkillOutcomeSeverity | null;
+    recordedAt: Date;
+    projectId: string | null;
+    projectName: string | null;
+    invocationId: string | null;
+  }>;
 }
 
 /**

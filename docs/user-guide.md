@@ -122,6 +122,22 @@ Restart the editor. Sanity-check by asking the agent to call `get_my_context` �
 
 > **If it doesn't work.** Verify both endpoints with `npx -y <your-coznt-url>/install/coznt-mcp/latest --version` and `npx -y <your-coznt-url>/install/coznt-cli/latest --version`. If either fails, check that your coznt URL is reachable and that the deployment ran `pnpm build` (which populates `public/install/`).
 
+## A2.5. Install the prompt-quality hook (Claude Code)
+
+If your editor is Claude Code, `coznt connect` installs a `UserPromptSubmit` hook by default. The hook scores every prompt you type against the canonical 6-dimension rubric (clarity, context, specificity, constraints, phase-fit, safety) **locally** — no LLM cost, no network latency in the hot path — then fires a best-effort POST to the coznt deployment so the score lands in the autonomy ledger.
+
+What you'll see in the editor:
+
+- **GOOD tier (≥80):** silent. Prompt runs as-is.
+- **NEEDS_IMPROVEMENT / POOR:** Claude Code displays the rubric breakdown + suggestions as additional context alongside your prompt. The model sees the coaching; you can ignore or revise.
+- **Below `COZNT_PROMPT_MIN_SCORE`** (only if you've set that env var): the prompt is **blocked** before reaching the model. The reason is shown inline.
+
+Disable per-repo with `coznt connect --no-install-prompt-hook`. Remove later with `coznt prompt-hook uninstall`. Check status with `coznt prompt-hook status`.
+
+Sub-GOOD prompts emit a project-level signal row into the autonomy ledger. Sustained low-quality prompts raise the bar for skill promotion on that project — they do not, however, demote a skill. Demotion is reserved for actual `incident` / `rolled_back` outcomes.
+
+Requires `COZNT_PROMPT_GOVERNANCE_ENABLED=1` on the deployment. See [`docs/operate/prompt-hook.md`](operate/prompt-hook.md) for the install lifecycle and troubleshooting.
+
 ## A3. Sync the project's choreographies
 
 ```bash
@@ -161,13 +177,104 @@ The agent grounds every action in this payload. A simple turn:
 
 1. You ask the agent: *"Run the test-author choreography on the diff."*
 2. The agent opens `.coznt/skills/test-author/SKILL.md` and follows it.
-3. The choreography says *"call `invoke_skill('test-author')`."* The agent calls it.
-4. Coznt's autonomy gate fires **before dispatch**. `test-author` is `SENIOR` on this project → runs unattended.
-5. The governed LLM call runs server-side. The output (generated test file) returns to the agent.
-6. A row lands in `skill_outcomes` with `verdict='success'` and `sourceKind='invocation'`.
-7. Worker recomputes autonomy for `(test-author, payments-api)`.
+3. The agent calls `session_start` with intent `"running test-author on diff"`. Coznt opens a session row; every verb call this turn carries the session id, so the audit log can replay the full span later.
+4. The choreography says *"call `invoke_skill('test-author')`."* The agent calls it.
+5. Coznt's autonomy gate fires **before dispatch**. `test-author` is `SENIOR` on this project → runs unattended.
+6. The governed LLM call runs server-side (inside `generate()` in `src/lib/ai/`). The output is Zod-validated against the skill's output schema; on parse failure the daemon retries up to 3 times. The structured result returns to the agent — never raw text.
+7. A row lands in `skill_outcomes` with `verdict='success'` and `sourceKind='invocation'`, linked to the session.
+8. Worker recomputes autonomy for `(test-author, payments-api)`.
+9. The agent calls `session_end` with a 1-2 sentence summary. The session's tool-call count and duration land in the audit row.
 
 You — the developer — review the generated tests, commit, push, open the PR using your normal tooling. Coznt watches that PR via webhook and grades it at merge time.
+
+## A4.5. The verb surface
+
+These are the MCP verbs the agent can call. Availability depends on the project's current phase — `get_my_context` always returns the live `allowedTools` / `forbiddenTools` lists. The full tiered spec lives in [`docs/spec/mcp-verbs.md`](spec/mcp-verbs.md).
+
+### Always allowed (every phase)
+
+| Verb | Purpose |
+|---|---|
+| `get_my_context` | Project, phase, allowed/forbidden tools, active rules, skill autonomy levels |
+| `get_project_status` | Phase, gates, recent activity |
+| `get_phase_checklist` | What's left before the current phase can advance |
+| `get_assigned_work` | Work items synced from your tracker |
+| `get_requirements` | Approved requirements for the bound project |
+| `check_standards` | Validate code against project + org-wide rules |
+| `submit_phase_for_review` | Open an approval request to advance phase |
+| `advance_phase` | Move the project to the next phase (post-approval) |
+| `mark_gate_passed` | Mark a phase gate as passed/skipped |
+| `session_start` / `session_end` | Open and close a turn-spanning session for audit attribution |
+
+### Authoring + delivery
+
+| Verb | Phase(s) | Purpose |
+|---|---|---|
+| `draft_requirement` / `list_draft_requirements` / `update_draft_requirement` / `delete_draft_requirement` | requirements | Per-process draft buffer (no DB writes) |
+| `create_requirement` | requirements | Create a story plan from inline content |
+| `push_requirements` | requirements | Push session drafts (or inline batch) to the platform |
+| `upsert_plan` | dev, design, testing, cicd | Coznt's documents semantic — author/version any plan kind (epic / feature / story / adr / test_plan / release_plan / storyboard / dev_summary / go_live_report / cicd_pipeline / incident) |
+| `get_plans` | all | Coznt's `get_documents` — list/fetch plans with kind/status filters |
+| `get_design_context` | design, dev, testing | ADRs (with bodies) + active features/stories + linked work items |
+| `log_decision` | design, dev | Record an ADR (writes `plan kind=adr`) |
+| `submit_for_approval` | requirements, design, testing, cicd | Open an approval request against a plan / requirement / gate |
+| `update_work_item_status` | dev, testing, cicd | Coznt-side status update (no upstream push — that's intentionally excluded) |
+| `update_test_result` | testing | Append a test-run row |
+| `generate_pipeline` | cicd | Templated pipeline scaffold (GitHub Actions or ADO) |
+| `get_pipeline_status` | cicd, monitoring | Latest deploy + recent test runs + active release_plan |
+
+### Skill invocation
+
+| Verb | Phase | Purpose |
+|---|---|---|
+| `invoke_skill` | all (per skill's `min_autonomy`) | **The keystone verb.** Dispatch a governed skill server-side under autonomy gate. The actual prompt + LLM call live in the daemon |
+| `generate_tests` | design, testing | Convenience wrapper over `invoke_skill('test-author')` |
+
+### Search the project's memory
+
+| Verb | Returns |
+|---|---|
+| `search_plans` | Semantic + keyword search over plans; filters by `kinds[]` and `statuses[]` |
+| `search_outcomes` | Skill outcome rows; filters by `verdicts[]` and date `range` |
+| `search_audit` | Audit-log rows; filters by `actorType` and `scope` |
+| `search_learnings` | Project learnings; pinned entries float when scores are close |
+
+All four are hybrid (vector + BM25) over coznt's embedding index — same `searchSemantic()` machinery the CRUD factory exposes.
+
+### Choreography distribution
+
+| Verb | Purpose |
+|---|---|
+| `list_choreographies` | Manifest `{slug, version, hash, description, minAutonomy}[]` for the bound project |
+| `sync_choreographies` | Full content bundle. Optional `slugs[]` filter |
+
+These are what `coznt sync` calls under the hood; the agent rarely calls them directly.
+
+### Agent-loop governance
+
+These five close the gap on the agent loop itself — the host LLM's reasoning that runs between governed `invoke_skill` calls. Enable per-deployment by setting `COZNT_PROMPT_GOVERNANCE_ENABLED=1`.
+
+| Verb | Phase | Purpose |
+|---|---|---|
+| `log_prompt` | all | Persist a USER / ASSISTANT / SYSTEM message to `prompt_logs`. Idempotent on `(projectId, clientLocalId)`; buffers to `.coznt/prompt-buffer.jsonl` on network failure |
+| `rate_prompt` | all | Score a prompt against the canonical 6-dim rubric (clarity, context, specificity, constraints, phaseFit, safety). Returns tier (GOOD / NEEDS_IMPROVEMENT / POOR), dimension breakdown, suggestions, flags |
+| `get_prompt_author` | all | Resolve local git user.name / user.email / OS username for prompt attribution. Pure-local; no platform call |
+| `flush_local_prompts` | all | Drain `.coznt/prompt-buffer.jsonl` to the platform. Atomic on success — partial failures preserve the unflushed entries |
+| `trigger_pipeline` | cicd only | Actively kick off a CI/CD run on GitHub Actions or Azure DevOps for the bound project |
+
+Sub-GOOD prompts emit a `prompt_quality_signal` row into the autonomy ledger. Sustained low-quality prompts **slow** skill promotion on this project but never trigger demotion — that stays outcome-driven.
+
+#### Install the prompt-quality hook (Claude Code)
+
+When you run `coznt connect` in a Claude Code repo, the CLI offers to install a `UserPromptSubmit` hook that scores every prompt locally and posts to coznt. Override with `--install-prompt-hook` / `--no-install-prompt-hook`.
+
+Set `COZNT_PROMPT_MIN_SCORE=60` (or any 0-100 threshold) in your env to **block** prompts below that score — Claude Code surfaces the reason inline and won't send the prompt to the model.
+
+Remove the hook anytime with `coznt prompt-hook uninstall`.
+
+### Blocked by design
+
+`create_pr` and `push_to_external` are **intentionally excluded** from the verb surface. Coznt grades work products; it doesn't write them. The agent opens its own PRs via your normal git tooling; Jira/Confluence/ADO own their own tickets. This separation is what makes the autonomy ledger credible — the grader isn't also the actor.
 
 ## A5. When something blocks
 
@@ -249,7 +356,7 @@ Move it to review:
 
 > "Mark the plan as in_review and request approval from the tech lead."
 
-The agent calls `request_approval`. A row appears at `<coznt>/approvals`.
+The agent calls `submit_for_approval`. A row appears at `<coznt>/approvals`.
 
 ### Step 4 — Approve the plan
 
@@ -394,7 +501,23 @@ Navigate to `/integrations` and click **Configure** on the GitHub card.
 
 This is org-level; every project in the org reuses it.
 
-You can do the same later for **Jira**, **Azure DevOps**, and **Confluence**. They're optional for the GitHub-only loop.
+### Jira, Azure DevOps, Confluence
+
+All three are optional for the GitHub-only loop but unlock work-item sync, ADR publishing, and pipeline read-paths. Configure each from the same `/integrations` page; credentials live in `integration_credentials` (encrypted) and resolve per provider.
+
+| Provider | Required fields | Where to mint the token |
+|---|---|---|
+| **Jira** | API token + site URL (`https://acme.atlassian.net`) + account email | <https://id.atlassian.com/manage-profile/security/api-tokens> |
+| **Azure DevOps** | PAT + Org URL (`https://dev.azure.com/acme`) | ADO → User settings → Personal access tokens. Scopes: `Build (read/execute)`, `Code (read)`, `Work items (read/write)` |
+| **Confluence** | API token + site URL + account email | Same Atlassian token page as Jira (one token works for both) |
+
+After saving credentials, bind each per-project from `/projects/[id]` → **Settings**:
+
+- **Jira** — set `jiraProjectKey` (e.g. `PAY`). Story sync becomes available; `get_assigned_work` returns Jira issues alongside coznt work items.
+- **Azure DevOps** — set `adoProjectId`. `get_pipeline_status` and `generate_pipeline` route to ADO when this is set.
+- **Confluence** — set `confluenceSpaceKey`. ADRs created via `log_decision` can optionally publish there (server-side, after approval — never from the agent directly).
+
+For GHE on the GitHub side, the same PAT flow works — issue the token from your GHE instance and add it to the GitHub card on the same page.
 
 ## B6. Create your first real project
 
@@ -507,6 +630,44 @@ Commit the generated `drizzle/00XX_*.sql` and the updated `drizzle/meta/_journal
 | `/install/coznt-mcp/latest` | Self-hosted MCP tarball (redirects to current pinned version) |
 | `/settings` | Org-wide preferences |
 
+## C1.5. Built-in skills
+
+These ship with every coznt deployment as org-wide skills (`projectId = NULL`). They're available to every project at install, gated only by per-project autonomy. Each is invoked via `invoke_skill('<slug>')` and produces a plan of the listed kind — landing in the project's **Plans** tab at `draft` status for human review.
+
+| Slug | Plan kind | What it produces |
+|---|---|---|
+| `requirements-document` | `story` | A comprehensive Requirements Specification Document for the project |
+| `epic-decomposer` | `epic` | Breaks a high-level epic into structured features + stories with acceptance criteria |
+| `feature-spec-generator` | `feature` | A complete feature specification from an approved epic or requirement |
+| `storyboard-generator` | `storyboard` | UI storyboards / wireframe descriptions / user-flow diagrams (Mermaid) |
+| `adr-extractor` | `adr` | An Architecture Decision Record from a design discussion, PR thread, or code change — Status / Context / Decision / Consequences |
+| `test-plan-generator` | `test_plan` | A test plan + script outlines covering approved requirements |
+| `test-execution-report-generator` | `test_execution_report` | A test-execution report from a test_plan + test_runs |
+| `cicd-pipeline-authoring` | `cicd_pipeline` | A pipeline definition (GitHub Actions or ADO) wired to the project's tracker and deploy targets |
+| `dev-summary-generator` | `dev_summary` | A development-phase summary from merged PRs + linked stories + ADRs |
+| `release-notes-generator` | `release_plan` | Release notes from a window of merged PRs and closed stories |
+| `go-live-report-generator` | `go_live_report` | A production-readiness report for a release_plan |
+| `incident-postmortem` | `incident` | A blameless postmortem draft — timeline, root-cause hypothesis, action items |
+
+The full prompt template for each lives server-side in `src/automations/agents/prompts/`; the choreography (when to call it, what to do with the result) lives in `src/automations/skills/<slug>/SKILL.md` and rides into the dev repo via `coznt sync`.
+
+## C1.6. If you're coming from SDLC Platform
+
+If you've used the SDLC Transformation Platform, most coznt verbs map 1:1. A few are reshaped — by design, not by accident:
+
+| SDLC verb | Coznt equivalent | Why the reshape |
+|---|---|---|
+| `upload_document` | `upsert_plan` | Coznt absorbs the documents semantic into plans. Upserts by `(projectId, kind, slug)`; subsequent calls write `plan_revisions` rows. The Plans tab IS the documents view |
+| `get_documents` | `get_plans` | Same lift — lists/fetches by kind/status, body includes revisions + approvals |
+| `set_project` / `switch_project` | (n/a) | Coznt API keys are pinned to one project at mint time. Multi-project work = one key per project, one `coznt connect` per repo |
+| `setup_workspace` | `coznt connect` (CLI) | Workspace bootstrap moved to the CLI; the MCP server never writes to your repo |
+| `push_to_external` | (excluded) | Coznt grades, doesn't write upstream. Use your tracker's normal UI/API for upstream sync |
+| `create_pr` | (excluded) | Same — agent opens PRs via your git tooling, coznt grades them via webhook |
+| `pass_all_tests` | `update_test_result` | Folded into the single test-result writer |
+| `request_approval` | `submit_for_approval` | One verb, polymorphic target (plan / phase_gate / release / work_item) |
+
+What coznt adds that SDLC doesn't have today: the autonomy ledger (`get_outcomes` + `recomputeSkillAutonomyTask`), append-only hash-chained audit (`search_audit`), and the four typed search verbs (`search_plans` / `search_outcomes` / `search_audit` / `search_learnings`).
+
 ## C2. Troubleshooting
 
 **Webhook fires but nothing shows up in the project.** The binding row probably wasn't created (older projects, or a non-GitHub URL). The route returns `200 {"status":"no-binding"}` in this case (silent drop — no 4xx in GitHub's delivery history). Check `adapter_bindings` for a row with `provider='github'` and `external_key='github.com/<owner>/<repo>'`. Insert manually if needed:
@@ -534,8 +695,9 @@ values (gen_random_uuid()::text, '<org>', '<project>', 'github', 'github.com/<ow
 
 ## C3. Where to next
 
-- `docs/positioning.md` — what coznt is, who it's for, the loop it tightens
+- `docs/positioning.md` — what coznt is, who it's for, the loop it tightens. The "daemon + choreography" section explains why governed-skill calls run server-side
 - `docs/product/architecture.md` — milestones A–E, plan-driven SDLC model
 - `docs/ux/build-plan.md` — UI execution plan, mapped to milestones
-- `docs/spec/mcp-verbs.md` — full MCP verb reference (4 tiers, 31 verbs, exclusions)
+- `docs/spec/mcp-verbs.md` — **full MCP verb reference** (4 tiers, 31 verbs, exclusions). A4.5 above is the developer-friendly subset; this is the engineering source-of-truth
+- `docs/spec/skill-choreography.md` — how SKILL.md files are versioned, hash-locked, and served by `sync_choreographies`
 - `CLAUDE.md` — engineering conventions (Drizzle/Zod two-source rule, page-data pattern, CRUD factory)

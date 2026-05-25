@@ -13,6 +13,7 @@ import { workItems } from "./work-item";
 import { phaseGates } from "./phase-gate";
 import { metrics } from "./metric";
 import { adapterBindings } from "./adapter-binding";
+import { promptLogs } from "./prompt-log";
 
 export const departmentsRelations = relations(departments, () => ({}));
 export const orgIdentityRelations = relations(orgIdentity, () => ({}));
@@ -26,6 +27,11 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   phaseGates: many(phaseGates),
   metrics: many(metrics),
   adapterBindings: many(adapterBindings),
+  promptLogs: many(promptLogs),
+}));
+
+export const promptLogsRelations = relations(promptLogs, ({ one }) => ({
+  project: one(projects, { fields: [promptLogs.projectId], references: [projects.id] }),
 }));
 
 export const adapterBindingsRelations = relations(adapterBindings, ({ one }) => ({

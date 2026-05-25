@@ -266,16 +266,150 @@ function RecentOutcomes({ outcomes }: { outcomes: ProjectOutcomeRow[] }) {
   );
 }
 
+const TIER_TONE: Record<"GOOD" | "NEEDS_IMPROVEMENT" | "POOR", string> = {
+  GOOD: "border-trend-up/40 text-trend-up",
+  NEEDS_IMPROVEMENT: "border-state-pending/40 text-state-pending",
+  POOR: "border-state-failed/40 text-state-failed",
+};
+
+interface PromptQualitySummary {
+  attenuationFactor: number;
+  distribution: { good: number; needsImprovement: number; poor: number; total: number };
+  recent: Array<{
+    id: string;
+    role: "USER" | "ASSISTANT" | "SYSTEM";
+    source: string;
+    content: string;
+    promptScore: number | null;
+    promptTier: "GOOD" | "NEEDS_IMPROVEMENT" | "POOR" | null;
+    authorName: string | null;
+    createdAt: string;
+  }>;
+}
+
+function PromptQualityCard({
+  data,
+  projectId,
+}: {
+  data: PromptQualitySummary | null;
+  projectId: string;
+}) {
+  if (!data) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Prompt quality
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground">
+            Prompt governance is disabled for this deployment. Set{" "}
+            <code className="font-mono text-xs">COZNT_PROMPT_GOVERNANCE_ENABLED=1</code>{" "}
+            to capture and grade developer prompts.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (data.distribution.total === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Prompt quality
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground">
+            No prompts captured yet. Install the Claude Code hook via{" "}
+            <code className="font-mono text-xs">coznt connect --install-prompt-hook</code>{" "}
+            to start scoring prompts.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const { good, needsImprovement, poor, total } = data.distribution;
+  const goodPct = Math.round((good / total) * 100);
+  const niPct = Math.round((needsImprovement / total) * 100);
+  const poorPct = 100 - goodPct - niPct;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          <span>Prompt quality · 30d · {total} prompts</span>
+          <span className="text-[10px] normal-case tracking-normal text-muted-foreground">
+            promotion ×{data.attenuationFactor.toFixed(2)}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
+          <div className="bg-trend-up" style={{ width: `${goodPct}%` }} />
+          <div className="bg-state-pending" style={{ width: `${niPct}%` }} />
+          <div className="bg-state-failed" style={{ width: `${poorPct}%` }} />
+        </div>
+        <div className="flex gap-4 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span>good {goodPct}%</span>
+          <span>needs {niPct}%</span>
+          <span>poor {poorPct}%</span>
+        </div>
+        <ul className="divide-y divide-border/40">
+          {data.recent.slice(0, 10).map((p) => (
+            <li key={p.id} className="flex items-center gap-3 py-1.5 first:pt-0 last:pb-0">
+              {p.promptTier ? (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase",
+                    TIER_TONE[p.promptTier],
+                  )}
+                >
+                  {p.promptScore ?? "—"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="shrink-0 px-1.5 py-0 font-mono text-[10px]">
+                  pending
+                </Badge>
+              )}
+              <Link
+                href={`/projects/${projectId}/prompts/${p.id}`}
+                className="min-w-0 flex-1 truncate text-xs text-foreground/85 hover:underline"
+              >
+                {p.content}
+              </Link>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                {p.source}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                {p.authorName ?? "—"}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                {formatAge(new Date(p.createdAt))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function TrustTab({
   projectId,
   outcomes,
   policy,
   learnings,
+  promptQuality,
+  promptGovernanceEnabled,
 }: {
   projectId: string;
   outcomes: ProjectOutcomeRow[];
   policy: PolicyMatrixCell[];
   learnings: ProjectLearning[];
+  promptQuality: PromptQualitySummary | null;
+  promptGovernanceEnabled: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -290,6 +424,10 @@ export function TrustTab({
         }))}
       />
       <ActivePolicyMatrix cells={policy} />
+      <PromptQualityCard
+        data={promptGovernanceEnabled ? promptQuality : null}
+        projectId={projectId}
+      />
       <RecentOutcomes outcomes={outcomes} />
     </div>
   );

@@ -25,6 +25,7 @@ import {
   getJiraClient,
   getAdoClient,
   getConfluenceClient,
+  getGitHubClient,
 } from "@/lib/integrations/clients";
 
 const log = createLogger("integrations:outbound");
@@ -300,6 +301,68 @@ export async function triggerAdoPipelineForGate(gateId: string): Promise<{ runId
     log.error("triggerAdoPipelineForGate failed", { gateId, err: String(err) });
     return null;
   }
+}
+
+/**
+ * Generic pipeline trigger by source — backs the `trigger_pipeline` MCP verb.
+ *
+ * Resolves the project's outbound binding for the requested source and
+ * dispatches a run. Returns the run id (and html url when available).
+ *
+ * Throws with `{ kind: "missing_binding" }` when the project has no
+ * integration credentials for the requested source.
+ */
+export async function triggerPipelineForProject(args: {
+  organizationId: string;
+  projectId: string;
+  source: "GITHUB" | "AZURE_DEVOPS";
+  workflowId: string;
+  branch?: string;
+}): Promise<{ runId: string | null; htmlUrl: string | null; status: string }> {
+  const adapterKind = args.source === "GITHUB" ? "github" : "ado";
+  const binding = await getOutboundBinding(args.organizationId, args.projectId, adapterKind);
+  if (!binding) {
+    const err = new Error(`No ${args.source} integration bound to this project`) as Error & {
+      kind?: string;
+      status?: number;
+    };
+    err.kind = "missing_binding";
+    err.status = 412;
+    throw err;
+  }
+
+  if (args.source === "GITHUB") {
+    const [owner, repo] = binding.externalKey.split("/");
+    if (!owner || !repo) {
+      throw new Error(`Malformed GitHub binding externalKey: ${binding.externalKey}`);
+    }
+    const client = await getGitHubClient(args.organizationId);
+    const result = await client.dispatchWorkflow({
+      owner,
+      repo,
+      workflowId: args.workflowId,
+      ref: args.branch ?? "main",
+    });
+    return { runId: null, htmlUrl: null, status: result.status };
+  }
+
+  // Azure DevOps
+  const config = (binding.config as { project?: string } | null) ?? {};
+  const [account, projectName] = binding.externalKey.split("/");
+  const adoProject = config.project ?? projectName ?? account;
+  const client = await getAdoClient(args.organizationId);
+  const pipelineId = Number(args.workflowId);
+  if (!Number.isFinite(pipelineId)) {
+    throw new Error(`ADO workflowId must be numeric, got "${args.workflowId}"`);
+  }
+  const result = (await client.triggerPipeline(adoProject, pipelineId, args.branch)) as
+    | { id?: number; _links?: { web?: { href?: string } } }
+    | undefined;
+  return {
+    runId: result?.id ? String(result.id) : null,
+    htmlUrl: result?._links?.web?.href ?? null,
+    status: "queued",
+  };
 }
 
 /**

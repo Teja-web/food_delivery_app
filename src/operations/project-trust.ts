@@ -9,7 +9,7 @@
  *     so operators can see *which* policy is active without grepping rules.
  */
 
-import { and, desc, eq, or, like } from "drizzle-orm";
+import { and, desc, eq, or, like, isNotNull, ne } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { approvals, type ApprovalStatus } from "@/db/schema/approval";
@@ -57,10 +57,18 @@ export async function getRecentProjectOutcomes(
     })
     .from(skillOutcomes)
     .leftJoin(skills, eq(skills.id, skillOutcomes.skillId))
-    .where(eq(skillOutcomes.projectId, projectId))
+    .where(
+      and(
+        eq(skillOutcomes.projectId, projectId),
+        // Exclude signal-only rows (prompt_quality_signal) — those have
+        // verdict=null and don't belong in the outcome receipts panel.
+        isNotNull(skillOutcomes.verdict),
+      ),
+    )
     .orderBy(desc(skillOutcomes.recordedAt))
     .limit(limit);
-  return rows;
+  // Verdict is non-null due to the where clause; cast to satisfy strict mode.
+  return rows as ProjectOutcomeRow[];
 }
 
 export interface PolicyMatrixCell {

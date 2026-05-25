@@ -33,5 +33,6 @@ export * from "./gate-evaluation";
 export * from "./project-learning";
 export * from "./repo-policy";
 export * from "./custom-choreography";
+export * from "./prompt-log";
 
 export * from "./relations";
