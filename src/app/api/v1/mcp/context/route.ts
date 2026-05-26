@@ -1,8 +1,10 @@
 /**
- * POST /api/v1/mcp/context
+ * /api/v1/mcp/context — fetch project context (rules, skills, ADRs, phase).
  *
- * Cursor's MCP server calls this endpoint to fetch the project context
- * (rules, skills, ADRs, current phase) for the repo Devin is editing.
+ * Two methods, same payload:
+ *  - POST: body `{ repoUrl?, branch?, workItemKey? }` (Cursor MCP server, Devin).
+ *  - GET:  query string `?repoUrl=&workItemKey=` (coznt's own MCP tool
+ *    `get_my_context` calls this — see `src/mcp/tools/get-my-context.ts`).
  *
  * Auth: bearer API key (project-scoped or org-wide). Org-wide keys must
  * include `repoUrl` to disambiguate.
@@ -14,6 +16,7 @@ import {
   authenticate,
   UnauthorizedError,
   withApiContext,
+  type ApiContext,
 } from "@/lib/auth/api-key";
 import {
   buildMcpContext,
@@ -27,47 +30,31 @@ function appUrl(path: string): string {
   return `${base.replace(/\/$/, "")}${path}`;
 }
 
-export async function POST(req: Request) {
-  let ctx;
+async function authOrError(req: Request): Promise<ApiContext | Response> {
   try {
-    ctx = await authenticate(req);
+    return await authenticate(req);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
       return Response.json(
-        {
-          error: "Invalid or expired API key.",
-          fixUrl: appUrl("/api-keys"),
-        },
+        { error: "Invalid or expired API key.", fixUrl: appUrl("/api-keys") },
         { status: 401 },
       );
     }
     return Response.json({ error: "Authentication failed" }, { status: 401 });
   }
+}
 
-  let body: { repoUrl?: string; branch?: string; workItemKey?: string } = {};
-  try {
-    const raw = await req.text();
-    if (raw.trim().length > 0) {
-      const parsed = McpRequestSchema.parse(JSON.parse(raw));
-      body = parsed;
-    }
-  } catch (err) {
-    if (err instanceof ZodError) {
-      return Response.json(
-        { error: "Invalid request body", details: err.issues },
-        { status: 400 },
-      );
-    }
-    return Response.json({ error: "Malformed JSON body" }, { status: 400 });
-  }
-
+async function respond(
+  ctx: ApiContext,
+  input: { repoUrl?: string; workItemKey?: string },
+): Promise<Response> {
   try {
     const result = await withApiContext(ctx, async () =>
       buildMcpContext({
         organizationId: ctx.organizationId,
         keyProjectId: ctx.projectId,
-        repoUrl: body.repoUrl,
-        workItemKey: body.workItemKey,
+        repoUrl: input.repoUrl,
+        workItemKey: input.workItemKey,
       }),
     );
     return Response.json(result, { status: 200 });
@@ -84,7 +71,6 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     }
-    // Never bare 500 — always surface a recovery affordance.
     const msg = err instanceof Error ? err.message : "Internal error";
     return Response.json(
       {
@@ -94,4 +80,50 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+}
+
+export async function POST(req: Request) {
+  const auth = await authOrError(req);
+  if (auth instanceof Response) return auth;
+
+  let body: { repoUrl?: string; branch?: string; workItemKey?: string } = {};
+  try {
+    const raw = await req.text();
+    if (raw.trim().length > 0) {
+      body = McpRequestSchema.parse(JSON.parse(raw));
+    }
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return Response.json(
+        { error: "Invalid request body", details: err.issues },
+        { status: 400 },
+      );
+    }
+    return Response.json({ error: "Malformed JSON body" }, { status: 400 });
+  }
+
+  return respond(auth, { repoUrl: body.repoUrl, workItemKey: body.workItemKey });
+}
+
+export async function GET(req: Request) {
+  const auth = await authOrError(req);
+  if (auth instanceof Response) return auth;
+
+  const url = new URL(req.url);
+  const repoUrl = url.searchParams.get("repoUrl") ?? undefined;
+  const workItemKey = url.searchParams.get("workItemKey") ?? undefined;
+
+  try {
+    McpRequestSchema.parse({ repoUrl, workItemKey });
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return Response.json(
+        { error: "Invalid query params", details: err.issues },
+        { status: 400 },
+      );
+    }
+    throw err;
+  }
+
+  return respond(auth, { repoUrl, workItemKey });
 }

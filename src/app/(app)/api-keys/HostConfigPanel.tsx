@@ -45,17 +45,18 @@ export function HostConfigPanel({ plaintext }: Props) {
     [host, serverUrl, apiKey],
   );
 
-  const json = JSON.stringify(rendered.content, null, 2) + "\n";
+  const body = rendered.serialized;
+  const mime = rendered.format === "toml" ? "application/toml" : "application/json";
 
   function copy() {
-    navigator.clipboard.writeText(json).then(() => {
+    navigator.clipboard.writeText(body).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   }
 
   function download() {
-    const blob = new Blob([json], { type: "application/json" });
+    const blob = new Blob([body], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -102,7 +103,8 @@ export function HostConfigPanel({ plaintext }: Props) {
 
       <div className="mt-3 space-y-2">
         <div className="text-[11px] text-muted-foreground">
-          Paste into <code className="font-mono">{rendered.path}</code> in the dev&apos;s repo.
+          Paste into <code className="font-mono">{rendered.path}</code>
+          {rendered.pathKind === "home" ? <> in the user&apos;s home directory</> : <> in the dev&apos;s repo</>}.
           {!plaintext ? (
             <>
               {" "}The <code className="font-mono">COZNT_API_KEY</code> placeholder expects an
@@ -115,7 +117,7 @@ export function HostConfigPanel({ plaintext }: Props) {
           )}
         </div>
         <pre className="overflow-x-auto rounded-md border border-border/40 bg-background/70 p-3 font-mono text-[11px] leading-relaxed">
-          {json}
+          {body}
         </pre>
       </div>
     </div>

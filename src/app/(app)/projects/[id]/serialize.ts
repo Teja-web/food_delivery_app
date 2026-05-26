@@ -2,7 +2,7 @@ import type { AdapterBinding } from "@/db/schema/adapter-binding";
 // AdapterBinding currently has no last-sync column; we surface externalKey
 // instead. Sync history will be added when integrations expose it.
 import type { Deployment, DeploymentStatus } from "@/db/schema/deployment";
-import type { PhaseGate } from "@/db/schema/phase-gate";
+import type { GateType, PhaseGate } from "@/db/schema/phase-gate";
 import type { Plan } from "@/db/schema/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
@@ -31,7 +31,9 @@ export interface CockpitProjectClient {
 export interface CockpitGateClient {
   id: string;
   name: string;
-  type: string;
+  description: string | null;
+  type: GateType;
+  threshold: number | null;
   status: "pending" | "passed" | "failed" | "skipped";
   unmetCriterion: string | null;
   assigneeName: string | null;
@@ -190,7 +192,9 @@ export function serializeCockpitGate(g: PhaseGate): CockpitGateClient {
   return {
     id: g.id,
     name: g.name,
+    description: g.description ?? null,
     type: g.type,
+    threshold: g.threshold ?? null,
     status: g.status,
     unmetCriterion: g.unmetCriterion ?? null,
     assigneeName: g.assigneeName ?? null,
