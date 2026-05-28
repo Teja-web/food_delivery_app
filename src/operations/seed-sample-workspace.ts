@@ -7,13 +7,18 @@
  * without inserting anything (so re-running is safe).
  *
  * Insert order (forward FK chain):
- *   1. projects (4)              2. rules (8)
+ *   1. projects (5)              2. rules (8)
  *   3. skills (5)                4. skill_autonomy (~22 rows: 5 org + 17 per-project)
- *   5. skill_outcomes (~340 distributed across (skill, project) pairs)
- *   5b. adapter_bindings (~8)    6. plans (12)
- *   7. phase_gates (15)          8. approvals (12)
+ *   5. skill_outcomes (~340 distributed across (skill, project) pairs, with
+ *      Milestone-A sourceKind set: pr_merge / pr_revert / deploy_clean /
+ *      deploy_incident; plus prompt_quality_signal rows tied to prompt_logs)
+ *   5b. adapter_bindings (~10)   6. plans (17 — covering all 11 plan kinds)
+ *   7. phase_gates (~19)         8. approvals (12)
  *   9. deployments (~16)         10. metrics (weekly aggregates × 90d)
- *   11. audit_logs (autonomy + approvals + deployments)
+ *   11. audit_logs               12. work_items                13. notifications
+ *   14. webhook_events (~7)      15. gate_evaluations (~5)
+ *   16. prompt_logs (~10)        17. test_runs (~4)
+ *   18. repo_policies (~3)       19. custom_choreographies (~3)
  */
 
 import { eq } from "drizzle-orm";
@@ -23,28 +28,36 @@ import { db } from "@/db/client";
 import { adapterBindings } from "@/db/schema/adapter-binding";
 import { auditLogs } from "@/db/schema/audit-log";
 import { approvals, type ApprovalEntityType } from "@/db/schema/approval";
+import { customChoreographies } from "@/db/schema/custom-choreography";
 import { deployments, type DeploymentStatus } from "@/db/schema/deployment";
+import { gateEvaluations, type ChangeRisk, type GateVerdict } from "@/db/schema/gate-evaluation";
 import { metrics, type MetricType } from "@/db/schema/metric";
 import { phaseGates, type GateStatus, type GateType } from "@/db/schema/phase-gate";
 import { plans, type PlanKind, type PlanStatus } from "@/db/schema/plan";
 import { projects, type ProjectPhase } from "@/db/schema/project";
+import { promptLogs, type PromptQualityTier, type VibeCodingTool } from "@/db/schema/prompt-log";
+import { repoPolicies, type RepoPolicy } from "@/db/schema/repo-policy";
 import { rules, type RuleSeverity } from "@/db/schema/rule";
 import { notifications } from "@/db/schema/notification";
 import { skillAutonomy } from "@/db/schema/skill-autonomy";
-import { skillOutcomes, type SkillOutcomeSeverity, type SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
+import { skillOutcomes, type SkillOutcomeSeverity, type SkillOutcomeSourceKind, type SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
 import { skills } from "@/db/schema/skill";
+import { testRuns, type TestRunStatus } from "@/db/schema/test-run";
+import { webhookEvents, type WebhookSource } from "@/db/schema/webhook-event";
 import { workItems, type WorkItemKind, type WorkItemSource } from "@/db/schema/work-item";
 
 const DAY = 86_400_000;
 
 type ProjectSpec = {
-  key: "proj_pay" | "proj_dw" | "proj_auth" | "proj_kafka";
+  key: "proj_pay" | "proj_dw" | "proj_auth" | "proj_kafka" | "proj_obs";
   slug: string;
   name: string;
   description: string;
   phase: ProjectPhase;
   repoUrl: string | null;
   jiraProjectKey: string | null;
+  adoProjectId?: string | null;
+  confluenceSpaceKey?: string | null;
 };
 
 type SkillSpec = {
@@ -154,6 +167,20 @@ const PROJECT_SPECS: ProjectSpec[] = [
     repoUrl: null,
     jiraProjectKey: "KAF",
   },
+  {
+    // Live-in-production service — drives the cicd/monitoring phases of the demo
+    // and is the only project bound to Azure DevOps (so onboarding screens
+    // showcase all four adapter providers).
+    key: "proj_obs",
+    slug: "internal-observability-stack",
+    name: "Internal Observability Stack",
+    description: "OTel collectors + Tempo + Loki — already in production, now in continuous-monitoring phase.",
+    phase: "monitoring",
+    repoUrl: "https://github.com/northwind/observability",
+    jiraProjectKey: null,
+    adoProjectId: "northwind/observability-platform",
+    confluenceSpaceKey: "OBS",
+  },
 ];
 
 const SKILL_SPECS: SkillSpec[] = [
@@ -225,6 +252,7 @@ const SKILL_SPECS: SkillSpec[] = [
 ];
 
 const PLAN_SPECS: PlanSpec[] = [
+  { projectKey: "proj_pay", kind: "epic", title: "Payments platform v2.4 — capture/refund overhaul", summary: "Parent epic for the v2.4 release: idempotency, outbox webhooks, contract tests, phased rollout.", status: "in_progress", priority: "p1", assigneeName: "Sam Okafor", daysAgoUpdated: 16 },
   { projectKey: "proj_pay", kind: "story", title: "Idempotent retry for failed payment captures", summary: "Capture retries must dedupe via idempotency key, not network retry.", status: "approved", priority: "p1", assigneeName: "Aisha Patel", daysAgoUpdated: 14 },
   { projectKey: "proj_pay", kind: "adr", title: "Outbox pattern for payment webhooks", summary: "Use the outbox pattern over direct delivery for at-least-once webhook semantics.", status: "approved", assigneeName: "Devin Reyes", daysAgoUpdated: 9 },
   { projectKey: "proj_pay", kind: "feature", title: "Implement idempotency keys on POST /captures", summary: "Add Idempotency-Key header support backed by a 24h store.", status: "in_progress", priority: "p1", assigneeName: "Devin Reyes", externalRef: "https://northwind.atlassian.net/browse/PAY-1284", daysAgoUpdated: 1 },
@@ -233,10 +261,14 @@ const PLAN_SPECS: PlanSpec[] = [
   { projectKey: "proj_dw", kind: "story", title: "Sub-hour data freshness for analytics dashboards", summary: "BI dashboards must reflect production within 60 min, not 24h.", status: "approved", priority: "p1", assigneeName: "Yuki Tanaka", daysAgoUpdated: 21 },
   { projectKey: "proj_dw", kind: "adr", title: "Postgres logical decoding over Debezium for CDC", summary: "Native logical decoding reduces operational surface vs Debezium + Kafka Connect.", status: "in_review", assigneeName: "Yuki Tanaka", daysAgoUpdated: 3 },
   { projectKey: "proj_dw", kind: "adr", title: "Iceberg vs Delta Lake — storage layer", summary: "Pin a single table format for the v2 warehouse.", status: "in_review", assigneeName: "Yuki Tanaka", daysAgoUpdated: 3 },
+  { projectKey: "proj_dw", kind: "storyboard", title: "Data flow storyboard — v1 batch → v2 streaming", summary: "Frame-by-frame walkthrough of how a row moves from app DB to BI dashboard in the v2 architecture.", status: "approved", priority: "p2", assigneeName: "Yuki Tanaka", daysAgoUpdated: 8 },
   { projectKey: "proj_auth", kind: "feature", title: "Migrate /auth/login from Devise to Better-Auth", summary: "Shadow-write Devise sessions during migration; cut over after 14d clean.", status: "in_progress", priority: "p0", assigneeName: "Marco Bianchi", daysAgoUpdated: 2 },
   { projectKey: "proj_auth", kind: "test_plan", title: "End-to-end auth migration smoke tests", summary: "Cover sign-in, sign-out, session rotation, password reset, OAuth callback.", status: "in_progress", priority: "p1", assigneeName: "Marco Bianchi", daysAgoUpdated: 2 },
   { projectKey: "proj_auth", kind: "incident", title: "Migration rollback 2026-05-08 — session cookie mismatch", summary: "Session cookie path mismatch caused mass sign-outs. Rolled back at T+11m.", status: "completed", priority: "p0", assigneeName: "Marco Bianchi", daysAgoUpdated: 4 },
+  { projectKey: "proj_auth", kind: "dev_summary", title: "Auth migration — week 16 dev summary", summary: "Shadow-write window stabilized after rollback. 9 of 11 endpoints fully cut over; sign-out path still on Devise.", status: "approved", assigneeName: "Marco Bianchi", daysAgoUpdated: 2 },
   { projectKey: "proj_kafka", kind: "story", title: "Replace v1 consumer-lag monitoring with continuous sampling", summary: "Lag samples every 5s with adaptive backpressure on the producer side.", status: "draft", priority: "p2", assigneeName: "Rohan Desai", daysAgoUpdated: 1 },
+  { projectKey: "proj_obs", kind: "cicd_pipeline", title: "Observability stack pipeline — Tekton + Argo CD", summary: "Build → bake OTel collector image → push → Argo CD sync. Canary auto-rollback on SLO regression.", status: "approved", priority: "p1", assigneeName: "Jordan Mwangi", daysAgoUpdated: 22 },
+  { projectKey: "proj_obs", kind: "go_live_report", title: "Observability stack — go-live retrospective", summary: "First 30 days in production: 99.97% uptime, 2 collector OOMs (since fixed), MTTR 28 min average.", status: "completed", priority: "p2", assigneeName: "Sam Okafor", daysAgoUpdated: 11 },
 ];
 
 const RULE_SPECS: RuleSpec[] = [
@@ -270,6 +302,13 @@ const GATE_SPECS: GateSpec[] = [
   { projectKey: "proj_kafka", phase: "requirements", name: "Requirement quorum", description: "Minimum 3 requirements documented and approved.", type: "custom", status: "pending", unmetCriterion: "1/3 requirements — need 3", assigneeName: "Sam Okafor", daysAgoChanged: 0 },
   { projectKey: "proj_kafka", phase: "requirements", name: "Persona defined", description: "User personas captured in project frontmatter.", type: "custom", status: "passed", daysAgoChanged: 5 },
   { projectKey: "proj_kafka", phase: "requirements", name: "Success criteria", description: "Each requirement has explicit acceptance criteria.", type: "custom", status: "pending", unmetCriterion: "0/3 requirements have explicit acceptance criteria", assigneeName: "Rohan Desai", daysAgoChanged: 0 },
+  // proj_obs (monitoring) — live-in-prod project, all the cicd→monitoring gates closed
+  { projectKey: "proj_obs", phase: "cicd", name: "Pipeline definition", description: "cicd_pipeline plan exists and is approved.", type: "custom", status: "passed", daysAgoChanged: 22 },
+  { projectKey: "proj_obs", phase: "cicd", name: "Canary rollback drill", description: "Documented procedure validated against staging.", type: "custom", status: "passed", daysAgoChanged: 18 },
+  { projectKey: "proj_obs", phase: "monitoring", name: "SLO baseline established", description: "Burn-rate alerts wired to PagerDuty against signed-off targets.", type: "custom", status: "passed", daysAgoChanged: 11 },
+  { projectKey: "proj_obs", phase: "monitoring", name: "Runbook published", description: "Incident response runbook linked in Confluence.", type: "custom", status: "passed", daysAgoChanged: 11 },
+  { projectKey: "proj_obs", phase: "monitoring", name: "On-call rotation defined", description: "Primary + secondary rotation, escalation policy approved.", type: "approval", status: "pending", unmetCriterion: "Secondary rotation slot still empty for week 24", assigneeName: "Jordan Mwangi", daysAgoChanged: 2 },
+  { projectKey: "proj_obs", phase: "monitoring", name: "MTTR < 2h", description: "Rolling 30-day MTTR under 2 hours.", type: "custom", status: "passed", daysAgoChanged: 1 },
 ];
 
 const APPROVAL_SPECS: ApprovalSpec[] = [
@@ -500,6 +539,146 @@ const BINDING_SPECS: BindingSpec[] = [
   { projectKey: "proj_auth", provider: "github", externalKey: "github.com/northwind/auth" },
   { projectKey: "proj_auth", provider: "jira", externalKey: "AUTH" },
   { projectKey: "proj_kafka", provider: "jira", externalKey: "KAF" },
+  { projectKey: "proj_obs", provider: "github", externalKey: "github.com/northwind/observability" },
+  { projectKey: "proj_obs", provider: "ado", externalKey: "northwind/observability-platform" },
+  { projectKey: "proj_obs", provider: "confluence", externalKey: "OBS" },
+];
+
+/** Prompt-quality-hook fixtures — what shows up in `/agent-loop` and feeds
+ *  `prompt_quality_signal` outcomes when score < GOOD. */
+type PromptLogSpec = {
+  projectKey: ProjectSpec["key"];
+  source: VibeCodingTool;
+  authorName: string;
+  authorEmail: string;
+  content: string;
+  phase: ProjectPhase | null;
+  promptScore: number;
+  promptTier: PromptQualityTier;
+  hoursAgo: number;
+};
+
+const PROMPT_LOG_SPECS: PromptLogSpec[] = [
+  { projectKey: "proj_pay", source: "CLAUDE_CODE", authorName: "Devin Reyes", authorEmail: "devin.reyes@northwind.test", content: "Implement Idempotency-Key middleware on POST /captures. Header must be required, store in Redis for 24h, return cached response on replay. Add a unit test that asserts replayed requests don't double-charge.", phase: "development", promptScore: 92, promptTier: "GOOD", hoursAgo: 4 },
+  { projectKey: "proj_pay", source: "CLAUDE_CODE", authorName: "Devin Reyes", authorEmail: "devin.reyes@northwind.test", content: "make the retry thing work", phase: "development", promptScore: 28, promptTier: "POOR", hoursAgo: 10 },
+  { projectKey: "proj_pay", source: "CURSOR", authorName: "Aisha Patel", authorEmail: "aisha.patel@northwind.test", content: "Refactor the payment capture loop to dedupe on idempotency key. Keep the existing 3-attempt retry but only on transport errors, not on 4xx.", phase: "development", promptScore: 81, promptTier: "GOOD", hoursAgo: 26 },
+  { projectKey: "proj_auth", source: "CLAUDE_CODE", authorName: "Marco Bianchi", authorEmail: "marco.bianchi@northwind.test", content: "fix the session cookie", phase: "testing", promptScore: 35, promptTier: "POOR", hoursAgo: 50 },
+  { projectKey: "proj_auth", source: "CLAUDE_CODE", authorName: "Marco Bianchi", authorEmail: "marco.bianchi@northwind.test", content: "Session cookie path is set to /api in v1.8.1 but front-end calls /auth/* directly, so the browser drops the cookie. Patch the cookie path to / and add a regression test that signs in, hits /auth/me from a different mount point, and asserts the session survives.", phase: "testing", promptScore: 88, promptTier: "GOOD", hoursAgo: 6 },
+  { projectKey: "proj_dw", source: "WINDSURF", authorName: "Yuki Tanaka", authorEmail: "yuki.tanaka@northwind.test", content: "Add an ADR comparing Iceberg vs Delta Lake for the v2 warehouse. Include: write amplification on small partitions, vendor lock-in, support for the columns we'll need (geo, vector). Decide.", phase: "design", promptScore: 95, promptTier: "GOOD", hoursAgo: 80 },
+  { projectKey: "proj_dw", source: "COPILOT", authorName: "Rohan Desai", authorEmail: "rohan.desai@northwind.test", content: "more performance", phase: "design", promptScore: 22, promptTier: "POOR", hoursAgo: 96 },
+  { projectKey: "proj_dw", source: "CODEX", authorName: "Yuki Tanaka", authorEmail: "yuki.tanaka@northwind.test", content: "Sketch the CDC pipeline: logical-replication slot → consumer → Iceberg writer. Show backpressure handling.", phase: "design", promptScore: 64, promptTier: "NEEDS_IMPROVEMENT", hoursAgo: 36 },
+  { projectKey: "proj_obs", source: "CLAUDE_CODE", authorName: "Jordan Mwangi", authorEmail: "jordan.mwangi@northwind.test", content: "Wire the SLO burn-rate alert to PagerDuty. 2% budget per hour triggers P2, 5%/hr triggers P1. Use the existing burnrate recording rule.", phase: "monitoring", promptScore: 90, promptTier: "GOOD", hoursAgo: 18 },
+  { projectKey: "proj_obs", source: "CURSOR", authorName: "Jordan Mwangi", authorEmail: "jordan.mwangi@northwind.test", content: "alert when bad", phase: "monitoring", promptScore: 18, promptTier: "POOR", hoursAgo: 72 },
+];
+
+/** Inbound webhook deliveries — the left half of the user-guide loop diagram. */
+type WebhookEventSpec = {
+  source: WebhookSource;
+  externalId: string;
+  event: string;
+  payloadSummary: string;
+  hoursAgo: number;
+  processed: boolean;
+  processingError?: string;
+};
+
+const WEBHOOK_EVENT_SPECS: WebhookEventSpec[] = [
+  { source: "github", externalId: "delivery-12af-001", event: "pull_request.opened", payloadSummary: "PR #1284 idempotency-keys (devin.reyes → main)", hoursAgo: 26, processed: true },
+  { source: "github", externalId: "delivery-12af-002", event: "pull_request.closed", payloadSummary: "PR #1278 capture-retry-refactor merged", hoursAgo: 72, processed: true },
+  { source: "github", externalId: "delivery-3344-007", event: "deployment_status", payloadSummary: "auth-service v1.8.2 → production: success", hoursAgo: 48, processed: true },
+  { source: "github", externalId: "delivery-3344-006", event: "deployment_status", payloadSummary: "auth-service v1.8.1 → production: failure (rolled back at T+11m)", hoursAgo: 96, processed: true },
+  { source: "github", externalId: "delivery-9bb-118", event: "pull_request.reopened", payloadSummary: "PR #441 session-cookie-fix reopened after schema-migration-reviewer demotion", hoursAgo: 6, processed: false, processingError: "Awaiting gate re-evaluation — schema-migration-reviewer Junior on auth-service" },
+  { source: "jira", externalId: "JIRA-evt-PAY-1305", event: "issue.updated", payloadSummary: "PAY-1305 transitioned Open → In Progress", hoursAgo: 50, processed: true },
+  { source: "ado", externalId: "ADO-evt-OBS-77", event: "workitem.updated", payloadSummary: "Observability-Platform/77 (Argo CD sync interval) closed", hoursAgo: 18, processed: true },
+];
+
+/** Execution-gate decisions — Milestone-D table. */
+type GateEvaluationSpec = {
+  projectKey: ProjectSpec["key"];
+  prRef: string;
+  prTitle: string;
+  prHeadSha: string;
+  skillKey: SkillSpec["key"] | null;
+  autonomyAtEval: string;
+  verdict: GateVerdict;
+  reason: string;
+  details: string[];
+  changeRisk: ChangeRisk;
+  humanOverride: boolean;
+  checkRunError?: string;
+  hoursAgo: number;
+};
+
+const GATE_EVALUATION_SPECS: GateEvaluationSpec[] = [
+  { projectKey: "proj_pay", prRef: "PR-1284", prTitle: "Add idempotency-key support to POST /captures", prHeadSha: "a4f1d0c", skillKey: "skill_acc", autonomyAtEval: "senior", verdict: "success", reason: "Pure schema addition; auto-approved at Senior", details: ["api-contract-checker: no breaking changes", "Coverage delta +1.2% on touched files"], changeRisk: "low", humanOverride: false, hoursAgo: 24 },
+  { projectKey: "proj_dw", prRef: "PR-93", prTitle: "Initial schema for v2 warehouse", prHeadSha: "9c3b21e", skillKey: "skill_smr", autonomyAtEval: "intern", verdict: "failure", reason: "Manual review required — schema-migration-reviewer demoted to Intern after auth incident", details: ["NOT NULL on existing column without default", "No backfill plan in PR body", "ADR-0014 still in review"], changeRisk: "high", humanOverride: false, hoursAgo: 4 },
+  { projectKey: "proj_auth", prRef: "PR-441", prTitle: "Fix session cookie path after migration", prHeadSha: "7b8e4f1", skillKey: "skill_fta", autonomyAtEval: "senior", verdict: "neutral", reason: "Human override — incident-grade fix, expedited", details: ["Test coverage below threshold (76%)", "Manually approved by Jordan Mwangi"], changeRisk: "medium", humanOverride: true, hoursAgo: 6 },
+  { projectKey: "proj_pay", prRef: "PR-1290", prTitle: "docs: payment-webhook outbox reference", prHeadSha: "2af9112", skillKey: "skill_du", autonomyAtEval: "principal", verdict: "success", reason: "Docs-only change; doc-updater Principal on this project — auto-eligible", details: ["No code paths touched", "Markdown lint passed"], changeRisk: "low", humanOverride: false, hoursAgo: 0.5 },
+  { projectKey: "proj_auth", prRef: "PR-438", prTitle: "Revert v1.8.1 — session-cookie regression", prHeadSha: "f12abc4", skillKey: null, autonomyAtEval: "n/a", verdict: "failure", reason: "Check-run posting failed — GitHub API 502", details: [], changeRisk: "high", humanOverride: false, checkRunError: "GitHub check-runs API returned 502 Bad Gateway after 3 retries", hoursAgo: 96 },
+];
+
+type TestRunSpec = {
+  projectKey: ProjectSpec["key"];
+  suite: string;
+  commitSha: string;
+  branch: string;
+  status: TestRunStatus;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  durationMs: number;
+  coverage: number;
+  ciRunUrl: string;
+  hoursAgo: number;
+};
+
+const TEST_RUN_SPECS: TestRunSpec[] = [
+  { projectKey: "proj_pay", suite: "payments-api unit + integration", commitSha: "a4f1d0c", branch: "feat/idempotency-keys", status: "passed", total: 412, passed: 412, failed: 0, skipped: 0, durationMs: 184_000, coverage: 0.832, ciRunUrl: "https://github.com/northwind/payments-api/actions/runs/8821", hoursAgo: 22 },
+  { projectKey: "proj_auth", suite: "auth-service e2e", commitSha: "7b8e4f1", branch: "fix/session-cookie-path", status: "failed", total: 187, passed: 163, failed: 21, skipped: 3, durationMs: 412_000, coverage: 0.762, ciRunUrl: "https://github.com/northwind/auth/actions/runs/4471", hoursAgo: 6 },
+  { projectKey: "proj_dw", suite: "warehouse-v2 schema check", commitSha: "9c3b21e", branch: "design/iceberg-vs-delta", status: "passed", total: 24, passed: 24, failed: 0, skipped: 0, durationMs: 32_000, coverage: 0.91, ciRunUrl: "https://github.com/northwind/dw-v2/actions/runs/118", hoursAgo: 3 },
+  { projectKey: "proj_obs", suite: "observability collector smoke", commitSha: "c0ffee0", branch: "main", status: "passed", total: 58, passed: 58, failed: 0, skipped: 0, durationMs: 21_000, coverage: 0.88, ciRunUrl: "https://github.com/northwind/observability/actions/runs/2204", hoursAgo: 12 },
+];
+
+type RepoPolicySpec = {
+  remoteCanonical: string;
+  policy: RepoPolicy;
+  projectKey: ProjectSpec["key"] | null;
+};
+
+const REPO_POLICY_SPECS: RepoPolicySpec[] = [
+  { remoteCanonical: "github.com/northwind/payments-api", policy: "read-write", projectKey: "proj_pay" },
+  { remoteCanonical: "github.com/northwind/dw-v2", policy: "read-only", projectKey: "proj_dw" },
+  // Unmapped repo set to deny so the demo shows the gate's "unknown remote" path.
+  { remoteCanonical: "github.com/northwind/legacy-billing-archive", policy: "deny", projectKey: null },
+];
+
+type CustomChoreographySpec = {
+  projectKey: ProjectSpec["key"] | null;
+  slug: string;
+  name: string;
+  body: string;
+};
+
+const CUSTOM_CHOREOGRAPHY_SPECS: CustomChoreographySpec[] = [
+  {
+    projectKey: null,
+    slug: "pr-rollout-checklist",
+    name: "PR rollout checklist",
+    body: "# PR rollout checklist\n\nBefore opening a PR, ensure: (1) rollout plan, (2) monitoring plan, (3) rollback plan are in the description. Call `submit_for_approval` once the diff is ready.",
+  },
+  {
+    projectKey: "proj_pay",
+    slug: "payments-incident-runbook",
+    name: "Payments incident runbook",
+    body: "# Payments incident runbook\n\nOn an `incident` Plan kind being authored on this project: (1) call `invoke_skill('postmortem-drafter')`, (2) attach the resulting summary to the Plan body, (3) `submit_for_approval`.",
+  },
+  {
+    projectKey: "proj_auth",
+    slug: "shadow-write-cutover",
+    name: "Shadow-write cutover playbook",
+    body: "# Shadow-write cutover playbook\n\nDuring the Devise → Better-Auth migration: every PR touching `auth/*` should `invoke_skill('schema-migration-reviewer')`, then `invoke_skill('api-contract-checker')`, then `submit_for_approval` if either flagged risks.",
+  },
 ];
 
 // -------------------- IMPLEMENTATION --------------------
@@ -521,6 +700,12 @@ export type SeedResult = {
     auditLogs: number;
     workItems: number;
     notifications: number;
+    webhookEvents: number;
+    gateEvaluations: number;
+    promptLogs: number;
+    testRuns: number;
+    repoPolicies: number;
+    customChoreographies: number;
   };
 };
 
@@ -542,6 +727,8 @@ export async function seedSampleWorkspace(args: {
         projects: 0, skills: 0, plans: 0, rules: 0, gates: 0, approvals: 0,
         deployments: 0, metrics: 0, skillOutcomes: 0, autonomyRows: 0, bindings: 0,
         auditLogs: 0, workItems: 0, notifications: 0,
+        webhookEvents: 0, gateEvaluations: 0, promptLogs: 0, testRuns: 0,
+        repoPolicies: 0, customChoreographies: 0,
       },
     };
   }
@@ -568,6 +755,8 @@ export async function seedSampleWorkspace(args: {
       status: "active" as const,
       repoUrl: p.repoUrl,
       jiraProjectKey: p.jiraProjectKey,
+      adoProjectId: p.adoProjectId ?? null,
+      confluenceSpaceKey: p.confluenceSpaceKey ?? null,
       createdById: args.userId,
       createdByName: args.userName,
     })),
@@ -638,14 +827,23 @@ export async function seedSampleWorkspace(args: {
   //    also weighted by project autonomy: a skill that's Intern on a project
   //    eats most of that skill's rollbacks/incidents on that project; a
   //    Principal-level skill produces mostly clean successes.
+  //
+  //    Each row carries a Milestone-A `sourceKind` so the demo can show how
+  //    deterministic GitHub signal (pr_merge / pr_revert / pr_abandon /
+  //    deploy_clean / deploy_incident) feeds the autonomy ledger — and
+  //    `prompt_quality_signal` rows from the prompt-quality hook show up
+  //    later via PROMPT_LOG_SPECS.
   type OutcomeRow = {
     id: string;
     organizationId: string;
-    skillId: string;
+    skillId: string | null;
     projectId: string | null;
     invocationId: string | null;
-    verdict: SkillOutcomeVerdict;
+    verdict: SkillOutcomeVerdict | null;
     severity: SkillOutcomeSeverity | null;
+    sourceKind: SkillOutcomeSourceKind | null;
+    sourceRef: string | null;
+    promptLogId: string | null;
     recordedAt: Date;
   };
   const outcomeRows: OutcomeRow[] = [];
@@ -703,15 +901,35 @@ export async function seedSampleWorkspace(args: {
     const totalForSkill = s.stats.success + s.stats.rolledBack + s.stats.incident;
     const step = totalForSkill > 0 ? minutesWindow / totalForSkill : 0;
     let i = 0;
+    let refSeq = 0;
     const push = (
       projectId: string | null,
       verdict: SkillOutcomeVerdict,
       severity: SkillOutcomeSeverity | null,
+      sourceKind: SkillOutcomeSourceKind,
       count: number,
     ) => {
       for (let k = 0; k < count; k++) {
         const minsAgo = Math.round(step * (totalForSkill - i) + (Math.random() * step * 0.3));
         i += 1;
+        refSeq += 1;
+        // sourceRef is unique per (skill_id, source_kind, source_ref) — the
+        // partial unique index in the schema enforces this for non-invocation
+        // rows. A monotonic per-skill counter prefixed by the assessor is
+        // realistic (one row per merged PR / per rolled-back deploy) and
+        // collision-free.
+        const sourceRef =
+          sourceKind === "pr_merge"
+            ? `PR-merge-${s.key}-${refSeq}`
+            : sourceKind === "pr_revert"
+              ? `PR-revert-${s.key}-${refSeq}`
+              : sourceKind === "pr_abandon"
+                ? `PR-abandon-${s.key}-${refSeq}`
+                : sourceKind === "deploy_clean"
+                  ? `deploy-clean-${s.key}-${refSeq}`
+                  : sourceKind === "deploy_incident"
+                    ? `deploy-incident-${s.key}-${refSeq}`
+                    : `inv-${s.key}-${refSeq}`;
         outcomeRows.push({
           id: nanoid(),
           organizationId: args.organizationId,
@@ -720,15 +938,32 @@ export async function seedSampleWorkspace(args: {
           invocationId: null,
           verdict,
           severity,
+          sourceKind,
+          sourceRef,
+          promptLogId: null,
           recordedAt: new Date(now - minsAgo * 60_000),
         });
       }
     };
     for (const slot of slots) {
       const pid = projectIdByKey.get(slot.sp.projectKey)!;
-      push(pid, "success", null, slot.success);
-      push(pid, "rolled_back", "low", slot.rolledBack);
-      push(pid, "incident", "high", slot.incident);
+      // Successes are dominated by clean PR merges — that's the Milestone-A
+      // signal the autonomy engine prizes. Reserve ~15% for `deploy_clean`
+      // so the demo also shows post-deploy verification credit.
+      const successDeploy = Math.floor(slot.success * 0.15);
+      const successMerge = slot.success - successDeploy;
+      push(pid, "success", null, "pr_merge", successMerge);
+      push(pid, "success", null, "deploy_clean", successDeploy);
+
+      // Rollbacks come from revert PRs (most) and a small share of
+      // pr_abandon (PRs the gate auto-closed without merging).
+      const rollAbandon = Math.floor(slot.rolledBack * 0.25);
+      const rollRevert = slot.rolledBack - rollAbandon;
+      push(pid, "rolled_back", "low", "pr_revert", rollRevert);
+      push(pid, "rolled_back", "low", "pr_abandon", rollAbandon);
+
+      // Incidents are deploy-time signal.
+      push(pid, "incident", "high", "deploy_incident", slot.incident);
     }
   }
   // Batch insert — Postgres bind limit ≈ 65k params; ~340 rows × 7 cols = ~2.4k. Safe.
@@ -937,6 +1172,159 @@ export async function seedSampleWorkspace(args: {
     })),
   );
 
+  // 14. Prompt logs — what the prompt-quality hook captured on the IDE side.
+  //     Each row may carry a quality score; sub-GOOD scores generate a
+  //     companion `prompt_quality_signal` skill_outcome (project-level, no
+  //     skillId) that downstreams autonomy promotion attenuation.
+  const promptLogIds: string[] = [];
+  if (PROMPT_LOG_SPECS.length > 0) {
+    const promptRows = PROMPT_LOG_SPECS.map((p) => {
+      const id = nanoid();
+      promptLogIds.push(id);
+      return {
+        id,
+        organizationId: args.organizationId,
+        projectId: projectIdByKey.get(p.projectKey)!,
+        mcpSessionId: `mcp_${nanoid(8)}`,
+        role: "USER" as const,
+        source: p.source,
+        content: p.content,
+        phase: p.phase,
+        authorName: p.authorName,
+        authorEmail: p.authorEmail,
+        clientLocalId: nanoid(10),
+        promptScore: p.promptScore,
+        promptTier: p.promptTier,
+        promptScoreDetail: { signals: [`tier=${p.promptTier}`, `score=${p.promptScore}`] },
+        rubricVersion: "v0.3",
+        scoredAt: atHours(p.hoursAgo),
+        createdAt: atHours(p.hoursAgo),
+      };
+    });
+    await db.insert(promptLogs).values(promptRows);
+
+    // For every NEEDS_IMPROVEMENT / POOR row, emit a project-level
+    // prompt_quality_signal outcome — no skillId, no verdict, no severity.
+    const signalRows: OutcomeRow[] = [];
+    for (let idx = 0; idx < PROMPT_LOG_SPECS.length; idx++) {
+      const p = PROMPT_LOG_SPECS[idx];
+      if (p.promptTier === "GOOD") continue;
+      signalRows.push({
+        id: nanoid(),
+        organizationId: args.organizationId,
+        skillId: null,
+        projectId: projectIdByKey.get(p.projectKey)!,
+        invocationId: null,
+        verdict: null,
+        severity: null,
+        sourceKind: "prompt_quality_signal",
+        sourceRef: promptLogIds[idx],
+        promptLogId: promptLogIds[idx],
+        recordedAt: atHours(p.hoursAgo),
+      });
+    }
+    if (signalRows.length > 0) await db.insert(skillOutcomes).values(signalRows);
+  }
+
+  // 15. Webhook events — inbound deliveries, idempotent on (source, externalId)
+  if (WEBHOOK_EVENT_SPECS.length > 0) {
+    await db.insert(webhookEvents).values(
+      WEBHOOK_EVENT_SPECS.map((w) => ({
+        id: nanoid(),
+        organizationId: args.organizationId,
+        source: w.source,
+        externalId: w.externalId,
+        event: w.event,
+        payload: { summary: w.payloadSummary } as Record<string, unknown>,
+        receivedAt: atHours(w.hoursAgo),
+        processedAt: w.processed ? atHours(Math.max(0, w.hoursAgo - 0.05)) : null,
+        processingError: w.processingError ?? null,
+      })),
+    );
+  }
+
+  // 16. Gate evaluations — per-PR execution-gate decisions
+  if (GATE_EVALUATION_SPECS.length > 0) {
+    await db.insert(gateEvaluations).values(
+      GATE_EVALUATION_SPECS.map((g) => ({
+        id: nanoid(),
+        organizationId: args.organizationId,
+        projectId: projectIdByKey.get(g.projectKey)!,
+        prRef: g.prRef,
+        prTitle: g.prTitle,
+        prHeadSha: g.prHeadSha,
+        skillId: g.skillKey ? skillIdByKey.get(g.skillKey)! : null,
+        autonomyAtEval: g.autonomyAtEval,
+        verdict: g.verdict,
+        reason: g.reason,
+        details: g.details,
+        changeRisk: g.changeRisk,
+        humanOverride: g.humanOverride,
+        checkRunId: g.checkRunError ? null : `check-${nanoid(6)}`,
+        checkRunError: g.checkRunError ?? null,
+        evaluatedAt: atHours(g.hoursAgo),
+      })),
+    );
+  }
+
+  // 17. Test runs
+  if (TEST_RUN_SPECS.length > 0) {
+    await db.insert(testRuns).values(
+      TEST_RUN_SPECS.map((t) => ({
+        id: nanoid(),
+        organizationId: args.organizationId,
+        projectId: projectIdByKey.get(t.projectKey)!,
+        planId: null,
+        suite: t.suite,
+        commitSha: t.commitSha,
+        branch: t.branch,
+        status: t.status,
+        total: t.total,
+        passed: t.passed,
+        failed: t.failed,
+        skipped: t.skipped,
+        durationMs: t.durationMs,
+        coverage: t.coverage,
+        ciRunUrl: t.ciRunUrl,
+        raw: null,
+        ranAt: atHours(t.hoursAgo),
+      })),
+    );
+  }
+
+  // 18. Repo policies — what `coznt push` does when an agent points at a remote
+  if (REPO_POLICY_SPECS.length > 0) {
+    await db.insert(repoPolicies).values(
+      REPO_POLICY_SPECS.map((r) => ({
+        id: nanoid(),
+        organizationId: args.organizationId,
+        remoteCanonical: r.remoteCanonical,
+        policy: r.policy,
+        projectId: r.projectKey ? projectIdByKey.get(r.projectKey)! : null,
+        createdById: args.userId,
+        createdByName: args.userName,
+      })),
+    );
+  }
+
+  // 19. Custom choreographies — customer-authored workflow playbooks
+  if (CUSTOM_CHOREOGRAPHY_SPECS.length > 0) {
+    await db.insert(customChoreographies).values(
+      CUSTOM_CHOREOGRAPHY_SPECS.map((c) => ({
+        id: nanoid(),
+        organizationId: args.organizationId,
+        projectId: c.projectKey ? projectIdByKey.get(c.projectKey)! : null,
+        slug: c.slug,
+        name: c.name,
+        body: c.body,
+        version: "1.0.0",
+        enabled: true,
+        createdById: args.userId,
+        createdByName: args.userName,
+      })),
+    );
+  }
+
   // 13. Notifications — seeded so the bell icon actually rings on demo
   await db.insert(notifications).values(
     NOTIFICATION_SPECS.map((n) => ({
@@ -956,6 +1344,10 @@ export async function seedSampleWorkspace(args: {
     })),
   );
 
+  // Count the prompt_quality_signal outcomes we appended above (one per
+  // sub-GOOD prompt log) so the seed report includes them in skillOutcomes.
+  const promptSignalCount = PROMPT_LOG_SPECS.filter((p) => p.promptTier !== "GOOD").length;
+
   return {
     inserted: true,
     counts: {
@@ -967,12 +1359,18 @@ export async function seedSampleWorkspace(args: {
       approvals: APPROVAL_SPECS.length,
       deployments: DEPLOYMENT_SPECS.length,
       metrics: metricRows.length,
-      skillOutcomes: outcomeRows.length,
+      skillOutcomes: outcomeRows.length + promptSignalCount,
       autonomyRows: SKILL_SPECS.length + SKILL_PROJECT_AUTONOMY.length,
       bindings: BINDING_SPECS.length,
       auditLogs: auditRows.length,
       workItems: WORK_ITEM_SPECS.length,
       notifications: NOTIFICATION_SPECS.length,
+      webhookEvents: WEBHOOK_EVENT_SPECS.length,
+      gateEvaluations: GATE_EVALUATION_SPECS.length,
+      promptLogs: PROMPT_LOG_SPECS.length,
+      testRuns: TEST_RUN_SPECS.length,
+      repoPolicies: REPO_POLICY_SPECS.length,
+      customChoreographies: CUSTOM_CHOREOGRAPHY_SPECS.length,
     },
   };
 }

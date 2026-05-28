@@ -41,6 +41,7 @@ import { skillAutonomy } from "@/db/schema/skill-autonomy";
 import { skills } from "@/db/schema/skill";
 import { projects } from "@/db/schema/project";
 import type { AssessorResult } from "@/domain/outcomes";
+import { emitDomainEvent, eventKindForOutcome } from "@/lib/events/emit";
 
 import {
   LEVEL_NAMES as SHARED_LEVEL_NAMES,
@@ -97,6 +98,26 @@ export async function recordSkillOutcome(input: RecordSkillOutcomeInput) {
       sourceKind: "invocation",
     })
     .returning();
+
+  const kind = eventKindForOutcome("invocation", input.verdict);
+  if (kind) {
+    await emitDomainEvent({
+      organizationId: skill.organizationId,
+      kind,
+      summary: `${kind} · skill ${input.skillId}`,
+      actorId: input.skillId,
+      entityType: "skill_outcome",
+      entityId: row.id,
+      payload: {
+        skillId: input.skillId,
+        projectId: input.projectId,
+        verdict: input.verdict,
+        severity: input.severity ?? null,
+        sourceKind: "invocation",
+      },
+    });
+  }
+
   return row;
 }
 
@@ -182,7 +203,30 @@ export async function recordAssessorOutcome(input: RecordAssessorOutcomeInput) {
       where: sql`${skillOutcomes.sourceRef} is not null`,
     })
     .returning();
-  return inserted[0] ?? null;
+  const row = inserted[0];
+  if (!row) return null;
+
+  const kind = eventKindForOutcome(input.sourceKind, input.result.verdict);
+  if (kind) {
+    await emitDomainEvent({
+      organizationId: skill.organizationId,
+      kind,
+      summary: `${kind} · ${input.sourceRef}`,
+      actorId: input.skillId,
+      entityType: "skill_outcome",
+      entityId: row.id,
+      payload: {
+        skillId: input.skillId,
+        projectId: input.projectId,
+        verdict: input.result.verdict,
+        severity: input.result.severity,
+        sourceKind: input.sourceKind,
+        sourceRef: input.sourceRef,
+      },
+    });
+  }
+
+  return row;
 }
 
 export interface SkillAutonomyState {
@@ -418,6 +462,30 @@ export async function recomputeSkillAutonomy(
     await reevaluateOpenPrsForSkill(skill.organizationId, skillId, projectId).catch((err) => {
       // Demotion succeeded; re-eval is best-effort. Log and move on.
       console.error("[recomputeSkillAutonomy] re-eval after demote failed:", err);
+    });
+  }
+
+  // Emit autonomy.promoted / autonomy.demoted on level change. The ledger
+  // event lets SSE subscribers (UI, marketing activity feed) react in real
+  // time without polling skill_autonomy.
+  if (promoted || demoted) {
+    await emitDomainEvent({
+      organizationId: skill.organizationId,
+      kind: promoted ? "autonomy.promoted" : "autonomy.demoted",
+      summary: reason,
+      actorId: skillId,
+      entityType: "skill_autonomy",
+      entityId: skillId,
+      payload: {
+        skillId,
+        projectId,
+        fromLevel: current.level,
+        toLevel: newLevel,
+        fromLevelName: current.levelName,
+        toLevelName: levelToName(newLevel),
+        reason,
+        stats,
+      },
     });
   }
 

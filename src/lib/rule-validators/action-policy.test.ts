@@ -71,6 +71,73 @@ describe("evaluateActionPolicy", () => {
     expect(v!.message).toMatch(/fileCount 17 exceeds max 5/);
   });
 
+  it("flags when loc exceeds maxLoc", () => {
+    const v = evaluateActionPolicy(
+      ruleMeta,
+      policy({ maxLoc: 150 }),
+      { loc: 217 },
+    );
+    expect(v).not.toBeNull();
+    expect(v!.message).toMatch(/loc 217 exceeds max 150/);
+  });
+
+  it("passes when loc is at or below maxLoc", () => {
+    expect(
+      evaluateActionPolicy(ruleMeta, policy({ maxLoc: 150 }), { loc: 150 }),
+    ).toBeNull();
+    expect(
+      evaluateActionPolicy(ruleMeta, policy({ maxLoc: 150 }), { loc: 12 }),
+    ).toBeNull();
+  });
+
+  it("does NOT flag maxLoc when loc is unsupplied (no signal => no rejection)", () => {
+    const v = evaluateActionPolicy(
+      ruleMeta,
+      policy({ maxLoc: 150 }),
+      { command: "build" },
+    );
+    expect(v).toBeNull();
+  });
+
+  it("flags when coverage is below minCoverage", () => {
+    const v = evaluateActionPolicy(
+      ruleMeta,
+      policy({ minCoverage: 85 }),
+      { coverage: 67 },
+    );
+    expect(v).not.toBeNull();
+    expect(v!.message).toMatch(/coverage 67% below required 85%/);
+  });
+
+  it("passes when coverage meets minCoverage", () => {
+    expect(
+      evaluateActionPolicy(ruleMeta, policy({ minCoverage: 85 }), { coverage: 85 }),
+    ).toBeNull();
+    expect(
+      evaluateActionPolicy(ruleMeta, policy({ minCoverage: 85 }), { coverage: 100 }),
+    ).toBeNull();
+  });
+
+  it("does NOT flag minCoverage when coverage is unsupplied", () => {
+    const v = evaluateActionPolicy(
+      ruleMeta,
+      policy({ minCoverage: 85 }),
+      { command: "ship" },
+    );
+    expect(v).toBeNull();
+  });
+
+  it("combines maxLoc + minCoverage into a single violation message", () => {
+    const v = evaluateActionPolicy(
+      ruleMeta,
+      policy({ maxLoc: 150, minCoverage: 85 }),
+      { loc: 200, coverage: 60 },
+    );
+    expect(v).not.toBeNull();
+    expect(v!.message).toContain("loc 200 exceeds max 150");
+    expect(v!.message).toContain("coverage 60% below required 85%");
+  });
+
   it("collapses multiple violations into one message", () => {
     const v = evaluateActionPolicy(
       ruleMeta,

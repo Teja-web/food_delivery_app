@@ -14,11 +14,19 @@
  *   blockedPaths: [".github/**", ".ai-sdlc/**"] # glob patterns matched against `paths[]`
  *   requireTests: true
  *   maxFilesPerChange: 15
+ *   maxLoc: 150                   # max additions+deletions in a PR
+ *   minCoverage: 85               # min test coverage % (0..100)
  *   ---
  *
  * The caller passes a `ProposedAction` describing what it knows about the
  * pending action. Each field is optional — the validator only checks fields
  * that are present in both the policy and the action.
+ *
+ * For `maxLoc` / `minCoverage` the caller is responsible for populating
+ * `loc` and `coverage` on the `ProposedAction` from PR metadata (e.g. the
+ * GitHub PR diff stats + the CI coverage report). When the caller omits
+ * those fields the validator stays silent rather than rejecting — a missing
+ * coverage signal must not flip a previously-passing gate.
  */
 
 import type { RuleSeverity } from "@/db/schema/rule";
@@ -32,6 +40,10 @@ export interface ActionPolicyConfig {
   blockedPaths?: string[];
   requireTests?: boolean;
   maxFilesPerChange?: number;
+  /** Max additions+deletions across the PR. Pairs with `ProposedAction.loc`. */
+  maxLoc?: number;
+  /** Min test coverage percentage (0..100). Pairs with `ProposedAction.coverage`. */
+  minCoverage?: number;
 }
 
 export interface ProposedAction {
@@ -43,6 +55,10 @@ export interface ProposedAction {
   fileCount?: number;
   /** Does this change include or reference tests? */
   hasTests?: boolean;
+  /** Total lines changed (additions+deletions). Used by `maxLoc`. */
+  loc?: number;
+  /** Test coverage percentage (0..100). Used by `minCoverage`. */
+  coverage?: number;
 }
 
 export interface RuleViolation {
@@ -141,6 +157,24 @@ export function evaluateActionPolicy(
     action.fileCount > config.maxFilesPerChange
   ) {
     reasons.push(`fileCount ${action.fileCount} exceeds max ${config.maxFilesPerChange}`);
+  }
+
+  // 5. maxLoc — only checks if loc is supplied.
+  if (
+    typeof config.maxLoc === "number" &&
+    typeof action.loc === "number" &&
+    action.loc > config.maxLoc
+  ) {
+    reasons.push(`loc ${action.loc} exceeds max ${config.maxLoc}`);
+  }
+
+  // 6. minCoverage — only checks if coverage is supplied.
+  if (
+    typeof config.minCoverage === "number" &&
+    typeof action.coverage === "number" &&
+    action.coverage < config.minCoverage
+  ) {
+    reasons.push(`coverage ${action.coverage}% below required ${config.minCoverage}%`);
   }
 
   if (reasons.length === 0) return null;

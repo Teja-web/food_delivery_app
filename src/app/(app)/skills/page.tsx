@@ -1,3 +1,6 @@
+import { Workflow } from "lucide-react";
+import Link from "next/link";
+
 import { listProjects } from "@/actions/projects";
 import { listSkills } from "@/actions/skills";
 import type { Project } from "@/db/schema/project";
@@ -126,10 +129,19 @@ export default async function SkillsPage({
               : "Trust over time across the org. Use the project filter to see per-project autonomy."}
           </p>
         </div>
-        <ProjectFilter
-          projects={projects.map((p) => ({ id: p.id, name: p.name }))}
-          activeProjectId={filterProjectId}
-        />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/choreographies"
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            <Workflow className="h-3.5 w-3.5" aria-hidden />
+            <span>Custom choreographies</span>
+          </Link>
+          <ProjectFilter
+            projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+            activeProjectId={filterProjectId}
+          />
+        </div>
       </header>
 
       <RecentEventsBanner events={events} />

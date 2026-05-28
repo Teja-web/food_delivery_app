@@ -84,9 +84,11 @@ async function main() {
   else if (SAMPLE_FLAG === "no") seedSample = false;
   else {
     console.log("\nSample workspace:");
-    console.log("  Populates the org with 4 projects, 12 plans, 5 skills (with autonomy");
-    console.log("  history), 8 rules, gates, approvals, deployments, work items, and");
-    console.log("  notifications. Every UI surface lights up on first sign-in.");
+    console.log("  Populates the org with 5 projects (covering all six SDLC phases),");
+    console.log("  17 plans (all 11 plan kinds), 5 skills with per-project autonomy");
+    console.log("  history, 8 rules, ~19 gates, deployments, DORA metrics, webhook");
+    console.log("  events, gate evaluations, prompt logs, test runs, repo policies,");
+    console.log("  and custom choreographies. Every UI surface lights up on first sign-in.");
     seedSample = await confirm("Seed sample workspace?", true);
   }
 
@@ -126,6 +128,8 @@ async function main() {
       console.log(`  ${c.rules} rules · ${c.gates} gates · ${c.approvals} approvals · ${c.bindings} adapter bindings`);
       console.log(`  ${c.deployments} deployments · ${c.metrics} metric rows · ${c.auditLogs} audit entries`);
       console.log(`  ${c.workItems} work items · ${c.notifications} notifications`);
+      console.log(`  ${c.webhookEvents} webhook events · ${c.gateEvaluations} gate evaluations · ${c.testRuns} test runs`);
+      console.log(`  ${c.promptLogs} prompt logs · ${c.repoPolicies} repo policies · ${c.customChoreographies} custom choreographies`);
     } else {
       console.log("\n  Sample seed skipped — org already has projects.");
     }

@@ -7,6 +7,7 @@ import {
   FileCheck,
   FolderKanban,
   Key,
+  LogOut,
   Plug,
   Plus,
   Rocket,
@@ -15,15 +16,24 @@ import {
   Settings,
   Shield,
   Sparkles,
-  Workflow,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { CommandPalette, useCommandPaletteShortcut } from "@/components/app-shell/CommandPalette";
 import { ThemeToggle } from "@/components/app-shell/ThemeToggle";
+import { Logo } from "@/components/marketing/Logo";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { signOut } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -59,17 +69,7 @@ const GROUPS: NavGroup[] = [
   {
     label: "Runtime",
     items: [
-      { href: "/rules", label: "Rules", Icon: Shield },
-      { href: "/choreographies", label: "Choreographies", Icon: Workflow, matchPrefix: "/choreographies" },
       { href: "/integrations", label: "Adapters", Icon: Plug },
-    ],
-  },
-  {
-    label: "Access",
-    items: [
-      { href: "/notifications", label: "Notifications", Icon: Bell, matchPrefix: "/notifications" },
-      { href: "/settings", label: "Settings", Icon: Settings },
-      { href: "/api-keys", label: "API keys", Icon: Key },
     ],
   },
 ];
@@ -125,22 +125,31 @@ type Props = {
 
 export function AppShell({ user, role, orgName, children }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const section = deriveSectionLabel(pathname);
   const showNewProject = pathname === "/projects";
   const [paletteOpen, setPaletteOpen] = useState(false);
   useCommandPaletteShortcut(setPaletteOpen);
 
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/auth/sign-in");
+  };
+
   return (
     <div className="grid h-dvh grid-cols-[224px_1fr] bg-background text-foreground">
       <aside className="flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <div className="flex items-center gap-2 px-5 pt-5 pb-6">
-          <span className="font-display text-xl font-semibold tracking-tight text-sidebar-accent-foreground">
-            coznt
-          </span>
-          <span className="rounded-sm border border-sidebar-border/60 px-1.5 py-0.5 font-mono text-[10px] text-sidebar-foreground/70">
-            v0.1
-          </span>
-        </div>
+        <Link href="/projects" className="flex items-center gap-2.5 px-5 pt-5 pb-6">
+          <Logo className="h-8 w-8 shrink-0" />
+          <div className="min-w-0 leading-tight">
+            <div className="font-display text-[15px] font-bold tracking-tight text-sidebar-accent-foreground">
+              Coznt
+            </div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-amber-400">
+              AIDLC Governed
+            </div>
+          </div>
+        </Link>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           {GROUPS.map((g) => (
@@ -173,21 +182,6 @@ export function AppShell({ user, role, orgName, children }: Props) {
           ))}
         </nav>
 
-        <div className="border-t border-sidebar-border/70 px-3 py-3">
-          <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-[11px] font-semibold text-sidebar-accent-foreground">
-              {initials(user.name || user.email)}
-            </span>
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-[12px] font-medium text-sidebar-accent-foreground">
-                {user.name || user.email}
-              </div>
-              <div className="truncate text-[10px] text-sidebar-foreground/60">
-                {role} · {orgName}
-              </div>
-            </div>
-          </div>
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-col">
@@ -217,6 +211,61 @@ export function AppShell({ user, role, orgName, children }: Props) {
                 </Link>
               </Button>
             ) : null}
+            <Link
+              href="/notifications"
+              aria-label="Notifications"
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+                pathname === "/notifications" && "bg-muted/60 text-foreground",
+              )}
+            >
+              <Bell className="h-4 w-4" aria-hidden />
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Account menu"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground transition-colors hover:bg-muted/70"
+                >
+                  {initials(user.name || user.email)}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="leading-tight">
+                    <div className="truncate text-[13px] font-medium">{user.name || user.email}</div>
+                    <div className="truncate text-[11px] text-muted-foreground">
+                      {role} · {orgName}
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    <Settings className="h-4 w-4" aria-hidden />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/api-keys">
+                    <Key className="h-4 w-4" aria-hidden />
+                    <span>API keys</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/rules">
+                    <Shield className="h-4 w-4" aria-hidden />
+                    <span>Rules</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleSignOut}>
+                  <LogOut className="h-4 w-4" aria-hidden />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <main className="flex-1 overflow-auto px-8 py-6">{children}</main>

@@ -329,7 +329,9 @@ coznt status               # prints project, phase, your skill autonomy levels
 npx -y <your-coznt-url>/install/coznt-mcp/latest --version
 ```
 
-Open `<your-coznt-url>/projects/<id>` in a browser and keep it open in a second tab — you'll watch rows land here as you work.
+In the sidebar, open **Projects** → your project. This is your cockpit for the loop. Keep it open in a second tab — you'll watch rows land here as you work.
+
+If `coznt status` says "no key found" or your editor can't reach the MCP server, open the **avatar menu (top-right) → API keys** and mint a new key scoped to this project. The page also exposes the in-UI host config panel — copy the snippet straight into your editor's MCP config.
 
 ### Step 2 — Pick a phase-appropriate piece of work
 
@@ -350,30 +352,32 @@ From your agent:
 
 > "Create a story plan for adding idempotency keys to `POST /payments`. Acceptance: same `Idempotency-Key` returns the original response within 24h."
 
-The agent calls `upsert_plan` (it's in the allowed list during `development`). The plan lands at `<coznt>/projects/<id>` → **Plans** tab in `draft` status. Open it; you should see the title, body, and metadata the agent wrote.
+The agent calls `upsert_plan` (it's in the allowed list during `development`). The plan lands in the sidebar's **Plan → Plans** view (filterable across all projects) and inside the project cockpit's **Plans** tab — both in `draft` status. Open it; you should see the title, body, and metadata the agent wrote.
+
+If the write is *rejected*, open **Rules** from the avatar menu (top-right). A `keyword-presence` rule (e.g. "every story must contain an Acceptance section") or an `action-policy` rule may have blocked it. Rules are evaluated synchronously inside CRUD hooks, so the failure is visible in the agent's response — and the attempt is logged in **Audit log** even when it didn't land.
 
 Move it to review:
 
 > "Mark the plan as in_review and request approval from the tech lead."
 
-The agent calls `submit_for_approval`. A row appears at `<coznt>/approvals`.
+The agent calls `submit_for_approval`. A row appears in **Plan → Approvals**, and the assigned reviewer gets a ping in the **bell icon** at the top of the screen (the unread count badges the bell).
 
 ### Step 4 — Approve the plan
 
-Open `<coznt>/approvals`, find the request, click **Approve** (or **Deny** with a reason — both are recorded immutably). The plan status flips to `approved` and the agent sees it on the next `get_my_context`.
+The reviewer sees the request two ways: the **bell icon** (inbox-style feed of pings, opens `/notifications`) or **Approvals** (the work queue in the sidebar). Either path opens the plan. Click **Approve** (or **Deny** with a reason — both are recorded immutably). The plan status flips to `approved`, the agent sees it on the next `get_my_context`, and the approval event is appended to the **Audit log**.
 
 ### Step 5 — Code, PR, ship
 
 Do the work in your editor. Two flavors of governed AI action are possible here:
 
-- **Choreographed.** Ask the agent to *"run the test-author choreography on this diff."* It opens `.coznt/skills/test-author/SKILL.md` and calls `invoke_skill('test-author')`. If the skill is at sufficient autonomy on this project, it runs unattended; otherwise it routes to `/approvals`.
+- **Choreographed.** Ask the agent to *"run the test-author choreography on this diff."* It opens `.coznt/skills/test-author/SKILL.md` and calls `invoke_skill('test-author')`. The flow itself is visible on the skill detail page (**Skills** → click the skill → **Choreography · pushed to dev repos** card) — that's the SKILL.md `coznt sync` materialized into your repo. If the skill is at sufficient autonomy on this project, it runs unattended; otherwise it routes to **Approvals** and pings the reviewer at the bell.
 - **Manual.** Write the code yourself, commit, push, open the PR via your normal git tooling.
 
-Either way: **open the PR**. Coznt is now watching.
+Either way: **open the PR**. Coznt is now watching — through the GitHub binding in **Runtime → Adapters**.
 
 ### Step 6 — Watch the webhook → ledger trip
 
-When you push and the PR opens, GitHub fires a webhook to coznt. The `process-webhook-event` task drains the queue, the deterministic assessors in `src/domain/outcomes.ts` grade the event, and a `skill_outcomes` row lands.
+When you push and the PR opens, GitHub fires a webhook to coznt. The route resolves your repo to the project via the `adapter_bindings` row that **Adapters** created at project-setup time — if rows aren't landing in the ledger, that's the first place to check. The `process-webhook-event` task then drains the queue, the deterministic assessors in `src/domain/outcomes.ts` grade the event, and a `skill_outcomes` row lands.
 
 Watch it happen:
 
@@ -385,21 +389,29 @@ Or in the UI, refresh the project's **Trust** tab. You should see a new row appe
 
 ### Step 7 — Watch autonomy recompute
 
-The ledger insert triggers `recomputeSkillAutonomyTask`. It walks the 30-day window for the affected `(skill, project)` pair and promotes / demotes. Refresh `<coznt>/skills/<slug>` or the project's **Trust** tab — the level may or may not move depending on the sample size, but the row should be there.
+The ledger insert triggers `recomputeSkillAutonomyTask`. It walks the 30-day window for the affected `(skill, project)` pair and promotes / demotes. Open **Insight → Skills**, click the skill that just ran — its autonomy level for this project, the outcomes that earned it, the trailing-window math, and the choreography pushed to dev repos are all on one page.
 
 A single success rarely promotes. Burst-merge a few clean PRs to feel a promotion; introduce a deliberate revert (push a bad commit, revert it within 7 days) to feel a demotion. The `demo-execution-gate.ts` script in A6 is the fastest way to see this without touching a real repo.
 
-### Step 8 — Advance the phase
+### Step 8 — Cut the release, advance the phase
 
-When the gates on the current phase have passed (open the project's **Phases** tab to see them green), ask the agent:
+Once the story's PRs are merged, ask the agent for release notes:
+
+> "Generate a release plan for everything merged against this project since the last cut."
+
+The agent invokes the `release-notes-generator` skill. The resulting `release_plan` lands in **Plan → Releases** — each row holds the release plan, the PRs included, the deploy outcome that closes it, and an approval slot for the release sign-off. Approve it the same way as Step 4.
+
+When the gates on the current phase have passed (open the project cockpit's **Phases** tab to see them green), ask the agent:
 
 > "Submit this project for advancement to the testing phase."
 
-Agent calls `submit_phase_for_review`. Operator (or self, if you have the role) approves at `/approvals`. Phase moves. Allowed verbs change on the next agent turn. Loop closes.
+Agent calls `submit_phase_for_review`. Operator (or self, if you have the role) approves it in **Approvals**. Phase moves. Allowed verbs change on the next agent turn. Loop closes.
 
-### Step 9 — Read the audit
+### Step 9 — Read the audit, watch the long arc
 
-Everything you just did is in `/audit` — an append-only log with a row-hash chain. Filter by your user or by the project. Each row links back to the entity it mutated. This is the "trust observable" claim: nothing on screen is unbacked.
+Everything you just did is in **Insight → Audit log** — an append-only feed with a row-hash chain. Filter by your user or by the project. Each row links back to the entity it mutated. This is the "trust observable" claim: nothing on screen is unbacked.
+
+For the long arc, open **Insight → DORA**. After a few cycles, you should see lead time, deploy frequency, change-fail rate, and MTTR move. DORA is how you answer "is the loop actually making us faster, or just busier?" — and the ledger underneath is how you answer "why."
 
 If any step above doesn't fire the way you expect, jump to **C2 Troubleshooting**.
 
@@ -494,7 +506,7 @@ The full developer-facing flow is in **Part A** above.
 
 ## B5. Connect GitHub (once per org)
 
-Navigate to `/integrations` and click **Configure** on the GitHub card.
+Navigate to **Adapters** in the sidebar (`/integrations`) and click **Configure** on the GitHub card.
 
 - **Personal access token** — paste your PAT. Stored encrypted in `integration_credentials`.
 - Same flow works for GitHub Enterprise — issue the PAT from your GHE instance.
@@ -503,7 +515,7 @@ This is org-level; every project in the org reuses it.
 
 ### Jira, Azure DevOps, Confluence
 
-All three are optional for the GitHub-only loop but unlock work-item sync, ADR publishing, and pipeline read-paths. Configure each from the same `/integrations` page; credentials live in `integration_credentials` (encrypted) and resolve per provider.
+All three are optional for the GitHub-only loop but unlock work-item sync, ADR publishing, and pipeline read-paths. Configure each from the same **Adapters** page (`/integrations`); credentials live in `integration_credentials` (encrypted) and resolve per provider.
 
 | Provider | Required fields | Where to mint the token |
 |---|---|---|
@@ -615,20 +627,44 @@ Commit the generated `drizzle/00XX_*.sql` and the updated `drizzle/meta/_journal
 
 ## C1. Useful screens
 
+The sidebar holds the screens you open multiple times a day — grouped by **Plan** (author work), **Insight** (observe what happened), **Runtime** (govern behavior). Meta-work (account, governance config, MCP keys) lives in the **avatar menu** at the top-right. Real-time pings live behind the **bell icon**.
+
+### Sidebar
+
+| Group | Sidebar | Route | Purpose |
+|---|---|---|---|
+| Plan | Projects | `/projects` | Portfolio — every project, phase, trust signal |
+| Plan | Plans | `/plans` | All authored units (epic, feature, story, ADR, test plan). Filter by kind / status |
+| Plan | Releases | `/releases` | Release plans joined with deploy history — the cut view |
+| Plan | Approvals | `/approvals` | Pending sign-offs. Where autonomy denials land for human review |
+| Insight | Skills | `/skills` | Per-project autonomy ledger; skill detail surfaces the choreography pushed to dev repos |
+| Insight | DORA | `/metrics` | Lead time, deploy frequency, change-fail, MTTR + autonomy rollups |
+| Insight | Audit log | `/audit` | Append-only log with row-hash chain — the source-of-record |
+| Runtime | Adapters | `/integrations` | Provider credentials + bindings (GitHub, Jira, ADO, Confluence, deploy targets) |
+
+### Header — top-right
+
+| Surface | Route | Purpose |
+|---|---|---|
+| 🔔 Bell | `/notifications` | Per-user feed of approvals waiting, gate failures, autonomy promotions, incidents |
+| Avatar → Settings | `/settings` | Org-wide preferences (members, defaults, theme) |
+| Avatar → API keys | `/api-keys` | Mint MCP keys; in-UI host config panel |
+| Avatar → Rules | `/rules` | Declarative policy validators (`keyword-presence`, `action-policy`) that gate plan writes and skill actions |
+| Avatar → Sign out | — | End the session |
+
+### Discoverable from inside other screens
+
+| Sidebar entry → click-through | Route | Purpose |
+|---|---|---|
+| Skills → click a skill | `/skills/[id]` | Choreography (SKILL.md pushed to dev repos) shown on the detail page |
+| Skills → "Custom choreographies" button | `/choreographies` | Operator-authored choreographies pushed to repos via `coznt sync` |
+| Projects → click a project | `/projects/[id]` | Project cockpit — phase, gates, plans, outcomes |
+
+### Other
+
 | Route | Purpose |
 |---|---|
-| `/projects` | Portfolio view — every project, phase, and trust signal at a glance |
-| `/projects/[id]` | Cockpit for a single project |
-| `/skills` | Org-wide and project-scoped skills, autonomy levels |
-| `/choreographies` | Authored choreographies + manifest served to `coznt sync` |
-| `/approvals` | Pending sign-offs (where autonomy denials land) |
-| `/audit` | Append-only audit log with row-hash chain |
-| `/metrics` | Cross-project DORA and ledger rollups |
-| `/rules` | Declarative policy validators (keyword-presence, action-policy) |
-| `/integrations` | Provider credentials + binding overview |
-| `/api-keys` | Mint MCP keys; in-UI host config panel |
 | `/install/coznt-mcp/latest` | Self-hosted MCP tarball (redirects to current pinned version) |
-| `/settings` | Org-wide preferences |
 
 ## C1.5. Built-in skills
 

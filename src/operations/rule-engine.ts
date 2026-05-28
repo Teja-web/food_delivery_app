@@ -66,6 +66,8 @@ interface ParsedRuleConfig {
   blockedPaths?: string[];
   requireTests?: boolean;
   maxFilesPerChange?: number;
+  maxLoc?: number;
+  minCoverage?: number;
 }
 
 function parseJsonStringArray(value: string): string[] | undefined {
@@ -105,6 +107,12 @@ function parseRuleFrontmatter(body: string): { config: ParsedRuleConfig; markdow
     } else if (key === "maxFilesPerChange") {
       const n = Number(value);
       if (Number.isFinite(n)) config.maxFilesPerChange = n;
+    } else if (key === "maxLoc") {
+      const n = Number(value);
+      if (Number.isFinite(n)) config.maxLoc = n;
+    } else if (key === "minCoverage") {
+      const n = Number(value);
+      if (Number.isFinite(n)) config.minCoverage = n;
     } else if (key === "requires" || key === "forbids") {
       const arr = parseJsonStringArray(value);
       if (arr) config[key] = arr;
@@ -246,6 +254,8 @@ export async function applyActionPolicyRules(
       blockedPaths: config.blockedPaths,
       requireTests: config.requireTests,
       maxFilesPerChange: config.maxFilesPerChange,
+      maxLoc: config.maxLoc,
+      minCoverage: config.minCoverage,
     };
 
     const v = evaluateActionPolicy(

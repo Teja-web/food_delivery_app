@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Coznt",
-  description: "AI powered SDLC Platform",
+  description: "AIDLC Governed. The trust ledger for AI-augmented engineering organizations.",
   icons: {
     icon: "/logo.svg",
   },

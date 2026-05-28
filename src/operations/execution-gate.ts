@@ -23,6 +23,13 @@ import {
 import type { ProjectPhase } from "@/db/schema/project";
 import type { RuleSeverity } from "@/db/schema/rule";
 import { PHASE_GUIDANCE } from "@/domain/phases";
+import { emitDomainEvent } from "@/lib/events/emit";
+
+function gateEventKind(verdict: GateVerdict): "gate.pass" | "gate.fail" | "gate.neutral" {
+  if (verdict === "success") return "gate.pass";
+  if (verdict === "failure") return "gate.fail";
+  return "gate.neutral";
+}
 
 export interface GateInput {
   organizationId: string;
@@ -250,6 +257,26 @@ export async function evaluatePullRequest(input: GateInput): Promise<{
     } as Record<string, unknown>,
   });
 
+  await emitDomainEvent({
+    organizationId: input.organizationId,
+    kind: gateEventKind(verdict.verdict),
+    summary: `${input.prRef}: ${verdict.reason}`,
+    actorId: input.skillId,
+    entityType: "pull_request",
+    entityId: input.prRef,
+    payload: {
+      projectId: input.projectId,
+      prRef: input.prRef,
+      verdict: verdict.verdict,
+      reason: verdict.reason,
+      skillId: input.skillId,
+      skillLevel: input.skillLevel,
+      changeRisk: input.changeRisk,
+      humanOverride: input.hasHumanApproval,
+      enforcedByRuleId: verdict.enforcedByRuleId ?? null,
+    },
+  });
+
   return { evaluation, verdict };
 }
 
@@ -322,6 +349,24 @@ export async function recordApprovalCheckRun(args: {
       humanOverride: args.decision === "approved",
       source: "approval_cascade",
     } as Record<string, unknown>,
+  });
+
+  await emitDomainEvent({
+    organizationId: args.organizationId,
+    kind: gateEventKind(verdict),
+    summary: `${args.prRef}: ${reason}`,
+    actorId: prior?.skillId ?? null,
+    entityType: "pull_request",
+    entityId: args.prRef,
+    payload: {
+      projectId: args.projectId,
+      prRef: args.prRef,
+      verdict,
+      reason,
+      humanOverride: args.decision === "approved",
+      source: "approval_cascade",
+      decidedByName: args.decidedByName,
+    },
   });
 
   // Post a fresh check-run when we have everything we need. Each guard

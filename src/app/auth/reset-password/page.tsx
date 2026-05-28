@@ -189,7 +189,7 @@ export default function ResetPasswordPage() {
           <img src="/logo.svg" alt="Coznt" className="h-8 w-8 shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Coznt</p>
-            <p className="text-[10px] uppercase tracking-widest text-amber-400">AI powered SDLC</p>
+            <p className="text-[10px] uppercase tracking-widest text-amber-400">AIDLC Governed</p>
           </div>
         </Link>
 
