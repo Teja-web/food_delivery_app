@@ -247,6 +247,17 @@ export function PhasesTab({ data }: { data: CockpitData }) {
                               ≥ {gate.threshold}
                             </Badge>
                           ) : null}
+                          {gate.pendingApprovalCount > 0 && gate.status === "pending" ? (
+                            <Badge
+                              variant="outline"
+                              className="ml-1 border-state-pending/40 px-1.5 py-0 font-mono text-[10px] uppercase text-state-pending"
+                            >
+                              In review
+                              {gate.pendingApprovalCount > 1
+                                ? ` · ${gate.pendingApprovalCount}`
+                                : ""}
+                            </Badge>
+                          ) : null}
                           {gate.description ? (
                             <div className="mt-0.5 text-xs text-muted-foreground">{gate.description}</div>
                           ) : null}

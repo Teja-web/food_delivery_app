@@ -39,6 +39,13 @@ export interface CockpitGateClient {
   assigneeName: string | null;
   ageLabel: string | null;
   lastGreenAt: string | null;
+  /**
+   * Open approval rows targeting this gate. > 0 means a reviewer was asked
+   * but hasn't decided yet (typical after `submit_phase_for_review`). UI
+   * renders an "in review" badge so the gate's pending state is visible on
+   * the project cockpit, not buried only in the approvals inbox.
+   */
+  pendingApprovalCount: number;
 }
 
 export interface CockpitBindingClient {
@@ -188,7 +195,10 @@ export function serializeCockpitProject(p: Project): CockpitProjectClient {
   };
 }
 
-export function serializeCockpitGate(g: PhaseGate): CockpitGateClient {
+export function serializeCockpitGate(
+  g: PhaseGate,
+  pendingApprovalCount = 0,
+): CockpitGateClient {
   return {
     id: g.id,
     name: g.name,
@@ -200,6 +210,7 @@ export function serializeCockpitGate(g: PhaseGate): CockpitGateClient {
     assigneeName: g.assigneeName ?? null,
     ageLabel: formatAge(g.lastChangedAt),
     lastGreenAt: g.lastGreenAt?.toISOString() ?? null,
+    pendingApprovalCount,
   };
 }
 

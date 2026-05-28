@@ -22,6 +22,20 @@
       "when": 1779633098207,
       "tag": "0002_clumsy_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779952248573,
+      "tag": "0003_square_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779953055427,
+      "tag": "0004_striped_proudstar",
+      "breakpoints": true
     }
   ]
 }

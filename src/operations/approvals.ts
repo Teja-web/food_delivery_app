@@ -6,7 +6,7 @@ import { approvals, APPROVAL_ENTITY_TYPES, APPROVAL_STATUSES, type ApprovalEntit
 import { plans } from "@/db/schema/plan";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { safeRevalidate } from "@/lib/safe-revalidate";
-import { getActionContext } from "@/lib/auth/context";
+import { ForbiddenError, getActionContext, hasElevatedRole } from "@/lib/auth/context";
 import { tryAdvancePhase } from "@/operations/phase-advance";
 import { getSkillAutonomy } from "@/operations/skill-autonomy";
 import {
@@ -138,6 +138,16 @@ export async function decideApproval(args: {
   });
   if (!existing) throw new Error("Approval not found");
   if (existing.status !== "pending") throw new Error(`Approval already ${existing.status}`);
+
+  // Approver enforcement: when the approval row pins a non-empty `approverIds`
+  // list, the deciding user must be on it (or hold an elevated role as the
+  // override path). Empty/null list keeps the legacy "anyone in org" behavior.
+  const approvers = existing.approverIds ?? [];
+  if (approvers.length > 0 && !approvers.includes(ctx.userId) && !hasElevatedRole(ctx)) {
+    throw new ForbiddenError(
+      "You are not an authorized approver for this request.",
+    );
+  }
 
   const now = new Date();
   await db

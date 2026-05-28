@@ -77,7 +77,7 @@ async function main() {
     .returning();
 
   try {
-    const apiCtx = { organizationId, projectId: project.id, apiKeyId: "smoke-d-key" };
+    const apiCtx = { organizationId, projectId: project.id, apiKeyId: "smoke-d-key", role: "admin" };
 
     banner("Step 1 — autonomy gate DENIES when required > current");
     const denyRunId = `${RUN_PREFIX}-deny`;

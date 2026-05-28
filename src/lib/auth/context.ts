@@ -158,8 +158,32 @@ export async function requireOrgContext(): Promise<ScopedActionContext> {
  * Distinct from "not found" so the API layer can map it to 403.
  */
 export class ForbiddenError extends Error {
+  status = 403;
   constructor(message = "Forbidden") {
     super(message);
     this.name = "ForbiddenError";
+  }
+}
+
+/**
+ * Roles allowed to perform governance-sensitive mutations (phase advance,
+ * gate override, approval policy edits). Mirrors Better Auth's
+ * `member.role` for human sessions and `api_keys.role` for the agent
+ * surface, so the same check works on both paths.
+ */
+const ELEVATED_ROLES: ReadonlySet<string> = new Set(["owner", "admin"]);
+
+export function hasElevatedRole(ctx: { isAdmin: boolean; role: string }): boolean {
+  return ctx.isAdmin || ELEVATED_ROLES.has(ctx.role);
+}
+
+export function assertElevatedRole(
+  ctx: { isAdmin: boolean; role: string },
+  action: string,
+): void {
+  if (!hasElevatedRole(ctx)) {
+    throw new ForbiddenError(
+      `${action} requires an admin or owner role (current role: ${ctx.role || "unknown"}).`,
+    );
   }
 }

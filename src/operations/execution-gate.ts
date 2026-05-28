@@ -39,6 +39,13 @@ export interface GateInput {
   ruleViolations: Array<{ ruleId: string; severity: RuleSeverity }>;
   phase: ProjectPhase;
   hasHumanApproval: boolean;
+  /**
+   * When true (per `projects.requireHumanApprovalForMerge`), autonomy
+   * cannot stand in for a human reviewer — without an `approved` row the
+   * gate emits `failure` so GitHub branch protection blocks the merge.
+   * The hasHumanApproval override still wins when set.
+   */
+  requireHumanApproval?: boolean;
 
   /**
    * Optional policy override. When provided, replaces the default
@@ -96,6 +103,20 @@ export function decideExecutionGate(input: GateInput): GateVerdictResult {
       verdict: "success",
       reason: "Approved by human reviewer",
       details: ["Human override recorded — autonomy thresholds bypassed for this PR."],
+    };
+  }
+
+  // Rule 3b: project-level "require human approval" lock. When set, autonomy
+  // is not allowed to stand in for a reviewer — we exit with `failure` so
+  // GitHub branch protection blocks the merge until an approval row decides.
+  if (input.requireHumanApproval) {
+    return {
+      verdict: "failure",
+      reason: "Awaiting human approval",
+      details: [
+        "This project requires explicit human approval before any PR can merge.",
+        "Open the coznt approvals inbox and decide the PR's approval row to unblock.",
+      ],
     };
   }
 

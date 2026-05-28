@@ -90,6 +90,47 @@ function githubExternalKey(payload: Json): string | null {
   return `${host}/${fullName}`;
 }
 
+/**
+ * Mirror a GitHub PR into `work_items` so DORA + lead-time roll-ups flow off
+ * GitHub the same way they already do off Jira/ADO. Status maps to the rule
+ * engine's terminal set: open → "open"; closed+merged → "merged" (fires
+ * computeWorkItemLeadTime); closed+unmerged → "closed". Failures are
+ * swallowed — this is observability, not load-bearing.
+ */
+async function upsertGithubPrWorkItem(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  if (!evt.organizationId) return;
+  const pr = asObject(payload.pull_request);
+  if (!pr) return;
+  const number = typeof pr.number === "number" ? pr.number : Number(pr.number);
+  if (!Number.isFinite(number)) return;
+
+  const state = asString(pr.state);
+  const merged = pr.merged === true;
+  const status = state === "closed" ? (merged ? "merged" : "closed") : (state ?? "open");
+
+  try {
+    await upsertWorkItem({
+      organizationId: evt.organizationId,
+      projectId,
+      source: "github",
+      externalId: `${externalKey}#${number}`,
+      externalUrl: asString(pr.html_url),
+      kind: "pull_request",
+      title: asString(pr.title) ?? `PR #${number}`,
+      description: asString(pr.body) ?? undefined,
+      status,
+      raw: payload,
+    });
+  } catch {
+    /* swallow — gate evaluation and assessors must still run */
+  }
+}
+
 async function handleGitHub(evt: WebhookEvent): Promise<void> {
   if (!evt.organizationId) {
     return markProcessed(evt.id, "webhook has no organizationId");
@@ -162,6 +203,10 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
   }
 
   if (evt.event === "pull_request") {
+    // Mirror the PR into work_items first so DORA / lead-time can roll up
+    // regardless of which downstream path runs.
+    await upsertGithubPrWorkItem(evt, payload, externalKey, projectId);
+
     const action = asString(payload.action);
     if (action === "closed") {
       // Two synchronous post-merge paths live here: revert detection and
@@ -282,6 +327,34 @@ async function runExecutionGate(
     ),
   });
 
+  // Project-level "require human approval" lock: when set, the gate must
+  // see an explicit approval before it can clear. Auto-create a pending
+  // approval row on first PR open so reviewers see it in the inbox
+  // immediately (no separate `submit_for_approval` round-trip needed).
+  if (project.requireHumanApprovalForMerge && !humanApproval) {
+    const existingPending = await db.query.approvals.findFirst({
+      where: and(
+        eq(approvals.organizationId, evt.organizationId),
+        eq(approvals.entityType, "work_item"),
+        eq(approvals.entityId, prRef),
+        eq(approvals.status, "pending"),
+      ),
+    });
+    if (!existingPending) {
+      await db.insert(approvals).values({
+        organizationId: evt.organizationId,
+        entityType: "work_item",
+        entityId: prRef,
+        projectId,
+        phase: project.phase,
+        requestedById: `system:execution-gate`,
+        requestedByName: "execution gate",
+        requesterNote: `Merge of ${prRef} requires human approval per project policy.`,
+        status: "pending",
+      });
+    }
+  }
+
   const input: GateInput = {
     organizationId: evt.organizationId,
     projectId,
@@ -294,6 +367,7 @@ async function runExecutionGate(
     ruleViolations,
     phase: project.phase,
     hasHumanApproval: Boolean(humanApproval),
+    requireHumanApproval: project.requireHumanApprovalForMerge,
   };
 
   const { evaluation, verdict } = await evaluatePullRequest(input);

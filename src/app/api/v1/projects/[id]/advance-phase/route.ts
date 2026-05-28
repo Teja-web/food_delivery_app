@@ -2,12 +2,24 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { hasElevatedRole } from "@/lib/auth/context";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
 import { findUnmetGates } from "@/operations/phase-gates";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
+    // Governance gate: only admin/owner API keys can advance phase. Default
+    // member keys (used by IDE agents) cannot — mint a separate admin key
+    // for CI/promotion automation.
+    if (!hasElevatedRole({ isAdmin: false, role: ctx.role })) {
+      const err = new Error(
+        `Advance-phase requires an admin or owner API key (current role: ${ctx.role}).`,
+      ) as Error & { status?: number };
+      err.status = 403;
+      throw err;
+    }
+
     const project = await db.query.projects.findFirst({
       where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
     });

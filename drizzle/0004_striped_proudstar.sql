@@ -1,0 +1,1 @@
+ALTER TABLE "coznt"."projects" ADD COLUMN "require_human_approval_for_merge" boolean DEFAULT false NOT NULL;

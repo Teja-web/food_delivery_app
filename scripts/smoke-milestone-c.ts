@@ -138,6 +138,7 @@ async function main() {
     organizationId,
     projectId: project.id,
     apiKeyId: "smoke-c-key",
+    role: "admin",
   };
   const pre = await handlePreToolUse(apiCtx, {
     skillSlug: anySkill.slug,

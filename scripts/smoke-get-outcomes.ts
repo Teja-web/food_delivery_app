@@ -111,11 +111,13 @@ async function main() {
       organizationId,
       projectId: project.id,
       apiKeyId: "smoke-out-org-key",
+      role: "admin",
     };
     const projectCtx: ApiContext = {
       organizationId,
       projectId: project.id,
       apiKeyId: "smoke-out-proj-key",
+      role: "admin",
     };
 
     banner("Step 1 — skillSlug filter returns only that skill's outcomes");

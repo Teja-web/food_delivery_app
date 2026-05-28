@@ -79,9 +79,23 @@ BEGIN
   FOR tbl IN
     SELECT * FROM (VALUES
       ('entity_notes', 'entityNote'),
-      ('project_learnings', 'projectLearning')
+      ('project_learnings', 'projectLearning'),
+      ('webhook_events', 'webhook_event'),
+      ('work_items', 'work_item'),
+      ('skill_outcomes', 'skill_outcome')
     ) AS t(table_name, entity_type)
   LOOP
+    -- Skip tables that haven't been created yet (migration pending).
+    -- Keeps the loop resilient as SDLC entities land in src/db/schema/.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'coznt' AND c.relname = tbl.table_name AND c.relkind = 'r'
+    ) THEN
+      RAISE NOTICE 'Skipping CRUD trigger for missing table coznt.%', tbl.table_name;
+      CONTINUE;
+    END IF;
+
     trigger_name := 'trg_crud_' || tbl.table_name;
 
     EXECUTE format(

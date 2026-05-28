@@ -1,0 +1,1 @@
+ALTER TABLE "coznt"."api_keys" ADD COLUMN "role" text DEFAULT 'member' NOT NULL;

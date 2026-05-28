@@ -5,7 +5,7 @@
  * external systems (repo, Jira project, ADO project, Confluence space).
  */
 
-import { text, timestamp, index, unique } from "drizzle-orm/pg-core";
+import { boolean, text, timestamp, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
@@ -51,6 +51,18 @@ export const projects = cozntSchema.table(
       .array()
       .notNull()
       .default(sql`ARRAY[]::text[]`),
+
+    /**
+     * When true, the execution gate forces `failure` on any PR that lacks a
+     * decided "approved" row in `approvals` — even if the originating skill's
+     * autonomy would normally clear the change. Per-project so customers can
+     * lock down sensitive projects (production / regulated) while keeping
+     * lighter projects autonomy-only. Defaults to false to preserve the
+     * pre-existing autonomy-only behavior.
+     */
+    requireHumanApprovalForMerge: boolean("require_human_approval_for_merge")
+      .notNull()
+      .default(false),
 
     createdById: text("created_by_id"),
     createdByName: text("created_by_name"),

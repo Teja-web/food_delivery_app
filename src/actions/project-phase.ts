@@ -3,7 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { projects, type ProjectPhase } from "@/db/schema/project";
-import { getActionContext } from "@/lib/auth/context";
+import { assertElevatedRole, getActionContext } from "@/lib/auth/context";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
 import { findUnmetGates } from "@/operations/phase-gates";
@@ -18,6 +18,7 @@ export class UnmetGatesError extends Error {
 
 export async function advanceProjectPhase(projectId: string): Promise<{ phase: ProjectPhase }> {
   const ctx = await getActionContext();
+  assertElevatedRole(ctx, "Advancing a project's phase");
 
   const project = await db.query.projects.findFirst({
     where: and(eq(projects.id, projectId), eq(projects.organizationId, ctx.organizationId)),
@@ -42,6 +43,7 @@ export async function advanceProjectPhase(projectId: string): Promise<{ phase: P
 
 export async function setProjectPhase(projectId: string, phase: ProjectPhase): Promise<void> {
   const ctx = await getActionContext();
+  assertElevatedRole(ctx, "Overriding a project's phase");
   await db
     .update(projects)
     .set({ phase, updatedAt: new Date() })

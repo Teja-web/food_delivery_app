@@ -38,6 +38,8 @@ export interface ApiContext {
   organizationId: string;
   projectId: string;
   apiKeyId: string;
+  /** Per-key authorization role. See `api_keys.role`. */
+  role: string;
 }
 
 export async function authenticate(req: Request): Promise<ApiContext> {
@@ -63,7 +65,7 @@ export async function authenticate(req: Request): Promise<ApiContext> {
   // Best-effort lastUsedAt bump; don't block the request.
   void db.update(apiKeys).set({ lastUsedAt: now }).where(drizzleEq(apiKeys.id, row.id));
 
-  return { organizationId: row.organizationId, projectId: row.projectId, apiKeyId: row.id };
+  return { organizationId: row.organizationId, projectId: row.projectId, apiKeyId: row.id, role: row.role };
 }
 
 /** Run `fn` with an org-scoped worker context derived from the API key. */
@@ -74,7 +76,7 @@ export async function withApiContext<T>(
   const scoped = buildScopedContext(
     ctx.organizationId,
     { id: `api:${ctx.apiKeyId}`, name: "API client", email: "api@coznt" },
-    { role: "api", projectId: ctx.projectId },
+    { role: ctx.role, projectId: ctx.projectId },
   );
   return runWithMessageContext(scoped, () => fn(ctx));
 }

@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 
+import { sql } from "drizzle-orm";
+
 import { listGatesForPhase, listGatesForProject } from "@/actions/phase-gates";
 import { getProject } from "@/actions/projects";
+import { db } from "@/db/client";
+import { approvals } from "@/db/schema/approval";
 import type { PhaseGate } from "@/db/schema/phase-gate";
 import { PROJECT_PHASES, type Project, type ProjectPhase } from "@/db/schema/project";
 import { canAdvanceFrom, nextPhase, PHASE_GUIDANCE } from "@/domain/phases";
@@ -96,6 +100,27 @@ export default async function ProjectDetailPage({
     ? `${currentPhaseGates.filter((g) => g.status !== "passed" && g.status !== "skipped").length} gate(s) not yet cleared`
     : null;
 
+  // Pending approval count per gate, so the Phases tab can show an
+  // "in review" badge for gates that have been submitted but not yet
+  // decided. A single org-scoped aggregate keeps this O(1) round-trip.
+  const pendingByGate = new Map<string, number>();
+  if (allGates.length > 0) {
+    const rows = await db
+      .select({
+        gateId: approvals.entityId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(approvals)
+      .where(
+        sql`${approvals.organizationId} = ${ctx.organizationId}
+          AND ${approvals.entityType} = 'phase_gate'
+          AND ${approvals.status} = 'pending'`,
+      )
+      .groupBy(approvals.entityId);
+    for (const r of rows) pendingByGate.set(r.gateId, r.count);
+  }
+  const pendingFor = (gateId: string) => pendingByGate.get(gateId) ?? 0;
+
   // Group all gates by phase so the Phases tab can render a timeline.
   const byPhase = new Map<ProjectPhase, PhaseGate[]>();
   for (const g of allGates) {
@@ -106,7 +131,7 @@ export default async function ProjectDetailPage({
   const gatesByPhase: CockpitGatesByPhase[] = PROJECT_PHASES.map((p) => ({
     phase: p,
     label: PHASE_GUIDANCE[p].label,
-    gates: (byPhase.get(p) ?? []).map(serializeCockpitGate),
+    gates: (byPhase.get(p) ?? []).map((g) => serializeCockpitGate(g, pendingFor(g.id))),
   }));
 
   const data: CockpitData = {
@@ -115,7 +140,7 @@ export default async function ProjectDetailPage({
     canAdvance,
     blockedReason,
     guidance: PHASE_GUIDANCE[project.phase],
-    gates: currentPhaseGates.map(serializeCockpitGate),
+    gates: currentPhaseGates.map((g) => serializeCockpitGate(g, pendingFor(g.id))),
     gatesAllPassed,
     gatesByPhase,
     bindings: bindings.map(serializeCockpitBinding),
