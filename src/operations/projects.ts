@@ -15,6 +15,7 @@ const projectSchema = z.object({
   jiraProjectKey: z.string().optional(),
   adoProjectId: z.string().optional(),
   confluenceSpaceKey: z.string().optional(),
+  requireHumanApprovalForMerge: z.boolean().optional(),
 });
 
 /**

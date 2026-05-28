@@ -228,6 +228,24 @@ export async function decideApproval(args: {
     }
   }
   // release / work_item: caller (release manager, integration handler) does the cascade.
+  // Exception: GitHub PRs are work_items whose entityId is a `github:owner/repo#n`
+  // ref. Cascade those into a fresh gate_evaluation + GitHub check-run so the
+  // PR unblocks the moment a reviewer decides (no need to wait for `synchronize`).
+  if (
+    existing.entityType === "work_item" &&
+    /^github:/.test(existing.entityId) &&
+    existing.projectId
+  ) {
+    const { recordApprovalCheckRun } = await import("@/operations/execution-gate");
+    await recordApprovalCheckRun({
+      organizationId: ctx.organizationId,
+      projectId: existing.projectId,
+      prRef: existing.entityId,
+      decision: args.decision,
+      decidedByName: ctx.user.name ?? "approval-system",
+      note: args.note,
+    });
+  }
 
   safeRevalidate("/approvals");
 }

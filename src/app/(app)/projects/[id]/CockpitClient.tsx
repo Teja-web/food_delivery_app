@@ -226,6 +226,7 @@ export function CockpitClient({ data }: { data: CockpitData }) {
             learnings={data.trust.learnings}
             promptQuality={data.trust.promptQuality}
             promptGovernanceEnabled={data.trust.promptGovernanceEnabled}
+            requireHumanApprovalForMerge={data.project.requireHumanApprovalForMerge}
           />
         </TabsContent>
 

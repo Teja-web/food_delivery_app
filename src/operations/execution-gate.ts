@@ -253,6 +253,122 @@ export async function evaluatePullRequest(input: GateInput): Promise<{
   return { evaluation, verdict };
 }
 
+/**
+ * Cascade a human approval/rejection of a `work_item` PR row back into
+ * `gate_evaluations` and GitHub. Without this, the PR's coznt check-run
+ * stays stale until the next `synchronize` event re-evaluates — which can
+ * be never if the author is waiting for the gate to clear before pushing
+ * again. Best-effort: missing prior evaluation / no installation / App
+ * unconfigured → we still record the audit trail but skip the GitHub POST.
+ */
+export async function recordApprovalCheckRun(args: {
+  organizationId: string;
+  projectId: string;
+  prRef: string;
+  decision: "approved" | "rejected";
+  decidedByName: string;
+  note?: string;
+}): Promise<void> {
+  const match = args.prRef.match(/^github:([^#]+)#(\d+)$/);
+  if (!match) return; // not a GitHub PR ref; nothing to cascade
+  const ownerRepo = match[1];
+
+  // Latest prior evaluation gives us headSha + skill attribution to carry
+  // forward into the new row. If there's no prior eval, we still log the
+  // decision but skip the GitHub POST (nothing to post against).
+  const prior = await getLatestEvaluation(args.projectId, args.prRef);
+
+  const verdict: GateVerdict = args.decision === "approved" ? "success" : "failure";
+  const reason =
+    args.decision === "approved"
+      ? `Approved by ${args.decidedByName}`
+      : `Rejected by ${args.decidedByName}`;
+  const details = [
+    args.decision === "approved"
+      ? "Human reviewer cleared this PR via the coznt approvals inbox."
+      : "Human reviewer rejected this PR via the coznt approvals inbox.",
+    ...(args.note ? [args.note] : []),
+  ];
+
+  const [newEval] = await db
+    .insert(gateEvaluations)
+    .values({
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      prRef: args.prRef,
+      prTitle: prior?.prTitle ?? null,
+      prHeadSha: prior?.prHeadSha ?? null,
+      skillId: prior?.skillId ?? null,
+      autonomyAtEval: prior?.autonomyAtEval ?? null,
+      verdict,
+      reason,
+      details,
+      changeRisk: prior?.changeRisk ?? "low",
+      humanOverride: args.decision === "approved",
+    })
+    .returning();
+
+  await db.insert(auditLogs).values({
+    organizationId: args.organizationId,
+    actorType: "user",
+    actorName: args.decidedByName,
+    action: `execution_gate.${verdict}`,
+    entityType: "pull_request",
+    entityId: args.prRef,
+    summary: `${args.prRef}: ${reason}`,
+    after: {
+      verdict,
+      reason,
+      humanOverride: args.decision === "approved",
+      source: "approval_cascade",
+    } as Record<string, unknown>,
+  });
+
+  // Post a fresh check-run when we have everything we need. Each guard
+  // failure here is intentional: GitHub App not installed, no head sha to
+  // target, or no binding → record the decision but don't crash the
+  // approval flow.
+  if (!prior?.prHeadSha) return;
+  const { isConfigured, postCheckRun } = await import("@/lib/integrations/github-app");
+  if (!isConfigured()) return;
+
+  const { adapterBindings } = await import("@/db/schema/adapter-binding");
+  const binding = await db.query.adapterBindings.findFirst({
+    where: and(
+      eq(adapterBindings.organizationId, args.organizationId),
+      eq(adapterBindings.provider, "github"),
+      eq(adapterBindings.projectId, args.projectId),
+    ),
+  });
+  const installationId =
+    (binding?.config as { installationId?: string | number } | null)?.installationId;
+  if (!installationId) return;
+
+  try {
+    const result = await postCheckRun({
+      installationId: String(installationId),
+      ownerRepo,
+      headSha: prior.prHeadSha,
+      name: "coznt / autonomy gate",
+      conclusion: verdict,
+      title: reason,
+      summary: details.join("\n\n"),
+    });
+    if (result) {
+      await db
+        .update(gateEvaluations)
+        .set({ checkRunId: String(result.id) })
+        .where(eq(gateEvaluations.id, newEval.id));
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await db
+      .update(gateEvaluations)
+      .set({ checkRunError: msg })
+      .where(eq(gateEvaluations.id, newEval.id));
+  }
+}
+
 /** Latest verdict per (projectId, prRef). Used for "current state" reads. */
 export async function getLatestEvaluation(
   projectId: string,

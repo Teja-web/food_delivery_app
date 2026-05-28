@@ -24,6 +24,8 @@ export interface CockpitProjectClient {
   status: ProjectStatus;
   repoUrl: string | null;
   jiraProjectKey: string | null;
+  /** When true, the execution gate refuses to clear PRs without an approval row. */
+  requireHumanApprovalForMerge: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -190,6 +192,7 @@ export function serializeCockpitProject(p: Project): CockpitProjectClient {
     status: p.status,
     repoUrl: p.repoUrl,
     jiraProjectKey: p.jiraProjectKey,
+    requireHumanApprovalForMerge: p.requireHumanApprovalForMerge,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };

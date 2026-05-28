@@ -17,7 +17,21 @@ import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects, type ProjectPhase } from "./project";
 
-export const GATE_TYPES = ["approval", "coverage", "lint", "security", "custom"] as const;
+export const GATE_TYPES = [
+  "approval",
+  "coverage",
+  "lint",
+  "security",
+  "custom",
+  /**
+   * Blocks phase advance while any open GitHub PR for this project has a
+   * still-pending `approvals` work_item row. Pairs with
+   * `projects.requireHumanApprovalForMerge`: that flag puts the dispatch
+   * gate on the PR; this gate puts the phase gate on the project.
+   * Together they enforce "only approved PRs move to the next phase".
+   */
+  "unapproved_prs",
+] as const;
 export type GateType = (typeof GATE_TYPES)[number];
 
 export const GATE_STATUSES = ["pending", "passed", "failed", "skipped"] as const;

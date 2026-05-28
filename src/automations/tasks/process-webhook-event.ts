@@ -112,13 +112,18 @@ async function upsertGithubPrWorkItem(
   const state = asString(pr.state);
   const merged = pr.merged === true;
   const status = state === "closed" ? (merged ? "merged" : "closed") : (state ?? "open");
+  // Use the `prRef` format (`github:owner/repo#N`) so work_items, approvals,
+  // and gate_evaluations all key off the same identifier — see the prRef
+  // convention in runExecutionGate / runClosedPrAssessors.
+  const ownerRepo = externalKey.replace(/^[^/]+\//, "");
+  const externalId = `github:${ownerRepo}#${number}`;
 
   try {
     await upsertWorkItem({
       organizationId: evt.organizationId,
       projectId,
       source: "github",
-      externalId: `${externalKey}#${number}`,
+      externalId,
       externalUrl: asString(pr.html_url),
       kind: "pull_request",
       title: asString(pr.title) ?? `PR #${number}`,

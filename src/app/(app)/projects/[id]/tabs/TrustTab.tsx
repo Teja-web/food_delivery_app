@@ -23,6 +23,7 @@ import type {
 } from "@/operations/project-trust";
 
 import { LearningsCard } from "./LearningsCard";
+import { MergeApprovalPolicyCard } from "./MergeApprovalPolicyCard";
 
 const VERDICT_META: Record<
   SkillOutcomeVerdict,
@@ -403,6 +404,7 @@ export function TrustTab({
   learnings,
   promptQuality,
   promptGovernanceEnabled,
+  requireHumanApprovalForMerge,
 }: {
   projectId: string;
   outcomes: ProjectOutcomeRow[];
@@ -410,6 +412,7 @@ export function TrustTab({
   learnings: ProjectLearning[];
   promptQuality: PromptQualitySummary | null;
   promptGovernanceEnabled: boolean;
+  requireHumanApprovalForMerge: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -422,6 +425,10 @@ export function TrustTab({
           createdAt: l.createdAt.toISOString(),
           createdByName: l.createdByName,
         }))}
+      />
+      <MergeApprovalPolicyCard
+        projectId={projectId}
+        enabled={requireHumanApprovalForMerge}
       />
       <ActivePolicyMatrix cells={policy} />
       <PromptQualityCard
