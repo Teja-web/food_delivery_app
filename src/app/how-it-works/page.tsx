@@ -154,7 +154,7 @@ export default function HowItWorksPage() {
         title="Autonomy is per project, not per skill."
         body={
           <>
-            A skill that is senior-level on a docs-only repo restarts at intern on a
+            A skill that is merge-level on a docs-only repo restarts at observe on a
             payments service. Trust is scoped to where it was earned. This matches how
             enterprise compliance already reasons about blast radius.
           </>
@@ -168,10 +168,10 @@ export default function HowItWorksPage() {
             </span>
           </div>
           <div className="divide-y divide-border/40">
-            <AutonomyRow project="docs-site" level="Principal" stats="64✓ / 0↻ / 0⚡" tone="var(--autonomy-principal)" />
-            <AutonomyRow project="marketing-app" level="Senior" stats="22✓ / 1↻ / 0⚡" tone="var(--autonomy-senior)" />
-            <AutonomyRow project="api-gateway" level="Junior" stats="9✓ / 0↻ / 0⚡" tone="var(--autonomy-junior)" />
-            <AutonomyRow project="payments-service" level="Intern" stats="0✓ / 0↻ / 0⚡" tone="var(--autonomy-intern)" note="new binding · onboarding" />
+            <AutonomyRow project="docs-site" level="Lead" stats="64✓ / 0↻ / 0⚡" tone="var(--autonomy-lead)" />
+            <AutonomyRow project="marketing-app" level="Merge" stats="22✓ / 1↻ / 0⚡" tone="var(--autonomy-merge)" />
+            <AutonomyRow project="api-gateway" level="Propose" stats="9✓ / 0↻ / 0⚡" tone="var(--autonomy-propose)" />
+            <AutonomyRow project="payments-service" level="Observe" stats="0✓ / 0↻ / 0⚡" tone="var(--autonomy-observe)" note="new binding · onboarding" />
           </div>
         </div>
       </Idea>

@@ -32,7 +32,7 @@ The schema and APIs are built for Mode 2 from day one. The runtime only fills th
 
 ### Per-project autonomy
 
-Autonomy is scoped to `(skill, project)` pairs, not skills alone. A skill that is senior-level on a docs-only repo restarts at intern on a payments service. Cross-project rollups exist for the portfolio view, but the *act* of promotion is per-project. This matches how enterprise compliance reasons about scope.
+Autonomy is scoped to `(skill, project)` pairs, not skills alone. A skill that is merge-level on a docs-only repo restarts at observe on a payments service. Cross-project rollups exist for the portfolio view, but the *act* of promotion is per-project. This matches how enterprise compliance reasons about scope.
 
 ---
 
@@ -235,7 +235,7 @@ Each milestone is gated on the loop being demonstrably closed at that scope.
 - One agent definition in `src/automations/agents/definitions/` (proposed: test-plan-generator or rule-validator — small, low-blast-radius).
 - Agent's invocations write `skill_outcomes` rows tagged with the project.
 - Autonomy accumulates from real AI signal on that project; trust ledger reflects it.
-- **Demo statement:** "Here is what happens after a real agent has been running for a month: it earned senior-level autonomy on docs-only repos; it is still intern on payments."
+- **Demo statement:** "Here is what happens after a real agent has been running for a month: it earned merge-level autonomy on docs-only repos; it is still observe on payments."
 
 ### Milestone D — Agent dispatch gate + approvals integration
 

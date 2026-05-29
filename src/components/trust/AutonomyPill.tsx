@@ -11,10 +11,10 @@ const autonomyVariants = cva(
   {
     variants: {
       level: {
-        OBSERVE: "border-autonomy-intern/40 bg-autonomy-intern/10 text-autonomy-intern",
-        PROPOSE: "border-autonomy-junior/40 bg-autonomy-junior/10 text-autonomy-junior",
-        MERGE: "border-autonomy-senior/40 bg-autonomy-senior/10 text-autonomy-senior",
-        LEAD: "border-autonomy-principal/40 bg-autonomy-principal/10 text-autonomy-principal",
+        OBSERVE: "border-autonomy-observe/40 bg-autonomy-observe/10 text-autonomy-observe",
+        PROPOSE: "border-autonomy-propose/40 bg-autonomy-propose/10 text-autonomy-propose",
+        MERGE: "border-autonomy-merge/40 bg-autonomy-merge/10 text-autonomy-merge",
+        LEAD: "border-autonomy-lead/40 bg-autonomy-lead/10 text-autonomy-lead",
       },
     },
     defaultVariants: { level: "PROPOSE" },
@@ -31,7 +31,7 @@ const LABEL: Record<AutonomyLevel, string> = {
 /**
  * Maps the lowercase `LevelName` (from `autonomy-constants.ts`) to the pill's
  * uppercase variant key. The autonomy CSS tokens still carry their original
- * names (`autonomy-intern`/`junior`/`senior`/`principal`) so we don't have to
+ * names (`autonomy-observe`/`propose`/`merge`/`lead`) so we don't have to
  * re-skin the theme in the same change — only the public display labels
  * change here.
  */

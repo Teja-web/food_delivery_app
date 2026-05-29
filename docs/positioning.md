@@ -23,7 +23,7 @@ Coznt is not a screen the developer visits — it is a layer their **AI editor a
 - **Project context, every turn.** The agent calls `get_my_context` to get the project, current phase, allowed and forbidden tools, active rules, the developer's identity, and the autonomy level of every skill bound to this project. The editor's reasoning is grounded in the same truth the server-side gate enforces.
 - **Choreographies as native skills.** `coznt sync` drops workflow guides into `.coznt/skills/` as SKILL.md files. Cursor surfaces them as slash-commands, Claude Code reads the frontmatter natively, Cline / Continue / Zed pick them up via MCP. The playbook for *"story approved → run test-author → mark gate"* rides in the developer's repo, versioned with it.
 - **Phase boundaries as inline errors.** Ask the agent to edit source code while the project is in `design`? The verb returns a 409 with a structured message — *"source-code work is forbidden in `design`; advance to `development` first"*. The editor explains the error in the developer's own language. The boundary stops being a wiki page and starts being a runtime answer.
-- **Autonomy visible in the daily loop.** Each skill's level (Intern / Junior / Senior / Principal) is part of the context payload. The agent knows up-front whether `invoke_skill` will run unattended or route into the human-approval inbox — no surprise blocks at submission time.
+- **Autonomy visible in the daily loop.** Each skill's level (Observe / Propose / Merge / Lead) is part of the context payload. The agent knows up-front whether `invoke_skill` will run unattended or route into the human-approval inbox — no surprise blocks at submission time.
 - **One click out to approval and audit.** When something blocks, the structured error includes the URL into the coznt UI where the developer can request approval, see the rule that fired, or override with a recorded reason.
 
 This is the 70% of coznt's surface area the developer touches every day. The audit dashboard, ledger exports, and check-run gating exist because of what happens in this loop — not the other way around.
@@ -51,7 +51,7 @@ That cycle fires hundreds of times a day in every developer's editor. The ledger
 
 Audit defense falls out for free. If every autonomous action is observed and committed to the ledger, the evidence packet already exists.
 
-**Autonomy isn't a permanent grant.** The same ledger that earned a skill Senior also revokes it the moment a critical incident lands — and every open pull request by that skill flips from passing to blocked, automatically. The execution gate evaluates each PR against a published policy (autonomy × change risk × active rules × phase × human override) and posts the verdict as a GitHub check-run, so the merge UI is physically gated on earned trust, not advisory text.
+**Autonomy isn't a permanent grant.** The same ledger that earned a skill Merge also revokes it the moment a critical incident lands — and every open pull request by that skill flips from passing to blocked, automatically. The execution gate evaluates each PR against a published policy (autonomy × change risk × active rules × phase × human override) and posts the verdict as a GitHub check-run, so the merge UI is physically gated on earned trust, not advisory text.
 
 The result: faster delivery without losing operational control.
 
@@ -82,7 +82,7 @@ Four properties of server-side skill execution are hard to reproduce with host-L
 3. **Server-assembled context.** The skill prompt can inject full project history, related ADRs, hybrid-search hits from `coznt.documents`, recent outcomes — stitched together server-side from data the host has no read path to.
 4. **Audit completeness.** Every governed prompt, system prompt, model, temperature, and structured output is logged by construction. With host-LLM, you only have what the agent volunteered.
 
-Secondary but real: prompt versioning (bump once server-side, every project gets it on the next call); model routing by skill level (Intern-tier skills on cheap models, Principal-tier on expensive ones); prompt IP (specialized org-tuned prompts stay in the daemon, not shipped to every dev repo).
+Secondary but real: prompt versioning (bump once server-side, every project gets it on the next call); model routing by skill level (Observe-tier skills on cheap models, Lead-tier on expensive ones); prompt IP (specialized org-tuned prompts stay in the daemon, not shipped to every dev repo).
 
 ### What the daemon doesn't gate (and where prompt capture fits)
 
@@ -127,7 +127,7 @@ Coznt closes the loop none of these close — between an AI taking action in any
 
 **Coznt is MCP-compatible, not Cursor-bound.** The MCP server is distributed privately — bundled with the Coznt deployment or pulled from the customer's internal artifact registry — because Coznt is for governed orgs whose supply-chain policy won't tolerate public-registry pulls. The platform never requires a specific IDE or agent runtime — the daemon steers whichever editor or CLI the developer already chose. Bootstrap is `coznt connect` (wires the host's MCP config and `.coznt/config.json`) followed by `coznt sync` (pulls the project's choreography bundle). No JSON copy-paste, no per-developer config drift.
 
-**A trace, end-to-end:** Devin's agent in Cursor pulls his context — project, phase, allowed/forbidden, his skill's autonomy level. The agent opens a PR; coznt evaluates and posts a `success` check-run because the skill is Senior and the change is medium-risk. A week later the same skill ships an incident on a sibling project — the ledger demotes it to Intern within 5 minutes, and the agent's three other open PRs flip from passing to blocked automatically. The CISO queries `/audit` filtered to that skill's window and gets a reproducible CSV with the full chain: who reviewed, what was approved, when autonomy changed, which PRs were affected.
+**A trace, end-to-end:** Devin's agent in Cursor pulls his context — project, phase, allowed/forbidden, his skill's autonomy level. The agent opens a PR; coznt evaluates and posts a `success` check-run because the skill is Merge and the change is medium-risk. A week later the same skill ships an incident on a sibling project — the ledger demotes it to Observe within 5 minutes, and the agent's three other open PRs flip from passing to blocked automatically. The CISO queries `/audit` filtered to that skill's window and gets a reproducible CSV with the full chain: who reviewed, what was approved, when autonomy changed, which PRs were affected.
 
 ---
 

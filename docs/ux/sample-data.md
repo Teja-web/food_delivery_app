@@ -16,13 +16,13 @@ Every brief in `docs/ux/briefs/` pulls from this fixture. Don't invent new names
 | Name | Role | Persona | Notes |
 |---|---|---|---|
 | Sam Okafor | Tech Lead | Sam | Player-coach. Leads the team. Owns all 4 projects. |
-| Devin Reyes | Senior Engineer | Devin | Multi-project. Cursor power-user. |
-| Aisha Patel | Senior Engineer | (Devin-shaped) | Owns most schema work |
+| Devin Reyes | Merge Engineer | Devin | Multi-project. Cursor power-user. |
+| Aisha Patel | Merge Engineer | (Devin-shaped) | Owns most schema work |
 | Marco Bianchi | Mid Engineer | (Devin-shaped) | Auth-service migration lead |
 | Yuki Tanaka | Mid Engineer | (Devin-shaped) | Data warehouse work |
 | Rohan Desai | Mid Engineer | (Devin-shaped) | Reviewer-of-record on ADRs |
-| Lena Volkov | Junior Engineer | (Devin-shaped) | New joiner, 8 weeks in |
-| Tomás Ruiz | Junior Engineer | (Devin-shaped) | Pairing with Lena |
+| Lena Volkov | Propose Engineer | (Devin-shaped) | New joiner, 8 weeks in |
+| Tomás Ruiz | Propose Engineer | (Devin-shaped) | Pairing with Lena |
 | Jordan Mwangi | SRE / Platform | Jordan | Shared across 3 teams |
 | Priya Iyer | Director of Engineering | Priya | 1 layer above Sam |
 
@@ -118,7 +118,7 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
     "id": "skill_fta",
     "slug": "frontend-test-author",
     "name": "Frontend Test Author",
-    "level": "SENIOR",
+    "level": "MERGE",
     "levelSetAt": "2026-04-18",
     "lastReviewedAt": "2026-05-05",
     "nextReviewAt": "2026-06-04",
@@ -130,20 +130,20 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
     "id": "skill_smr",
     "slug": "schema-migration-reviewer",
     "name": "Schema Migration Reviewer",
-    "level": "JUNIOR",
+    "level": "PROPOSE",
     "levelSetAt": "2026-05-10",
     "lastReviewedAt": "2026-05-10",
     "nextReviewAt": "2026-06-10",
     "stats30d": { "success": 18, "rolledBack": 4, "incident": 1 },
     "projects": ["proj_auth", "proj_dw"],
     "enabled": true,
-    "demotionNote": "Demoted Senior → Junior on 2026-05-10 after change-failure correlation on auth-service-migration"
+    "demotionNote": "Demoted Merge → Propose on 2026-05-10 after change-failure correlation on auth-service-migration"
   },
   {
     "id": "skill_acc",
     "slug": "api-contract-checker",
     "name": "API Contract Checker",
-    "level": "SENIOR",
+    "level": "MERGE",
     "levelSetAt": "2026-02-04",
     "lastReviewedAt": "2026-05-01",
     "nextReviewAt": "2026-05-31",
@@ -155,7 +155,7 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
     "id": "skill_du",
     "slug": "doc-updater",
     "name": "Doc Updater",
-    "level": "PRINCIPAL",
+    "level": "LEAD",
     "levelSetAt": "2026-03-22",
     "lastReviewedAt": "2026-05-08",
     "nextReviewAt": "2026-07-08",
@@ -163,8 +163,8 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
     "projects": ["proj_pay", "proj_dw", "proj_auth", "proj_kafka"],
     "enabled": true,
     "promotionEvent": {
-      "from": "SENIOR",
-      "to": "PRINCIPAL",
+      "from": "MERGE",
+      "to": "LEAD",
       "at": "2026-05-09",
       "reason": "30-day clean run across 4 projects"
     }
@@ -173,7 +173,7 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
     "id": "skill_ssr",
     "slug": "security-scan-runner",
     "name": "Security Scan Runner",
-    "level": "INTERN",
+    "level": "OBSERVE",
     "levelSetAt": "2026-04-30",
     "lastReviewedAt": "2026-05-12",
     "nextReviewAt": "2026-05-19",
@@ -189,8 +189,8 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
 ```
 
 **Live storyline in the fixture:**
-- `doc-updater` was just promoted to Principal on 2026-05-09 → the celebratory moment on `/skills` (Moment 4)
-- `schema-migration-reviewer` was just demoted Senior → Junior on 2026-05-10 → the negative trust signal, ALSO the source of the DORA regression on `auth-service-migration` (Moment 5)
+- `doc-updater` was just promoted to Lead on 2026-05-09 → the celebratory moment on `/skills` (Moment 4)
+- `schema-migration-reviewer` was just demoted Merge → Propose on 2026-05-10 → the negative trust signal, ALSO the source of the DORA regression on `auth-service-migration` (Moment 5)
 - These two events on adjacent days make the demo telling a real story
 
 ## Plans (12)
@@ -216,16 +216,16 @@ The four shapes deliberately span the phase lifecycle: Requirements (kafka, new)
 |---|---|---|---|---|---|---|---|
 | appr_001 | proj_pay | plan | release_plan Q3 v2.4 rollout | Devin R. | — | 2h | PENDING |
 | appr_002 | proj_pay | phase_gate | Dev → Testing gate | system | — | 5h | PENDING |
-| appr_003 | proj_pay | work_item | PR #1284 idempotency-keys | bot | api-contract-checker (Senior) | 1d | PENDING (auto-approval eligible) |
+| appr_003 | proj_pay | work_item | PR #1284 idempotency-keys | bot | api-contract-checker (Merge) | 1d | PENDING (auto-approval eligible) |
 | appr_004 | proj_dw | plan | ADR-0014 logical decoding | Yuki T. | — | 3d | PENDING |
 | appr_005 | proj_dw | plan | ADR-0015 Iceberg vs Delta | Yuki T. | — | 3d | PENDING |
 | appr_006 | proj_dw | phase_gate | Design → Dev gate | system | — | 2d | PENDING (4 unmet criteria) |
-| appr_007 | proj_dw | work_item | PR #93 schema-init | bot | schema-migration-reviewer (Junior) | 4h | PENDING (manual review required — demoted skill) |
+| appr_007 | proj_dw | work_item | PR #93 schema-init | bot | schema-migration-reviewer (Propose) | 4h | PENDING (manual review required — demoted skill) |
 | appr_008 | proj_auth | release | hotfix rollback session-cookie | Marco B. | — | 9d | PENDING (stale) |
-| appr_009 | proj_auth | work_item | PR #441 session-cookie-fix | bot | frontend-test-author (Senior) | 6h | PENDING |
+| appr_009 | proj_auth | work_item | PR #441 session-cookie-fix | bot | frontend-test-author (Merge) | 6h | PENDING |
 | appr_010 | proj_kafka | plan | requirement consumer lag sampling | Rohan D. | — | 1d | PENDING |
 | appr_011 | proj_kafka | plan | adr-stream-processor-choice | Rohan D. | — | 1d | PENDING |
-| appr_012 | proj_pay | work_item | PR #1290 docs-updater output | bot | doc-updater (Principal) | 30m | PENDING (auto-approval eligible — Principal autonomy) |
+| appr_012 | proj_pay | work_item | PR #1290 docs-updater output | bot | doc-updater (Lead) | 30m | PENDING (auto-approval eligible — Lead autonomy) |
 
 **Storyline:** 3 of the 12 are auto-approval-eligible (Sam can bulk-clear). 1 is intentionally stale (9d). 1 is from the recently-demoted skill and requires manual review.
 
@@ -255,7 +255,7 @@ internal-payments-api (Development):
   ● Code review coverage   passed   (3/3 PRs reviewed)
   ● Test coverage 80%+     passed   (84% line coverage)
   ● ADR-required check     passed   (ADR-0011 Outbox approved)
-  ● Security scan          pending  (security-scan-runner Intern — manual gate)
+  ● Security scan          pending  (security-scan-runner Observe — manual gate)
 
 data-warehouse-v2 (Design):
   ● Architecture review    passed   (3/3 design sessions logged)
@@ -279,11 +279,11 @@ kafka-pipeline-modernization (Requirements):
 
 | Date | Event | Skill | Reason |
 |---|---|---|---|
-| 2026-05-09 | **Promoted Senior → Principal** | doc-updater | 30-day clean run across 4 projects, threshold met |
-| 2026-05-10 | **Demoted Senior → Junior** | schema-migration-reviewer | CFR correlation incident on auth-service-migration |
-| 2026-05-05 | Reviewed (held at Senior) | api-contract-checker | Quarterly review, no change |
-| 2026-05-02 | Threshold pending | frontend-test-author | At Senior, eligible for Principal review on 2026-06-04 |
-| 2026-04-30 | Set to Intern (initial) | security-scan-runner | New skill, default level |
+| 2026-05-09 | **Promoted Merge → Lead** | doc-updater | 30-day clean run across 4 projects, threshold met |
+| 2026-05-10 | **Demoted Merge → Propose** | schema-migration-reviewer | CFR correlation incident on auth-service-migration |
+| 2026-05-05 | Reviewed (held at Merge) | api-contract-checker | Quarterly review, no change |
+| 2026-05-02 | Threshold pending | frontend-test-author | At Merge, eligible for Lead review on 2026-06-04 |
+| 2026-04-30 | Set to Observe (initial) | security-scan-runner | New skill, default level |
 
 ## API key for Cursor MCP demo
 
@@ -324,9 +324,9 @@ sk_coznt_live_4f8a2b9c1e3d6h7j8k9m0n2p4q5r6s7t8u9v0w
     }
   ],
   "skills": [
-    { "slug": "frontend-test-author", "level": "SENIOR", "autonomy": "auto-approve <50 LOC + 80% coverage" },
-    { "slug": "api-contract-checker", "level": "SENIOR", "autonomy": "auto-approve schema-only changes" },
-    { "slug": "doc-updater", "level": "PRINCIPAL", "autonomy": "auto-approve docs-only changes" }
+    { "slug": "frontend-test-author", "level": "MERGE", "autonomy": "auto-approve <50 LOC + 80% coverage" },
+    { "slug": "api-contract-checker", "level": "MERGE", "autonomy": "auto-approve schema-only changes" },
+    { "slug": "doc-updater", "level": "LEAD", "autonomy": "auto-approve docs-only changes" }
   ],
   "adrs": [
     { "id": "adr_0011", "title": "Outbox pattern for payment webhooks", "link": "https://coznt.northwind.internal/plans/plan_pay_a1" }
@@ -342,6 +342,6 @@ sk_coznt_live_4f8a2b9c1e3d6h7j8k9m0n2p4q5r6s7t8u9v0w
 - **Currencies/numbers:** never put currency-specific content in mocks — keep domain-neutral
 - **PII:** all sample names are fictional; use them freely
 - **The auth-service-migration regression is the live storyline** — most cross-project moments (5, 7) should make this story visible
-- **`doc-updater` Principal promotion is the celebratory storyline** — Moment 4 should make this visible
+- **`doc-updater` Lead promotion is the celebratory storyline** — Moment 4 should make this visible
 
 Extend this fixture rather than inventing parallel realities in each brief.

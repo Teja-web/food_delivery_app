@@ -6,13 +6,13 @@
  * same (skillId, projectId) pair and applies promotion/demotion rules.
  *
  * Levels:
- *   0 = intern    (read-only, no auto-approve)
- *   1 = junior    (PRs need human review)
- *   2 = senior    (auto-merge low-complexity changes)
- *   3 = principal (minimal oversight)
+ *   0 = observe    (read-only, no auto-approve)
+ *   1 = propose    (PRs need human review)
+ *   2 = merge    (auto-merge low-complexity changes)
+ *   3 = lead (minimal oversight)
  *
- * Trust is per-project: a skill that earns senior-level on a docs-only repo
- * restarts at intern on a payments service. NULL projectId is reserved for
+ * Trust is per-project: a skill that earns merge-level on a docs-only repo
+ * restarts at observe on a payments service. NULL projectId is reserved for
  * legacy / org-wide rows; new code paths must always populate it.
  *
  * New (skill, project) pairs default to level 0 — `getSkillAutonomy()`

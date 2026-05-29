@@ -93,10 +93,10 @@ function SkillRow({ row }: { row: SkillLedgerRowClient }) {
 function DistributionBar({ dist }: { dist: AutonomyDistribution }) {
   if (dist.total === 0) return null;
   const segments = [
-    { key: "observe", n: dist.intern, color: "bg-autonomy-intern" },
-    { key: "propose", n: dist.junior, color: "bg-autonomy-junior" },
-    { key: "merge", n: dist.senior, color: "bg-autonomy-senior" },
-    { key: "lead", n: dist.principal, color: "bg-autonomy-principal" },
+    { key: "observe", n: dist.observe, color: "bg-autonomy-observe" },
+    { key: "propose", n: dist.propose, color: "bg-autonomy-propose" },
+    { key: "merge", n: dist.merge, color: "bg-autonomy-merge" },
+    { key: "lead", n: dist.lead, color: "bg-autonomy-lead" },
   ];
   return (
     <div className="space-y-2">

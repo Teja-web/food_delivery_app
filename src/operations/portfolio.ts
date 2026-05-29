@@ -27,10 +27,10 @@ export type PortfolioGate = {
 };
 
 export type AutonomyPosture = {
-  intern: number;
-  junior: number;
-  senior: number;
-  principal: number;
+  observe: number;
+  propose: number;
+  merge: number;
+  lead: number;
   total: number;
   incidentsLast7d: number;
 };
@@ -216,10 +216,10 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       cfrTrendDirection: cfrDirection,
       cfrWowDeltaPoints: cfrWowPoints,
       autonomyPosture: autonomyIndex.get(p.id) ?? {
-        intern: 0,
-        junior: 0,
-        senior: 0,
-        principal: 0,
+        observe: 0,
+        propose: 0,
+        merge: 0,
+        lead: 0,
         total: 0,
         incidentsLast7d: 0,
       },

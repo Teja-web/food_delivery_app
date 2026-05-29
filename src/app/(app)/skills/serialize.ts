@@ -69,10 +69,10 @@ export interface AutonomyEventClient {
 }
 
 export interface AutonomyDistribution {
-  intern: number;
-  junior: number;
-  senior: number;
-  principal: number;
+  observe: number;
+  propose: number;
+  merge: number;
+  lead: number;
   total: number;
 }
 

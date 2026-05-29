@@ -1,6 +1,6 @@
 "use client";
 
-import { Line, LineChart, ResponsiveContainer } from "recharts";
+import { Line, LineChart } from "recharts";
 
 import { cn } from "@/lib/utils";
 
@@ -44,18 +44,21 @@ export function Sparkline({
       className={cn("inline-block leading-none align-middle", className)}
       style={{ width, height }}
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
-          <Line
-            type="monotone"
-            dataKey="y"
-            stroke={COLOR_VAR[direction]}
-            strokeWidth={strokeWidth}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <LineChart
+        width={width}
+        height={height}
+        data={data}
+        margin={{ top: 2, right: 0, bottom: 2, left: 0 }}
+      >
+        <Line
+          type="monotone"
+          dataKey="y"
+          stroke={COLOR_VAR[direction]}
+          strokeWidth={strokeWidth}
+          dot={false}
+          isAnimationActive={false}
+        />
+      </LineChart>
     </div>
   );
 }

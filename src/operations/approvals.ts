@@ -255,8 +255,8 @@ export async function decideApproval(args: {
  *
  * Returns true when the originating skill has earned enough autonomy for the
  * given change complexity:
- *   - level >= 3 (principal) → auto-approve any complexity
- *   - level >= 2 (senior)    → auto-approve only "low" complexity
+ *   - level >= 3 (lead) → auto-approve any complexity
+ *   - level >= 2 (merge)    → auto-approve only "low" complexity
  *   - otherwise              → always requires human
  *
  * No skillId → returns false (we only auto-approve skill-driven changes).

@@ -194,7 +194,7 @@ const SKILL_SPECS: SkillSpec[] = [
     levelSetDaysAgo: 24,
     lastReviewedDaysAgo: 7,
     nextReviewDaysAhead: 23,
-    lastReason: "Quarterly review at Senior — held",
+    lastReason: "Quarterly review at Merge — held",
     stats: { success: 47, rolledBack: 2, incident: 0 },
   },
   {
@@ -207,7 +207,7 @@ const SKILL_SPECS: SkillSpec[] = [
     levelSetDaysAgo: 2,
     lastReviewedDaysAgo: 2,
     nextReviewDaysAhead: 28,
-    lastReason: "Demoted Senior → Junior — CFR correlation incident on auth-service-migration",
+    lastReason: "Demoted Merge → Propose — CFR correlation incident on auth-service-migration",
     stats: { success: 18, rolledBack: 4, incident: 1 },
   },
   {
@@ -220,7 +220,7 @@ const SKILL_SPECS: SkillSpec[] = [
     levelSetDaysAgo: 97,
     lastReviewedDaysAgo: 11,
     nextReviewDaysAhead: 19,
-    lastReason: "Quarterly review — held at Senior",
+    lastReason: "Quarterly review — held at Merge",
     stats: { success: 92, rolledBack: 1, incident: 0 },
   },
   {
@@ -228,12 +228,12 @@ const SKILL_SPECS: SkillSpec[] = [
     slug: "doc-updater",
     name: "Doc Updater",
     description: "Keeps README / API docs / changelog in sync with code changes.",
-    body: "Auto-approve docs-only changes. Promoted to Principal after 30-day clean run.",
+    body: "Auto-approve docs-only changes. Promoted to Lead after 30-day clean run.",
     level: 3,
     levelSetDaysAgo: 3,
     lastReviewedDaysAgo: 4,
     nextReviewDaysAhead: 56,
-    lastReason: "Promoted Senior → Principal — 30-day clean run across 4 projects",
+    lastReason: "Promoted Merge → Lead — 30-day clean run across 4 projects",
     stats: { success: 156, rolledBack: 0, incident: 0 },
   },
   {
@@ -241,12 +241,12 @@ const SKILL_SPECS: SkillSpec[] = [
     slug: "security-scan-runner",
     name: "Security Scan Runner",
     description: "Runs SAST / dependency / secret-scan tooling and summarizes findings.",
-    body: "Read-only at Intern; cannot auto-approve. Rollback rate must drop below 15% to promote.",
+    body: "Read-only at Observe; cannot auto-approve. Rollback rate must drop below 15% to promote.",
     level: 0,
     levelSetDaysAgo: 12,
     lastReviewedDaysAgo: 0,
     nextReviewDaysAhead: 7,
-    lastReason: "New skill — default Intern level",
+    lastReason: "New skill — default Observe level",
     stats: { success: 12, rolledBack: 8, incident: 0 },
   },
 ];
@@ -287,7 +287,7 @@ const GATE_SPECS: GateSpec[] = [
   { projectKey: "proj_pay", phase: "development", name: "Code review coverage", description: "Every PR has been reviewed by at least 1 non-author.", type: "approval", status: "passed", daysAgoChanged: 2 },
   { projectKey: "proj_pay", phase: "development", name: "Test coverage 80%+", description: "Line coverage on changed files ≥ 80%.", type: "coverage", status: "passed", daysAgoChanged: 1 },
   { projectKey: "proj_pay", phase: "development", name: "ADR-required check", description: "Architecture changes have a linked approved ADR.", type: "custom", status: "passed", daysAgoChanged: 3 },
-  { projectKey: "proj_pay", phase: "development", name: "Security scan", description: "Latest security scan passes.", type: "security", status: "pending", unmetCriterion: "security-scan-runner Intern — manual gate", assigneeName: "Jordan Mwangi", daysAgoChanged: 0 },
+  { projectKey: "proj_pay", phase: "development", name: "Security scan", description: "Latest security scan passes.", type: "security", status: "pending", unmetCriterion: "security-scan-runner Observe — manual gate", assigneeName: "Jordan Mwangi", daysAgoChanged: 0 },
   // proj_dw (design)
   { projectKey: "proj_dw", phase: "design", name: "Architecture review", description: "3+ design sessions logged with stakeholders.", type: "approval", status: "passed", daysAgoChanged: 6 },
   { projectKey: "proj_dw", phase: "design", name: "ADR Quorum (2+)", description: "At least 2 approved ADRs covering core decisions.", type: "custom", status: "failed", unmetCriterion: "ADR-0014 + ADR-0015 still in review — assignee Rohan", assigneeName: "Rohan Desai", daysAgoChanged: 3 },
@@ -323,7 +323,7 @@ const APPROVAL_SPECS: ApprovalSpec[] = [
   { projectKey: "proj_auth", entityType: "work_item", entityId: "PR-441", title: "PR #441 session-cookie-fix", requestedByName: "frontend-test-author (bot)", hoursAgo: 6, phase: "testing" },
   { projectKey: "proj_kafka", entityType: "plan", entityId: "plan_kafka_r1", title: "Requirement: consumer lag sampling", requestedByName: "Rohan Desai", hoursAgo: 24, phase: "requirements" },
   { projectKey: "proj_kafka", entityType: "plan", entityId: "adr_stream_processor", title: "ADR: stream-processor choice", requestedByName: "Rohan Desai", hoursAgo: 24, phase: "requirements" },
-  { projectKey: "proj_pay", entityType: "work_item", entityId: "PR-1290", title: "PR #1290 docs-updater output (Principal — auto-eligible)", requestedByName: "doc-updater (bot)", hoursAgo: 0.5, phase: "development" },
+  { projectKey: "proj_pay", entityType: "work_item", entityId: "PR-1290", title: "PR #1290 docs-updater output (Lead — auto-eligible)", requestedByName: "doc-updater (bot)", hoursAgo: 0.5, phase: "development" },
 ];
 
 type WorkItemSpec = {
@@ -390,8 +390,8 @@ const NOTIFICATION_SPECS: NotificationSpec[] = [
     read: false,
   },
   {
-    subject: "Skill promoted: doc-updater Senior → Principal",
-    body: "30-day clean run across 4 projects. New permissions unlocked: auto-eligible PR comments on principal-flagged repos.",
+    subject: "Skill promoted: doc-updater Merge → Lead",
+    body: "30-day clean run across 4 projects. New permissions unlocked: auto-eligible PR comments on lead-flagged repos.",
     link: "/skills",
     entityType: "skill_outcome",
     hoursAgo: 6,
@@ -414,7 +414,7 @@ const NOTIFICATION_SPECS: NotificationSpec[] = [
     read: true,
   },
   {
-    subject: "Skill demoted: schema-migration-reviewer Senior → Junior",
+    subject: "Skill demoted: schema-migration-reviewer Merge → Propose",
     body: "1 incident on auth-service migration. Now requires manual sign-off on data-warehouse-v2 schema changes.",
     link: "/skills",
     entityType: "skill_outcome",
@@ -468,11 +468,11 @@ const AUTONOMY_EVENTS: Array<{
   action: string;
   summary: string;
 }> = [
-  { skillKey: "skill_du", daysAgo: 3, action: "skill.promotion", summary: "SENIOR → PRINCIPAL — 30-day clean run across 4 projects, threshold met" },
-  { skillKey: "skill_smr", daysAgo: 2, action: "skill.demotion", summary: "SENIOR → JUNIOR — CFR correlation incident on auth-service-migration" },
-  { skillKey: "skill_acc", daysAgo: 7, action: "skill.reviewed", summary: "Quarterly review at Senior — held" },
-  { skillKey: "skill_fta", daysAgo: 10, action: "skill.threshold_pending", summary: "Eligible for Principal review on 2026-06-04" },
-  { skillKey: "skill_ssr", daysAgo: 12, action: "skill.created", summary: "Set to Intern (initial)" },
+  { skillKey: "skill_du", daysAgo: 3, action: "skill.promotion", summary: "MERGE → LEAD — 30-day clean run across 4 projects, threshold met" },
+  { skillKey: "skill_smr", daysAgo: 2, action: "skill.demotion", summary: "MERGE → PROPOSE — CFR correlation incident on auth-service-migration" },
+  { skillKey: "skill_acc", daysAgo: 7, action: "skill.reviewed", summary: "Quarterly review at Merge — held" },
+  { skillKey: "skill_fta", daysAgo: 10, action: "skill.threshold_pending", summary: "Eligible for Lead review on 2026-06-04" },
+  { skillKey: "skill_ssr", daysAgo: 12, action: "skill.created", summary: "Set to Observe (initial)" },
 ];
 
 /**
@@ -481,7 +481,7 @@ const AUTONOMY_EVENTS: Array<{
  * skill_outcomes across projects (a higher level on a project implies the
  * skill ran more there and had cleaner outcomes).
  *
- * Levels: 0=Intern, 1=Junior, 2=Senior, 3=Principal. Skills with no row on
+ * Levels: 0=Observe, 1=Propose, 2=Merge, 3=Lead. Skills with no row on
  * a project simply haven't been invoked there yet (and produce no outcomes).
  */
 type SkillProjectAutonomy = {
@@ -495,32 +495,32 @@ type SkillProjectAutonomy = {
 };
 
 const SKILL_PROJECT_AUTONOMY: SkillProjectAutonomy[] = [
-  // frontend-test-author (org Senior): strong on auth+pay, lighter on dw, no kafka work yet
-  { skillKey: "skill_fta", projectKey: "proj_pay", level: 2, outcomeWeight: 0.45, levelSetDaysAgo: 24, lastReason: "Held at Senior — 22/22 success on payments suite" },
-  { skillKey: "skill_fta", projectKey: "proj_auth", level: 2, outcomeWeight: 0.40, levelSetDaysAgo: 18, lastReason: "Held at Senior — clean run after migration cutover" },
-  { skillKey: "skill_fta", projectKey: "proj_dw", level: 1, outcomeWeight: 0.15, levelSetDaysAgo: 9, lastReason: "Junior — fewer test surfaces, still building track record" },
+  // frontend-test-author (org Merge): strong on auth+pay, lighter on dw, no kafka work yet
+  { skillKey: "skill_fta", projectKey: "proj_pay", level: 2, outcomeWeight: 0.45, levelSetDaysAgo: 24, lastReason: "Held at Merge — 22/22 success on payments suite" },
+  { skillKey: "skill_fta", projectKey: "proj_auth", level: 2, outcomeWeight: 0.40, levelSetDaysAgo: 18, lastReason: "Held at Merge — clean run after migration cutover" },
+  { skillKey: "skill_fta", projectKey: "proj_dw", level: 1, outcomeWeight: 0.15, levelSetDaysAgo: 9, lastReason: "Propose — fewer test surfaces, still building track record" },
 
-  // schema-migration-reviewer (org Junior, demoted): demoted on auth (incident site), junior on dw
-  { skillKey: "skill_smr", projectKey: "proj_auth", level: 0, outcomeWeight: 0.35, levelSetDaysAgo: 2, lastReason: "Demoted to Intern — auto-approved NOT NULL backfill that triggered prod rollback" },
-  { skillKey: "skill_smr", projectKey: "proj_dw", level: 1, outcomeWeight: 0.50, levelSetDaysAgo: 2, lastReason: "Demoted Senior → Junior — cross-project caution after auth incident" },
-  { skillKey: "skill_smr", projectKey: "proj_pay", level: 1, outcomeWeight: 0.15, levelSetDaysAgo: 2, lastReason: "Demoted Senior → Junior — cross-project caution" },
+  // schema-migration-reviewer (org Propose, demoted): demoted on auth (incident site), propose on dw
+  { skillKey: "skill_smr", projectKey: "proj_auth", level: 0, outcomeWeight: 0.35, levelSetDaysAgo: 2, lastReason: "Demoted to Observe — auto-approved NOT NULL backfill that triggered prod rollback" },
+  { skillKey: "skill_smr", projectKey: "proj_dw", level: 1, outcomeWeight: 0.50, levelSetDaysAgo: 2, lastReason: "Demoted Merge → Propose — cross-project caution after auth incident" },
+  { skillKey: "skill_smr", projectKey: "proj_pay", level: 1, outcomeWeight: 0.15, levelSetDaysAgo: 2, lastReason: "Demoted Merge → Propose — cross-project caution" },
 
-  // api-contract-checker (org Senior): everywhere there's API work, light on kafka
-  { skillKey: "skill_acc", projectKey: "proj_pay", level: 2, outcomeWeight: 0.42, levelSetDaysAgo: 90, lastReason: "Senior — 40/40 contract checks on payments-api clean" },
-  { skillKey: "skill_acc", projectKey: "proj_auth", level: 2, outcomeWeight: 0.32, levelSetDaysAgo: 85, lastReason: "Senior — held across auth migration" },
-  { skillKey: "skill_acc", projectKey: "proj_dw", level: 2, outcomeWeight: 0.20, levelSetDaysAgo: 70, lastReason: "Senior — held on warehouse API surface" },
-  { skillKey: "skill_acc", projectKey: "proj_kafka", level: 1, outcomeWeight: 0.06, levelSetDaysAgo: 14, lastReason: "Junior — only 5 outcomes, still bootstrapping" },
+  // api-contract-checker (org Merge): everywhere there's API work, light on kafka
+  { skillKey: "skill_acc", projectKey: "proj_pay", level: 2, outcomeWeight: 0.42, levelSetDaysAgo: 90, lastReason: "Merge — 40/40 contract checks on payments-api clean" },
+  { skillKey: "skill_acc", projectKey: "proj_auth", level: 2, outcomeWeight: 0.32, levelSetDaysAgo: 85, lastReason: "Merge — held across auth migration" },
+  { skillKey: "skill_acc", projectKey: "proj_dw", level: 2, outcomeWeight: 0.20, levelSetDaysAgo: 70, lastReason: "Merge — held on warehouse API surface" },
+  { skillKey: "skill_acc", projectKey: "proj_kafka", level: 1, outcomeWeight: 0.06, levelSetDaysAgo: 14, lastReason: "Propose — only 5 outcomes, still bootstrapping" },
 
-  // doc-updater (org Principal, just promoted): runs everywhere, just promoted on pay+auth+dw
-  { skillKey: "skill_du", projectKey: "proj_pay", level: 3, outcomeWeight: 0.30, levelSetDaysAgo: 3, lastReason: "Promoted Senior → Principal — 30-day clean run on payments docs" },
-  { skillKey: "skill_du", projectKey: "proj_auth", level: 3, outcomeWeight: 0.26, levelSetDaysAgo: 3, lastReason: "Promoted Senior → Principal — 30-day clean run on auth docs" },
-  { skillKey: "skill_du", projectKey: "proj_dw", level: 3, outcomeWeight: 0.28, levelSetDaysAgo: 3, lastReason: "Promoted Senior → Principal — 30-day clean run on warehouse docs" },
-  { skillKey: "skill_du", projectKey: "proj_kafka", level: 2, outcomeWeight: 0.16, levelSetDaysAgo: 12, lastReason: "Senior — newer project, not yet at Principal threshold here" },
+  // doc-updater (org Lead, just promoted): runs everywhere, just promoted on pay+auth+dw
+  { skillKey: "skill_du", projectKey: "proj_pay", level: 3, outcomeWeight: 0.30, levelSetDaysAgo: 3, lastReason: "Promoted Merge → Lead — 30-day clean run on payments docs" },
+  { skillKey: "skill_du", projectKey: "proj_auth", level: 3, outcomeWeight: 0.26, levelSetDaysAgo: 3, lastReason: "Promoted Merge → Lead — 30-day clean run on auth docs" },
+  { skillKey: "skill_du", projectKey: "proj_dw", level: 3, outcomeWeight: 0.28, levelSetDaysAgo: 3, lastReason: "Promoted Merge → Lead — 30-day clean run on warehouse docs" },
+  { skillKey: "skill_du", projectKey: "proj_kafka", level: 2, outcomeWeight: 0.16, levelSetDaysAgo: 12, lastReason: "Merge — newer project, not yet at Lead threshold here" },
 
-  // security-scan-runner (org Intern): auth-heavy (security-sensitive), light pay+dw
-  { skillKey: "skill_ssr", projectKey: "proj_auth", level: 0, outcomeWeight: 0.60, levelSetDaysAgo: 12, lastReason: "Intern — 8 rollbacks vs 6 successes, rollback rate above threshold" },
-  { skillKey: "skill_ssr", projectKey: "proj_pay", level: 0, outcomeWeight: 0.30, levelSetDaysAgo: 12, lastReason: "Intern — initial level" },
-  { skillKey: "skill_ssr", projectKey: "proj_dw", level: 0, outcomeWeight: 0.10, levelSetDaysAgo: 12, lastReason: "Intern — initial level" },
+  // security-scan-runner (org Observe): auth-heavy (security-sensitive), light pay+dw
+  { skillKey: "skill_ssr", projectKey: "proj_auth", level: 0, outcomeWeight: 0.60, levelSetDaysAgo: 12, lastReason: "Observe — 8 rollbacks vs 6 successes, rollback rate above threshold" },
+  { skillKey: "skill_ssr", projectKey: "proj_pay", level: 0, outcomeWeight: 0.30, levelSetDaysAgo: 12, lastReason: "Observe — initial level" },
+  { skillKey: "skill_ssr", projectKey: "proj_dw", level: 0, outcomeWeight: 0.10, levelSetDaysAgo: 12, lastReason: "Observe — initial level" },
 ];
 
 /** Adapter bindings — what external systems each project is wired to. */
@@ -587,7 +587,7 @@ const WEBHOOK_EVENT_SPECS: WebhookEventSpec[] = [
   { source: "github", externalId: "delivery-12af-002", event: "pull_request.closed", payloadSummary: "PR #1278 capture-retry-refactor merged", hoursAgo: 72, processed: true },
   { source: "github", externalId: "delivery-3344-007", event: "deployment_status", payloadSummary: "auth-service v1.8.2 → production: success", hoursAgo: 48, processed: true },
   { source: "github", externalId: "delivery-3344-006", event: "deployment_status", payloadSummary: "auth-service v1.8.1 → production: failure (rolled back at T+11m)", hoursAgo: 96, processed: true },
-  { source: "github", externalId: "delivery-9bb-118", event: "pull_request.reopened", payloadSummary: "PR #441 session-cookie-fix reopened after schema-migration-reviewer demotion", hoursAgo: 6, processed: false, processingError: "Awaiting gate re-evaluation — schema-migration-reviewer Junior on auth-service" },
+  { source: "github", externalId: "delivery-9bb-118", event: "pull_request.reopened", payloadSummary: "PR #441 session-cookie-fix reopened after schema-migration-reviewer demotion", hoursAgo: 6, processed: false, processingError: "Awaiting gate re-evaluation — schema-migration-reviewer Propose on auth-service" },
   { source: "jira", externalId: "JIRA-evt-PAY-1305", event: "issue.updated", payloadSummary: "PAY-1305 transitioned Open → In Progress", hoursAgo: 50, processed: true },
   { source: "ado", externalId: "ADO-evt-OBS-77", event: "workitem.updated", payloadSummary: "Observability-Platform/77 (Argo CD sync interval) closed", hoursAgo: 18, processed: true },
 ];
@@ -610,10 +610,10 @@ type GateEvaluationSpec = {
 };
 
 const GATE_EVALUATION_SPECS: GateEvaluationSpec[] = [
-  { projectKey: "proj_pay", prRef: "PR-1284", prTitle: "Add idempotency-key support to POST /captures", prHeadSha: "a4f1d0c", skillKey: "skill_acc", autonomyAtEval: "senior", verdict: "success", reason: "Pure schema addition; auto-approved at Senior", details: ["api-contract-checker: no breaking changes", "Coverage delta +1.2% on touched files"], changeRisk: "low", humanOverride: false, hoursAgo: 24 },
-  { projectKey: "proj_dw", prRef: "PR-93", prTitle: "Initial schema for v2 warehouse", prHeadSha: "9c3b21e", skillKey: "skill_smr", autonomyAtEval: "intern", verdict: "failure", reason: "Manual review required — schema-migration-reviewer demoted to Intern after auth incident", details: ["NOT NULL on existing column without default", "No backfill plan in PR body", "ADR-0014 still in review"], changeRisk: "high", humanOverride: false, hoursAgo: 4 },
-  { projectKey: "proj_auth", prRef: "PR-441", prTitle: "Fix session cookie path after migration", prHeadSha: "7b8e4f1", skillKey: "skill_fta", autonomyAtEval: "senior", verdict: "neutral", reason: "Human override — incident-grade fix, expedited", details: ["Test coverage below threshold (76%)", "Manually approved by Jordan Mwangi"], changeRisk: "medium", humanOverride: true, hoursAgo: 6 },
-  { projectKey: "proj_pay", prRef: "PR-1290", prTitle: "docs: payment-webhook outbox reference", prHeadSha: "2af9112", skillKey: "skill_du", autonomyAtEval: "principal", verdict: "success", reason: "Docs-only change; doc-updater Principal on this project — auto-eligible", details: ["No code paths touched", "Markdown lint passed"], changeRisk: "low", humanOverride: false, hoursAgo: 0.5 },
+  { projectKey: "proj_pay", prRef: "PR-1284", prTitle: "Add idempotency-key support to POST /captures", prHeadSha: "a4f1d0c", skillKey: "skill_acc", autonomyAtEval: "merge", verdict: "success", reason: "Pure schema addition; auto-approved at Merge", details: ["api-contract-checker: no breaking changes", "Coverage delta +1.2% on touched files"], changeRisk: "low", humanOverride: false, hoursAgo: 24 },
+  { projectKey: "proj_dw", prRef: "PR-93", prTitle: "Initial schema for v2 warehouse", prHeadSha: "9c3b21e", skillKey: "skill_smr", autonomyAtEval: "observe", verdict: "failure", reason: "Manual review required — schema-migration-reviewer demoted to Observe after auth incident", details: ["NOT NULL on existing column without default", "No backfill plan in PR body", "ADR-0014 still in review"], changeRisk: "high", humanOverride: false, hoursAgo: 4 },
+  { projectKey: "proj_auth", prRef: "PR-441", prTitle: "Fix session cookie path after migration", prHeadSha: "7b8e4f1", skillKey: "skill_fta", autonomyAtEval: "merge", verdict: "neutral", reason: "Human override — incident-grade fix, expedited", details: ["Test coverage below threshold (76%)", "Manually approved by Jordan Mwangi"], changeRisk: "medium", humanOverride: true, hoursAgo: 6 },
+  { projectKey: "proj_pay", prRef: "PR-1290", prTitle: "docs: payment-webhook outbox reference", prHeadSha: "2af9112", skillKey: "skill_du", autonomyAtEval: "lead", verdict: "success", reason: "Docs-only change; doc-updater Lead on this project — auto-eligible", details: ["No code paths touched", "Markdown lint passed"], changeRisk: "low", humanOverride: false, hoursAgo: 0.5 },
   { projectKey: "proj_auth", prRef: "PR-438", prTitle: "Revert v1.8.1 — session-cookie regression", prHeadSha: "f12abc4", skillKey: null, autonomyAtEval: "n/a", verdict: "failure", reason: "Check-run posting failed — GitHub API 502", details: [], changeRisk: "high", humanOverride: false, checkRunError: "GitHub check-runs API returned 502 Bad Gateway after 3 retries", hoursAgo: 96 },
 ];
 
@@ -824,9 +824,9 @@ export async function seedSampleWorkspace(args: {
 
   // 5. Skill outcomes — spread across 30-day window and distributed across
   //    projects using SKILL_PROJECT_AUTONOMY's `outcomeWeight`. Verdicts are
-  //    also weighted by project autonomy: a skill that's Intern on a project
+  //    also weighted by project autonomy: a skill that's Observe on a project
   //    eats most of that skill's rollbacks/incidents on that project; a
-  //    Principal-level skill produces mostly clean successes.
+  //    Lead-level skill produces mostly clean successes.
   //
   //    Each row carries a Milestone-A `sourceKind` so the demo can show how
   //    deterministic GitHub signal (pr_merge / pr_revert / pr_abandon /

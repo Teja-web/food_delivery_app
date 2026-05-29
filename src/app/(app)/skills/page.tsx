@@ -44,7 +44,7 @@ export default async function SkillsPage({
   // When a project is selected, autonomy + stats read per-project rows. When
   // null, we read the legacy / org-wide rows (the projectId=null lane that
   // pre-Milestone-A data uses). New (skill, project) pairs default to
-  // level-0 intern until `recomputeSkillAutonomy` runs at least once.
+  // level-0 observe until `recomputeSkillAutonomy` runs at least once.
   const [autonomy, stats, recentEvents, acrossProjects] = await Promise.all([
     Promise.all(skills.map((s) => getSkillAutonomy(s.id, filterProjectId))),
     Promise.all(skills.map((s) => getSkillStats30d(s.id, filterProjectId))),
@@ -75,14 +75,14 @@ export default async function SkillsPage({
   const distribution: AutonomyDistribution = rows.reduce(
     (acc, r) => {
       const label = levelLabel(r.level);
-      if (label === "OBSERVE") acc.intern += 1;
-      else if (label === "PROPOSE") acc.junior += 1;
-      else if (label === "MERGE") acc.senior += 1;
-      else if (label === "LEAD") acc.principal += 1;
+      if (label === "OBSERVE") acc.observe += 1;
+      else if (label === "PROPOSE") acc.propose += 1;
+      else if (label === "MERGE") acc.merge += 1;
+      else if (label === "LEAD") acc.lead += 1;
       acc.total += 1;
       return acc;
     },
-    { intern: 0, junior: 0, senior: 0, principal: 0, total: 0 } as AutonomyDistribution,
+    { observe: 0, propose: 0, merge: 0, lead: 0, total: 0 } as AutonomyDistribution,
   );
 
   // Recent events get filtered to the selected project too — otherwise the

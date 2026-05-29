@@ -31,7 +31,7 @@ If a borrowed practice doesn't serve (a)–(e), we don't adopt it.
 
 ## Inspiration for coznt features (not our process — note for later)
 
-- **Autonomy-level pills with blurbs** (intern/junior/senior/principal) — the visual language of "trust earned." Coznt already half-implements this; it's the right vocabulary for the ledger UI.
+- **Autonomy-level pills with blurbs** (observe/propose/merge/lead) — the visual language of "trust earned." Coznt already half-implements this; it's the right vocabulary for the ledger UI.
 - **Composite project-health score** — candidate coznt feature: `health = phase × gate × DORA × autonomy`. Defer to product backlog.
 
 ## Dropped — does not earn its place

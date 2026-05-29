@@ -17,6 +17,7 @@ import {
 import { projects } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { encrypt } from "@/lib/integrations/encryption";
+import { verifyCredentials } from "@/lib/integrations/verify";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export async function listOrgIntegrationCredentials(): Promise<IntegrationCredential[]> {
@@ -71,8 +72,14 @@ export async function saveIntegrationCredentials(input: SaveCredentialsInput): P
   if (!input.apiKey || input.apiKey.trim().length < 3) {
     throw new Error("API key / token is required");
   }
-  const apiKeyEncrypted = encrypt(input.apiKey.trim());
+  const apiKey = input.apiKey.trim();
   const config = input.config ?? {};
+
+  // Live auth probe against the provider. If this throws, nothing is persisted —
+  // the "Connected" badge can only appear after a real whoami / connectionData call succeeded.
+  await verifyCredentials(input.provider, apiKey, config);
+
+  const apiKeyEncrypted = encrypt(apiKey);
   const category = categoryFor(input.provider);
 
   await db

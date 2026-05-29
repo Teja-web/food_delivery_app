@@ -61,7 +61,7 @@ export function computeAutonomyDistance(
   const { level, daysAtLevel, windowStats } = input;
 
   // Demotion path takes priority — a single critical incident immediately
-  // demotes the skill to Intern.
+  // demotes the skill to Observe.
   if (windowStats.criticalIncidents > 0 && level > MIN_LEVEL) {
     return {
       kind: "demotion-pending",

@@ -49,7 +49,7 @@ function defaultMinLevel(actionKind: ActionKind, changeRisk: ChangeRiskLabel): n
   if (changeRisk === "critical") return Infinity;
   if (changeRisk === "high") return 3; // lead
   if (changeRisk === "medium") return 2; // merge
-  return 2; // low risk: merge — matches today (junior=propose can't auto-merge)
+  return 2; // low risk: merge — matches today (propose=propose can't auto-merge)
 }
 
 export async function resolveAutonomyThreshold(params: {

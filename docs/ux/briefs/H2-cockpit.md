@@ -44,7 +44,7 @@ Two things the cockpit must do that the current implementation doesn't:
 │ │ GATES (this phase)                   │ ├─────────────────────────────────┤│
 │ │                                      │ │ AUTONOMY EVENTS (7d)            ││
 │ │ ✓ Test plan approved                 │ │ ↓ schema-migration-reviewer     ││
-│ │ ✗ E2E pass rate 95%+   87% — fixing  │ │   demoted Senior → Junior 5/10  ││
+│ │ ✗ E2E pass rate 95%+   87% — fixing  │ │   demoted Merge → Propose 5/10  ││
 │ │   3 flakes in session-cookie suite   │ │ • frontend-test-author          ││
 │ │ ✓ Rollback verified                  │ │   review pending 6/4            ││
 │ │ ⏳ CAB sign-off — @jordan since 1d   │ │                                 ││
@@ -54,7 +54,7 @@ Two things the cockpit must do that the current implementation doesn't:
 │                                                                              │
 │ RECENT ACTIVITY (last 14 days)                                              │
 │ ────────────────────────────────                                            │
-│ 2026-05-10 ↓ schema-migration-reviewer demoted Senior → Junior              │
+│ 2026-05-10 ↓ schema-migration-reviewer demoted Merge → Propose              │
 │ 2026-05-10 ⚡ incident plan_auth_i1 RESOLVED — session-cookie rollback      │
 │ 2026-05-10 ⚙ PR #441 session-cookie-fix opened by Marco (autoapprove req'd) │
 │ 2026-05-09 ✓ ADR-0011 (Outbox) re-reviewed by Rohan                         │
@@ -122,7 +122,7 @@ Two things the cockpit must do that the current implementation doesn't:
 
 ## Variant exploration prompt for Lovable
 
-> Generate 3 variants of a project cockpit page for an SDLC governance platform. Two-column layout: left 60% (per-phase guidance + gates list), right 40% (adapter bindings + plans list + recent autonomy events). Below: full-width recent activity stream. Project: "Auth Service Migration" (slug: auth-service-migration), currently in TESTING phase, status BLOCKED. Per-phase guidance card: title "THIS PHASE: TESTING", description, 3 suggested actions, "Next phase opens when" condition, "Advance to CICD" button (disabled because 2 gates pending). Gates card: 4 gates with status icons — test plan ✓, E2E pass rate ✗ at 87% (target 95%, 3 flakes in session-cookie suite), rollback verified ✓, CAB sign-off pending @jordan since 1d. "Last green: 2026-05-09" indicator. Adapter bindings card: GitHub (northwind/auth), Jira (AUTH), ADO/Confluence unbound. Plans card: 4 plans across kinds. Autonomy events card: schema-migration-reviewer demoted Senior → Junior on 5/10. Activity stream: 6 entries. Information-dense, dark theme primary, theme-swappable. 13px base font, Inter, Lucide icons. shadcn Card primitive but with tight padding. No hero illustration, no marketing-style headers.
+> Generate 3 variants of a project cockpit page for an SDLC governance platform. Two-column layout: left 60% (per-phase guidance + gates list), right 40% (adapter bindings + plans list + recent autonomy events). Below: full-width recent activity stream. Project: "Auth Service Migration" (slug: auth-service-migration), currently in TESTING phase, status BLOCKED. Per-phase guidance card: title "THIS PHASE: TESTING", description, 3 suggested actions, "Next phase opens when" condition, "Advance to CICD" button (disabled because 2 gates pending). Gates card: 4 gates with status icons — test plan ✓, E2E pass rate ✗ at 87% (target 95%, 3 flakes in session-cookie suite), rollback verified ✓, CAB sign-off pending @jordan since 1d. "Last green: 2026-05-09" indicator. Adapter bindings card: GitHub (northwind/auth), Jira (AUTH), ADO/Confluence unbound. Plans card: 4 plans across kinds. Autonomy events card: schema-migration-reviewer demoted Merge → Propose on 5/10. Activity stream: 6 entries. Information-dense, dark theme primary, theme-swappable. 13px base font, Inter, Lucide icons. shadcn Card primitive but with tight padding. No hero illustration, no marketing-style headers.
 
 ## Visual references
 

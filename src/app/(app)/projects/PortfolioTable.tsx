@@ -45,9 +45,9 @@ function projectMatchesFilters(
   // AND-combine: every active chip must be satisfied.
   for (const key of active) {
     if (key === "below-merge") {
-      if (p.intern + p.junior === 0) return false;
+      if (p.observe + p.propose === 0) return false;
     } else if (key === "lead-only") {
-      if (p.total === 0 || p.intern + p.junior + p.senior !== 0) return false;
+      if (p.total === 0 || p.observe + p.propose + p.merge !== 0) return false;
     } else if (key === "recent-incidents") {
       if (p.incidentsLast7d === 0) return false;
     }
@@ -113,10 +113,10 @@ const PHASE_LABEL: Record<PortfolioProjectClient["phase"], string> = {
 
 const PHASE_ACCENT: Record<PortfolioProjectClient["phase"], string> = {
   requirements: "border-muted-foreground/30 text-muted-foreground/85",
-  design: "border-autonomy-junior/40 text-autonomy-junior",
-  development: "border-autonomy-senior/40 text-autonomy-senior",
+  design: "border-autonomy-propose/40 text-autonomy-propose",
+  development: "border-autonomy-merge/40 text-autonomy-merge",
   testing: "border-state-pending/40 text-state-pending",
-  cicd: "border-autonomy-principal/40 text-autonomy-principal",
+  cicd: "border-autonomy-lead/40 text-autonomy-lead",
   monitoring: "border-trend-up/40 text-trend-up",
 };
 
@@ -147,10 +147,10 @@ function AutonomyPostureCluster({
     return <span className="text-xs text-muted-foreground/60">—</span>;
   }
   const cells: { count: number; tone: string; label: string }[] = [
-    { count: posture.intern, tone: "bg-muted text-muted-foreground", label: "Intern" },
-    { count: posture.junior, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-300", label: "Junior" },
-    { count: posture.senior, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", label: "Senior" },
-    { count: posture.principal, tone: "bg-violet-500/15 text-violet-700 dark:text-violet-300", label: "Principal" },
+    { count: posture.observe, tone: "bg-muted text-muted-foreground", label: "Observe" },
+    { count: posture.propose, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-300", label: "Propose" },
+    { count: posture.merge, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", label: "Merge" },
+    { count: posture.lead, tone: "bg-violet-500/15 text-violet-700 dark:text-violet-300", label: "Lead" },
   ];
   return (
     <span

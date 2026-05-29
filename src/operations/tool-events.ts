@@ -153,7 +153,7 @@ export async function handlePreToolUse(
   const reason = [ruleReason, autonomyReason].filter(Boolean).join("; ") || null;
 
   // Route blocked autonomy decisions into the approvals inbox so a human
-  // (or, eventually, a senior agent) can ack.
+  // (or, eventually, a merge agent) can ack.
   let approvalId: string | null = null;
   if (autonomyGated && skill) {
     const [row] = await db

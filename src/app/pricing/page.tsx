@@ -225,7 +225,7 @@ export default function PricingPage() {
             />
             <FaqItem
               q="When does Mode 2 ship for design partners?"
-              a="Mode 1 is live today. The first AI agent joins the loop in the design partner phase &mdash; on a project you choose, with autonomy seeded at intern. By the time you graduate that first agent to senior, the rubric will be the one that ships to everyone."
+              a="Mode 1 is live today. The first AI agent joins the loop in the design partner phase &mdash; on a project you choose, with autonomy seeded at observe. By the time you graduate that first agent to merge, the rubric will be the one that ships to everyone."
             />
           </dl>
         </div>

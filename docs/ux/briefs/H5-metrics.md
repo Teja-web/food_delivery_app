@@ -43,12 +43,12 @@ The live storyline in the fixture: portfolio CFR went 8% → 11% over the last m
 │ ⚠ Regression detected on CFR (portfolio)                                    │
 │                                                                              │
 │ Driver:  auth-service-migration  ·  CFR 8% → 18% over 14d                  │
-│ Cause:   3 auto-merges by schema-migration-reviewer (now demoted Senior→Junior)│
+│ Cause:   3 auto-merges by schema-migration-reviewer (now demoted Merge→Propose)│
 │          • PR #432 schema-init  2026-05-02  → rollback 2026-05-03          │
 │          • PR #438 user-table   2026-05-06  → rollback 2026-05-07          │
 │          • PR #441 session-cookie 2026-05-08 → rollback 2026-05-10 (incident)│
 │                                                                              │
-│ Skill state:  Demoted Senior → Junior on 2026-05-10                        │
+│ Skill state:  Demoted Merge → Propose on 2026-05-10                        │
 │                                                                              │
 │ [Open incident plan]  [View skill detail]  [View affected project]         │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -106,7 +106,7 @@ The live storyline in the fixture: portfolio CFR went 8% → 11% over the last m
 ## Trust signals (load-bearing)
 
 1. **Causal attribution, not correlation.** The panel must distinguish "auto-merged by schema-migration-reviewer" (causal claim) from "happened during a period when schema-migration-reviewer was active" (correlation). Visual treatment: the bullet-list of specific PRs + their rollbacks is the evidence. No skill is blamed without named PRs.
-2. **Skill state at time of action.** "Senior at time of merge → demoted on 2026-05-10." The temporal precision is the trust signal — autonomy isn't just current; it's historical.
+2. **Skill state at time of action.** "Merge at time of merge → demoted on 2026-05-10." The temporal precision is the trust signal — autonomy isn't just current; it's historical.
 3. **WoW / MoM deltas with magnitudes.** `↑3pt` not just `↑`. `↑0.6d` not just `↑`. Magnitudes prevent eyeballing-from-vibes.
 4. **Project columns with no data show `—`, not 0.** Pretending no-data is zero would corrupt the aggregate's meaning.
 5. **Aggregates re-compute when window changes.** No stale numbers. The window selector is authoritative.
@@ -125,7 +125,7 @@ The live storyline in the fixture: portfolio CFR went 8% → 11% over the last m
 
 ## Variant exploration prompt for Lovable
 
-> Generate 3 variants of a DORA metrics dashboard for an SDLC governance platform with causal attribution. Three sections vertically. Section 1: 4 portfolio aggregate cards in a row — Lead Time 4.8 days (↑0.6d MoM), Deploy Freq 4.2/wk (flat), Change Failure Rate 11% (↑3pt MoM, flagged as regression), MTTR 2.3 hours (flat). Window selector top-right (7d/30d/90d, 30d selected). Section 2: a small-multiples grid — 4 rows of metrics × 4 columns of projects (payments-api, data-warehouse-v2, auth-service-migration, kafka-pipeline-modernization). Each cell: current value + sparkline. Two of the four projects have no data (—). auth-service-migration cells show the regression visually. Section 3: an attribution panel triggered by the CFR regression. Header "⚠ Regression detected on CFR (portfolio)". Driver: auth-service-migration CFR 8% → 18%. Cause: 3 auto-merges by schema-migration-reviewer. List the 3 specific PRs with dates and rollback timestamps. Skill state: demoted Senior → Junior on 5/10. Action buttons: "Open incident plan", "View skill detail", "View affected project". Information-dense, dark theme primary, theme-swappable. 13px base, Inter, Lucide. No donut/pie charts. Peer references: DataDog, Grafana, Linear cycles.
+> Generate 3 variants of a DORA metrics dashboard for an SDLC governance platform with causal attribution. Three sections vertically. Section 1: 4 portfolio aggregate cards in a row — Lead Time 4.8 days (↑0.6d MoM), Deploy Freq 4.2/wk (flat), Change Failure Rate 11% (↑3pt MoM, flagged as regression), MTTR 2.3 hours (flat). Window selector top-right (7d/30d/90d, 30d selected). Section 2: a small-multiples grid — 4 rows of metrics × 4 columns of projects (payments-api, data-warehouse-v2, auth-service-migration, kafka-pipeline-modernization). Each cell: current value + sparkline. Two of the four projects have no data (—). auth-service-migration cells show the regression visually. Section 3: an attribution panel triggered by the CFR regression. Header "⚠ Regression detected on CFR (portfolio)". Driver: auth-service-migration CFR 8% → 18%. Cause: 3 auto-merges by schema-migration-reviewer. List the 3 specific PRs with dates and rollback timestamps. Skill state: demoted Merge → Propose on 5/10. Action buttons: "Open incident plan", "View skill detail", "View affected project". Information-dense, dark theme primary, theme-swappable. 13px base, Inter, Lucide. No donut/pie charts. Peer references: DataDog, Grafana, Linear cycles.
 
 ## Visual references
 

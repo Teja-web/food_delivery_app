@@ -6,9 +6,9 @@
  *   1. Snapshot the starting state (skill autonomy, no gate evaluations)
  *   2. Open a synthetic PR by `frontend-test-author` on auth project
  *      (medium-risk: 120 lines, touches no critical paths)
- *   3. Evaluate the gate → expect `success` (Senior + medium)
+ *   3. Evaluate the gate → expect `success` (Merge + medium)
  *   4. Record a critical incident outcome for that skill
- *   5. Recompute autonomy → expect demote to Intern
+ *   5. Recompute autonomy → expect demote to Observe
  *   6. Show the demote-triggered re-evaluation flipped the PR to failure
  *   7. Confirm countBlockedPrsForSkill reports the change
  *
@@ -60,7 +60,7 @@ async function main() {
 
   banner("Step 0 — Pre-seed per-project autonomy so the trace is deterministic");
   // The seed patch may or may not have populated the per-project autonomy row
-  // depending on when the user last re-onboarded. Force it to senior(2) so the
+  // depending on when the user last re-onboarded. Force it to merge(2) so the
   // arc is the same on every run.
   await db
     .insert(skillAutonomy)
@@ -72,7 +72,7 @@ async function main() {
       levelSetAt: new Date(Date.now() - 30 * 86_400_000),
       lastReviewedAt: new Date(Date.now() - 7 * 86_400_000),
       nextReviewAt: new Date(Date.now() + 14 * 86_400_000),
-      lastReason: "Held at Senior — clean run on payments suite (set by demo)",
+      lastReason: "Held at Merge — clean run on payments suite (set by demo)",
     })
     .onConflictDoUpdate({
       target: [skillAutonomy.skillId, skillAutonomy.projectId],
@@ -80,10 +80,10 @@ async function main() {
         level: 2,
         levelSetAt: new Date(Date.now() - 30 * 86_400_000),
         lastReviewedAt: new Date(Date.now() - 7 * 86_400_000),
-        lastReason: "Held at Senior — clean run on payments suite (set by demo)",
+        lastReason: "Held at Merge — clean run on payments suite (set by demo)",
       },
     });
-  row("Upserted per-project autonomy: skill=", skill.slug, "project=", project.slug, "level=2 (senior)");
+  row("Upserted per-project autonomy: skill=", skill.slug, "project=", project.slug, "level=2 (merge)");
 
   banner("Step 1 — Starting state");
   const start = await getSkillAutonomy(skill.id, project.id);
@@ -156,7 +156,7 @@ async function main() {
   banner("Step 6 — Cleanup");
   await db.delete(gateEvaluations).where(eq(gateEvaluations.prRef, PR_REF));
   // Reset the autonomy row to its seeded state so successive runs show the
-  // same demote arc. We re-upsert the per-project row to senior(2).
+  // same demote arc. We re-upsert the per-project row to merge(2).
   await db
     .insert(skillAutonomy)
     .values({

@@ -43,10 +43,10 @@ const VERDICT_META: Record<
 };
 
 const LEVEL_TONE: Record<PolicyMatrixCell["minLevelDisplay"], string> = {
-  observe: "border-autonomy-intern/40 bg-autonomy-intern/10 text-autonomy-intern",
-  propose: "border-autonomy-junior/40 bg-autonomy-junior/10 text-autonomy-junior",
-  merge: "border-autonomy-senior/40 bg-autonomy-senior/10 text-autonomy-senior",
-  lead: "border-autonomy-principal/40 bg-autonomy-principal/10 text-autonomy-principal",
+  observe: "border-autonomy-observe/40 bg-autonomy-observe/10 text-autonomy-observe",
+  propose: "border-autonomy-propose/40 bg-autonomy-propose/10 text-autonomy-propose",
+  merge: "border-autonomy-merge/40 bg-autonomy-merge/10 text-autonomy-merge",
+  lead: "border-autonomy-lead/40 bg-autonomy-lead/10 text-autonomy-lead",
   never: "border-state-failed/40 bg-state-failed/10 text-state-failed",
 };
 

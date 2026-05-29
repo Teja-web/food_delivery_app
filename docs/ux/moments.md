@@ -50,17 +50,17 @@ Build sequence: prove the load-bearing three on real data (Milestones A–B). La
 - **Trigger:** Monday 9am. 12 approvals waiting across his 3 projects. He has 20 minutes before his first meeting.
 - **Today:** Click into each one. Each is from a different system (GitHub PR comment, Jira ticket transition, a Slack DM). Each needs separate context-gathering — what changed, why, who asked, what the rules say.
 - **With coznt:** `/approvals` shows all 12 inline. Each row: change summary, requesting skill (if any) with current autonomy level, evidence (PR diff, test results, gate status), and Approve/Reject buttons with a required comment field. Sam can clear 9 of 12 in 8 minutes; the 3 that need a real look get a focused click-through.
-- **Trust signal:** Each approval shows the requesting skill's **track record** — "Senior autonomy: 47 successes / 0 incidents / 2 rollbacks (30d). Auto-approves below complexity threshold." Sam knows whether to trust the request before he reads the diff.
+- **Trust signal:** Each approval shows the requesting skill's **track record** — "Merge autonomy: 47 successes / 0 incidents / 2 rollbacks (30d). Auto-approves below complexity threshold." Sam knows whether to trust the request before he reads the diff.
 - **Surface:** `/approvals` inbox (hero #3)
 - **Why this earns hero status:** This is where most of Sam's daily coznt interaction happens. The inbox is where governance pays the user back for the overhead.
 
 ### 4. The Trust Earned Moment — Priya
 
 - **User:** Priya (Director of Engineering)
-- **Trigger:** Weekly Friday review. A skill — say, `frontend-test-author` — has been running clean for 30 days and the nightly recompute promotes it from Junior to Senior.
+- **Trigger:** Weekly Friday review. A skill — say, `frontend-test-author` — has been running clean for 30 days and the nightly recompute promotes it from Propose to Merge.
 - **Today:** Doesn't happen anywhere. AI usage in her org is ambient; she has no way to know "this agent has earned more autonomy" vs. "this agent is rolling the dice."
-- **With coznt:** Priya opens `/skills`. The autonomy ledger surface shows the promotion event prominently: skill name, badge change (Junior → Senior with the pill visual), the 30-day stats that earned it (success rate, rollback rate, projects it ran on), and the new permissions it unlocks (auto-approve PRs under N lines with ≥M% test coverage). She approves; one click.
-- **Trust signal:** The promotion has **receipts**. Every claim is queryable: "show me the 47 successes" → list of PRs. "Show me what counts as a success" → the definition links to a plan of kind `policy`. Reversibility is visible: "If `frontend-test-author` ships an incident, it auto-demotes to Junior within 5 minutes."
+- **With coznt:** Priya opens `/skills`. The autonomy ledger surface shows the promotion event prominently: skill name, badge change (Propose → Merge with the pill visual), the 30-day stats that earned it (success rate, rollback rate, projects it ran on), and the new permissions it unlocks (auto-approve PRs under N lines with ≥M% test coverage). She approves; one click.
+- **Trust signal:** The promotion has **receipts**. Every claim is queryable: "show me the 47 successes" → list of PRs. "Show me what counts as a success" → the definition links to a plan of kind `policy`. Reversibility is visible: "If `frontend-test-author` ships an incident, it auto-demotes to Propose within 5 minutes."
 - **Surface:** `/skills` autonomy ledger (hero #4)
 - **Why this earns hero status:** This is the marketing thesis made physically visible. "Vibe coding, made auditable" means trust is earned, observable, and reversible. If this moment doesn't feel earned, the whole product positioning collapses.
 

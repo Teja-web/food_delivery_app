@@ -5,7 +5,7 @@
  * `docs/borrowings-from-ai-sdlc-framework.md` section 3.
  *
  * Per-project: autonomy is scored per (skillId, projectId) pair. A skill that
- * earns senior-level on a docs-only repo restarts at intern on a payments
+ * earns merge-level on a docs-only repo restarts at observe on a payments
  * service. NULL projectId is reserved for legacy / org-wide rows; new code
  * paths must always populate it.
  *
@@ -456,7 +456,7 @@ export async function recomputeSkillAutonomy(
 
   // Demote-triggered re-evaluation: every open PR attributed to this skill
   // on this project gets re-graded against the new (lower) autonomy level.
-  // PRs that were `success` at senior and would now be `failure` at junior
+  // PRs that were `success` at merge and would now be `failure` at propose
   // flip immediately — the autonomy ledger gains physical teeth.
   if (demoted && projectId) {
     await reevaluateOpenPrsForSkill(skill.organizationId, skillId, projectId).catch((err) => {
@@ -760,17 +760,17 @@ export async function getRecentAutonomyEvents(
  * given project: counts at each level + a recent-incident flag.
  *
  * Used by the portfolio view to surface "this project has skills below
- * Senior" or "this project saw a critical incident this week" without
+ * Merge" or "this project saw a critical incident this week" without
  * needing per-row drill-down.
  */
 export async function getProjectAutonomyAggregate(
   projectId: string,
   organizationId: string,
 ): Promise<{
-  intern: number;
-  junior: number;
-  senior: number;
-  principal: number;
+  observe: number;
+  propose: number;
+  merge: number;
+  lead: number;
   total: number;
   incidentsLast7d: number;
 }> {
@@ -784,15 +784,15 @@ export async function getProjectAutonomyAggregate(
       ),
     );
 
-  let intern = 0;
-  let junior = 0;
-  let senior = 0;
-  let principal = 0;
+  let observe = 0;
+  let propose = 0;
+  let merge = 0;
+  let lead = 0;
   for (const r of autonomyRows) {
-    if (r.level >= 3) principal++;
-    else if (r.level >= 2) senior++;
-    else if (r.level >= 1) junior++;
-    else intern++;
+    if (r.level >= 3) lead++;
+    else if (r.level >= 2) merge++;
+    else if (r.level >= 1) propose++;
+    else observe++;
   }
   const total = autonomyRows.length;
 
@@ -810,5 +810,5 @@ export async function getProjectAutonomyAggregate(
     );
   const incidentsLast7d = incidentRows.length;
 
-  return { intern, junior, senior, principal, total, incidentsLast7d };
+  return { observe, propose, merge, lead, total, incidentsLast7d };
 }

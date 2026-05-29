@@ -209,9 +209,15 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
   );
   console.log(`✓ Wrote .coznt/config.json`);
 
-  // 7. .gitignore
+  // 7. .gitignore — ensure both `.coznt/.local/` and `.mcp.json` are
+  // ignored. The latter is critical now that we write the plaintext key
+  // there by default (see step 9).
   const gi = ensureCozntLocalGitignored(repoRoot);
-  if (gi.changed) console.log(`✓ Added .coznt/.local/ to .gitignore`);
+  if (gi.changed) {
+    for (const e of gi.addedEntries) {
+      console.log(`✓ Added ${e} to .gitignore`);
+    }
+  }
 
   // 8. .coznt/README.md
   writeReadme(repoRoot);
@@ -222,16 +228,25 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
   const launcher = options.mcpLauncher ?? "npx";
   const launcherArgs =
     options.mcpLauncher === undefined ? ["-y", tarballUrl(serverUrl, MCP_VERSION)] : [];
+  // Pick what to put in `COZNT_API_KEY`:
+  //   - env-ref mode (--api-key-env=NAME): the literal string `${NAME}`,
+  //     which editors that do env substitution (Claude Code, Cursor, …)
+  //     expand at MCP-server spawn time. Key never lands on disk.
+  //   - default (keychain mode): the plaintext key. The MCP config file
+  //     is .gitignored (.mcp.json for Claude Code is added to .gitignore
+  //     above), and the keychain entry persists as a recovery copy. This
+  //     "works on first restart with no extra setup" path is what the
+  //     v0.1.x walkthrough optimizes for. A future `--keychain-launcher`
+  //     mode would point the editor at a wrapper that resolves the key
+  //     at spawn time without touching disk; not implemented yet.
+  const apiKeyEnvValue =
+    apiKeyRef.kind === "env" ? `\${${apiKeyRef.name}}` : apiKey;
   const cozntEntry = {
     command: launcher,
     args: launcherArgs,
     env: {
       COZNT_URL: serverUrl,
-      // Inject the key by reference, not by value. The MCP server will
-      // read COZNT_API_KEY from its own env. The customer is expected
-      // to wire that env in their editor or shell. (Storing the key in
-      // the editor's plaintext config file would defeat the whole point.)
-      COZNT_API_KEY: apiKeyRef.kind === "env" ? `\${${apiKeyRef.name}}` : "REQUIRED",
+      COZNT_API_KEY: apiKeyEnvValue,
     },
   };
   const wrote = writeForEditor(editor, { repoRoot, cozntEntry });
@@ -250,7 +265,15 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
     return syncCode;
   }
 
+  // 11. Final summary + verification hint.
   console.log("");
-  console.log(`Connected. Restart ${editor} to load the MCP server.`);
+  console.log(`Connected to ${picked.name} on ${serverUrl}.`);
+  console.log("");
+  console.log("Next steps:");
+  console.log(`  1. Restart ${editor} (so it picks up ${wrote.path}).`);
+  console.log(`  2. Ask the agent: \"Call get_my_context.\"`);
+  console.log(`     The response should include phase, allowedTools, and skill autonomy.`);
+  console.log(`     If you instead see \"tool not found\", the MCP config didn't load —`);
+  console.log(`     verify ${wrote.path} exists and check the editor's MCP/server logs.`);
   return 0;
 }

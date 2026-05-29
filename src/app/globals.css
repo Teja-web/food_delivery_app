@@ -45,10 +45,10 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-autonomy-intern: var(--autonomy-intern);
-  --color-autonomy-junior: var(--autonomy-junior);
-  --color-autonomy-senior: var(--autonomy-senior);
-  --color-autonomy-principal: var(--autonomy-principal);
+  --color-autonomy-observe: var(--autonomy-observe);
+  --color-autonomy-propose: var(--autonomy-propose);
+  --color-autonomy-merge: var(--autonomy-merge);
+  --color-autonomy-lead: var(--autonomy-lead);
   --color-state-pending: var(--state-pending);
   --color-state-passed: var(--state-passed);
   --color-state-failed: var(--state-failed);
@@ -119,10 +119,10 @@
   --sidebar-ring: oklch(0.74 0.14 175);
 
   /* Trust signals — autonomy levels */
-  --autonomy-intern: oklch(0.65 0.015 250);     /* neutral gray */
-  --autonomy-junior: oklch(0.7 0.13 240);       /* blue */
-  --autonomy-senior: oklch(0.7 0.16 145);       /* green */
-  --autonomy-principal: oklch(0.68 0.18 305);   /* violet */
+  --autonomy-observe: oklch(0.65 0.015 250);     /* neutral gray */
+  --autonomy-propose: oklch(0.7 0.13 240);       /* blue */
+  --autonomy-merge: oklch(0.7 0.16 145);       /* green */
+  --autonomy-lead: oklch(0.68 0.18 305);   /* violet */
 
   /* Gate / check states */
   --state-pending: oklch(0.78 0.17 75);         /* amber */
@@ -200,10 +200,10 @@
   --sidebar-ring: oklch(0.78 0.17 75);
 
   /* Trust signals — autonomy levels */
-  --autonomy-intern: oklch(0.55 0.015 260);
-  --autonomy-junior: oklch(0.55 0.14 240);
-  --autonomy-senior: oklch(0.55 0.17 145);
-  --autonomy-principal: oklch(0.5 0.18 305);
+  --autonomy-observe: oklch(0.55 0.015 260);
+  --autonomy-propose: oklch(0.55 0.14 240);
+  --autonomy-merge: oklch(0.55 0.17 145);
+  --autonomy-lead: oklch(0.5 0.18 305);
 
   /* Gate / check states */
   --state-pending: oklch(0.68 0.17 75);

@@ -32,7 +32,7 @@ Player-coach with 2–4 active projects. Lives in three surfaces.
 Each row in the inbox shows:
 - Change summary
 - Requesting skill (if any) with its current autonomy level
-- 30-day track record (e.g. *"Senior: 47 successes / 0 incidents / 2 rollbacks. Auto-approves below complexity threshold."*)
+- 30-day track record (e.g. *"Merge: 47 successes / 0 incidents / 2 rollbacks. Auto-approves below complexity threshold."*)
 - Inline evidence — PR diff, test results, gate status
 - Approve / Reject buttons with a required comment field
 
@@ -86,7 +86,7 @@ Sits 1–2 layers above Sam. Spans 4–8 teams / 12–30 projects. Checks in wee
 
 ### Weekly — `/skills` autonomy ledger
 
-Scans cross-project trend. Which skills got promoted this week (`doc-updater` → senior), which got demoted (`schema-migration-reviewer` → junior after a rollback on payments). The "trust earned, visibly" view — the one that lets her tell legal and security that AI-assisted engineering is safe to keep doing.
+Scans cross-project trend. Which skills got promoted this week (`doc-updater` → merge), which got demoted (`schema-migration-reviewer` → propose after a rollback on payments). The "trust earned, visibly" view — the one that lets her tell legal and security that AI-assisted engineering is safe to keep doing.
 
 ### When metrics tilt — `/metrics`
 

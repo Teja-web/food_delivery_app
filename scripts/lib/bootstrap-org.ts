@@ -15,6 +15,7 @@ import { Pool, type PoolClient } from "pg";
 import { hashPassword } from "better-auth/crypto";
 
 import { seedSampleWorkspace, type SeedResult } from "../../src/operations/seed-sample-workspace";
+import { seedPlatformSkills } from "../seed-platform-skills";
 
 export function generateId(prefix: string): string {
   return `${prefix}_${randomBytes(8).toString("hex")}`;
@@ -122,6 +123,22 @@ export async function bootstrapOrg(args: BootstrapOrgArgs): Promise<BootstrapRes
   } finally {
     client.release();
     await pool.end();
+  }
+
+  // Every new org gets the 12 platform skills as org-wide rows (project_id
+  // NULL). Multi-tenant visibility is org-scoped, so without this step new
+  // orgs would see zero platform skills via `coznt sync` — see
+  // `feature: platform-skills-org-propagation`.
+  try {
+    const { inserted, updated } = await seedPlatformSkills(orgId);
+    console.log(
+      `  + Platform skills seeded into ${orgId}: ${inserted} inserted, ${updated} updated`,
+    );
+  } catch (e) {
+    console.warn(
+      `  ! Platform-skill seeding failed for ${orgId}: ${(e as Error).message}. ` +
+        `Run \`COZNT_SEED_ORG_ID=${orgId} pnpm tsx scripts/seed-platform-skills.ts\` to retry.`,
+    );
   }
 
   const result: BootstrapResult = {

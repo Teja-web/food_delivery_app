@@ -8,6 +8,10 @@ export interface ApprovalRowClient {
   entityId: string;
   status: ApprovalStatus;
   title: string;
+  /** Detail-page URL for the approval's target. Null when no detail page
+   * exists (e.g. `skill_invocation` rows). UI wraps the row title in
+   * `<Link>` when set. */
+  entityHref: string | null;
   projectKey: string | null;
   phase: string | null;
   requestedByName: string;
@@ -57,12 +61,16 @@ function formatAge(date: Date): { label: string; days: number } {
 }
 
 /**
- * v1 title resolver. The approval row carries `entityType` + `entityId` but
- * not a title — the title lives in the target entity (plan/work_item/etc.).
- * For v1 we synthesize a label from entityType + a short id. Replace once
- * approvals carry a denormalized title or once we batch-join.
+ * Title resolver. The approval row carries `entityType` + `entityId` but
+ * not a title — the title lives in the target entity (plan/work_item/…).
+ * The page does a batch-join over `entityId` per `entityType` and passes
+ * the resolved title in via `ApprovalRowResolution.targetTitle`. When
+ * the target has been deleted or for `skill_invocation` rows that have
+ * no detail page, we fall back to a synthesized `<type> · <shortId>`
+ * label so the inbox row is never empty.
  */
-function resolveTitle(a: Approval): string {
+function resolveTitle(a: Approval, resolved: ApprovalRowResolution): string {
+  if (resolved.targetTitle) return resolved.targetTitle;
   if (a.entityType === "skill_invocation") {
     const action = a.requesterNote?.trim();
     return action && action.length > 0 ? `wants to ${action}` : "skill invocation blocked";
@@ -80,6 +88,29 @@ function resolveTitle(a: Approval): string {
       return `work item · ${shortId}`;
     default:
       return `${a.entityType} · ${shortId}`;
+  }
+}
+
+/**
+ * Detail-page URL per entity type. `null` means "no clickable link" — the
+ * UI renders the title as plain text in that case.
+ */
+function resolveHref(a: Approval): string | null {
+  switch (a.entityType) {
+    case "plan":
+      return `/plans/${a.entityId}`;
+    case "release":
+      // Releases are stored as plans (kind=release_plan) and live at /plans/<id>.
+      // /releases is a listing route, not a per-release detail route today.
+      return `/plans/${a.entityId}`;
+    case "work_item":
+      // No dedicated work-item detail page yet — link to the project tab.
+      return a.projectId ? `/projects/${a.projectId}#workitems` : null;
+    case "phase_gate":
+      return a.projectId ? `/projects/${a.projectId}#phases` : null;
+    case "skill_invocation":
+    default:
+      return null;
   }
 }
 
@@ -112,6 +143,8 @@ export interface ApprovalRowResolution {
   skillLevel?: AutonomyLevel | null;
   /** For `skill_invocation` rows: the skill's `minAutonomyLevel` threshold. */
   requiredAutonomyLevel?: AutonomyLevel | null;
+  /** Title resolved from the target entity (plan.title, work_item.title, …). */
+  targetTitle?: string | null;
 }
 
 export function serializeApprovalRow(
@@ -129,7 +162,7 @@ export function serializeApprovalRow(
   const requiredAutonomyLevel =
     a.entityType === "skill_invocation" ? resolved.requiredAutonomyLevel ?? null : null;
   const age = formatAge(a.createdAt);
-  // Auto-eligibility: a Senior or Principal originating skill earns auto-approve
+  // Auto-eligibility: a Merge or Lead originating skill earns auto-approve
   // for low-risk entity types within a 7d window. Falls back to "bot-requested"
   // heuristic when we can't resolve the skill (preserves prior behavior).
   const trustedLevel = skillLevel === "MERGE" || skillLevel === "LEAD";
@@ -142,7 +175,8 @@ export function serializeApprovalRow(
     entityType: a.entityType,
     entityId: a.entityId,
     status: a.status,
-    title: resolveTitle(a),
+    title: resolveTitle(a, resolved),
+    entityHref: resolveHref(a),
     projectKey: null,
     phase: a.phase ?? null,
     requestedByName,

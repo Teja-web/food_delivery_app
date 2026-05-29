@@ -1,17 +1,25 @@
 #!/usr/bin/env npx tsx
 /**
- * Seed platform-authored skills into the default organization.
+ * Seed platform-authored skills into an organization.
  *
  * Reads every `src/automations/skills/<slug>/SKILL.md` file, parses YAML
  * frontmatter for metadata, and upserts a row into `coznt.skills` with
- * `organization_id = <default org>`, `project_id = NULL` (org-wide), and
+ * `organization_id = <target>`, `project_id = NULL` (org-wide), and
  * `tags` including `"platform"`. Idempotent: re-running updates the body
  * + metadata in place by `(organization_id, slug)`.
  *
- * Usage:
- *   pnpm tsx scripts/seed-platform-skills.ts
+ * Target org resolution:
+ *   1. Explicit `seedPlatformSkills(orgId)` arg (used by bootstrap-org.ts
+ *      and the web signup hook so new orgs inherit platform skills).
+ *   2. `COZNT_SEED_ORG_ID` env var.
+ *   3. `COZNT_SEED_ORG_SLUG` env var (resolved via `auth.organization`).
+ *   4. Fallback: `slug = 'default'` (db-setup's first-install behavior).
  *
- * Also runs as a step inside `scripts/db-setup.ts`.
+ * Usage:
+ *   pnpm tsx scripts/seed-platform-skills.ts                      # default org
+ *   COZNT_SEED_ORG_SLUG=acme pnpm tsx scripts/seed-platform-skills.ts
+ *
+ * Also runs as a step inside `scripts/db-setup.ts` and `bootstrap-org.ts`.
  */
 
 import "dotenv/config";
@@ -75,6 +83,28 @@ function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: st
   return { frontmatter: fm, body: body.trim() };
 }
 
+async function resolveTargetOrgId(
+  pool: import("pg").Pool,
+  explicit?: string,
+): Promise<string> {
+  if (explicit) return explicit;
+  const envOrgId = process.env.COZNT_SEED_ORG_ID;
+  if (envOrgId) return envOrgId;
+  const slug = process.env.COZNT_SEED_ORG_SLUG ?? "default";
+  const res = await pool.query(
+    `SELECT id FROM auth.organization WHERE slug = $1 LIMIT 1`,
+    [slug],
+  );
+  const orgId = res.rows[0]?.id;
+  if (!orgId) {
+    throw new Error(
+      `Organization with slug='${slug}' not found. ` +
+        `Either run db-setup first, or pass an explicit orgId, or set COZNT_SEED_ORG_SLUG/COZNT_SEED_ORG_ID.`,
+    );
+  }
+  return orgId;
+}
+
 function loadSkillFiles(): SkillFile[] {
   const entries = readdirSync(SKILLS_DIR).filter((name) => {
     const path = join(SKILLS_DIR, name);
@@ -89,7 +119,13 @@ function loadSkillFiles(): SkillFile[] {
   });
 }
 
-export async function seedPlatformSkills(): Promise<{ inserted: number; updated: number }> {
+/**
+ * @param targetOrgId Explicit org id to seed into. When omitted, falls back
+ *   to `COZNT_SEED_ORG_ID`, then `COZNT_SEED_ORG_SLUG`, then `slug='default'`.
+ */
+export async function seedPlatformSkills(
+  targetOrgId?: string,
+): Promise<{ inserted: number; updated: number; orgId: string }> {
   const { Pool } = await import("pg");
   const pool = new Pool({ connectionString: DATABASE_URL });
 
@@ -97,18 +133,12 @@ export async function seedPlatformSkills(): Promise<{ inserted: number; updated:
   let updated = 0;
 
   try {
-    const orgResult = await pool.query(
-      `SELECT id FROM auth.organization WHERE slug = 'default' LIMIT 1`,
-    );
-    const orgId = orgResult.rows[0]?.id;
-    if (!orgId) {
-      throw new Error("Default organization not found. Run db-setup first.");
-    }
+    const orgId = await resolveTargetOrgId(pool, targetOrgId);
 
     const files = loadSkillFiles();
     if (files.length === 0) {
       console.log("  - No platform-skill directories found under src/automations/skills/");
-      return { inserted: 0, updated: 0 };
+      return { inserted: 0, updated: 0, orgId };
     }
 
     for (const file of files) {
@@ -143,18 +173,19 @@ export async function seedPlatformSkills(): Promise<{ inserted: number; updated:
         console.log(`  + ${slug}`);
       }
     }
+    return { inserted, updated, orgId };
   } finally {
     await pool.end();
   }
-
-  return { inserted, updated };
 }
 
 // Standalone CLI entry — only runs when invoked directly.
 if (import.meta.url === `file://${process.argv[1]}`) {
   seedPlatformSkills()
-    .then(({ inserted, updated }) => {
-      console.log(`\n+ Platform skills seeded: ${inserted} inserted, ${updated} updated`);
+    .then(({ inserted, updated, orgId }) => {
+      console.log(
+        `\n+ Platform skills seeded into org ${orgId}: ${inserted} inserted, ${updated} updated`,
+      );
     })
     .catch((error) => {
       console.error("\nSeeding failed:", error.message);

@@ -154,7 +154,10 @@ async function main() {
     const out = {
       decision: "block",
       reason: `Prompt scored ${score.overallScore} (<${minScore}). ${score.suggestions[0] ?? ""}`,
-      hookSpecificOutput: { additionalContext: formatScoreFeedback(score) },
+      hookSpecificOutput: {
+        hookEventName: "UserPromptSubmit",
+        additionalContext: formatScoreFeedback(score),
+      },
     };
     process.stdout.write(JSON.stringify(out));
     process.exit(0);
@@ -163,7 +166,10 @@ async function main() {
     process.exit(0); // silent
   }
   const out = {
-    hookSpecificOutput: { additionalContext: formatScoreFeedback(score) },
+    hookSpecificOutput: {
+      hookEventName: "UserPromptSubmit",
+      additionalContext: formatScoreFeedback(score),
+    },
   };
   process.stdout.write(JSON.stringify(out));
   process.exit(0);

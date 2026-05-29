@@ -116,7 +116,7 @@ export function RulesSkillsTab({
                     {s.isPlatform ? (
                       <Badge
                         variant="outline"
-                        className="border-autonomy-principal/40 px-1.5 py-0 font-mono text-[10px] uppercase text-autonomy-principal"
+                        className="border-autonomy-lead/40 px-1.5 py-0 font-mono text-[10px] uppercase text-autonomy-lead"
                         title="Platform skill — invoke from Cursor via invoke_skill"
                       >
                         platform

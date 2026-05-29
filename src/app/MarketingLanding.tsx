@@ -37,7 +37,7 @@ export function MarketingLanding() {
         />
         <div
           aria-hidden
-          className="anim-pulse-soft absolute right-[-180px] top-[35%] h-[520px] w-[520px] rounded-full bg-[var(--autonomy-principal)]/10 blur-[160px]"
+          className="anim-pulse-soft absolute right-[-180px] top-[35%] h-[520px] w-[520px] rounded-full bg-[var(--autonomy-lead)]/10 blur-[160px]"
         />
         <div className="relative mx-auto max-w-7xl px-6 pt-14 pb-20 md:pt-20 md:pb-24">
           <PageMeta
@@ -158,7 +158,7 @@ export function MarketingLanding() {
               UI before it&rsquo;s queryable from the database.
             </p>
             <ul className="grid grid-cols-1 gap-3 pt-2 text-[13px] sm:grid-cols-2">
-              <ThesisPoint icon={Sparkles} title="Graded skills" body="Intern → Junior → Senior → Principal, per project. Promotion carries 30 days of receipts." />
+              <ThesisPoint icon={Sparkles} title="Graded skills" body="Observe → Propose → Merge → Lead, per project. Promotion carries 30 days of receipts." />
               <ThesisPoint icon={Milestone} title="Deterministic gates" body="Same project state always yields the same gate result. Diffs are shown when they change." />
               <ThesisPoint icon={Activity} title="Causal DORA" body="Spikes attributed to specific deploys, skills, and autonomy state at the time." />
               <ThesisPoint icon={Shield} title="Tamper-evident audit log" body="Every row hashes its fields. Exports are byte-stable &mdash; diff yesterday&rsquo;s against today&rsquo;s." />
@@ -209,14 +209,14 @@ export function MarketingLanding() {
               trigger="Monday 9am. 12 approvals waiting. 20 minutes."
               title="Clear nine in eight minutes."
               body="One inbox. Each row carries the requesting skill's track record so you know whether to trust the request before reading the diff."
-              signal="Skill track record visible inline: 'Senior · 47✓ / 2↻ / 0⚡ (30d).'"
+              signal="Skill track record visible inline: 'Merge · 47✓ / 2↻ / 0⚡ (30d).'"
               preview={<ApprovalsPreview />}
             />
             <Moment
               n="04"
               persona="Priya · Director of Engineering"
               trigger="Friday review. A skill has been clean for 30 days."
-              title="Junior → Senior. With receipts."
+              title="Propose → Merge. With receipts."
               body="The promotion event lands prominently: the stats that earned it, the projects it ran on, the new permissions it unlocks. One click to approve."
               signal="Every claim is queryable. Show me the 47 successes. Show me what counts as a success. Show me the auto-demote threshold."
               preview={<AutonomyPreview />}
@@ -268,7 +268,7 @@ export function MarketingLanding() {
             <ModeCard
               tag="Mode 2 · Forward-looking"
               title="Agents join. Same rubric. Same ledger."
-              body="When an AI agent is dispatched, its invocation appends an outcome to the same ledger your humans have been filling. Autonomy accumulates per (skill, project). A senior agent on a docs repo restarts at intern on payments."
+              body="When an AI agent is dispatched, its invocation appends an outcome to the same ledger your humans have been filling. Autonomy accumulates per (skill, project). A merge agent on a docs repo restarts at observe on payments."
               points={[
                 "Agent invocation → outcome row, same shape",
                 "Per-project autonomy, not per-skill",
@@ -423,7 +423,7 @@ function LiveLedgerHero() {
       kind: "promotion",
       icon: Sparkles,
       project: "schema-migrator",
-      detail: "Junior → Senior · 30d clean",
+      detail: "Propose → Merge · 30d clean",
       tone: "primary",
     },
     {
@@ -431,7 +431,7 @@ function LiveLedgerHero() {
       kind: "pr.merge",
       icon: GitMerge,
       project: "FinTrack",
-      detail: "PR #1248 · senior · 92% cov",
+      detail: "PR #1248 · merge · 92% cov",
       tone: "passed",
     },
     {
@@ -439,7 +439,7 @@ function LiveLedgerHero() {
       kind: "deploy.clean",
       icon: Zap,
       project: "Polaris",
-      detail: "canary 15m clean · principal",
+      detail: "canary 15m clean · lead",
       tone: "passed",
     },
     {
@@ -772,7 +772,7 @@ function PortfolioPreview() {
   const rows = [
     { id: "FinTrack", phase: "Develop", phaseTone: "bg-[var(--state-passed)]/15 text-[var(--state-passed)]", gates: "3/4", deploys: 12, cfr: "4.1%", trend: [3, 5, 4, 6, 5, 4, 5] },
     { id: "Atlas", phase: "Design", phaseTone: "bg-[var(--state-pending)]/15 text-[var(--state-pending)]", gates: "1/3", deploys: 4, cfr: "9.2%", trend: [3, 4, 5, 6, 7, 8, 9] },
-    { id: "Polaris", phase: "Release", phaseTone: "bg-[var(--autonomy-senior)]/15 text-[var(--autonomy-senior)]", gates: "4/4", deploys: 27, cfr: "1.7%", trend: [5, 4, 3, 3, 2, 2, 2] },
+    { id: "Polaris", phase: "Release", phaseTone: "bg-[var(--autonomy-merge)]/15 text-[var(--autonomy-merge)]", gates: "4/4", deploys: 27, cfr: "1.7%", trend: [5, 4, 3, 3, 2, 2, 2] },
   ];
   return (
     <div className="overflow-hidden rounded-md">
@@ -843,9 +843,9 @@ function GateRow({
 
 function ApprovalsPreview() {
   const items = [
-    { who: "frontend-test-author", level: "Senior", levelTone: "var(--autonomy-senior)", what: "Add E2E tests for checkout flow", evidence: "PR #1248 · +204 −12 · 92% cov", stats: "47✓ 2↻ 0⚡" },
-    { who: "deploy-orchestrator", level: "Junior", levelTone: "var(--autonomy-junior)", what: "Roll forward staging → prod", evidence: "deploy-9302 · canary 15m clean", stats: "12✓ 1↻ 0⚡" },
-    { who: "schema-migrator", level: "Principal", levelTone: "var(--autonomy-principal)", what: "Add nullable column to applications", evidence: "drizzle-00f3 · reversible", stats: "104✓ 0↻ 0⚡" },
+    { who: "frontend-test-author", level: "Merge", levelTone: "var(--autonomy-merge)", what: "Add E2E tests for checkout flow", evidence: "PR #1248 · +204 −12 · 92% cov", stats: "47✓ 2↻ 0⚡" },
+    { who: "deploy-orchestrator", level: "Propose", levelTone: "var(--autonomy-propose)", what: "Roll forward staging → prod", evidence: "deploy-9302 · canary 15m clean", stats: "12✓ 1↻ 0⚡" },
+    { who: "schema-migrator", level: "Lead", levelTone: "var(--autonomy-lead)", what: "Add nullable column to applications", evidence: "drizzle-00f3 · reversible", stats: "104✓ 0↻ 0⚡" },
   ];
   return (
     <div className="space-y-2">
@@ -894,9 +894,9 @@ function AutonomyPreview() {
           <span className="font-mono text-[10px] text-muted-foreground">2d ago</span>
         </div>
         <div className="mt-2 flex items-center gap-2 text-[12px]">
-          <span className="rounded-full bg-[var(--autonomy-junior)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--autonomy-junior)]">Junior</span>
+          <span className="rounded-full bg-[var(--autonomy-propose)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--autonomy-propose)]">Propose</span>
           <ArrowRight className="h-3 w-3 text-muted-foreground" />
-          <span className="rounded-full bg-[var(--autonomy-senior)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--autonomy-senior)]">Senior</span>
+          <span className="rounded-full bg-[var(--autonomy-merge)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--autonomy-merge)]">Merge</span>
           <span className="ml-1 text-[11px] text-muted-foreground">— 30d clean</span>
         </div>
         <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border/40 pt-3 text-[11px]">
@@ -985,15 +985,15 @@ function McpPreview() {
           <div><span className="text-muted-foreground">ticket</span>: <span className="text-foreground">FT-1024 · Checkout v2</span></div>
           <div className="mt-1 text-muted-foreground">rules in force:</div>
           <div className="pl-3 text-foreground">· no DB schema change without ADR <span className="text-muted-foreground">[rule-A11]</span></div>
-          <div className="pl-3 text-foreground">· PRs &lt;150 LoC auto-mergeable by senior skills</div>
+          <div className="pl-3 text-foreground">· PRs &lt;150 LoC auto-mergeable by merge skills</div>
           <div className="mt-1 text-muted-foreground">callable skills:</div>
           <div className="pl-3 text-foreground">
             · frontend-test-author{" "}
-            <span className="rounded bg-[var(--autonomy-senior)]/15 px-1 text-[var(--autonomy-senior)]">Senior</span>
+            <span className="rounded bg-[var(--autonomy-merge)]/15 px-1 text-[var(--autonomy-merge)]">Merge</span>
           </div>
           <div className="pl-3 text-foreground">
             · schema-migrator{" "}
-            <span className="rounded bg-[var(--autonomy-principal)]/15 px-1 text-[var(--autonomy-principal)]">Principal</span>
+            <span className="rounded bg-[var(--autonomy-lead)]/15 px-1 text-[var(--autonomy-lead)]">Lead</span>
           </div>
           <div className="mt-1 text-muted-foreground">adrs binding:</div>
           <div className="pl-3 text-foreground">· ADR-0014 · checkout pipeline <span className="text-muted-foreground">[conf-204]</span></div>

@@ -6,7 +6,7 @@
 
 This is Sam's actual inbox. Monday 9am, 12 pending approvals across his 3 active projects. He has 20 minutes before his first meeting. Today: each approval is in a different tool (a GitHub PR comment, a Jira ticket transition, a Slack DM, a stale plan-approval email). Each needs context-gathering — *what changed, why, who asked, what the rules say.* With coznt, all 12 are in one inbox, each with its evidence inline and a one-click approve/reject. The trust signal that closes the loop: each row shows the requesting skill's track record so Sam knows whether to trust the request before he reads the diff.
 
-This is also where bulk-approve lives. Three of the 12 are auto-approval-eligible (low-risk, requested by Senior/Principal-autonomy skills). Sam should be able to clear them in a single confirmed action.
+This is also where bulk-approve lives. Three of the 12 are auto-approval-eligible (low-risk, requested by Merge/Lead-autonomy skills). Sam should be able to clear them in a single confirmed action.
 
 ## Persona & primary action
 
@@ -33,8 +33,8 @@ This is also where bulk-approve lives. Three of the 12 are auto-approval-eligibl
 │      4/4 gates passed. Last green check 2026-05-12 14:00.                   │
 │                                                                              │
 │ ☐ ⏳ work-item payments-api  PR #1284 idempotency-keys                     │
-│      bot · api-contract-checker [Senior · 92✓/1↻/0⚡ 30d] · 1d ago  [Auto ✓]│
-│      Eligible for auto-approval: Senior autonomy + schema-only change       │
+│      bot · api-contract-checker [Merge · 92✓/1↻/0⚡ 30d] · 1d ago  [Auto ✓]│
+│      Eligible for auto-approval: Merge autonomy + schema-only change       │
 │      Evidence: PR diff (+47 -8) · tests pass · contract check pass          │
 │                                                                              │
 │ ☐ ⏳ plan      data-warehouse-v2  ADR-0014 logical decoding         [✓][✗] │
@@ -42,7 +42,7 @@ This is also where bulk-approve lives. Three of the 12 are auto-approval-eligibl
 │      Quorum needed: 2 reviewers (currently 0).  Suggest @rohan @aisha       │
 │                                                                              │
 │ ☐ ⏳ work-item data-warehouse-v2  PR #93 schema-init               [✓][✗]  │
-│      bot · schema-migration-reviewer [Junior · 18✓/4↻/1⚡ 30d] · 4h ago     │
+│      bot · schema-migration-reviewer [Propose · 18✓/4↻/1⚡ 30d] · 4h ago     │
 │      ⚠ Manual review required — skill was demoted 5/10. No auto-approval.   │
 │                                                                              │
 │ ☐ ⏳ release   auth-service  hotfix rollback session-cookie  STALE 9d [✓][✗]│
@@ -59,7 +59,7 @@ This is also where bulk-approve lives. Three of the 12 are auto-approval-eligibl
 3. **Filter button** — opens a small panel: by project, by entity type, by skill, by age (stale 7d+).
 4. **Row** — leading status icon, entity-type badge, project name, title, **inline action buttons** (✓ approve / ✗ reject with comment).
 5. **Row meta line** — requester (user OR bot + skill), age, type-specific subtitle.
-6. **Skill track record badge** — appears when a skill is the requester. Format: `[Senior · 92✓/1↻/0⚡ 30d]`. Pill color = autonomy level (see DESIGN.md trust palette).
+6. **Skill track record badge** — appears when a skill is the requester. Format: `[Merge · 92✓/1↻/0⚡ 30d]`. Pill color = autonomy level (see DESIGN.md trust palette).
 7. **Auto-approve indicator** — when eligible, a small `[Auto ✓]` pill at right; clicking it expands the eligibility explanation.
 8. **Evidence line** — third line, one-sentence summary with linked source-of-record (PR diff, test results, gate check).
 9. **Stale tag** — for 7d+ rows, an amber "STALE Xd" pill.
@@ -69,8 +69,8 @@ This is also where bulk-approve lives. Three of the 12 are auto-approval-eligibl
 ## Sample data — use all 12 approvals from `sample-data.md` exactly
 
 The 12 approvals in `sample-data.md` cover the full state matrix:
-- 3 auto-approval-eligible (api-contract-checker Senior, doc-updater Principal)
-- 1 requires manual review despite skill request (schema-migration-reviewer Junior, recently demoted)
+- 3 auto-approval-eligible (api-contract-checker Merge, doc-updater Lead)
+- 1 requires manual review despite skill request (schema-migration-reviewer Propose, recently demoted)
 - 1 intentionally stale (9 days)
 - Mix of plan, phase_gate, work_item, release entity types
 - Span of all 4 projects
@@ -100,7 +100,7 @@ The 12 approvals in `sample-data.md` cover the full state matrix:
 
 ## Trust signals (load-bearing)
 
-1. **Skill track record badge.** This is the *whole point* of the inbox — knowing whether to trust before reading the diff. Format and palette are non-negotiable; Senior autonomy is green, Junior is blue, Intern is gray, Principal is violet. Stats are 30-day rolling, always visible.
+1. **Skill track record badge.** This is the *whole point* of the inbox — knowing whether to trust before reading the diff. Format and palette are non-negotiable; Merge autonomy is green, Propose is blue, Observe is gray, Lead is violet. Stats are 30-day rolling, always visible.
 2. **Auto-approval-eligible vs. manual-required.** Visual differentiation must be unmistakable — the `[Auto ✓]` pill is the affordance that lets Sam clear safe ones fast.
 3. **Recently-demoted-skill warning.** If a skill was demoted in the last 14 days, any approval it requested gets a "Manual review required" treatment (yellow inline warning). This is a *positive* trust signal — the system is being honest about reduced confidence.
 4. **Required reject reason.** No skipping. Reasons feed back into skill autonomy and rule evolution. Sample defaults + free text.
@@ -117,7 +117,7 @@ The 12 approvals in `sample-data.md` cover the full state matrix:
 
 ## Variant exploration prompt for Lovable
 
-> Generate 3 variants of an approval inbox page for an SDLC governance platform. Email-inbox-style dense single-column list, not cards. Tabs at top: Mine (12) selected, Team (28), All (47). Bulk action bar with "Approve eligible (3)" primary button when auto-eligible rows exist. 12 rows, each: checkbox + status icon + entity-type badge (release/gate/work-item/plan) + project name + title + age, with a second line showing requester (user OR "bot · <skill-name> [<autonomy>·stats]") and a third line showing evidence (linked sources). Skill autonomy pills must use: violet=Principal, green=Senior, blue=Junior, gray=Intern. Some rows have an "[Auto ✓]" pill on right meaning auto-approval-eligible. One row has a yellow "Manual review required" warning (demoted skill). One row has a "STALE 9d" amber pill. Inline ✓/✗ action buttons appear on row hover. Information-dense, dark theme primary, theme-swappable. 13px base font, Inter, Lucide icons, shadcn primitives. Peer references: Linear inbox, GitHub notifications, Vercel deployments. No hero illustration, no large "approve" buttons.
+> Generate 3 variants of an approval inbox page for an SDLC governance platform. Email-inbox-style dense single-column list, not cards. Tabs at top: Mine (12) selected, Team (28), All (47). Bulk action bar with "Approve eligible (3)" primary button when auto-eligible rows exist. 12 rows, each: checkbox + status icon + entity-type badge (release/gate/work-item/plan) + project name + title + age, with a second line showing requester (user OR "bot · <skill-name> [<autonomy>·stats]") and a third line showing evidence (linked sources). Skill autonomy pills must use: violet=Lead, green=Merge, blue=Propose, gray=Observe. Some rows have an "[Auto ✓]" pill on right meaning auto-approval-eligible. One row has a yellow "Manual review required" warning (demoted skill). One row has a "STALE 9d" amber pill. Inline ✓/✗ action buttons appear on row hover. Information-dense, dark theme primary, theme-swappable. 13px base font, Inter, Lucide icons, shadcn primitives. Peer references: Linear inbox, GitHub notifications, Vercel deployments. No hero illustration, no large "approve" buttons.
 
 ## Visual references
 
@@ -127,4 +127,4 @@ The 12 approvals in `sample-data.md` cover the full state matrix:
 
 ## What success looks like
 
-Sam opens `/approvals` at 9:00 Monday. 12 rows. He sees "Approve eligible (3)" at the top, clicks it, confirms — 3 cleared in 8 seconds. He scans the remaining 9. The ADR Quorum row (5d old) catches his eye; he clicks into the drawer, sees the ADR is well-documented, approves. The Schema Migration PR has the demoted-skill warning; he opens the drawer, scrutinizes the diff, decides to reject with reason "Needs review by senior eng before merge". 11 cleared in 12 minutes. He's in his 9:30 meeting on time.
+Sam opens `/approvals` at 9:00 Monday. 12 rows. He sees "Approve eligible (3)" at the top, clicks it, confirms — 3 cleared in 8 seconds. He scans the remaining 9. The ADR Quorum row (5d old) catches his eye; he clicks into the drawer, sees the ADR is well-documented, approves. The Schema Migration PR has the demoted-skill warning; he opens the drawer, scrutinizes the diff, decides to reject with reason "Needs review by merge eng before merge". 11 cleared in 12 minutes. He's in his 9:30 meeting on time.

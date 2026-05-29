@@ -54,10 +54,10 @@ These colors carry product meaning. Match the existing code (`SkillsPage.tsx`, p
 
 | Signal | Slug | Hue | Token |
 |---|---|---|---|
-| Autonomy: Intern | `intern` | gray/muted | `--autonomy-intern` |
-| Autonomy: Junior | `junior` | blue 500 | `--autonomy-junior` |
-| Autonomy: Senior | `senior` | green 500 | `--autonomy-senior` |
-| Autonomy: Principal | `principal` | violet 500 | `--autonomy-principal` |
+| Autonomy: Observe | `observe` | gray/muted | `--autonomy-observe` |
+| Autonomy: Propose | `propose` | blue 500 | `--autonomy-propose` |
+| Autonomy: Merge | `merge` | green 500 | `--autonomy-merge` |
+| Autonomy: Lead | `lead` | violet 500 | `--autonomy-lead` |
 | Gate: pending | `pending` | amber 500 | `--state-pending` |
 | Gate: passed | `passed` | green 500 | `--state-passed` |
 | Gate: failed | `failed` | red 500 | `--state-failed` |
@@ -188,11 +188,11 @@ Two density modes — `compact` (default) and `comfortable` (org-level setting).
 This is the differentiating UI vocabulary. Use consistently.
 
 - **Autonomy pill** — small pill, level color from trust palette, label is the level name + optional next-review badge
-  - Example: `[Senior] · review in 12d`
+  - Example: `[Merge] · review in 12d`
 - **Gate state row** — status dot + name + (if failed/pending) named unmet criterion with assignee + age
   - Example: `● ADR-0014 review — pending @rohan since Tue (3d)`
 - **Skill track record badge** — inline next to skill name where space allows
-  - Format: `Senior · 47✓/2↻/0⚡ 30d` (✓ success, ↻ rollback, ⚡ incident)
+  - Format: `Merge · 47✓/2↻/0⚡ 30d` (✓ success, ↻ rollback, ⚡ incident)
 - **Attribution chip** — small monospace ID near every action claim. Click → opens the source
   - Format: `[gh-pr-1234]` or `[plan-X8q]`
 - **Reviewer chip** — avatar (or initials) + name + role-at-time

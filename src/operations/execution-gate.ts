@@ -192,7 +192,7 @@ function defaultMinLevelFor(risk: ChangeRisk): number {
   // `autonomy-threshold` rules override per-row via `input.policy.minLevel`.
   if (risk === "high") return 3; // lead
   if (risk === "medium") return 2; // merge
-  return 1; // low — propose (was: junior allowed)
+  return 1; // low — propose (was: propose allowed)
 }
 
 /**

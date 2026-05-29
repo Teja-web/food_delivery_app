@@ -4,7 +4,7 @@
  * that displays autonomy levels.
  *
  * Single source of truth for the autonomy thresholds and labels. Renamed
- * 2026-05-17 from career-progression labels (Intern/Junior/Senior/Principal)
+ * 2026-05-17 from career-progression labels (Observe/Propose/Merge/Lead)
  * to verb-form labels that describe what the skill is permitted to do.
  * Storage column `skill_autonomy.level` is still an integer 0..3; only
  * display labels changed.

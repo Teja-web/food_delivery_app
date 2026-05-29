@@ -171,7 +171,7 @@ export default function ManifestoPage() {
                 pair is recomputed from the trailing 30-day window of outcomes.
               </>,
               <>
-                Senior on a docs repo doesn&rsquo;t mean senior on payments. Trust is scoped
+                Merge on a docs repo doesn&rsquo;t mean merge on payments. Trust is scoped
                 to the surface where it was earned. Cross-project rollups exist for the
                 portfolio view. The act of promotion is per-project, because that&rsquo;s how
                 enterprise compliance reasons about scope.

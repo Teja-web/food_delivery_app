@@ -60,7 +60,7 @@ Content-Type: application/json
   "skills": [
     {
       "slug": "frontend-test-author",
-      "level": "SENIOR",
+      "level": "MERGE",
       "autonomyDescription": "auto-approves <50 LOC + 80% coverage",
       "url": "https://coznt.northwind.internal/skills/skill_fta"
     }
@@ -114,7 +114,7 @@ A second mitigation: when `repoUrl` is supplied and doesn't match the resolved p
 
 Cursor's MCP tooling renders responses as text + citations. The response should be structured so a typical Cursor agent (Claude or GPT) renders it as:
 
-> *"You're working on **Internal Payments API** (`internal-payments-api`), currently in the **DEVELOPMENT** phase. Your active work item is [PAY-1284 — Implement idempotency keys on POST /captures](https://northwind.atlassian.net/browse/PAY-1284). Rules in force: All payment-write endpoints require idempotency keys ([source](https://coznt.northwind.internal/rules/rule_iac), error severity). Skills available: frontend-test-author (Senior — auto-approves <50 LOC + 80% coverage), api-contract-checker (Senior — auto-approves schema-only changes), doc-updater (Principal — auto-approves docs-only changes). Relevant ADR: Outbox pattern for payment webhooks ([source](https://coznt.northwind.internal/plans/plan_pay_a1))."*
+> *"You're working on **Internal Payments API** (`internal-payments-api`), currently in the **DEVELOPMENT** phase. Your active work item is [PAY-1284 — Implement idempotency keys on POST /captures](https://northwind.atlassian.net/browse/PAY-1284). Rules in force: All payment-write endpoints require idempotency keys ([source](https://coznt.northwind.internal/rules/rule_iac), error severity). Skills available: frontend-test-author (Merge — auto-approves <50 LOC + 80% coverage), api-contract-checker (Merge — auto-approves schema-only changes), doc-updater (Lead — auto-approves docs-only changes). Relevant ADR: Outbox pattern for payment webhooks ([source](https://coznt.northwind.internal/plans/plan_pay_a1))."*
 
 Every claim is linked back to coznt. Devin can click any citation and land on the source-of-record.
 

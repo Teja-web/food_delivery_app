@@ -76,7 +76,11 @@ export const HOST_SHAPES: Record<HostName, HostShape> = {
   "claude-code": {
     label: "Claude Code",
     field: "mcpServers",
-    path: ".claude/mcp.json",
+    // Claude Code reads project-scoped MCP config from `.mcp.json` at the
+    // repo root, not from `.claude/mcp.json`. Writing to the wrong path
+    // produces a silent failure: connect succeeds, restart succeeds, but
+    // no coznt tools register.
+    path: ".mcp.json",
     entry: plain,
   },
   cursor: {

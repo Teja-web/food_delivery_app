@@ -37,10 +37,10 @@ export interface PortfolioGateClient {
 }
 
 export interface AutonomyPostureClient {
-  intern: number;
-  junior: number;
-  senior: number;
-  principal: number;
+  observe: number;
+  propose: number;
+  merge: number;
+  lead: number;
   total: number;
   incidentsLast7d: number;
 }

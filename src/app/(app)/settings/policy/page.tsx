@@ -30,10 +30,10 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 const PHASE_TONE: Record<Phase, string> = {
   requirements: "text-muted-foreground",
-  design: "text-autonomy-junior",
-  development: "text-autonomy-senior",
+  design: "text-autonomy-propose",
+  development: "text-autonomy-merge",
   testing: "text-state-pending",
-  cicd: "text-autonomy-principal",
+  cicd: "text-autonomy-lead",
   monitoring: "text-trend-up",
 };
 

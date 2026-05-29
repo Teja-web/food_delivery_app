@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Download, Sparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -22,11 +23,11 @@ type Props = {
 };
 
 const ENTITY_ACCENT: Record<ApprovalRowClient["entityType"], string> = {
-  plan: "border-autonomy-junior/40 text-autonomy-junior",
+  plan: "border-autonomy-propose/40 text-autonomy-propose",
   phase_gate: "border-state-pending/40 text-state-pending",
-  release: "border-autonomy-principal/40 text-autonomy-principal",
-  work_item: "border-autonomy-senior/40 text-autonomy-senior",
-  skill_invocation: "border-autonomy-intern/40 text-autonomy-intern",
+  release: "border-autonomy-lead/40 text-autonomy-lead",
+  work_item: "border-autonomy-merge/40 text-autonomy-merge",
+  skill_invocation: "border-autonomy-observe/40 text-autonomy-observe",
 };
 
 const ENTITY_LABEL: Record<ApprovalRowClient["entityType"], string> = {
@@ -74,7 +75,17 @@ function ApprovalRow({
           >
             {ENTITY_LABEL[row.entityType]}
           </Badge>
-          <span className="truncate text-sm font-medium">{row.title}</span>
+          {row.entityHref ? (
+            <Link
+              href={row.entityHref}
+              className="truncate text-sm font-medium hover:underline"
+              title={`Open ${row.title}`}
+            >
+              {row.title}
+            </Link>
+          ) : (
+            <span className="truncate text-sm font-medium">{row.title}</span>
+          )}
           {row.autoEligible ? (
             <Badge
               variant="outline"

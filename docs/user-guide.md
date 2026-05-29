@@ -69,7 +69,7 @@ Coznt is one feedback loop. The developer ships → webhooks become ledger rows 
   ┌────────────────────────────────────────────┐                ▼
   │  recomputeSkillAutonomyTask                │         project advances phase
   │  30-day window → level per (skill,project) │
-  │  0 intern · 1 junior · 2 senior · 3 princ. │
+  │  0 observe · 1 propose · 2 merge · 3 lead   │
   └──────┬─────────────────────────────────────┘
          │
          ▼
@@ -168,7 +168,7 @@ Every API key is pinned to exactly one project (see A1), so the **MCP session au
     { "id": "rule_iac", "title": "Payment-write endpoints require idempotency keys", "severity": "error" }
   ],
   "skills": [
-    { "slug": "test-author", "level": "SENIOR", "autonomyDescription": "auto-runs <50 LOC + 80% coverage" }
+    { "slug": "test-author", "level": "MERGE", "autonomyDescription": "auto-runs <50 LOC + 80% coverage" }
   ]
 }
 ```
@@ -179,7 +179,7 @@ The agent grounds every action in this payload. A simple turn:
 2. The agent opens `.coznt/skills/test-author/SKILL.md` and follows it.
 3. The agent calls `session_start` with intent `"running test-author on diff"`. Coznt opens a session row; every verb call this turn carries the session id, so the audit log can replay the full span later.
 4. The choreography says *"call `invoke_skill('test-author')`."* The agent calls it.
-5. Coznt's autonomy gate fires **before dispatch**. `test-author` is `SENIOR` on this project → runs unattended.
+5. Coznt's autonomy gate fires **before dispatch**. `test-author` is `MERGE` on this project → runs unattended.
 6. The governed LLM call runs server-side (inside `generate()` in `src/lib/ai/`). The output is Zod-validated against the skill's output schema; on parse failure the daemon retries up to 3 times. The structured result returns to the agent — never raw text.
 7. A row lands in `skill_outcomes` with `verdict='success'` and `sourceKind='invocation'`, linked to the session.
 8. Worker recomputes autonomy for `(test-author, payments-api)`.
@@ -299,7 +299,7 @@ Auth errors (no key, expired key, key not bound to a project) return an error bo
 
 ## A6. Watching autonomy compound
 
-Each skill's level — **Intern (0) → Junior (1) → Senior (2) → Principal (3)** — is **per project**. See it at `<your-coznt-url>/skills/<slug>`. The project cockpit's **Trust** tab shows skill outcomes scoped to that project.
+Each skill's level — **Observe (0) → Propose (1) → Merge (2) → Lead (3)** — is **per project**. See it at `<your-coznt-url>/skills/<slug>`. The project cockpit's **Trust** tab shows skill outcomes scoped to that project.
 
 The math: a **30-day trailing window** of `skill_outcomes` rows (`verdict ∈ {success, rolled_back, incident}`) feeds the recompute. Promotion takes sustained signal; demotion can happen on a single critical incident. When a skill demotes:
 
@@ -437,14 +437,30 @@ Copy `.env.example` to `.env` and fill at minimum:
 
 ```bash
 pnpm install
-pnpm db:setup --reset      # schema + pgmq queues + pg_cron jobs
-pnpm db:seed --reset       # platform skills + rules (org-wide, available to every project)
+pnpm db:setup --reset      # schema + pgmq queues + pg_cron jobs + seeds 12 platform skills into the `default` org + creates a platform admin
+pnpm db:seed               # verifies CRUD triggers + pgmq queue are wired (does NOT seed skills — that's db:setup)
 pnpm dev                   # Next.js dev server + background worker
 ```
 
 `pnpm dev` runs the web app **and the worker** together. The worker drains pgmq, processes inbound webhooks, and recomputes skill autonomy as outcomes accumulate.
 
-Open <http://localhost:3029> and sign up. Your account is the owner of a new organization.
+Then create your working organization (Better Auth is configured with `allowUserToCreateOrganization: false`, so sign-up alone won't create one):
+
+```bash
+pnpm tsx scripts/db-onboard.ts             # interactive: prompts for org + owner + sample data
+# or, headless preset:
+pnpm tsx scripts/walkthrough-seed.ts       # bootstraps "Acme Corporation" with sample workspace
+```
+
+Both paths go through `scripts/lib/bootstrap-org.ts`, which seeds the 12 platform skills into the new org automatically — so `coznt sync` returns them immediately, no manual seeding needed.
+
+If you have existing orgs predating that change (or any org that's missing platform skills), backfill with:
+
+```bash
+pnpm tsx scripts/backfill-platform-skills.ts
+```
+
+Sign in at <http://localhost:3029> with the credentials the bootstrap script printed.
 
 ### What `pnpm build` does (and why developers care)
 
@@ -599,7 +615,7 @@ The deterministic outcome assessors in `src/domain/outcomes.ts` cover five cases
 | Deploy succeeded, no incident within 24h | `success` |
 | Deploy rolled back, or incident within 24h post-deploy | `incident` |
 
-Each verdict appends a row to `skill_outcomes`. The worker re-runs autonomy math for the affected `(skill, project)` pair: 30-day trailing window, promote/demote across the four levels (`0 intern → 1 junior → 2 senior → 3 principal`).
+Each verdict appends a row to `skill_outcomes`. The worker re-runs autonomy math for the affected `(skill, project)` pair: 30-day trailing window, promote/demote across the four levels (`0 observe → 1 propose → 2 merge → 3 lead`).
 
 Coznt also **posts a GitHub check-run** on the PR with the gate's verdict (autonomy × change risk × active rules × phase × human override). When autonomy demotes mid-stream, every open PR by that skill is re-evaluated and its check-run is flipped automatically — the merge UI is physically gated on earned trust, not advisory text.
 

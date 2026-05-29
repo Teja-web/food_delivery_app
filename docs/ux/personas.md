@@ -47,7 +47,7 @@ Each persona is named with a job-defining consequence. Categories like "engineer
 - **Day-to-day in coznt:** Weekly, not daily. Checks the cross-team / cross-project autonomy ledger trend, scans portfolio-wide DORA, audits which skills earned promotion or got demoted this week. Drills into individual teams only when she sees a regression.
 - **Job-defining moment:** Her CISO asks "show me every change an AI agent made to any of our internal payments-adjacent projects in the last 90 days, and the human who reviewed each one." She has 24 hours. Without coznt, this is an archaeology dig across her 12-30 projects' Git histories, Cursor logs, and Slack. With coznt, it's a query that spans all projects.
 - **Why she keeps using coznt:** It is the only system that answers the CISO's question without manual reconciliation across N projects. Removing it means writing 30 different runbooks.
-- **Deal-breaker:** False sense of safety. If the autonomy ledger says a skill is "senior" across her portfolio but it then ships a prod incident on one team, Priya loses trust in the whole system. Trust must be earned visibly *and accurately, cross-project*.
+- **Deal-breaker:** False sense of safety. If the autonomy ledger says a skill is "merge" across her portfolio but it then ships a prod incident on one team, Priya loses trust in the whole system. Trust must be earned visibly *and accurately, cross-project*.
 
 ---
 

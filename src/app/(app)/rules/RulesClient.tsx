@@ -15,7 +15,7 @@ import type { RuleRowClient, RulesPageClient } from "./serialize";
 import { AutonomyThresholdDialog } from "./AutonomyThresholdDialog";
 
 const SEVERITY_TONE_CLASS: Record<RuleSeverity, string> = {
-  info: "border-autonomy-junior/40 bg-autonomy-junior/10 text-autonomy-junior",
+  info: "border-autonomy-propose/40 bg-autonomy-propose/10 text-autonomy-propose",
   warn: "border-state-pending/40 bg-state-pending/10 text-state-pending",
   error: "border-state-failed/40 bg-state-failed/10 text-state-failed",
 };

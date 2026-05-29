@@ -15,16 +15,16 @@ import type { PlanRowClient, PlansPageClient } from "./serialize";
 
 const STATUS_TONE_CLASS: Record<PlanRowClient["statusTone"], string> = {
   neutral: "border-foreground/20 bg-foreground/5 text-foreground/85",
-  info: "border-autonomy-junior/40 bg-autonomy-junior/10 text-autonomy-junior",
+  info: "border-autonomy-propose/40 bg-autonomy-propose/10 text-autonomy-propose",
   success: "border-trend-up/40 bg-trend-up/10 text-trend-up",
   danger: "border-state-failed/40 bg-state-failed/10 text-state-failed",
   muted: "border-border/60 bg-muted/40 text-muted-foreground",
 };
 
 const KIND_TONE_CLASS: Record<PlanKind, string> = {
-  epic: "border-autonomy-principal/40 text-autonomy-principal",
-  feature: "border-autonomy-senior/40 text-autonomy-senior",
-  story: "border-autonomy-junior/40 text-autonomy-junior",
+  epic: "border-autonomy-lead/40 text-autonomy-lead",
+  feature: "border-autonomy-merge/40 text-autonomy-merge",
+  story: "border-autonomy-propose/40 text-autonomy-propose",
   adr: "border-foreground/30 text-foreground/85",
   test_plan: "border-state-pending/40 text-state-pending",
   release_plan: "border-trend-up/40 text-trend-up",

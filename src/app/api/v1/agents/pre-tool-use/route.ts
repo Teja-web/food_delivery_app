@@ -27,7 +27,7 @@
  *     "allowed": false,
  *     "runId": "...",
  *     "reason": "autonomy_gate: skill at level 0 but 2 required",
- *     "autonomy": { "level": 0, "levelName": "intern", "requiredLevel": 2 },
+ *     "autonomy": { "level": 0, "levelName": "observe", "requiredLevel": 2 },
  *     "approvalId": "appr_...",
  *     "violations": [],
  *     "skillId": "..."
