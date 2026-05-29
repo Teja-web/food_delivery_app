@@ -35,6 +35,30 @@ const KIND_TONE_CLASS: Record<PlanKind, string> = {
   cicd_pipeline: "border-state-pending/40 text-state-pending",
 };
 
+const STATUS_FILTER_TONE: Record<PlanStatus, string> = {
+  draft: "border-border/60 bg-muted/40 text-muted-foreground",
+  in_review: "border-autonomy-propose/50 bg-autonomy-propose/15 text-autonomy-propose",
+  approved: "border-trend-up/50 bg-trend-up/15 text-trend-up",
+  in_progress: "border-foreground/40 bg-foreground/10 text-foreground",
+  completed: "border-trend-up/50 bg-trend-up/15 text-trend-up",
+  rejected: "border-state-failed/50 bg-state-failed/15 text-state-failed",
+  cancelled: "border-border/60 bg-muted/40 text-muted-foreground",
+};
+
+const KIND_DOT_CLASS: Record<PlanKind, string> = {
+  epic: "bg-autonomy-lead",
+  feature: "bg-autonomy-merge",
+  story: "bg-autonomy-propose",
+  adr: "bg-foreground/60",
+  test_plan: "bg-state-pending",
+  release_plan: "bg-trend-up",
+  incident: "bg-state-failed",
+  storyboard: "bg-foreground/60",
+  dev_summary: "bg-foreground/60",
+  go_live_report: "bg-trend-up",
+  cicd_pipeline: "bg-state-pending",
+};
+
 type Filter =
   | { kind: "all" }
   | { kind: "status"; status: PlanStatus }
@@ -56,12 +80,14 @@ function StatTile({ label, value, hint }: { label: string; value: string | numbe
   );
 }
 
-function FilterChip({
+function StatusFilterChip({
   active,
+  tone,
   onClick,
   children,
 }: {
   active: boolean;
+  tone?: string;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -72,12 +98,42 @@ function FilterChip({
       size="auto"
       onClick={onClick}
       className={cn(
-        "rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
+        "rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
         active
-          ? "border-foreground/40 bg-foreground/5 text-foreground"
+          ? tone ?? "border-foreground/40 bg-foreground/5 text-foreground"
           : "border-border/60 text-muted-foreground hover:bg-muted/50",
       )}
     >
+      {children}
+    </Button>
+  );
+}
+
+function KindFilterChip({
+  active,
+  dot,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  dot: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="unstyled"
+      size="auto"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
+        active
+          ? "border-foreground/50 bg-foreground/5 text-foreground"
+          : "border-border/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} aria-hidden />
       {children}
     </Button>
   );
@@ -127,20 +183,21 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             Status
           </span>
-          <FilterChip active={filter.kind === "all"} onClick={() => setFilter({ kind: "all" })}>
+          <StatusFilterChip active={filter.kind === "all"} onClick={() => setFilter({ kind: "all" })}>
             All · {data.counts.total}
-          </FilterChip>
+          </StatusFilterChip>
           {(["draft", "in_review", "approved", "in_progress", "completed", "rejected"] as const).map((s) => {
             const n = data.counts.byStatus[s] ?? 0;
             if (n === 0 && filter.kind !== "status") return null;
             return (
-              <FilterChip
+              <StatusFilterChip
                 key={s}
                 active={filter.kind === "status" && filter.status === s}
+                tone={STATUS_FILTER_TONE[s]}
                 onClick={() => setFilter({ kind: "status", status: s })}
               >
                 {s.replace("_", " ")} · {n}
-              </FilterChip>
+              </StatusFilterChip>
             );
           })}
         </div>
@@ -154,13 +211,14 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
               const n = data.counts.byKind[k] ?? 0;
               if (n === 0) return null;
               return (
-                <FilterChip
+                <KindFilterChip
                   key={k}
                   active={filter.kind === "kind" && filter.planKind === k}
+                  dot={KIND_DOT_CLASS[k]}
                   onClick={() => setFilter({ kind: "kind", planKind: k })}
                 >
                   {k.replace("_", " ")} · {n}
-                </FilterChip>
+                </KindFilterChip>
               );
             },
           )}

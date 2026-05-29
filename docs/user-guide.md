@@ -84,6 +84,20 @@ Steps A1 → A4 cover the IDE side (top half of the diagram). **A7 — Walking t
 
 ---
 
+## Where coznt sits in your stack
+
+Coznt overlays your existing SDLC tools — it doesn't replace them. Two questions decide how each node of the loop behaves: *where does the system of record live*, and *is it bound to this project yet?*
+
+- **Code** lives in Git (GitHub / GitLab / Bitbucket / ADO Repos). Coznt grades it via webhook; it never pushes back.
+- **Work items** live in Jira / ADO Boards / Linear / GitHub Issues. When the tracker is bound (operator step B5), coznt mirrors items into the project cockpit's **WorkItems** tab and routes status writes back via the adapter. When no tracker is bound (greenfield), coznt acts as the temporary tracker — plans authored via `upsert_plan` live natively in the **Plans** tab and are the system of record until you bind one.
+- **Docs** live in Confluence / Notion. ADRs created via `log_decision` can publish-down after approval (server-side, never from the agent directly).
+- **CI/CD** lives in GitHub Actions / ADO Pipelines. Coznt reads pipeline status and can scaffold definitions; the runs themselves stay upstream.
+- **Deploy outcomes** arrive as webhooks and drain into the audit ledger.
+
+The walkthrough in **A7 — Walking the full loop** uses the greenfield path so every node happens inside coznt and you can see the whole loop in one place. For brownfield (Jira/ADO bound), Step 3 swaps `upsert_plan` for `get_assigned_work`; Steps 4–9 are identical because gates, approvals, the skill ledger, and the audit chain live in coznt regardless of where the work originated.
+
+---
+
 # Part A — For developers
 
 > You're joining a project where coznt is already running. Your platform team gave you a coznt URL and (or pointed you at) the internal `coznt` CLI distribution. This part takes you from a fresh clone to your first governed AI turn.
@@ -354,6 +368,8 @@ From your agent:
 
 The agent calls `upsert_plan` (it's in the allowed list during `development`). The plan lands in the sidebar's **Plan → Plans** view (filterable across all projects) and inside the project cockpit's **Plans** tab — both in `draft` status. Open it; you should see the title, body, and metadata the agent wrote.
 
+> **Brownfield variant.** If Jira / ADO / Linear is bound to this project, the agent doesn't author here — it calls `get_assigned_work` to pull the existing story from the tracker. The item shows up in the cockpit's **WorkItems** tab (not **Plans**), and status changes write back via the adapter. Steps 4–9 below are identical: the gate, approval, ledger, autonomy recompute, and audit row all run the same whether the work originated in coznt or upstream. Switching between greenfield and brownfield is a binding change (operator step B5), not a flow change.
+
 If the write is *rejected*, open **Rules** from the avatar menu (top-right). A `keyword-presence` rule (e.g. "every story must contain an Acceptance section") or an `action-policy` rule may have blocked it. Rules are evaluated synchronously inside CRUD hooks, so the failure is visible in the agent's response — and the attempt is logged in **Audit log** even when it didn't land.
 
 Move it to review:
@@ -539,11 +555,15 @@ All three are optional for the GitHub-only loop but unlock work-item sync, ADR p
 | **Azure DevOps** | PAT + Org URL (`https://dev.azure.com/acme`) | ADO → User settings → Personal access tokens. Scopes: `Build (read/execute)`, `Code (read)`, `Work items (read/write)` |
 | **Confluence** | API token + site URL + account email | Same Atlassian token page as Jira (one token works for both) |
 
-After saving credentials, bind each per-project from `/projects/[id]` → **Settings**:
+After saving credentials, bind each per-project from the project cockpit (`/projects/[id]`) → **Settings** tab. The form has three sections; the **Upstream bindings** section is what you want here:
 
-- **Jira** — set `jiraProjectKey` (e.g. `PAY`). Story sync becomes available; `get_assigned_work` returns Jira issues alongside coznt work items.
-- **Azure DevOps** — set `adoProjectId`. `get_pipeline_status` and `generate_pipeline` route to ADO when this is set.
-- **Confluence** — set `confluenceSpaceKey`. ADRs created via `log_decision` can optionally publish there (server-side, after approval — never from the agent directly).
+- **Jira project key** — set the **Jira** key (short, uppercase: `PAY`, `TODO`, `ENG`). Note: this is the Jira project key, not the coznt slug. `get_assigned_work` returns real Jira issues once this is set.
+- **Azure DevOps project ID** — `org/project-guid` form. `get_pipeline_status` and `generate_pipeline` route to ADO when this is set.
+- **Confluence space key** — ADRs created via `log_decision` can optionally publish there (server-side, after approval — never from the agent directly).
+
+The same Settings tab also exposes editable **Identity** (name, description) and **Risk zones** (`critical paths` and `production-critical paths` — path globs used by the change-risk classifier and the go-live gate). The slug is read-only.
+
+> If you can't reach the Settings tab (older deployment): the same fields are writable via `PATCH /api/v1/projects/{id}` or by calling the `updateProject` server action.
 
 For GHE on the GitHub side, the same PAT flow works — issue the token from your GHE instance and add it to the GitHub card on the same page.
 
@@ -747,6 +767,7 @@ values (gen_random_uuid()::text, '<org>', '<project>', 'github', 'github.com/<ow
 
 ## C3. Where to next
 
+- [`docs/tutorial/first-project.md`](tutorial/first-project.md) — **start here if you've never used coznt.** A 90-minute hand-held walkthrough of building a TaskList app from zero through all six SDLC phases. Concrete prompts, expected outputs, every node of the loop touched at least once
 - `docs/positioning.md` — what coznt is, who it's for, the loop it tightens. The "daemon + choreography" section explains why governed-skill calls run server-side
 - `docs/product/architecture.md` — milestones A–E, plan-driven SDLC model
 - `docs/ux/build-plan.md` — UI execution plan, mapped to milestones

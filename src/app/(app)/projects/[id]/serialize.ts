@@ -24,6 +24,10 @@ export interface CockpitProjectClient {
   status: ProjectStatus;
   repoUrl: string | null;
   jiraProjectKey: string | null;
+  adoProjectId: string | null;
+  confluenceSpaceKey: string | null;
+  criticalPaths: string[];
+  productionCriticalPaths: string[];
   /** When true, the execution gate refuses to clear PRs without an approval row. */
   requireHumanApprovalForMerge: boolean;
   createdAt: string;
@@ -192,6 +196,10 @@ export function serializeCockpitProject(p: Project): CockpitProjectClient {
     status: p.status,
     repoUrl: p.repoUrl,
     jiraProjectKey: p.jiraProjectKey,
+    adoProjectId: p.adoProjectId,
+    confluenceSpaceKey: p.confluenceSpaceKey,
+    criticalPaths: p.criticalPaths ?? [],
+    productionCriticalPaths: p.productionCriticalPaths ?? [],
     requireHumanApprovalForMerge: p.requireHumanApprovalForMerge,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),

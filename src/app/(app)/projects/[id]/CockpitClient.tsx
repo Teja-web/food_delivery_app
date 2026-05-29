@@ -3,6 +3,7 @@
 import {
   Activity,
   ChevronLeft,
+  ChevronsRight,
   ClipboardCheck,
   ExternalLink,
   FileText,
@@ -13,11 +14,12 @@ import {
   Plus,
   Rocket,
   ScrollText,
+  Settings,
   Shield,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,7 @@ import { OverviewTab } from "./tabs/OverviewTab";
 import { PhasesTab } from "./tabs/PhasesTab";
 import { PlansTab } from "./tabs/PlansTab";
 import { RulesSkillsTab } from "./tabs/RulesSkillsTab";
+import { SettingsTab } from "./tabs/SettingsTab";
 import { TrustTab } from "./tabs/TrustTab";
 import { WorkItemsTab } from "./tabs/WorkItemsTab";
 
@@ -54,6 +57,31 @@ export function CockpitClient({ data }: { data: CockpitData }) {
   const requirementCount = plans.filter((p) => REQUIREMENT_KINDS.includes(p.kind)).length;
   const testCount = plans.filter((p) => TEST_KINDS.includes(p.kind)).length;
   const adrCount = plans.filter((p) => ADR_KINDS.includes(p.kind)).length;
+
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const [tabsHasOverflow, setTabsHasOverflow] = useState(false);
+
+  useEffect(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    const update = () => {
+      const overflow = el.scrollWidth - el.clientWidth > 1;
+      const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+      setTabsHasOverflow(overflow && !atEnd);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+
+  const scrollTabsRight = () => {
+    tabsScrollRef.current?.scrollBy({ left: 240, behavior: "smooth" });
+  };
 
   return (
     <div className="space-y-6">
@@ -114,7 +142,12 @@ export function CockpitClient({ data }: { data: CockpitData }) {
       </header>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+        <div className="relative">
+          <div
+            ref={tabsScrollRef}
+            className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+        <TabsList className="flex h-auto w-max justify-start gap-1 bg-transparent p-0 pr-10 [&>*]:shrink-0">
           <TabsTrigger value="overview" className="gap-1.5 data-[state=active]:bg-muted">
             <LayoutDashboard className="h-3.5 w-3.5" aria-hidden /> Overview
           </TabsTrigger>
@@ -162,7 +195,22 @@ export function CockpitClient({ data }: { data: CockpitData }) {
             <Files className="h-3.5 w-3.5" aria-hidden /> All plans
             {plans.length > 0 && <span className="ml-0.5 font-mono text-[10px] opacity-70">{plans.length}</span>}
           </TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-muted">
+            <Settings className="h-3.5 w-3.5" aria-hidden /> Settings
+          </TabsTrigger>
         </TabsList>
+          </div>
+          {tabsHasOverflow && (
+            <button
+              type="button"
+              onClick={scrollTabsRight}
+              aria-label="Scroll tabs right"
+              className="pointer-events-auto absolute inset-y-0 right-0 flex items-center gap-0.5 bg-gradient-to-l from-background via-background/95 to-transparent pl-8 pr-2 text-foreground/60 transition-colors hover:text-foreground"
+            >
+              <ChevronsRight className="h-4 w-4" aria-hidden />
+            </button>
+          )}
+        </div>
 
         <TabsContent value="overview" className="mt-0">
           <OverviewTab data={data} />
@@ -238,6 +286,10 @@ export function CockpitClient({ data }: { data: CockpitData }) {
             title="All plans"
             emptyHint="No plans authored yet"
           />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-0">
+          <SettingsTab project={project} />
         </TabsContent>
       </Tabs>
 
