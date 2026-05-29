@@ -1,0 +1,11 @@
+# coznt local cache
+.coznt/.local/
+.coznt/
+
+# coznt MCP config — holds the plaintext API key
+.mcp.json
+
+node_modules/
+dist/
+coverage/
+.env
