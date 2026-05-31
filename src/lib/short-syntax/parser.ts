@@ -24,7 +24,7 @@ import {
   TOKEN_PATTERNS,
   type EstimateUnit,
   type TokenName,
-} from "./grammar";
+} from "./grammar.js";
 
 export interface ParseResult {
   /** Prose left after stripping recognised tokens. Trimmed of doubled whitespace. */
