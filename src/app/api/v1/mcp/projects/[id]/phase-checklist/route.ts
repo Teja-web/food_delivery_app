@@ -14,6 +14,7 @@ import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
 import { handleApi } from "@/lib/auth/api-key";
+import { PHASES, type Phase } from "@/mcp/phase-tool-map";
 
 export async function GET(
   req: Request,
@@ -35,8 +36,17 @@ export async function GET(
       throw err;
     }
 
+    // C4: optional `?phase=` overrides project's current phase. Useful for
+    // portfolio / /me UI that wants to see gates for an upcoming phase.
+    const url = new URL(req.url);
+    const requestedPhase = url.searchParams.get("phase");
+    const effectivePhase: Phase =
+      requestedPhase && (PHASES as readonly string[]).includes(requestedPhase)
+        ? (requestedPhase as Phase)
+        : (project.phase as Phase);
+
     const gates = await db.query.phaseGates.findMany({
-      where: and(eq(phaseGates.projectId, project.id), eq(phaseGates.phase, project.phase)),
+      where: and(eq(phaseGates.projectId, project.id), eq(phaseGates.phase, effectivePhase)),
     });
 
     const passed = gates.filter((g) => g.status === "passed");
@@ -49,8 +59,10 @@ export async function GET(
 
     return {
       project: { id: project.id, name: project.name, phase: project.phase },
+      phase: effectivePhase,
+      isCurrentPhase: effectivePhase === project.phase,
       nextPhase: nextPhase(project.phase),
-      readyToAdvance,
+      readyToAdvance: effectivePhase === project.phase ? readyToAdvance : false,
       gates: gates.map((g) => ({
         id: g.id,
         name: g.name,

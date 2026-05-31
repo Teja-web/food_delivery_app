@@ -4,6 +4,7 @@ import {
   Activity,
   CheckCircle2,
   FileCheck,
+  FilePlus,
   FolderKanban,
   Key,
   Plug,
@@ -14,7 +15,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   CommandDialog,
@@ -26,6 +27,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { parseShortSyntax } from "@/lib/short-syntax/parser";
 
 type Props = {
   open: boolean;
@@ -47,17 +49,59 @@ const NAV_ITEMS = [
 
 export function CommandPalette({ open, onOpenChange }: Props) {
   const router = useRouter();
+  const [search, setSearch] = useState("");
 
   const jump = (href: string) => {
     onOpenChange(false);
+    setSearch("");
     router.push(href);
   };
 
+  // C11 quick-add: short-syntax sigils in the search input flip the
+  // palette into "create a plan" mode. Empty parse → nothing shown.
+  const parsed = useMemo(() => parseShortSyntax(search), [search]);
+  const showQuickAdd =
+    search.trim().length > 0 &&
+    (parsed.kind !== undefined ||
+      parsed.projectSlug !== undefined ||
+      parsed.approvalTarget !== undefined ||
+      parsed.estimateMinutes !== undefined ||
+      parsed.dueDate !== undefined);
+  const quickAddPreview = [
+    parsed.title || "(no title)",
+    parsed.kind ? `#${parsed.kind}` : null,
+    parsed.projectSlug ? `+${parsed.projectSlug}` : null,
+    parsed.dueDate ? `@${parsed.dueDate}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Type a command or page name…" />
+      <CommandInput
+        placeholder="Type a page name or short-syntax: fix bug #spec +payments 2h"
+        value={search}
+        onValueChange={setSearch}
+      />
       <CommandList>
         <CommandEmpty>No matches.</CommandEmpty>
+        {showQuickAdd && (
+          <>
+            <CommandGroup heading="Quick add">
+              <CommandItem
+                value={`create plan ${search}`}
+                onSelect={() => {
+                  jump(`/plans/new?shortSyntax=${encodeURIComponent(search)}`);
+                }}
+              >
+                <FilePlus className="h-4 w-4" aria-hidden />
+                <span className="flex-1 truncate">Create plan: {quickAddPreview}</span>
+                <CommandShortcut>↵</CommandShortcut>
+              </CommandItem>
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
         <CommandGroup heading="Navigate">
           {NAV_ITEMS.map((item) => (
             <CommandItem
