@@ -77,7 +77,7 @@ export const TOOL_PHASE_MAP: Record<string, Phase[]> = {
   create_requirement: ["requirements"],
 
   // Cross-phase submit
-  submit_for_approval: ["requirements", "design", "testing", "cicd"],
+  submit_for_approval: ["requirements", "design", "development", "testing", "cicd"],
 
   // Design
   log_decision: ["design", "development"],
