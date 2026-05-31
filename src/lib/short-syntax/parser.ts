@@ -19,12 +19,33 @@
  *     and stay in the title.
  */
 
-import {
-  ESTIMATE_UNIT_MINUTES,
-  TOKEN_PATTERNS,
-  type EstimateUnit,
-  type TokenName,
-} from "./grammar.js";
+// Grammar — inlined here (originally in ./grammar.ts) to dodge the
+// dual-bundle import-extension conflict: the MCP CLI bundle is compiled
+// with `nodenext` resolution and demands `.js` extensions on relative
+// imports, while Next.js webpack does not resolve `.js` to a sibling
+// `.ts` file by default. Inlining is the simplest fix; the grammar is
+// small and only the parser uses it. Per Decision §6 the grammar is
+// locked for M-C, so the colocation doesn't add coupling.
+
+/** Token kinds the parser recognises. */
+const TOKEN_PATTERNS = {
+  kind: /(?:^|\s)#([a-z][a-z_]*)/gi,
+  project: /(?:^|\s)\+([a-z0-9][a-z0-9-]{2,})/gi,
+  dueDate: /(?:^|\s)@(\d{4}-\d{2}-\d{2})\b/g,
+  assignee: /(?:^|\s)@([a-z0-9][a-z0-9_.-]*)/gi,
+  approval: /(?:^|\s)(?:→|->)approval:([a-z0-9][a-z0-9_.@-]*)/gi,
+  estimate: /(?:^|\s)(\d+(?:\.\d+)?)([mhd])\b/gi,
+} as const;
+
+type TokenName = keyof typeof TOKEN_PATTERNS;
+
+const ESTIMATE_UNIT_MINUTES = {
+  m: 1,
+  h: 60,
+  d: 60 * 8, // working day, not calendar day — matches productivity-tool convention
+} as const;
+
+type EstimateUnit = keyof typeof ESTIMATE_UNIT_MINUTES;
 
 export interface ParseResult {
   /** Prose left after stripping recognised tokens. Trimmed of doubled whitespace. */
