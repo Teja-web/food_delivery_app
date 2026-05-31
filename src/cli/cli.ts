@@ -13,6 +13,7 @@
 import { runSync } from "./commands/sync.js";
 import { runConnect } from "./commands/connect.js";
 import { runPromptHook } from "./commands/prompt-hook.js";
+import { runCall } from "./commands/call.js";
 import { MCP_VERSION } from "../lib/mcp/version.js";
 
 interface ParsedArgs {
@@ -74,6 +75,12 @@ function printUsage(): void {
       "  coznt prompt-hook <uninstall|status>",
       "      Manage the Claude Code UserPromptSubmit prompt-capture hook.",
       "",
+      "  coznt call <verb> [--flag value | --input '<json>']",
+      "      Direct verb-dispatch over the MCP tool surface. Examples:",
+      "        coznt call get_autonomy --skillSlug change-risk-classifier",
+      "        coznt call get_verification_debt",
+      "        coznt call upsert_plan --input '{\"kind\":\"spec\",\"slug\":\"x\",\"body\":\"...\"}'",
+      "",
       "  coznt --version",
       "  coznt --help",
       "",
@@ -131,6 +138,16 @@ async function main(): Promise<void> {
       case "prompt-hook": {
         const code = await runPromptHook({
           subcommand: args.positional[0] ?? null,
+        });
+        process.exit(code);
+        break;
+      }
+      case "call": {
+        const format = args.flags.get("format");
+        const code = await runCall({
+          verb: args.positional[0] ?? null,
+          flags: args.flags,
+          format: format === "compact" ? "compact" : "json",
         });
         process.exit(code);
         break;
