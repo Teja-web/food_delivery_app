@@ -124,6 +124,9 @@ import { ratePromptInput, runRatePrompt } from "./tools/rate-prompt.js";
 import { getPromptAuthorInput, runGetPromptAuthor } from "./tools/get-prompt-author.js";
 import { flushLocalPromptsInput, runFlushLocalPrompts } from "./tools/flush-local-prompts.js";
 import { triggerPipelineInput, runTriggerPipeline } from "./tools/trigger-pipeline.js";
+import { getAutonomyInput, runGetAutonomy } from "./tools/get-autonomy.js";
+import { getVerificationDebtInput, runGetVerificationDebt } from "./tools/get-verification-debt.js";
+import { getProvenanceInput, runGetProvenance } from "./tools/get-provenance.js";
 
 import { z, ZodTypeAny } from "zod";
 
@@ -586,6 +589,40 @@ export const tools = [
     ].join(" "),
     schema: triggerPipelineInput,
     run: runTriggerPipeline,
+  }),
+  // ── M-B verification-debt foundation reads ─────────────────────
+  tool({
+    name: "get_autonomy",
+    description: [
+      "Read autonomy state for the calling project. Without `skillSlug`,",
+      "returns the project-level aggregate (counts at each level, recent",
+      "incidents). With `skillSlug`, returns the per-project autonomy for",
+      "that skill plus the across-projects breakdown. Read-only.",
+    ].join(" "),
+    schema: getAutonomyInput,
+    run: runGetAutonomy,
+  }),
+  tool({
+    name: "get_verification_debt",
+    description: [
+      "Compute the verification-debt score for the calling project.",
+      "Derived only from the audit ledger (autonomy distance × invocations,",
+      "open approvals × age, gate trip rate × severity, unreviewed AI-authored",
+      "changes). Returns total + per-term breakdown. Read-only.",
+    ].join(" "),
+    schema: getVerificationDebtInput,
+    run: runGetVerificationDebt,
+  }),
+  tool({
+    name: "get_provenance",
+    description: [
+      "Provenance summary for plans + work_items in the calling project:",
+      "AI-authored ratio, per-model count, per-skill count, autonomy",
+      "distribution at generation time. Counts only — never code, never",
+      "prompt bodies. Read-only.",
+    ].join(" "),
+    schema: getProvenanceInput,
+    run: runGetProvenance,
   }),
 ] as const;
 

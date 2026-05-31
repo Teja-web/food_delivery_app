@@ -60,6 +60,11 @@ export const ALWAYS_ALLOWED = new Set<string>([
   "rate_prompt",
   "get_prompt_author",
   "flush_local_prompts",
+  // M-B verification-debt foundation reads — derived from the audit
+  // ledger only, doctrine-compliant (no source-of-record writes).
+  "get_autonomy",
+  "get_verification_debt",
+  "get_provenance",
 ]);
 
 /**
