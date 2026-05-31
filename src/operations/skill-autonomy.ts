@@ -29,6 +29,7 @@
 
 import { and, desc, eq, gte, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { attenuationFactorForProject } from "./prompt-log";
+import { recordAutonomyEvent } from "./autonomy-events";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
@@ -469,6 +470,34 @@ export async function recomputeSkillAutonomy(
   // event lets SSE subscribers (UI, marketing activity feed) react in real
   // time without polling skill_autonomy.
   if (promoted || demoted) {
+    // B12: append to skill_autonomy_events for permanent history. The
+    // domain event above is transient (SSE) — this row is the audit
+    // record that survives forever. Gather the trailing-window outcome
+    // ids that drove the transition so "why did X get demoted?" is
+    // answerable from a single row.
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const triggeringOutcomeRows = await db
+      .select({ id: skillOutcomes.id })
+      .from(skillOutcomes)
+      .where(
+        and(
+          eq(skillOutcomes.skillId, skillId),
+          projectIdMatches(skillOutcomes.projectId, projectId),
+          gte(skillOutcomes.recordedAt, since),
+          isNotNull(skillOutcomes.verdict),
+        ),
+      );
+    await recordAutonomyEvent({
+      organizationId: skill.organizationId,
+      skillId,
+      projectId,
+      direction: promoted ? "promoted" : "demoted",
+      fromLevel: current.level,
+      toLevel: newLevel,
+      reason,
+      triggeringOutcomeIds: triggeringOutcomeRows.map((r) => r.id),
+    });
+
     await emitDomainEvent({
       organizationId: skill.organizationId,
       kind: promoted ? "autonomy.promoted" : "autonomy.demoted",
