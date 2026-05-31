@@ -1,14 +1,13 @@
 import { z } from "zod";
 
 export const taskStatuses = ["todo", "in_progress", "done"] as const;
-export const taskPriorities = ["low", "medium", "high"] as const;
+export const taskPriorities = ["low", "med", "high"] as const;
 
 const requiredTitle = z.string().trim().min(1, "title is required");
 const optionalTitle = z.string().trim().min(1, "title cannot be blank");
 const dueDate = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "dueDate must be an ISO date")
-  .nullable();
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "dueDate must be an ISO date");
 
 export const createTaskSchema = z
   .object({
@@ -16,7 +15,7 @@ export const createTaskSchema = z
     description: z.string().nullable().optional(),
     status: z.enum(taskStatuses).optional(),
     priority: z.enum(taskPriorities).optional(),
-    dueDate: dueDate.optional(),
+    dueDate,
   })
   .strict();
 

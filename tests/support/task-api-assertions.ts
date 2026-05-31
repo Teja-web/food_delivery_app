@@ -25,10 +25,10 @@ export function expectTaskShape(task: Record<string, unknown>) {
     id: expect.any(String),
     title: expect.any(String),
     status: expect.stringMatching(/^(todo|in_progress|done)$/),
-    priority: expect.stringMatching(/^(low|medium|high)$/),
+    priority: expect.stringMatching(/^(low|med|high)$/),
+    dueDate: expect.any(String),
     createdAt: expect.any(String),
     updatedAt: expect.any(String),
   });
   expect(Object.prototype.hasOwnProperty.call(task, "description")).toBe(true);
-  expect(Object.prototype.hasOwnProperty.call(task, "dueDate")).toBe(true);
 }

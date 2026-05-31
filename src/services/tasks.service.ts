@@ -8,14 +8,18 @@ export type TaskResponse = {
   title: string;
   description: string | null;
   status: "todo" | "in_progress" | "done";
-  priority: "low" | "medium" | "high";
-  dueDate: string | null;
+  priority: "low" | "med" | "high";
+  dueDate: string;
   createdAt: string;
   updatedAt: string;
 };
 
-function toDate(value: string | null | undefined) {
-  return value ? new Date(`${value}T00:00:00.000Z`) : null;
+function toDate(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function toDateString(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
 export function serializeTask(task: Task): TaskResponse {
@@ -25,7 +29,7 @@ export function serializeTask(task: Task): TaskResponse {
     description: task.description,
     status: task.status,
     priority: task.priority,
-    dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
+    dueDate: toDateString(task.dueDate),
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };
@@ -39,7 +43,7 @@ export async function createTask(input: CreateTaskInput) {
       title: input.title,
       description: input.description ?? null,
       status: input.status ?? "todo",
-      priority: input.priority ?? "medium",
+      priority: input.priority ?? "med",
       dueDate: toDate(input.dueDate),
     })
     .returning();
@@ -64,15 +68,40 @@ export async function getTask(id: string) {
 
 export async function patchTask(id: string, input: PatchTaskInput) {
   await initializeDatabase();
-  const updates: Partial<typeof tasks.$inferInsert> = {
-    updatedAt: new Date(),
-  };
+  const [existing] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+  if (!existing) return null;
 
-  if ("title" in input) updates.title = input.title;
-  if ("description" in input) updates.description = input.description ?? null;
-  if ("status" in input) updates.status = input.status;
-  if ("priority" in input) updates.priority = input.priority;
-  if ("dueDate" in input) updates.dueDate = toDate(input.dueDate);
+  const updates: Partial<typeof tasks.$inferInsert> = {
+  };
+  let changed = false;
+
+  function setIfChanged<TKey extends keyof typeof updates>(
+    key: TKey,
+    current: (typeof tasks.$inferSelect)[TKey],
+    next: (typeof updates)[TKey],
+  ) {
+    if (current !== next) {
+      updates[key] = next;
+      changed = true;
+    }
+  }
+
+  if ("title" in input) setIfChanged("title", existing.title, input.title);
+  if ("description" in input) {
+    setIfChanged("description", existing.description, input.description ?? null);
+  }
+  if ("status" in input) setIfChanged("status", existing.status, input.status);
+  if ("priority" in input) setIfChanged("priority", existing.priority, input.priority);
+  if ("dueDate" in input && input.dueDate !== undefined) {
+    const currentDueDate = toDateString(existing.dueDate);
+    if (currentDueDate !== input.dueDate) {
+      updates.dueDate = toDate(input.dueDate);
+      changed = true;
+    }
+  }
+
+  if (!changed) return serializeTask(existing);
+  updates.updatedAt = new Date();
 
   const [updated] = await db
     .update(tasks)

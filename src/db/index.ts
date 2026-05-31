@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import * as schema from "./schema/tasks";
 
 const client = new PGlite();
+export const pgClient = client;
 
 export const db = drizzle(client, { schema });
 
@@ -16,7 +17,7 @@ export function initializeDatabase() {
         CREATE TYPE task_status AS ENUM ('todo', 'in_progress', 'done');
       END IF;
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'task_priority') THEN
-        CREATE TYPE task_priority AS ENUM ('low', 'medium', 'high');
+        CREATE TYPE task_priority AS ENUM ('low', 'med', 'high');
       END IF;
     END
     $$;
@@ -26,8 +27,8 @@ export function initializeDatabase() {
       title text NOT NULL,
       description text,
       status task_status NOT NULL DEFAULT 'todo',
-      priority task_priority NOT NULL DEFAULT 'medium',
-      due_date date,
+      priority task_priority NOT NULL DEFAULT 'med',
+      due_date date NOT NULL,
       created_at timestamp with time zone NOT NULL DEFAULT now(),
       updated_at timestamp with time zone NOT NULL DEFAULT now()
     );

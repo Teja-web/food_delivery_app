@@ -38,7 +38,16 @@ describe("Task API contract", () => {
   it("POST /tasks rejects a missing title with RFC 7807 problem details", async () => {
     const response = await request(app)
       .post("/tasks")
-      .send({ priority: "medium" })
+      .send({ priority: "med", dueDate: "2026-06-15" })
+      .expect(400);
+
+    expectProblemJson(response, 400);
+  });
+
+  it("POST /tasks rejects a missing dueDate with RFC 7807 problem details", async () => {
+    const response = await request(app)
+      .post("/tasks")
+      .send({ title: "No due date", priority: "med" })
       .expect(400);
 
     expectProblemJson(response, 400);
@@ -47,7 +56,7 @@ describe("Task API contract", () => {
   it("POST /tasks rejects invalid priority with RFC 7807 problem details", async () => {
     const response = await request(app)
       .post("/tasks")
-      .send({ title: "Bad priority", priority: "urgent" })
+      .send({ title: "Bad priority", priority: "urgent", dueDate: "2026-06-15" })
       .expect(400);
 
     expectProblemJson(response, 400);
@@ -56,11 +65,11 @@ describe("Task API contract", () => {
   it("GET /tasks returns all tasks as a JSON array", async () => {
     const first = await request(app)
       .post("/tasks")
-      .send({ title: "First", priority: "low" })
+      .send({ title: "First", priority: "low", dueDate: "2026-06-15" })
       .expect(201);
     const second = await request(app)
       .post("/tasks")
-      .send({ title: "Second", priority: "medium" })
+      .send({ title: "Second", priority: "med", dueDate: "2026-06-16" })
       .expect(201);
 
     const response = await request(app).get("/tasks").expect(200);
@@ -76,11 +85,11 @@ describe("Task API contract", () => {
   it("GET /tasks?status=:status filters tasks by status", async () => {
     const todo = await request(app)
       .post("/tasks")
-      .send({ title: "Todo task", priority: "low" })
+      .send({ title: "Todo task", priority: "low", dueDate: "2026-06-15" })
       .expect(201);
     const done = await request(app)
       .post("/tasks")
-      .send({ title: "Done task", priority: "medium" })
+      .send({ title: "Done task", priority: "med", dueDate: "2026-06-16" })
       .expect(201);
     await request(app)
       .patch(`/tasks/${done.body.id}`)
@@ -117,7 +126,7 @@ describe("Task API contract", () => {
   it("GET /tasks/:id returns one task by id", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Find by id", priority: "medium" })
+      .send({ title: "Find by id", priority: "med", dueDate: "2026-06-15" })
       .expect(201);
 
     const response = await request(app)
@@ -176,7 +185,7 @@ describe("Task API contract", () => {
   it("PATCH /tasks/:id is idempotent for repeated merge-patch payloads", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Idempotent patch", priority: "medium" })
+      .send({ title: "Idempotent patch", priority: "med", dueDate: "2026-06-15" })
       .expect(201);
     const patch = { status: "done", priority: "high" };
 
@@ -198,13 +207,14 @@ describe("Task API contract", () => {
       status: "done",
       priority: "high",
       dueDate: first.body.dueDate,
+      updatedAt: first.body.updatedAt,
     });
   });
 
   it("PATCH /tasks/:id rejects invalid status with RFC 7807 problem details", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Bad status", priority: "medium" })
+      .send({ title: "Bad status", priority: "med", dueDate: "2026-06-15" })
       .expect(201);
 
     const response = await request(app)
@@ -219,7 +229,7 @@ describe("Task API contract", () => {
   it("PATCH /tasks/:id rejects invalid priority with RFC 7807 problem details", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Bad priority", priority: "medium" })
+      .send({ title: "Bad priority", priority: "med", dueDate: "2026-06-15" })
       .expect(201);
 
     const response = await request(app)
@@ -244,7 +254,7 @@ describe("Task API contract", () => {
   it("DELETE /tasks/:id deletes a task", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Delete me", priority: "low" })
+      .send({ title: "Delete me", priority: "low", dueDate: "2026-06-15" })
       .expect(201);
 
     await request(app).delete(`/tasks/${created.body.id}`).expect(204);

@@ -13,9 +13,9 @@ describe("Task validation and edge cases", () => {
   });
 
   it.each([
-    ["missing title", {}],
-    ["blank title", { title: "" }],
-    ["whitespace title", { title: "   " }],
+    ["missing title", { dueDate: "2026-06-01" }],
+    ["blank title", { title: "", dueDate: "2026-06-01" }],
+    ["whitespace title", { title: "   ", dueDate: "2026-06-01" }],
   ])("POST /tasks rejects %s", async (_caseName, payload) => {
     const response = await request(app).post("/tasks").send(payload).expect(400);
     expectProblemJson(response, 400);
@@ -26,7 +26,7 @@ describe("Task validation and edge cases", () => {
     async (status) => {
       const response = await request(app)
         .post("/tasks")
-        .send({ title: "Invalid status", status, priority: "medium" })
+        .send({ title: "Invalid status", status, priority: "med", dueDate: "2026-06-01" })
         .expect(400);
 
       expectProblemJson(response, 400);
@@ -38,7 +38,7 @@ describe("Task validation and edge cases", () => {
     async (priority) => {
       const response = await request(app)
         .post("/tasks")
-        .send({ title: "Invalid priority", priority })
+        .send({ title: "Invalid priority", priority, dueDate: "2026-06-01" })
         .expect(400);
 
       expectProblemJson(response, 400);
@@ -60,7 +60,7 @@ describe("Task validation and edge cases", () => {
   it("PATCH /tasks/:id accepts transition to in_progress", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Start work", priority: "medium" })
+      .send({ title: "Start work", priority: "med", dueDate: "2026-06-01" })
       .expect(201);
 
     await request(app)
@@ -73,7 +73,7 @@ describe("Task validation and edge cases", () => {
   it("PATCH /tasks/:id accepts transition to done", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Finish work", priority: "medium" })
+      .send({ title: "Finish work", priority: "med", dueDate: "2026-06-01" })
       .expect(201);
 
     await request(app)
@@ -86,7 +86,7 @@ describe("Task validation and edge cases", () => {
   it("PATCH /tasks/:id rejects an empty merge patch", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Empty patch", priority: "medium" })
+      .send({ title: "Empty patch", priority: "med", dueDate: "2026-06-01" })
       .expect(201);
 
     const response = await request(app)
@@ -101,7 +101,7 @@ describe("Task validation and edge cases", () => {
   it("PATCH /tasks/:id rejects unknown fields", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Unknown field", priority: "medium" })
+      .send({ title: "Unknown field", priority: "med", dueDate: "2026-06-01" })
       .expect(201);
 
     const response = await request(app)

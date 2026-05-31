@@ -16,7 +16,7 @@ export const taskStatus = pgEnum("task_status", [
 
 export const taskPriority = pgEnum("task_priority", [
   "low",
-  "medium",
+  "med",
   "high",
 ]);
 
@@ -27,8 +27,8 @@ export const tasks = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     status: taskStatus("status").notNull().default("todo"),
-    priority: taskPriority("priority").notNull().default("medium"),
-    dueDate: date("due_date", { mode: "date" }),
+    priority: taskPriority("priority").notNull().default("med"),
+    dueDate: date("due_date", { mode: "date" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

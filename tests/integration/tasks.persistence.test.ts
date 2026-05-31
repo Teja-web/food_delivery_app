@@ -1,7 +1,7 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { app } from "../../src/app";
-import { db } from "../../src/db";
+import { db, initializeDatabase, pgClient } from "../../src/db";
 import { tasks } from "../../src/db/schema/tasks";
 import { resetTasks } from "../support/test-db";
 
@@ -43,7 +43,7 @@ describe("Task persistence integration", () => {
       .post("/tasks")
       .send({
         title: "Progress indexed",
-        priority: "medium",
+        priority: "med",
         dueDate: "2026-06-02",
       })
       .expect(201);
@@ -66,10 +66,44 @@ describe("Task persistence integration", () => {
     });
   });
 
+  it("creates the required tasks table columns and status/due_date index", async () => {
+    await initializeDatabase();
+
+    const columns = await pgClient.query<{
+      column_name: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>(`
+      SELECT column_name, is_nullable, column_default
+      FROM information_schema.columns
+      WHERE table_name = 'tasks'
+    `);
+    const byName = new Map(columns.rows.map((column) => [column.column_name, column]));
+
+    expect(byName.get("title")?.is_nullable).toBe("NO");
+    expect(byName.get("due_date")?.is_nullable).toBe("NO");
+    expect(byName.get("priority")?.column_default).toContain("'med'");
+
+    const indexes = await pgClient.query<{ indexname: string; indexdef: string }>(`
+      SELECT indexname, indexdef
+      FROM pg_indexes
+      WHERE tablename = 'tasks'
+    `);
+
+    expect(indexes.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          indexname: "tasks_status_due_date_idx",
+          indexdef: expect.stringContaining("(status, due_date)"),
+        }),
+      ]),
+    );
+  });
+
   it("removes deleted tasks from persistent storage", async () => {
     const created = await request(app)
       .post("/tasks")
-      .send({ title: "Remove from DB", priority: "low" })
+      .send({ title: "Remove from DB", priority: "low", dueDate: "2026-06-01" })
       .expect(201);
 
     await request(app).delete(`/tasks/${created.body.id}`).expect(204);

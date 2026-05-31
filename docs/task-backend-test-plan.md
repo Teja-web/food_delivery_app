@@ -46,8 +46,8 @@ drizzle/
 | `title` | `title` | yes | Non-empty string. |
 | `description` | `description` | no | Nullable text. |
 | `status` | `status` | yes | Enum: `todo`, `in_progress`, `done`; default `todo`. |
-| `priority` | `priority` | yes | Enum: `low`, `medium`, `high`; default can be `medium` if omitted. |
-| `due_date` | `dueDate` | no | Nullable date. |
+| `priority` | `priority` | yes | Enum: `low`, `med`, `high`; default can be `med` if omitted. |
+| `due_date` | `dueDate` | yes | Required date. |
 | `created_at` | `createdAt` | yes | Defaults to current timestamp. |
 | `updated_at` | `updatedAt` | yes | Updated on mutation. |
 
@@ -74,8 +74,8 @@ tasks_status_due_date_idx on (status, due_date)
 | `title` | required | optional | Must be a non-empty trimmed string. |
 | `description` | optional | optional | String or null. |
 | `status` | optional | optional | Must be `todo`, `in_progress`, or `done`; default `todo` on create. |
-| `priority` | optional | optional | Must be `low`, `medium`, or `high`; default should be deterministic. |
-| `dueDate` | optional | optional | ISO date string or null. |
+| `priority` | optional | optional | Must be `low`, `med`, or `high`; default should be deterministic. |
+| `dueDate` | required | optional | ISO date string. |
 
 All validation failures return:
 
