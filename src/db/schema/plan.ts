@@ -9,11 +9,12 @@
  * row; the live row's body is also kept here for query efficiency.
  */
 
-import { text, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { text, timestamp, jsonb, boolean, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
+import { skills } from "./skill";
 import {
   PLAN_KINDS,
   PLAN_KIND_PARENTS,
@@ -75,6 +76,20 @@ export const plans = cozntSchema.table(
     createdByName: text("created_by_name"),
     updatedById: text("updated_by_id"),
     updatedByName: text("updated_by_name"),
+
+    // Provenance — populated atomically by agent-path inserts via
+    // src/lib/provenance/record.ts. Legacy rows stay aiAuthored=false;
+    // we don't manufacture provenance retroactively (verification-debt
+    // thesis principle: never self-report).
+    aiAuthored: boolean("ai_authored").notNull().default(false),
+    generatedByModel: text("generated_by_model"),
+    generatedBySkillId: text("generated_by_skill_id").references(() => skills.id, {
+      onDelete: "set null",
+    }),
+    autonomyAtGeneration: integer("autonomy_at_generation"),
+    promptHash: text("prompt_hash"),
+    generatedAt: timestamp("generated_at"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -83,6 +98,7 @@ export const plans = cozntSchema.table(
     index("plans_project_idx").on(table.projectId),
     index("plans_parent_idx").on(table.parentPlanId),
     index("plans_kind_status_idx").on(table.kind, table.status),
+    index("plans_generated_by_skill_idx").on(table.generatedBySkillId),
     /**
      * Upsert key for `upsertPlanByKindAndSlug` — the `(project, kind, slug)`
      * triple is the agent-visible identifier. Null slug stays distinct (rows

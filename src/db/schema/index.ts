@@ -15,6 +15,7 @@ export * from "./rule";
 export * from "./skill";
 export * from "./skill-outcome";
 export * from "./skill-autonomy";
+export * from "./skill-autonomy-events";
 export * from "./approval";
 export * from "./comment";
 export * from "./work-item";

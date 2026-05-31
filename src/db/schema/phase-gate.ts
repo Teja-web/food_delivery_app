@@ -12,10 +12,11 @@
  * current phase is PASSED or SKIPPED.
  */
 
-import { text, timestamp, doublePrecision, index, unique } from "drizzle-orm/pg-core";
+import { text, timestamp, doublePrecision, integer, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects, type ProjectPhase } from "./project";
+import { plans } from "./plan";
 
 export const GATE_TYPES = [
   "approval",
@@ -61,6 +62,18 @@ export const phaseGates = cozntSchema.table(
     assigneeName: text("assignee_name"),
     lastChangedAt: timestamp("last_changed_at"),
     lastGreenAt: timestamp("last_green_at"),
+
+    // Gate override — auditable "skipped with reason." Requires a Plan
+    // reference + the autonomy level at override time so the override
+    // can be reviewed against the actor's then-current authority. Status
+    // remains "skipped" when these are populated.
+    overriddenAt: timestamp("overridden_at"),
+    overriddenById: text("overridden_by_id"),
+    overrideReason: text("override_reason"),
+    overrideAuthorizingPlanId: text("override_authorizing_plan_id").references(() => plans.id, {
+      onDelete: "set null",
+    }),
+    overrideAutonomyAtTime: integer("override_autonomy_at_time"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
