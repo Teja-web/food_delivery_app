@@ -1,19 +1,19 @@
 import { Router } from "express";
 import { ZodError } from "zod";
-import { sendProblem } from "../http/problem";
+import { sendProblem } from "../http/problem.js";
 import {
   createTask,
   deleteTask,
   getTask,
   listTasks,
   patchTask,
-} from "../services/tasks.service";
+} from "../services/tasks.service.js";
 import {
   createTaskSchema,
   listTasksQuerySchema,
   patchTaskSchema,
   taskIdSchema,
-} from "../validation/task.schemas";
+} from "../validation/task.schemas.js";
 
 export const tasksRouter = Router();
 

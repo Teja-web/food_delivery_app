@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import * as schema from "./schema/tasks";
+import * as schema from "./schema/tasks.js";
 
 const client = new PGlite();
 export const pgClient = client;

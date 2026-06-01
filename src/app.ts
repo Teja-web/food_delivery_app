@@ -1,6 +1,6 @@
 import express, { type ErrorRequestHandler } from "express";
-import { sendProblem } from "./http/problem";
-import { tasksRouter } from "./routes/tasks.routes";
+import { sendProblem } from "./http/problem.js";
+import { tasksRouter } from "./routes/tasks.routes.js";
 
 export const app = express();
 

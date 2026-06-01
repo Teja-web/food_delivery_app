@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { db, initializeDatabase } from "../db";
-import { tasks, type Task } from "../db/schema/tasks";
-import type { CreateTaskInput, PatchTaskInput } from "../validation/task.schemas";
+import { db, initializeDatabase } from "../db/index.js";
+import { tasks, type Task } from "../db/schema/tasks.js";
+import type { CreateTaskInput, PatchTaskInput } from "../validation/task.schemas.js";
 
 export type TaskResponse = {
   id: string;

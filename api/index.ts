@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { app } from "../src/app";
-import { initializeDatabase } from "../src/db";
+import { app } from "../src/app.js";
+import { initializeDatabase } from "../src/db/index.js";
 
 const databaseReady = initializeDatabase();
 
