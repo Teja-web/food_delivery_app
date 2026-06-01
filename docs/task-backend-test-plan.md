@@ -1,7 +1,7 @@
 # Task Management Backend Test Plan
 
 ## Scope
-
+LKJSAFD;
 Single-user Task Management System v1. Authentication is not included in v1. The backend uses Node.js, Express.js, TypeScript, PostgreSQL, Drizzle ORM, Zod validation, and Vitest or Jest with Supertest.
 
 ## Suggested Folder Structure
