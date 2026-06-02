@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { readChoreographyContent } from "@/operations/choreographies";
-import { resolveKickoffState } from "@/lib/mcp/recommended-kickoff";
+import { readChoreographyContent } from "@/operations/choreography/choreographies";
+import { resolveKickoffState } from "@/lib/agent-context/recommended-kickoff";
 
 describe("resolveKickoffState — requirements phase", () => {
   it("returns 'empty' when no plans exist", () => {

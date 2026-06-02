@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { createProject } from "@/actions/projects";
-import { adapterBindingCrud } from "@/operations/adapter-bindings";
+import { createProject } from "@/actions/project/projects";
+import { adapterBindingCrud } from "@/operations/choreography/adapter-bindings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

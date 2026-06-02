@@ -3,7 +3,7 @@
  *
  * Each writer merges a `coznt` entry into the host's config file
  * non-destructively. The actual per-host entry shapes live in the
- * isomorphic `@/lib/mcp/host-config` module — this file only owns the
+ * isomorphic `@/lib/agent-context/host-config` module — this file only owns the
  * "merge with what's already on disk" semantics for the two on-disk
  * formats we support today: JSON (most hosts) and TOML (Codex).
  *
@@ -19,7 +19,7 @@ import {
   HOST_SHAPES,
   tomlServerSection,
   type HostName,
-} from "../../../lib/mcp/host-config.js";
+} from "../../../lib/agent-context/host-config.js";
 import type { EditorName } from "../editor-detect.js";
 import type { CozntMcpEntry, WriteResult, WriterContext } from "./types.js";
 

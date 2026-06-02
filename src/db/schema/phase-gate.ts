@@ -16,7 +16,7 @@ import { text, timestamp, doublePrecision, integer, index, unique } from "drizzl
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects, type ProjectPhase } from "./project";
-import { plans } from "./plan";
+import { plans } from "./plan/plan";
 
 export const GATE_TYPES = [
   "approval",

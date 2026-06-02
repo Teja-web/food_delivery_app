@@ -15,13 +15,13 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { skills } from "@/db/schema/skill";
+import { skills } from "@/db/schema/skill/skill";
 import { handleApi } from "@/lib/auth/api-key";
 import {
   getSkillAutonomy,
   getSkillAutonomyAcrossProjects,
   getProjectAutonomyAggregate,
-} from "@/operations/skill-autonomy";
+} from "@/operations/skill/skill-autonomy";
 
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {

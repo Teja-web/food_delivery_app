@@ -79,7 +79,7 @@ describe("MCP config writers", () => {
 
   it("Claude Code merges into an existing config without destroying other entries", () => {
     // Claude Code reads from `.mcp.json` at the repo root, not `.claude/mcp.json`.
-    // See HOST_SHAPES["claude-code"] in src/lib/mcp/host-config.ts.
+    // See HOST_SHAPES["claude-code"] in src/lib/agent-context/host-config.ts.
     writeFileSync(
       join(tmpRoot, ".mcp.json"),
       JSON.stringify({

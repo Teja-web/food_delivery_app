@@ -9,7 +9,7 @@ import { randomBytes } from "crypto";
 import { Pool, type PoolClient } from "pg";
 import { hashPassword } from "better-auth/crypto";
 
-import { seedPlatformSkills } from "../seed-platform-skills";
+import { seedPlatformSkills } from "../ops/seed-platform-skills";
 
 export function generateId(prefix: string): string {
   return `${prefix}_${randomBytes(8).toString("hex")}`;
@@ -80,14 +80,6 @@ async function insertOwner(
   return userId;
 }
 
-async function insertDefaultDepartment(client: PoolClient, orgId: string): Promise<void> {
-  await client.query(
-    `INSERT INTO coznt.departments (id, organization_id, name, created_at, updated_at)
-     VALUES ($1, $2, 'Default', NOW(), NOW())`,
-    [generateId("dept"), orgId],
-  );
-}
-
 export async function bootstrapOrg(args: BootstrapOrgArgs): Promise<BootstrapResult> {
   const pool = new Pool({ connectionString: args.databaseUrl });
   const client = await pool.connect();
@@ -105,7 +97,6 @@ export async function bootstrapOrg(args: BootstrapOrgArgs): Promise<BootstrapRes
       args.ownerEmail,
       args.password,
     );
-    await insertDefaultDepartment(client, orgId);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");

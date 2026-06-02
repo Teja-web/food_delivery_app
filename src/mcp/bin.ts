@@ -13,7 +13,7 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { MCP_VERSION } from "../lib/mcp/version.js";
+import { MCP_VERSION } from "../lib/agent-context/version.js";
 import { createCozntMcpServer } from "./server.js";
 
 async function main() {

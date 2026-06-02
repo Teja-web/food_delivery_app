@@ -6,7 +6,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
-import { queryAuditLog } from "@/operations/audit";
+import { queryAuditLog } from "@/operations/audit/audit";
 
 const RANGE_MS: Record<string, number> = {
   "24h": 24 * 60 * 60 * 1000,

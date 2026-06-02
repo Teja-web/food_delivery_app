@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import { listSkillsForProject, skillCrud } from "@/operations/skills";
+import { listSkillsForProject, skillCrud } from "@/operations/skill/skills";
 
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {

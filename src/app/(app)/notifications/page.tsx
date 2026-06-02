@@ -1,4 +1,4 @@
-import { listNotificationsForCurrentUser } from "@/operations/notifications";
+import { listNotificationsForCurrentUser } from "@/operations/prompt/notifications";
 
 import { NotificationsClient } from "./NotificationsClient";
 import { serializeNotification } from "./serialize";

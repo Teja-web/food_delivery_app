@@ -18,8 +18,8 @@ import {
   PIPELINE_PLATFORMS,
   PIPELINE_STACKS,
   renderPipeline,
-} from "@/lib/pipelines/templates";
-import { upsertPlanByKindAndSlug } from "@/operations/plans";
+} from "@/domain/pipelines/templates";
+import { upsertPlanByKindAndSlug } from "@/operations/plan/plans";
 
 const bodySchema = z.object({
   projectId: z.string().min(1),

@@ -13,8 +13,8 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { projects } from "@/db/schema/project";
-import { skillOutcomes } from "@/db/schema/skill-outcome";
-import { skills } from "@/db/schema/skill";
+import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
+import { skills } from "@/db/schema/skill/skill";
 import { handleApi, type ApiContext } from "@/lib/auth/api-key";
 
 export interface ListOutcomesForAgentQuery {

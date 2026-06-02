@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { authenticate, withApiContext, UnauthorizedError } from "@/lib/auth/api-key";
-import { serializePlanToMarkdown, planFilePath } from "@/lib/plan/markdown";
+import { serializePlanToMarkdown, planFilePath } from "@/domain/plan-markdown";
 
 /**
  * GET /api/v1/plans/:id/markdown

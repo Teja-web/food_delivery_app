@@ -8,7 +8,7 @@
  */
 
 import { db } from "@/db/client";
-import { events } from "@/db/schema/event";
+import { events } from "@/db/schema/audit/event";
 import { eventBus } from "./bus";
 
 export interface DomainEventInput {

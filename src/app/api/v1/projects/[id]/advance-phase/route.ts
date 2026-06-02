@@ -4,7 +4,7 @@ import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
 import { hasElevatedRole } from "@/lib/auth/context";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
-import { findUnmetGates } from "@/operations/phase-gates";
+import { findUnmetGates } from "@/operations/gate/phase-gates";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

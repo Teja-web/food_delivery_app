@@ -15,15 +15,15 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { auditLogs, type AuditActorType } from "@/db/schema/audit-log";
-import { plans, type PlanKind, type PlanStatus } from "@/db/schema/plan";
-import { projectLearnings } from "@/db/schema/project-learning";
+import { auditLogs, type AuditActorType } from "@/db/schema/audit/audit-log";
+import { plans, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan";
+import { projectLearnings } from "@/db/schema/plan/project-learning";
 import { projects } from "@/db/schema/project";
 import {
   skillOutcomes,
   type SkillOutcomeVerdict,
-} from "@/db/schema/skill-outcome";
-import { skills } from "@/db/schema/skill";
+} from "@/db/schema/skill/skill-outcome";
+import { skills } from "@/db/schema/skill/skill";
 import { getActionContext } from "@/lib/auth/context";
 import { searchHybrid } from "@/lib/search";
 

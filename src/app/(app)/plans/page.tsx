@@ -1,11 +1,11 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/approval";
-import { PLAN_KINDS, PLAN_STATUSES, type Plan, type PlanKind, type PlanStatus } from "@/db/schema/plan";
+import { approvals } from "@/db/schema/plan/approval";
+import { PLAN_KINDS, PLAN_STATUSES, type Plan, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan";
 import type { Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
-import { planCrud } from "@/operations/plans";
+import { planCrud } from "@/operations/plan/plans";
 
 import { PlansClient } from "./PlansClient";
 import { serializePlanRow, type PlanRowClient, type PlansPageClient } from "./serialize";

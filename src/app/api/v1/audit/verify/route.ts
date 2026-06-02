@@ -11,7 +11,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
-import { verifyAuditChain } from "@/operations/audit-chain";
+import { verifyAuditChain } from "@/operations/audit/audit-chain";
 
 export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {

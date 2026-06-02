@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan";
+import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan/plan";
 import type { Project } from "@/db/schema/project";
-import { createPlan } from "@/actions/plans";
-import { listProjects } from "@/actions/projects";
+import { createPlan } from "@/actions/plan/plans";
+import { listProjects } from "@/actions/project/projects";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

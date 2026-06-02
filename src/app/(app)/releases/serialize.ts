@@ -1,5 +1,5 @@
 import type { Deployment, DeploymentStatus } from "@/db/schema/deployment";
-import type { Plan } from "@/db/schema/plan";
+import type { Plan } from "@/db/schema/plan/plan";
 import type { Project } from "@/db/schema/project";
 
 export interface ReleasePlanClient {

@@ -1,5 +1,5 @@
-import type { Skill } from "@/db/schema/skill";
-import type { LevelName, SkillAutonomyState } from "@/operations/skill-autonomy";
+import type { Skill } from "@/db/schema/skill/skill";
+import type { LevelName, SkillAutonomyState } from "@/operations/skill/skill-autonomy";
 
 export type LevelLabel = "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD";
 

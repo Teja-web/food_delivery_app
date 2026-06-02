@@ -25,9 +25,9 @@ import { db } from "@/db/client";
 import { adapterBindings } from "@/db/schema/adapter-binding";
 import { deployments } from "@/db/schema/deployment";
 import { gateEvaluations } from "@/db/schema/gate-evaluation";
-import { skills } from "@/db/schema/skill";
-import { skillOutcomes } from "@/db/schema/skill-outcome";
-import type { SkillOutcomeSourceKind } from "@/db/schema/skill-outcome";
+import { skills } from "@/db/schema/skill/skill";
+import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
+import type { SkillOutcomeSourceKind } from "@/db/schema/skill/skill-outcome";
 import {
   assessDeployClean,
   assessPrMerged,
@@ -38,8 +38,8 @@ import { attributeSkillFromCommitSha } from "@/lib/integrations/skill-attributio
 import {
   recomputeSkillAutonomy,
   recordAssessorOutcome,
-} from "@/operations/skill-autonomy";
-import type { TaskParams } from "@/lib/rules";
+} from "@/operations/skill/skill-autonomy";
+import type { TaskParams } from "@/automations/task-router";
 
 export interface OutcomeAssessmentResult {
   prMergeCount: number;

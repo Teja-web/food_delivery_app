@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import { updateDeploymentStatus } from "@/operations/deployments";
+import { updateDeploymentStatus } from "@/operations/work/deployments";
 import { DEPLOYMENT_STATUSES, type DeploymentStatus } from "@/db/schema/deployment";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

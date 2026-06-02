@@ -1,4 +1,4 @@
-import { planCrud, appendPlanRevision } from "@/operations/plans";
+import { planCrud, appendPlanRevision } from "@/operations/plan/plans";
 import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {

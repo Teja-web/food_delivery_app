@@ -12,7 +12,7 @@ import {
   createProjectLearningAction,
   setProjectLearningPinAction,
   softDeleteProjectLearningAction,
-} from "@/actions/project-learnings";
+} from "@/actions/plan/project-learnings";
 
 interface LearningClient {
   id: string;

@@ -2,9 +2,9 @@ import {
   listOrgIntegrationCredentialsAction,
   getBindingCountsByProviderAction,
   listBindingsWithProjectAction,
-} from "@/actions/integrations";
+} from "@/actions/integration/integrations";
 import { getActionContext } from "@/lib/auth/context";
-import { getMcpDaemonStatus } from "@/operations/mcp-status";
+import { getMcpDaemonStatus } from "@/operations/integration/mcp-status";
 import { IntegrationsClient } from "./IntegrationsClient";
 import { McpDaemonCard } from "./McpDaemonCard";
 import { serializeIntegrationsOverview } from "./serialize";

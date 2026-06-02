@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import { upsertWorkItem } from "@/operations/work-items";
+import { upsertWorkItem } from "@/operations/work/work-items";
 
 /**
  * POST /api/v1/work-items

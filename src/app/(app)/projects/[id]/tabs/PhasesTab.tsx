@@ -44,7 +44,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-import { createGate, deleteGate, setGateStatus, updateGate } from "@/actions/phase-gates";
+import { createGate, deleteGate, setGateStatus, updateGate } from "@/actions/gate/phase-gates";
 
 import type { CockpitClient as CockpitData, CockpitGateClient } from "../serialize";
 

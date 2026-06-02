@@ -6,11 +6,11 @@
  *
  *   1. LLM execution flows through `src/lib/ai/` — bypasses skip the
  *      autonomy ledger (outcomes aren't recorded for raw SDK calls).
- *   2. `skill_outcomes` writes flow through `src/operations/skill-autonomy.ts`
+ *   2. `skill_outcomes` writes flow through `src/operations/skill/skill-autonomy.ts`
  *      — bypasses skip the autonomy-recompute trigger.
  *   3. `audit_logs` writes flow through a named allow-list — bypasses skip
  *      the hash chain when it lands.
- *   4. `GateVerdictResult` objects come from `src/operations/execution-gate.ts`
+ *   4. `GateVerdictResult` objects come from `src/operations/gate/execution-gate.ts`
  *      — bypasses skip rule evaluation.
  *
  * The tests scan `.ts` / `.tsx` under `src/` (excluding test files and
@@ -73,6 +73,11 @@ const LLM_ALLOWED: { path: string; reason: string }[] = [
     reason:
       "hybrid FTS+vector search uses ai-sdk embed() for query embedding; the call path is read-side, not generative, and the autonomy ledger doesn't apply to it",
   },
+  {
+    path: "src/worker.ts",
+    reason:
+      "worker daemon configures the ai-sdk embedding provider for the pgmq job loop; routing all jobs through @/lib/ai would add an indirection without changing the chokepoint",
+  },
 ];
 
 describe("Chokepoint: LLM execution flows through src/lib/ai", () => {
@@ -101,7 +106,7 @@ const SKILL_OUTCOMES_WRITE_PATTERNS = [/\.insert\(skillOutcomes\)/, /\.update\(s
 
 const SKILL_OUTCOMES_ALLOWED: { path: string; reason: string }[] = [
   {
-    path: "src/operations/skill-autonomy.ts",
+    path: "src/operations/skill/skill-autonomy.ts",
     reason: "canonical recordSkillOutcome / recordAssessorOutcome — the chokepoint",
   },
 ];
@@ -139,15 +144,15 @@ const AUDIT_LOGS_WRITE_PATTERNS = [/\.insert\(auditLogs\)/];
 // run through one helper.
 const AUDIT_LOGS_ALLOWED: { path: string; reason: string }[] = [
   {
-    path: "src/operations/skill-autonomy.ts",
+    path: "src/operations/skill/skill-autonomy.ts",
     reason: "promotion / demotion / review events on autonomy recompute",
   },
   {
-    path: "src/operations/execution-gate.ts",
+    path: "src/operations/gate/execution-gate.ts",
     reason: "gate verdict records with enforcedByRuleId / policy source",
   },
   {
-    path: "src/operations/phase-advance.ts",
+    path: "src/operations/gate/phase-advance.ts",
     reason: "phase-transition events (canonical SDLC milestone)",
   },
   {
@@ -204,7 +209,7 @@ const GATE_VERDICT_PATTERN =
 
 const GATE_VERDICT_ALLOWED: { path: string; reason: string }[] = [
   {
-    path: "src/operations/execution-gate.ts",
+    path: "src/operations/gate/execution-gate.ts",
     reason: "decideExecutionGate — the chokepoint producer of GateVerdictResult",
   },
 ];

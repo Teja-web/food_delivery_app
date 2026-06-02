@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { _internals } from "@/operations/dora-compose";
+import { _internals } from "@/operations/dora/dora-compose";
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date("2026-05-14T12:00:00Z");

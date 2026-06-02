@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import { recordTestRun, listTestRuns } from "@/operations/test-runs";
+import { recordTestRun, listTestRuns } from "@/operations/work/test-runs";
 
 export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {

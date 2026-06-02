@@ -20,13 +20,13 @@ import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db/client";
-import { skills, type Skill } from "@/db/schema/skill";
-import { approvals } from "@/db/schema/approval";
-import { automationLog } from "@/db/schema/automation-log";
+import { skills, type Skill } from "@/db/schema/skill/skill";
+import { approvals } from "@/db/schema/plan/approval";
+import { automationLog } from "@/db/schema/audit/automation-log";
 import { intelligence } from "@/db/schema/intelligence";
 import type { ApiContext } from "@/lib/auth/api-key";
 import { applyActionPolicyRules } from "@/operations/rule-engine";
-import { getSkillAutonomy, recordSkillOutcome, LEVEL_NAMES } from "@/operations/skill-autonomy";
+import { getSkillAutonomy, recordSkillOutcome, LEVEL_NAMES } from "@/operations/skill/skill-autonomy";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export const preToolUseSchema = z.object({

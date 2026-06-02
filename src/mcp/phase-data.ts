@@ -2,7 +2,7 @@
  * MCP-side phase fast-fail.
  *
  * Authoritative enforcement lives in the API route handlers
- * (`src/lib/mcp/phase-enforcement.ts`). This file lets the MCP server
+ * (`src/lib/agent-context/phase-enforcement.ts`). This file lets the MCP server
  * short-circuit obviously-disallowed calls before the network roundtrip
  * (sub-ms denial vs a few hundred ms round-trip).
  *

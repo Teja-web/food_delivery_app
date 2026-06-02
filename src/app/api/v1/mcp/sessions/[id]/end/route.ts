@@ -14,10 +14,10 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { auditLogs } from "@/db/schema/audit-log";
+import { auditLogs } from "@/db/schema/audit/audit-log";
 import { promptLogs } from "@/db/schema/prompt-log";
 import { handleApi } from "@/lib/auth/api-key";
-import { isPromptGovernanceEnabled } from "@/lib/prompt-quality/feature-flag";
+import { isPromptGovernanceEnabled } from "@/domain/prompt-quality/feature-flag";
 
 interface Body {
   outcome?: "completed" | "abandoned";

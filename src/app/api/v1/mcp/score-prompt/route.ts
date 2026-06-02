@@ -13,8 +13,8 @@ import { promptLogs } from "@/db/schema/prompt-log";
 import { projects } from "@/db/schema/project";
 import type { ProjectPhase } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
-import { scorePromptQuality } from "@/lib/prompt-quality/rubric";
-import { isPromptGovernanceEnabled } from "@/lib/prompt-quality/feature-flag";
+import { scorePromptQuality } from "@/domain/prompt-quality/rubric";
+import { isPromptGovernanceEnabled } from "@/domain/prompt-quality/feature-flag";
 
 const bodySchema = z
   .object({

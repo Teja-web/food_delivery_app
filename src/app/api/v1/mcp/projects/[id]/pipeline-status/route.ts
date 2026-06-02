@@ -11,7 +11,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { testRuns } from "@/db/schema/test-run";
 import { handleApi } from "@/lib/auth/api-key";

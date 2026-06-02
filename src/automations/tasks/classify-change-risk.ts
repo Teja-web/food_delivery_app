@@ -14,18 +14,18 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db/client";
-import { skills } from "@/db/schema/skill";
+import { skills } from "@/db/schema/skill/skill";
 import { intelligence } from "@/db/schema/intelligence";
-import { automationLog } from "@/db/schema/automation-log";
+import { automationLog } from "@/db/schema/audit/automation-log";
 import { generate, DEFAULT_MODEL } from "@/lib/ai";
 import {
   CHANGE_RISK_CLASSIFIER_SLUG,
   changeRiskClassifierAgent,
   changeRiskSchema,
   type ChangeRiskClassification,
-} from "@/automations/agents/definitions/change-risk-classifier";
-import { changeRiskClassifierPromptWithContext } from "@/automations/agents/prompts/change-risk-classifier";
-import { recordSkillOutcome } from "@/operations/skill-autonomy";
+} from "@/automations/agents/change-risk-classifier/definition";
+import { changeRiskClassifierPromptWithContext } from "@/automations/agents/change-risk-classifier/prompt";
+import { recordSkillOutcome } from "@/operations/skill/skill-autonomy";
 
 export interface ClassifyChangeRiskInput {
   organizationId: string;

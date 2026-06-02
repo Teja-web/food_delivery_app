@@ -1,5 +1,5 @@
-import { queryAuditLog, AUDIT_SCOPES, type AuditScope } from "@/operations/audit";
-import { AUDIT_ACTOR_TYPES, type AuditActorType } from "@/db/schema/audit-log";
+import { queryAuditLog, AUDIT_SCOPES, type AuditScope } from "@/operations/audit/audit";
+import { AUDIT_ACTOR_TYPES, type AuditActorType } from "@/db/schema/audit/audit-log";
 
 import { AuditClient } from "./AuditClient";
 import { serializeAuditRow, type AuditPageClient, type AuditRowClient } from "./serialize";

@@ -16,13 +16,13 @@
 
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/approval";
+import { approvals } from "@/db/schema/plan/approval";
 import { gateEvaluations } from "@/db/schema/gate-evaluation";
 import { deployments } from "@/db/schema/deployment";
 import { projects } from "@/db/schema/project";
 import { rules } from "@/db/schema/rule";
-import { skills } from "@/db/schema/skill";
-import { webhookEvents, type WebhookEvent } from "@/db/schema/webhook-event";
+import { skills } from "@/db/schema/skill/skill";
+import { webhookEvents, type WebhookEvent } from "@/db/schema/audit/webhook-event";
 import {
   assessDeployIncident,
   assessPrAbandoned,
@@ -35,15 +35,15 @@ import {
   attributeSkillFromCommitSha,
   detectRevert,
 } from "@/lib/integrations/skill-attribution";
-import { classifyChangeRisk, type ChangedFile } from "@/operations/change-risk";
-import { recordDeployment } from "@/operations/deployments";
-import { evaluatePullRequest, type GateInput } from "@/operations/execution-gate";
+import { classifyChangeRisk, type ChangedFile } from "@/domain/change-risk";
+import { recordDeployment } from "@/operations/work/deployments";
+import { evaluatePullRequest, type GateInput } from "@/operations/gate/execution-gate";
 import {
   getSkillAutonomy,
   recordAssessorOutcome,
   recomputeSkillAutonomy,
-} from "@/operations/skill-autonomy";
-import { upsertWorkItem } from "@/operations/work-items";
+} from "@/operations/skill/skill-autonomy";
+import { upsertWorkItem } from "@/operations/work/work-items";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -954,7 +954,7 @@ async function handleConfluence(evt: WebhookEvent): Promise<void> {
 // Public entrypoint
 // ---------------------------------------------------------------------------
 
-import type { TaskParams } from "@/lib/rules";
+import type { TaskParams } from "@/automations/task-router";
 
 /**
  * Worker-facing entrypoint. The rules engine passes a `TaskParams` carrying

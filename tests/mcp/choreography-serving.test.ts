@@ -61,7 +61,7 @@ vi.mock("@/db/client", async () => {
 import {
   listChoreographies,
   getChoreographyBundle,
-} from "@/operations/choreographies";
+} from "@/operations/choreography/choreographies";
 
 const ORG = "org_test";
 const PROJECT = "proj_test";

@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import type { AuditActorType } from "@/db/schema/audit-log";
+import type { AuditActorType } from "@/db/schema/audit/audit-log";
 import { searchAudit } from "@/operations/knowledge-search";
 
 export async function POST(req: Request) {

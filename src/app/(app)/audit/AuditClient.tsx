@@ -4,12 +4,12 @@ import { CheckCircle2, Download, FileJson, FileLock2, Filter, ShieldAlert, Shiel
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import { buildEvidencePacketAction, verifyAuditChainAction } from "@/actions/audit";
+import { buildEvidencePacketAction, verifyAuditChainAction } from "@/actions/audit/audit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ChainVerification } from "@/operations/audit-chain";
+import type { ChainVerification } from "@/operations/audit/audit-chain";
 
 import type { AuditPageClient, AuditRowClient } from "./serialize";
 

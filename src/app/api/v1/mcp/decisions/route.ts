@@ -14,7 +14,7 @@ import { db } from "@/db/client";
 import { projects, type Project } from "@/db/schema/project";
 import { PHASE_GUIDANCE } from "@/domain/phases";
 import { handleApi } from "@/lib/auth/api-key";
-import { createPlan } from "@/operations/plans";
+import { createPlan } from "@/operations/plan/plans";
 
 const bodySchema = z.object({
   projectId: z.string().min(1),

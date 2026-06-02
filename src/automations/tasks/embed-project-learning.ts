@@ -13,10 +13,10 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { documents } from "@/db/schema/documents";
-import { projectLearnings } from "@/db/schema/project-learning";
+import { projectLearnings } from "@/db/schema/plan/project-learning";
 import { generateEmbedding } from "@/lib/embedding";
 import { createLogger } from "@/lib/logger";
-import type { TaskParams } from "@/lib/rules";
+import type { TaskParams } from "@/automations/task-router";
 
 const log = createLogger("embed-project-learning");
 const TABLE_NAME = "project_learnings";

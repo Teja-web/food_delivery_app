@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { decideExecutionGate, type GateInput } from "@/operations/execution-gate";
+import { decideExecutionGate, type GateInput } from "@/operations/gate/execution-gate";
 
 function baseInput(overrides: Partial<GateInput> = {}): GateInput {
   return {

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/actions";
-import { getMeDashboard } from "@/operations/personal";
+import { getMeDashboard } from "@/operations/prompt/personal";
 import { MePersonalDashboard } from "./MePersonalDashboard";
 
 export default async function MePage() {

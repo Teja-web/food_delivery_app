@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
+import type { SkillOutcomeVerdict } from "@/db/schema/skill/skill-outcome";
 import { searchOutcomes } from "@/operations/knowledge-search";
 
 export async function POST(req: Request) {

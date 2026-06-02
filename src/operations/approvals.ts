@@ -2,13 +2,13 @@ import { z } from "zod/v4";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
-import { approvals, APPROVAL_ENTITY_TYPES, APPROVAL_STATUSES, type ApprovalEntityType } from "@/db/schema/approval";
-import { plans } from "@/db/schema/plan";
+import { approvals, APPROVAL_ENTITY_TYPES, APPROVAL_STATUSES, type ApprovalEntityType } from "@/db/schema/plan/approval";
+import { plans } from "@/db/schema/plan/plan";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { ForbiddenError, getActionContext, hasElevatedRole } from "@/lib/auth/context";
-import { tryAdvancePhase } from "@/operations/phase-advance";
-import { getSkillAutonomy } from "@/operations/skill-autonomy";
+import { tryAdvancePhase } from "@/operations/gate/phase-advance";
+import { getSkillAutonomy } from "@/operations/skill/skill-autonomy";
 import {
   pushPlanToConfluence,
   pushPlanToJira,
@@ -276,7 +276,7 @@ export async function decideApproval(args: {
     /^github:/.test(existing.entityId) &&
     existing.projectId
   ) {
-    const { recordApprovalCheckRun } = await import("@/operations/execution-gate");
+    const { recordApprovalCheckRun } = await import("@/operations/gate/execution-gate");
     await recordApprovalCheckRun({
       organizationId: ctx.organizationId,
       projectId: existing.projectId,

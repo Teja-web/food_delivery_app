@@ -18,11 +18,11 @@ import {
   PLAN_STATUSES,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan";
+} from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
-import { computeNextAction } from "@/lib/mcp/next-action";
-import { createPlan } from "@/operations/plans";
+import { computeNextAction } from "@/lib/agent-context/next-action";
+import { createPlan } from "@/operations/plan/plans";
 
 const DEFAULT_KIND: PlanKind = "story";
 

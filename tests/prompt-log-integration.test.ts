@@ -20,7 +20,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { scorePromptQuality } from "@/lib/prompt-quality/rubric";
+import { scorePromptQuality } from "@/domain/prompt-quality/rubric";
 
 /**
  * Pure copy of `attenuationFactorForProject`'s math, with the DB call

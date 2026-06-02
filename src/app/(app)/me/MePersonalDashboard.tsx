@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Clock, UserCheck, Activity } from "lucide-react";
-import type { getMeDashboard } from "@/operations/personal";
-import type { Approval } from "@/db/schema/approval";
+import type { getMeDashboard } from "@/operations/prompt/personal";
+import type { Approval } from "@/db/schema/plan/approval";
 
 type DashboardData = Awaited<ReturnType<typeof getMeDashboard>>;
 

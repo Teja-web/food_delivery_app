@@ -66,7 +66,7 @@ vi.mock("@/operations/rule-engine", () => ({
   applyActionPolicyRules: vi.fn(async () => state.ruleViolations),
 }));
 
-vi.mock("@/operations/skill-autonomy", () => ({
+vi.mock("@/operations/skill/skill-autonomy", () => ({
   LEVEL_NAMES: ["observe", "propose", "merge", "lead"] as const,
   getSkillAutonomy: vi.fn(async (skillId: string, projectId: string | null) => {
     const key = `${skillId}:${projectId ?? "null"}`;

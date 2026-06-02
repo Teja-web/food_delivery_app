@@ -12,13 +12,13 @@
 import { z } from "zod/v4";
 
 import { handleApi } from "@/lib/auth/api-key";
-import { capturePrompt } from "@/operations/prompt-log";
+import { capturePrompt } from "@/operations/prompt/prompt-log";
 import {
   PROMPT_ROLES,
   VIBE_CODING_TOOLS,
   PROMPT_QUALITY_TIERS,
 } from "@/db/schema/prompt-log";
-import { isPromptGovernanceEnabled } from "@/lib/prompt-quality/feature-flag";
+import { isPromptGovernanceEnabled } from "@/domain/prompt-quality/feature-flag";
 
 const bodySchema = z.object({
   projectId: z.string().nullable().optional(),

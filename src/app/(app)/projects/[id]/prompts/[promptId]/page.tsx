@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getActionContext } from "@/lib/auth/context";
-import { isPromptGovernanceEnabled } from "@/lib/prompt-quality/feature-flag";
-import { getPromptDetail } from "@/operations/prompt-log";
+import { isPromptGovernanceEnabled } from "@/domain/prompt-quality/feature-flag";
+import { getPromptDetail } from "@/operations/prompt/prompt-log";
 import { cn } from "@/lib/utils";
 
 const TIER_TONE: Record<"GOOD" | "NEEDS_IMPROVEMENT" | "POOR", string> = {

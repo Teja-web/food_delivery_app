@@ -11,7 +11,7 @@ import { createHash, randomBytes } from "crypto";
 import { and, eq, isNull, or, gt } from "drizzle-orm";
 import { db } from "@/db/client";
 import { apiKeys } from "@/db/schema/api-key";
-import { automationLog } from "@/db/schema/automation-log";
+import { automationLog } from "@/db/schema/audit/automation-log";
 import { buildScopedContext, runWithMessageContext } from "@/lib/auth/context";
 import { eq as drizzleEq } from "drizzle-orm";
 

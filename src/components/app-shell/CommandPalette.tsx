@@ -26,7 +26,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
-import { parseShortSyntax } from "@/lib/short-syntax/parser";
+import { parseShortSyntax } from "@/domain/short-syntax/parser";
 
 type Props = {
   open: boolean;

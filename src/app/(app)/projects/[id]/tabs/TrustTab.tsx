@@ -13,14 +13,14 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
+import type { SkillOutcomeVerdict } from "@/db/schema/skill/skill-outcome";
 import { cn } from "@/lib/utils";
 
-import type { ProjectLearning } from "@/db/schema/project-learning";
+import type { ProjectLearning } from "@/db/schema/plan/project-learning";
 import type {
   ProjectOutcomeRow,
   PolicyMatrixCell,
-} from "@/operations/project-trust";
+} from "@/operations/project/project-trust";
 
 import { LearningsCard } from "./LearningsCard";
 import { MergeApprovalPolicyCard } from "./MergeApprovalPolicyCard";

@@ -10,7 +10,7 @@ import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { plans } from "./plan";
+import { plans } from "./plan/plan";
 
 export const DEPLOYMENT_STATUSES = [
   "pending",

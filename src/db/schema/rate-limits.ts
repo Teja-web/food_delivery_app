@@ -22,7 +22,7 @@ export const rateLimits = cozntSchema.table(
   },
   (table) => [
     // Allows a periodic cleanup query: DELETE WHERE window_start < now() - 1 day.
-    index("recruit_rate_limits_window_idx").on(table.windowStart),
+    index("coznt_rate_limits_window_idx").on(table.windowStart),
   ],
 );
 

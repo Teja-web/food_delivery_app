@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
-import { workItemCrud } from "@/operations/work-items";
+import { workItemCrud } from "@/operations/work/work-items";
 import { syncWorkItemStatusToJira } from "@/lib/integrations/outbound";
 
 const bodySchema = z.object({

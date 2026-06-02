@@ -22,8 +22,8 @@ import {
   buildMcpContext,
   McpProjectAmbiguousError,
   McpProjectNotFoundError,
-} from "@/lib/mcp/build-context";
-import { McpRequestSchema } from "@/lib/mcp/schemas";
+} from "@/lib/agent-context/build-context";
+import { McpRequestSchema } from "@/lib/agent-context/schemas";
 
 function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3029";

@@ -48,7 +48,7 @@ class EventBus extends EventEmitter {
   }
 }
 
-const GLOBAL_KEY = "__recruit_event_bus__" as const;
+const GLOBAL_KEY = "__coznt_event_bus__" as const;
 
 export const eventBus: EventBus =
   (globalThis as Record<string, unknown>)[GLOBAL_KEY] as EventBus ??

@@ -13,7 +13,7 @@
 import { runSync } from "./commands/sync.js";
 import { runConnect } from "./commands/connect.js";
 import { runPromptHook } from "./commands/prompt-hook.js";
-import { MCP_VERSION } from "../lib/mcp/version.js";
+import { MCP_VERSION } from "../lib/agent-context/version.js";
 // `call` is dynamic-imported in its case branch — it pulls in src/mcp/ which
 // is not packaged into the CLI tarball (see scripts/cli-pack.ts).
 

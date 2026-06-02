@@ -12,7 +12,7 @@ import {
   rollbackPairing,
   selectIncidentToPair,
   type DeploymentLite,
-} from "@/operations/mttr";
+} from "@/operations/dora/mttr";
 
 const T0 = new Date("2026-05-14T00:00:00Z");
 const PROD = "production";

@@ -13,7 +13,7 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/approval";
+import { approvals } from "@/db/schema/plan/approval";
 import { deployments } from "@/db/schema/deployment";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";

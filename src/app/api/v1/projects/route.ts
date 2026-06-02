@@ -1,4 +1,4 @@
-import { projectCrud } from "@/operations/projects";
+import { projectCrud } from "@/operations/project/projects";
 import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(req: Request) {

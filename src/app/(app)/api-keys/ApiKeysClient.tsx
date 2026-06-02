@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/api-keys";
+import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/integration/api-keys";
 import type { ApiKeyRow, ProjectOption } from "./serialize";
 import { HostConfigPanel } from "./HostConfigPanel";
 

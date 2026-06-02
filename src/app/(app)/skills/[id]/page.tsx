@@ -6,24 +6,24 @@ import { AutonomyPill } from "@/components/trust/AutonomyPill";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkline } from "@/components/viz/Sparkline";
-import type { Skill } from "@/db/schema/skill";
-import type { SkillOutcomeVerdict } from "@/db/schema/skill-outcome";
-import { getSkill } from "@/actions/skills";
+import type { Skill } from "@/db/schema/skill/skill";
+import type { SkillOutcomeVerdict } from "@/db/schema/skill/skill-outcome";
+import { getSkill } from "@/actions/skill/skills";
 import { computeAutonomyDistance } from "@/domain/autonomy-distance";
-import { readChoreographyBody } from "@/operations/choreographies";
-import { countBlockedPrsForSkill } from "@/operations/execution-gate";
+import { readChoreographyBody } from "@/operations/choreography/choreographies";
+import { countBlockedPrsForSkill } from "@/operations/gate/execution-gate";
 import {
   getRecentApprovalsForSkill,
   type SkillApprovalRow,
-} from "@/operations/project-trust";
+} from "@/operations/project/project-trust";
 import {
   getRecentSkillOutcomes,
   getSkillAutonomy,
   getSkillAutonomyAcrossProjects,
   getSkillStats30d,
   LEVEL_BLURBS,
-} from "@/operations/skill-autonomy";
-import { projectCrud } from "@/operations/projects";
+} from "@/operations/skill/skill-autonomy";
+import { projectCrud } from "@/operations/project/projects";
 import { getActionContext } from "@/lib/auth/context";
 
 import { levelLabel } from "../serialize";

@@ -13,11 +13,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { marked } from "marked";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { authenticate, UnauthorizedError } from "@/lib/auth/api-key";
 import { getCurrentUser } from "@/lib/auth/actions";
-import { serializePlanToMarkdown } from "@/lib/plan/markdown";
+import { serializePlanToMarkdown } from "@/domain/plan-markdown";
 
 const ALLOWED_FORMATS = ["md", "html"] as const;
 type ExportFormat = (typeof ALLOWED_FORMATS)[number];

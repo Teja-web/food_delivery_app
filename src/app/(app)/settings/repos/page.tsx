@@ -9,7 +9,7 @@
 import { ChevronLeft, Globe2 } from "lucide-react";
 import Link from "next/link";
 
-import { listRepoPoliciesAction } from "@/actions/repo-policies";
+import { listRepoPoliciesAction } from "@/actions/integration/repo-policies";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { RepoPoliciesClient } from "./RepoPoliciesClient";

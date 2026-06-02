@@ -21,7 +21,7 @@
 import type {
   SkillOutcomeSeverity,
   SkillOutcomeVerdict,
-} from "@/db/schema/skill-outcome";
+} from "@/db/schema/skill/skill-outcome";
 
 // ---------------------------------------------------------------------------
 // Result type

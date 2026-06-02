@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workItems } from "@/db/schema/work-item";
 import { metrics } from "@/db/schema/metric";
-import type { TaskParams } from "@/lib/rules";
+import type { TaskParams } from "@/automations/task-router";
 
 const TERMINAL_STATUSES = new Set(["done", "closed", "resolved", "merged"]);
 

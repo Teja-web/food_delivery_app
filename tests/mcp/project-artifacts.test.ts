@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { McpProjectArtifactsSchema, McpResponseSchema } from "@/lib/mcp/schemas";
+import { McpProjectArtifactsSchema, McpResponseSchema } from "@/lib/agent-context/schemas";
 
 describe("McpProjectArtifactsSchema", () => {
   it("accepts a fully-populated artifact snapshot", () => {

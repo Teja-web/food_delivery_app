@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import { recordMetric, listMetrics } from "@/operations/metrics";
+import { recordMetric, listMetrics } from "@/operations/dora/metrics";
 import { METRIC_TYPES, type MetricType } from "@/db/schema/metric";
 
 export async function POST(req: Request) {

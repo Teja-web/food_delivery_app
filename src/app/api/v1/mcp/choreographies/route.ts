@@ -12,7 +12,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
-import { listChoreographies } from "@/operations/choreographies";
+import { listChoreographies } from "@/operations/choreography/choreographies";
 
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {

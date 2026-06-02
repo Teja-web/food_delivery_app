@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
-import { getPlan } from "@/actions/plans";
-import { listCommentsForPlan, createComment } from "@/actions/comments";
+import { getPlan } from "@/actions/plan/plans";
+import { listCommentsForPlan, createComment } from "@/actions/plan/comments";
 import { listApprovalsForPlan, requestPlanApproval } from "@/actions/approvals";
-import { listPlanRevisions, listChildPlans, getPlanAncestry } from "@/operations/plans";
+import { listPlanRevisions, listChildPlans, getPlanAncestry } from "@/operations/plan/plans";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";

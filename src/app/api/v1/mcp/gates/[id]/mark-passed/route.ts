@@ -24,8 +24,8 @@ import { db } from "@/db/client";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
-import { computeNextAction } from "@/lib/mcp/next-action";
-import { tryAdvancePhase } from "@/operations/phase-advance";
+import { computeNextAction } from "@/lib/agent-context/next-action";
+import { tryAdvancePhase } from "@/operations/gate/phase-advance";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

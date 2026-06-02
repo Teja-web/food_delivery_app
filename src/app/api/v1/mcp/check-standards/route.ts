@@ -15,7 +15,7 @@ import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans, PLAN_KINDS, type Plan, type PlanKind } from "@/db/schema/plan";
+import { plans, PLAN_KINDS, type Plan, type PlanKind } from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
 import { applyActionPolicyRules, evaluatePlanAgainstRules } from "@/operations/rule-engine";

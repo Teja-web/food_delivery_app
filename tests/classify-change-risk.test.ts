@@ -96,7 +96,7 @@ vi.mock("@/lib/ai", async (importOriginal) => {
   };
 });
 
-vi.mock("@/operations/skill-autonomy", () => ({
+vi.mock("@/operations/skill/skill-autonomy", () => ({
   recordSkillOutcome: vi.fn(async (input: { verdict: string; severity?: string | null }) => {
     state.outcomeRecords.push({ verdict: input.verdict, severity: input.severity ?? null });
     return { id: `outcome_${state.outcomeRecords.length}` };
@@ -106,8 +106,8 @@ vi.mock("@/operations/skill-autonomy", () => ({
 // Stub the prompt builder so we don't depend on its formatting. importOriginal
 // keeps `changeRiskClassifierPrompt` (used at agent-definition module load)
 // while only overriding the context-aware builder.
-vi.mock("@/automations/agents/prompts/change-risk-classifier", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/automations/agents/prompts/change-risk-classifier")>();
+vi.mock("@/automations/agents/change-risk-classifier/prompt", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/automations/agents/change-risk-classifier/prompt")>();
   return {
     ...actual,
     changeRiskClassifierPromptWithContext: vi.fn(() => "PROMPT"),

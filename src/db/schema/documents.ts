@@ -14,10 +14,10 @@ export const documents = cozntSchema.table("documents", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  unique("recruit_documents_table_record_uniq").on(table.tableName, table.recordId),
-  index("recruit_documents_org_idx").on(table.organizationId),
-  index("recruit_documents_table_idx").on(table.tableName),
-  index("recruit_documents_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+  unique("coznt_documents_table_record_uniq").on(table.tableName, table.recordId),
+  index("coznt_documents_org_idx").on(table.organizationId),
+  index("coznt_documents_table_idx").on(table.tableName),
+  index("coznt_documents_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
 ]);
 
 export type Document = typeof documents.$inferSelect;

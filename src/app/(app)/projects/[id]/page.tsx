@@ -2,31 +2,31 @@ import { notFound } from "next/navigation";
 
 import { sql } from "drizzle-orm";
 
-import { listGatesForPhase, listGatesForProject } from "@/actions/phase-gates";
-import { getProject } from "@/actions/projects";
+import { listGatesForPhase, listGatesForProject } from "@/actions/gate/phase-gates";
+import { getProject } from "@/actions/project/projects";
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/approval";
+import { approvals } from "@/db/schema/plan/approval";
 import type { PhaseGate } from "@/db/schema/phase-gate";
 import { PROJECT_PHASES, type Project, type ProjectPhase } from "@/db/schema/project";
 import { canAdvanceFrom, nextPhase, PHASE_GUIDANCE } from "@/domain/phases";
-import { listBindingsForProject } from "@/operations/adapter-bindings";
-import { getOrCreateProjectKey } from "@/operations/api-keys";
-import { listDeployments } from "@/operations/deployments";
-import { listPlansByProject } from "@/operations/plans";
-import { listProjectLearnings } from "@/operations/project-learnings";
+import { listBindingsForProject } from "@/operations/choreography/adapter-bindings";
+import { getOrCreateProjectKey } from "@/operations/integration/api-keys";
+import { listDeployments } from "@/operations/work/deployments";
+import { listPlansByProject } from "@/operations/plan/plans";
+import { listProjectLearnings } from "@/operations/plan/project-learnings";
 import {
   getProjectAutonomyPolicyMatrix,
   getRecentProjectOutcomes,
-} from "@/operations/project-trust";
+} from "@/operations/project/project-trust";
 import { listRulesForProject } from "@/operations/rules";
-import { listSkillsForProject } from "@/operations/skills";
-import { listWorkItemsForProject } from "@/operations/work-items";
+import { listSkillsForProject } from "@/operations/skill/skills";
+import { listWorkItemsForProject } from "@/operations/work/work-items";
 import { getActionContext } from "@/lib/auth/context";
 import {
   attenuationFactorForProject,
   listRecentPromptsForProject,
-} from "@/operations/prompt-log";
-import { isPromptGovernanceEnabled } from "@/lib/prompt-quality/feature-flag";
+} from "@/operations/prompt/prompt-log";
+import { isPromptGovernanceEnabled } from "@/domain/prompt-quality/feature-flag";
 
 import { CockpitClient } from "./CockpitClient";
 import {

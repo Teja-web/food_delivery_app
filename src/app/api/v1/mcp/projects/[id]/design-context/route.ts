@@ -11,7 +11,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";

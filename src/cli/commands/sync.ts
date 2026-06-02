@@ -36,7 +36,7 @@ import {
 import { detectEditors, type EditorName } from "../lib/editor-detect.js";
 import { writePostureFiles } from "../lib/posture-writer.js";
 import { writeForEditor } from "../lib/mcp-config-writers/index.js";
-import { tarballUrl } from "../../lib/mcp/host-config.js";
+import { tarballUrl } from "../../lib/agent-context/host-config.js";
 import { resolveApiKey } from "../lib/auth.js";
 import { getRunningCliVersion } from "../lib/cli-version.js";
 

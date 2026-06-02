@@ -13,11 +13,11 @@
 
 import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { skillOutcomes } from "@/db/schema/skill-outcome";
-import { skillAutonomy } from "@/db/schema/skill-autonomy";
-import { approvals } from "@/db/schema/approval";
+import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
+import { skillAutonomy } from "@/db/schema/skill/skill-autonomy";
+import { approvals } from "@/db/schema/plan/approval";
 import { phaseGates } from "@/db/schema/phase-gate";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { workItems } from "@/db/schema/work-item";
 import {
   computeVerificationDebt,
@@ -27,7 +27,7 @@ import {
   type SkillInvocationSnapshot,
   type UnreviewedAiChangeSnapshot,
   type VerificationDebtBreakdown,
-} from "@/lib/verification-debt/score";
+} from "@/domain/verification-debt/score";
 
 const WINDOW_DAYS = 30;
 

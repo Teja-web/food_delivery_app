@@ -15,7 +15,7 @@
 
 import { redirect } from "next/navigation";
 
-import { MCP_VERSION } from "@/lib/mcp/version";
+import { MCP_VERSION } from "@/lib/agent-context/version";
 
 export function GET(): never {
   redirect(`/install/coznt-mcp-${MCP_VERSION}.tgz`);

@@ -11,8 +11,8 @@ import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { plans } from "./plan";
-import { skills } from "./skill";
+import { plans } from "./plan/plan";
+import { skills } from "./skill/skill";
 
 export const WORK_ITEM_SOURCES = ["github", "jira", "ado", "confluence"] as const;
 export type WorkItemSource = (typeof WORK_ITEM_SOURCES)[number];

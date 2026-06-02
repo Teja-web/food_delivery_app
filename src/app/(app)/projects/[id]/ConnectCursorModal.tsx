@@ -12,8 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { renderHostConfig } from "@/lib/mcp/host-config";
-import { MCP_VERSION } from "@/lib/mcp/version";
+import { renderHostConfig } from "@/lib/agent-context/host-config";
+import { MCP_VERSION } from "@/lib/agent-context/version";
 import { cn } from "@/lib/utils";
 
 type Props = {

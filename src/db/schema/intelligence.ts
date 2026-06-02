@@ -11,7 +11,7 @@ import { text, timestamp, integer, jsonb, index, unique } from "drizzle-orm/pg-c
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
-import { automationLog } from "./automation-log";
+import { automationLog } from "./audit/automation-log";
 
 export const intelligence = cozntSchema.table(
   "intelligence",

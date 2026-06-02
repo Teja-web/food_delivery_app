@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import {
   createCustomChoreographyAction,
   validateChoreographyBodyAction,
-} from "@/actions/custom-choreographies";
+} from "@/actions/choreography/custom-choreographies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

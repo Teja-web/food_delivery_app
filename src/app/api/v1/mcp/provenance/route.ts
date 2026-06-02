@@ -14,10 +14,10 @@
 import { and, eq, gte } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
-import { summarizeProvenance } from "@/lib/provenance/summarize";
+import { summarizeProvenance } from "@/domain/provenance/summarize";
 
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {

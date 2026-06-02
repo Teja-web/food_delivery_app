@@ -16,7 +16,7 @@ import {
   MIN_LEVEL,
   LEVEL_NAMES,
   type LevelName,
-} from "@/operations/autonomy-constants";
+} from "@/domain/autonomy-constants";
 
 export interface AutonomyDistanceInput {
   /** Current level (0–3). */

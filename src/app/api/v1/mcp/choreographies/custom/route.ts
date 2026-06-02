@@ -7,7 +7,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
-import { listCustomManifest } from "@/operations/custom-choreographies";
+import { listCustomManifest } from "@/operations/choreography/custom-choreographies";
 
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {

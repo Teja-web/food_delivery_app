@@ -16,7 +16,7 @@ import {
   SUPPORTED_HOSTS,
   renderHostConfig,
   tarballUrl,
-} from "@/lib/mcp/host-config";
+} from "@/lib/agent-context/host-config";
 import { writeForEditor } from "@/cli/lib/mcp-config-writers";
 
 const SERVER_URL = "https://coznt.example.com";

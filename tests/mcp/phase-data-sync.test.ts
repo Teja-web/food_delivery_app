@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import * as routeSide from "@/lib/mcp/phase-enforcement";
+import * as routeSide from "@/lib/agent-context/phase-enforcement";
 import * as mcpSide from "@/mcp/phase-data";
 
 describe("phase-data sync (mcp-side ↔ route-side)", () => {

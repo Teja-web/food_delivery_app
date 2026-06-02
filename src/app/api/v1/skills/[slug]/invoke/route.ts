@@ -1,6 +1,6 @@
 import { handleApi } from "@/lib/auth/api-key";
 import { enforceWriteVerbFromHeader } from "@/lib/auth/repo-policy";
-import { invokeSkill } from "@/operations/skill-invocation";
+import { invokeSkill } from "@/operations/skill/skill-invocation";
 
 /**
  * POST /api/v1/skills/:slug/invoke

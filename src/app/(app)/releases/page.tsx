@@ -2,9 +2,9 @@ import { getActionContext } from "@/lib/auth/context";
 import { db } from "@/db/client";
 import { eq, and, desc, inArray, or } from "drizzle-orm";
 
-import { approvals } from "@/db/schema/approval";
-import { listDeployments } from "@/operations/deployments";
-import { listPlansByKind } from "@/operations/plans";
+import { approvals } from "@/db/schema/plan/approval";
+import { listDeployments } from "@/operations/work/deployments";
+import { listPlansByKind } from "@/operations/plan/plans";
 import { projects } from "@/db/schema/project";
 
 import { ReleasesClient } from "./ReleasesClient";

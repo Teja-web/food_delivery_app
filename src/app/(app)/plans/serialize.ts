@@ -1,4 +1,4 @@
-import type { Plan, PlanKind, PlanStatus } from "@/db/schema/plan";
+import type { Plan, PlanKind, PlanStatus } from "@/db/schema/plan/plan";
 import type { Project } from "@/db/schema/project";
 
 export type PlanRowClient = {

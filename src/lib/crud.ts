@@ -8,7 +8,6 @@ import { getActionContext, isWorkerContext } from "./auth/context";
 import type { ScopedActionContext } from "./auth/context";
 import type { ZodObject } from "zod/v4";
 import { searchHybrid } from "./search";
-import { entityNotes } from "@/db/schema";
 
 const DEFAULT_PAGE_SIZE = 15;
 
@@ -38,10 +37,6 @@ interface EntityCrudConfig {
    * alone (matching the prior behavior of `orgScopeAnd`).
    */
   scopeOverride?: (ctx: ScopedActionContext, table: any) => any;
-  /** Deep relations to load when building AI context text */
-  contextWith?: Record<string, unknown>;
-  /** Transform entity + loaded relations into a pre-digested text string for AI prompts */
-  buildContext?: (entity: any) => string | Promise<string>;
 }
 
 function friendlyDbError(err: unknown): never {
@@ -108,8 +103,6 @@ export function createEntityCrud(config: EntityCrudConfig) {
     hooks,
     scope,
     scopeOverride,
-    contextWith,
-    buildContext,
   } = config;
 
   /** Org-scope predicate (with override) — used by write paths. */
@@ -338,43 +331,6 @@ export function createEntityCrud(config: EntityCrudConfig) {
 
       if (hooks?.afterDelete) await hooks.afterDelete(id, ctx);
       if (!isWorkerContext()) onMutate?.();
-    },
-
-    /**
-     * Load entity with deep relations and return a pre-digested text string
-     * for AI prompt context. Returns null if entity not found or buildContext not configured.
-     * No org scoping — designed for worker/task context.
-     */
-    async getEntityContext(id: string): Promise<string | null> {
-      if (!buildContext) return null;
-      const entity = await db.query[queryKey].findFirst({
-        where: eq(table[idField], id),
-        ...(contextWith ? { with: contextWith } : {}),
-      });
-      if (!entity) return null;
-      const context = await buildContext(entity);
-
-      // Append user notes as additional context for AI analysis
-      const entityType = queryKey.replace(/s$/, ""); // "candidates" → "candidate"
-      const notes = await db
-        .select({ body: entityNotes.body, createdByName: entityNotes.createdByName, createdAt: entityNotes.createdAt })
-        .from(entityNotes)
-        .where(and(
-          eq(entityNotes.entityType, entityType),
-          eq(entityNotes.entityId, id),
-          eq(entityNotes.organizationId, (entity as any).organizationId),
-        ))
-        .orderBy(desc(entityNotes.createdAt))
-        .limit(20);
-
-      if (notes.length === 0) return context;
-
-      const noteLines = notes.map((n: { body: string; createdByName: string | null; createdAt: Date | null }) => {
-        const date = n.createdAt ? n.createdAt.toISOString().split("T")[0] : "unknown";
-        const author = n.createdByName ?? "Team member";
-        return `- [${date}] ${author}: ${n.body}`;
-      });
-      return `${context}\n\n### Notes\n${noteLines.join("\n")}`;
     },
   };
 }

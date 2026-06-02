@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import {
   saveIntegrationCredentialsAction,
   disconnectIntegrationAction,
-} from "@/actions/integrations";
+} from "@/actions/integration/integrations";
 import type {
   AdapterProvider,
   BindingRow,

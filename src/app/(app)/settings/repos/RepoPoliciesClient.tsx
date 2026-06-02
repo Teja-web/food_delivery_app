@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-import { setRepoPolicyAction } from "@/actions/repo-policies";
+import { setRepoPolicyAction } from "@/actions/integration/repo-policies";
 
 type Policy = "read-write" | "read-only" | "deny";
 

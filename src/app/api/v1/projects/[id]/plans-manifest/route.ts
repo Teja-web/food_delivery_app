@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
-import { planFilePath } from "@/lib/plan/markdown";
+import { planFilePath } from "@/domain/plan-markdown";
 
 /**
  * GET /api/v1/projects/:id/plans-manifest

@@ -1,4 +1,4 @@
-import { getPortfolioData } from "@/operations/portfolio";
+import { getPortfolioData } from "@/operations/project/portfolio";
 
 import { PortfolioTable } from "./PortfolioTable";
 import { serializePortfolio } from "./serialize";

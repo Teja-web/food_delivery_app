@@ -6,9 +6,9 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
-import { planRevisions } from "@/db/schema/plan-revision";
-import { approvals } from "@/db/schema/approval";
+import { plans } from "@/db/schema/plan/plan";
+import { planRevisions } from "@/db/schema/plan/plan-revision";
+import { approvals } from "@/db/schema/plan/approval";
 import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {

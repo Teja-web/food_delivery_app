@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import {
   RUBRIC_VERSION as TS_VERSION,
   scorePromptQuality as scoreTs,
-} from "@/lib/prompt-quality/rubric";
+} from "@/domain/prompt-quality/rubric";
 import {
   RUBRIC_VERSION as JS_VERSION,
   scorePromptQuality as scoreJs,

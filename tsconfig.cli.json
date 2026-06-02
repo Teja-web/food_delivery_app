@@ -22,7 +22,7 @@
   },
   "include": [
     "src/cli/**/*.ts",
-    "src/lib/mcp/host-config.ts",
-    "src/lib/mcp/version.ts"
+    "src/lib/agent-context/host-config.ts",
+    "src/lib/agent-context/version.ts"
   ]
 }

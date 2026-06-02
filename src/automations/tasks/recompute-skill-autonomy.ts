@@ -15,9 +15,9 @@
 
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { skillOutcomes } from "@/db/schema/skill-outcome";
-import { recomputeSkillAutonomy as recompute } from "@/operations/skill-autonomy";
-import type { TaskParams } from "@/lib/rules";
+import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
+import { recomputeSkillAutonomy as recompute } from "@/operations/skill/skill-autonomy";
+import type { TaskParams } from "@/automations/task-router";
 
 export async function recomputeSkillAutonomyTask(params: TaskParams): Promise<void> {
   const data = params.data as { skillId?: string; projectId?: string | null } | undefined;
@@ -34,7 +34,7 @@ export async function recomputeSkillAutonomyTask(params: TaskParams): Promise<vo
     // skill on the project rather than recomputing a single pair.
     if (outcome.sourceKind === "prompt_quality_signal") {
       if (!outcome.projectId) return;
-      const { skills } = await import("@/db/schema/skill");
+      const { skills } = await import("@/db/schema/skill/skill");
       const { and: andOp, eq: eqOp, or: orOp, isNull } = await import("drizzle-orm");
       const affected = await db
         .select({ id: skills.id })

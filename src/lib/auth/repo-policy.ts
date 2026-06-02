@@ -15,7 +15,7 @@
 import {
   autoCreateOnFirstTouch,
   getPolicyForRemote,
-} from "@/operations/repo-policies";
+} from "@/operations/integration/repo-policies";
 import type { RepoPolicy } from "@/db/schema/repo-policy";
 
 export class RepoDeniedError extends Error {

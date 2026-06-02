@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canonicalizeRemote } from "@/lib/git/remote-canonical";
+import { canonicalizeRemote } from "@/domain/git-remote";
 
 describe("canonicalizeRemote", () => {
   const cases: { input: string; expected: string }[] = [

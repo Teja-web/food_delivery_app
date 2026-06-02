@@ -14,7 +14,7 @@ import {
   EVIDENCE_PACKET_VERSION,
   verifyEvidencePacket,
   type EvidencePacket,
-} from "@/operations/audit-evidence";
+} from "@/operations/audit/audit-evidence";
 
 function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");

@@ -50,85 +50,85 @@ import { readConventions } from "./resources/conventions.js";
 import { readHistory } from "./resources/history.js";
 import { readMyTasks } from "./resources/my-tasks.js";
 import { getSessionProject, setSessionProject, type SessionProject } from "./session.js";
-import { advancePhaseInput, runAdvancePhase } from "./tools/advance-phase.js";
-import { checkStandardsInput, runCheckStandards } from "./tools/check-standards.js";
-import { createRequirementInput, runCreateRequirement } from "./tools/create-requirement.js";
+import { advancePhaseInput, runAdvancePhase } from "./tools/phase/advance-phase.js";
+import { checkStandardsInput, runCheckStandards } from "./tools/system/check-standards.js";
+import { createRequirementInput, runCreateRequirement } from "./tools/requirement/create-requirement.js";
 import {
   deleteDraftRequirementInput,
   runDeleteDraftRequirement,
-} from "./tools/delete-draft-requirement.js";
-import { draftRequirementInput, runDraftRequirement } from "./tools/draft-requirement.js";
-import { generatePipelineInput, runGeneratePipeline } from "./tools/generate-pipeline.js";
-import { generateTestsInput, runGenerateTests } from "./tools/generate-tests.js";
-import { getAssignedWorkInput, runGetAssignedWork } from "./tools/get-assigned-work.js";
-import { getDesignContextInput, runGetDesignContext } from "./tools/get-design-context.js";
-import { getMyContextInput, runGetMyContext } from "./tools/get-my-context.js";
-import { setProjectInput, runSetProject } from "./tools/set-project.js";
-import { switchProjectInput, runSwitchProject } from "./tools/switch-project.js";
-import { getOutcomesInput, runGetOutcomes } from "./tools/get-outcomes.js";
-import { getPhaseChecklistInput, runGetPhaseChecklist } from "./tools/get-phase-checklist.js";
-import { getPipelineStatusInput, runGetPipelineStatus } from "./tools/get-pipeline-status.js";
-import { getPlansInput, runGetPlans } from "./tools/get-plans.js";
-import { getProjectStatusInput, runGetProjectStatus } from "./tools/get-project-status.js";
-import { getRequirementsInput, runGetRequirements } from "./tools/get-requirements.js";
-import { invokeSkillInput, runInvokeSkill } from "./tools/invoke-skill.js";
+} from "./tools/requirement/delete-draft-requirement.js";
+import { draftRequirementInput, runDraftRequirement } from "./tools/requirement/draft-requirement.js";
+import { generatePipelineInput, runGeneratePipeline } from "./tools/pipeline/generate-pipeline.js";
+import { generateTestsInput, runGenerateTests } from "./tools/pipeline/generate-tests.js";
+import { getAssignedWorkInput, runGetAssignedWork } from "./tools/context/get-assigned-work.js";
+import { getDesignContextInput, runGetDesignContext } from "./tools/context/get-design-context.js";
+import { getMyContextInput, runGetMyContext } from "./tools/context/get-my-context.js";
+import { setProjectInput, runSetProject } from "./tools/session/set-project.js";
+import { switchProjectInput, runSwitchProject } from "./tools/session/switch-project.js";
+import { getOutcomesInput, runGetOutcomes } from "./tools/skill/get-outcomes.js";
+import { getPhaseChecklistInput, runGetPhaseChecklist } from "./tools/phase/get-phase-checklist.js";
+import { getPipelineStatusInput, runGetPipelineStatus } from "./tools/pipeline/get-pipeline-status.js";
+import { getPlansInput, runGetPlans } from "./tools/plan/get-plans.js";
+import { getProjectStatusInput, runGetProjectStatus } from "./tools/system/get-project-status.js";
+import { getRequirementsInput, runGetRequirements } from "./tools/requirement/get-requirements.js";
+import { invokeSkillInput, runInvokeSkill } from "./tools/skill/invoke-skill.js";
 import {
   listChoreographiesInput,
   runListChoreographies,
-} from "./tools/list-choreographies.js";
+} from "./tools/choreography/list-choreographies.js";
 import {
   listCustomChoreographiesInput,
   runListCustomChoreographies,
-} from "./tools/list-custom-choreographies.js";
-import { searchAuditInput, runSearchAudit } from "./tools/search-audit.js";
+} from "./tools/choreography/list-custom-choreographies.js";
+import { searchAuditInput, runSearchAudit } from "./tools/audit/search-audit.js";
 import {
   searchLearningsInput,
   runSearchLearnings,
-} from "./tools/search-learnings.js";
-import { searchOutcomesInput, runSearchOutcomes } from "./tools/search-outcomes.js";
-import { searchPlansInput, runSearchPlans } from "./tools/search-plans.js";
+} from "./tools/audit/search-learnings.js";
+import { searchOutcomesInput, runSearchOutcomes } from "./tools/skill/search-outcomes.js";
+import { searchPlansInput, runSearchPlans } from "./tools/plan/search-plans.js";
 import {
   syncChoreographiesInput,
   runSyncChoreographies,
-} from "./tools/sync-choreographies.js";
+} from "./tools/choreography/sync-choreographies.js";
 import {
   listDraftRequirementsInput,
   runListDraftRequirements,
-} from "./tools/list-draft-requirements.js";
-import { logDecisionInput, runLogDecision } from "./tools/log-decision.js";
-import { markGatePassedInput, runMarkGatePassed } from "./tools/mark-gate-passed.js";
-import { pushRequirementsInput, runPushRequirements } from "./tools/push-requirements.js";
-import { sessionEndInput, runSessionEnd } from "./tools/session-end.js";
-import { sessionStartInput, runSessionStart } from "./tools/session-start.js";
+} from "./tools/requirement/list-draft-requirements.js";
+import { logDecisionInput, runLogDecision } from "./tools/plan/log-decision.js";
+import { markGatePassedInput, runMarkGatePassed } from "./tools/phase/mark-gate-passed.js";
+import { pushRequirementsInput, runPushRequirements } from "./tools/requirement/push-requirements.js";
+import { sessionEndInput, runSessionEnd } from "./tools/session/session-end.js";
+import { sessionStartInput, runSessionStart } from "./tools/session/session-start.js";
 import {
   submitForApprovalInput,
   runSubmitForApproval,
-} from "./tools/submit-for-approval.js";
+} from "./tools/plan/submit-for-approval.js";
 import {
   submitPhaseForReviewInput,
   runSubmitPhaseForReview,
-} from "./tools/submit-phase-for-review.js";
+} from "./tools/phase/submit-phase-for-review.js";
 import {
   updateDraftRequirementInput,
   runUpdateDraftRequirement,
-} from "./tools/update-draft-requirement.js";
+} from "./tools/requirement/update-draft-requirement.js";
 import {
   updateTestResultInput,
   runUpdateTestResult,
-} from "./tools/update-test-result.js";
+} from "./tools/work/update-test-result.js";
 import {
   updateWorkItemStatusInput,
   runUpdateWorkItemStatus,
-} from "./tools/update-work-item-status.js";
-import { upsertPlanInput, runUpsertPlan } from "./tools/upsert-plan.js";
-import { logPromptInput, runLogPrompt } from "./tools/log-prompt.js";
-import { ratePromptInput, runRatePrompt } from "./tools/rate-prompt.js";
-import { getPromptAuthorInput, runGetPromptAuthor } from "./tools/get-prompt-author.js";
-import { flushLocalPromptsInput, runFlushLocalPrompts } from "./tools/flush-local-prompts.js";
-import { triggerPipelineInput, runTriggerPipeline } from "./tools/trigger-pipeline.js";
-import { getAutonomyInput, runGetAutonomy } from "./tools/get-autonomy.js";
-import { getVerificationDebtInput, runGetVerificationDebt } from "./tools/get-verification-debt.js";
-import { getProvenanceInput, runGetProvenance } from "./tools/get-provenance.js";
+} from "./tools/work/update-work-item-status.js";
+import { upsertPlanInput, runUpsertPlan } from "./tools/plan/upsert-plan.js";
+import { logPromptInput, runLogPrompt } from "./tools/prompt/log-prompt.js";
+import { ratePromptInput, runRatePrompt } from "./tools/prompt/rate-prompt.js";
+import { getPromptAuthorInput, runGetPromptAuthor } from "./tools/prompt/get-prompt-author.js";
+import { flushLocalPromptsInput, runFlushLocalPrompts } from "./tools/prompt/flush-local-prompts.js";
+import { triggerPipelineInput, runTriggerPipeline } from "./tools/pipeline/trigger-pipeline.js";
+import { getAutonomyInput, runGetAutonomy } from "./tools/skill/get-autonomy.js";
+import { getVerificationDebtInput, runGetVerificationDebt } from "./tools/audit/get-verification-debt.js";
+import { getProvenanceInput, runGetProvenance } from "./tools/audit/get-provenance.js";
 
 import { z, ZodTypeAny } from "zod";
 

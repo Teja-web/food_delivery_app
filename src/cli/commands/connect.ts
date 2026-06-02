@@ -27,8 +27,8 @@ import { ensureCozntLocalGitignored } from "../lib/gitignore.js";
 import { pickProject } from "../lib/project-picker.js";
 import { ask, askChoice, askSecret } from "../lib/prompt.js";
 import { runSync } from "./sync.js";
-import { tarballUrl } from "../../lib/mcp/host-config.js";
-import { MCP_VERSION } from "../../lib/mcp/version.js";
+import { tarballUrl } from "../../lib/agent-context/host-config.js";
+import { MCP_VERSION } from "../../lib/agent-context/version.js";
 import {
   installClaudePromptHook,
   fetchCurrentHookVersion,

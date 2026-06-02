@@ -14,7 +14,7 @@ const nlReadAgent = {
   slug: "nl-read",
   name: "NL Read Engine",
   temperature: 0,
-  systemPrompt: `You are a SQL generation engine for a recruiting application.
+  systemPrompt: `You are a SQL generation engine for Coznt, the AI-DLC governance + observability layer.
 Given a natural language question and the database schema context below, generate a single SELECT statement that answers the question.
 
 RULES:
@@ -23,7 +23,7 @@ RULES:
 - Use parameterized values ($1, $2, etc.) for all user-supplied filter values
 - Return the SQL, parameter values, and a brief explanation separately
 - Always include organization_id filtering via a parameter ($1 is always organization_id)
-- Use JOINs when the question involves multiple entities (e.g. "candidates in interview stage" needs candidates + applications)
+- Use JOINs when the question involves multiple entities (e.g. "skills with low autonomy for project X" needs skills + skill_autonomy + projects)
 - Always include a LIMIT clause (default 100, respect user's request if specified)
 - Prefer LEFT JOIN over INNER JOIN unless the question implies only matched rows
 - For aggregate questions (counts, averages), return the aggregated result

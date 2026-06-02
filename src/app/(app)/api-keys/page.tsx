@@ -1,6 +1,6 @@
 import type { Project } from "@/db/schema/project";
-import { listApiKeysAction } from "@/actions/api-keys";
-import { listProjects } from "@/actions/projects";
+import { listApiKeysAction } from "@/actions/integration/api-keys";
+import { listProjects } from "@/actions/project/projects";
 import { ApiKeysClient } from "./ApiKeysClient";
 import { serializeApiKey, type ProjectOption } from "./serialize";
 

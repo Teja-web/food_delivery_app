@@ -30,15 +30,15 @@
 import { and, eq, isNull, or, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { rules, type Rule, type RuleSeverity } from "@/db/schema/rule";
-import { auditLogs } from "@/db/schema/audit-log";
+import { auditLogs } from "@/db/schema/audit/audit-log";
 import { getActionContext } from "@/lib/auth/context";
-import type { Plan } from "@/db/schema/plan";
+import type { Plan } from "@/db/schema/plan/plan";
 import {
   evaluateActionPolicy,
   type ActionPolicyAppliesTo,
   type ActionPolicyConfig,
   type ProposedAction,
-} from "@/lib/rule-validators/action-policy";
+} from "@/domain/rule-validators/action-policy";
 
 export interface RuleViolation {
   ruleId: string;
@@ -293,4 +293,4 @@ export async function applyActionPolicyRules(
 }
 
 // Re-export for callers that wire up enforcement.
-export type { ProposedAction, ActionPolicyAppliesTo } from "@/lib/rule-validators/action-policy";
+export type { ProposedAction, ActionPolicyAppliesTo } from "@/domain/rule-validators/action-policy";

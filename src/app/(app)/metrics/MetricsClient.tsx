@@ -14,7 +14,7 @@ import type {
   DoraMetric,
   DoraProjectColumn,
   PortfolioMetricsData,
-} from "@/operations/metrics";
+} from "@/operations/dora/metrics";
 
 function formatValue(v: number | null, unit: string): string {
   if (v === null) return "—";

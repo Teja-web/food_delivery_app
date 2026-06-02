@@ -17,11 +17,11 @@ import { z } from "zod/v4";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/approval";
+import { approvals } from "@/db/schema/plan/approval";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
-import { computeNextAction } from "@/lib/mcp/next-action";
+import { computeNextAction } from "@/lib/agent-context/next-action";
 import { approvalCrud } from "@/operations/approvals";
 
 const bodySchema = z.object({

@@ -12,13 +12,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { decideExecutionGate, type GateInput } from "@/operations/execution-gate";
+import { decideExecutionGate, type GateInput } from "@/operations/gate/execution-gate";
 import {
   parseAutonomyThresholdConfig,
   ruleMatches,
   requiredLevelInt,
   type AutonomyThresholdConfig,
-} from "@/lib/rule-validators/autonomy-threshold";
+} from "@/domain/rule-validators/autonomy-threshold";
 
 function baseInput(overrides: Partial<GateInput> = {}): GateInput {
   return {

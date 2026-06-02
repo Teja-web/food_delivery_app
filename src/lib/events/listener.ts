@@ -7,7 +7,7 @@
 import { Client } from "pg";
 import { eventBus, type CrudEventPayload, type BusEvent } from "./bus";
 
-const GLOBAL_KEY = "__recruit_listener_started__" as const;
+const GLOBAL_KEY = "__coznt_listener_started__" as const;
 const CHANNEL = "coznt_crud_events";
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;

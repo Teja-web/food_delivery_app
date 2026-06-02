@@ -7,9 +7,9 @@
  * this resolver does, via the `adapter_bindings` table.
  */
 
-import type { WebhookSource } from "@/db/schema/webhook-event";
+import type { WebhookSource } from "@/db/schema/audit/webhook-event";
 import type { AdapterProvider } from "@/db/schema/adapter-binding";
-import { findProjectIdForBinding } from "@/operations/adapter-bindings";
+import { findProjectIdForBinding } from "@/operations/choreography/adapter-bindings";
 
 /**
  * Webhook source slugs and AdapterBinding provider slugs are kept in sync

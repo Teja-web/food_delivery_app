@@ -1,18 +1,18 @@
 import { Workflow } from "lucide-react";
 import Link from "next/link";
 
-import { listProjects } from "@/actions/projects";
-import { listSkills } from "@/actions/skills";
+import { listProjects } from "@/actions/project/projects";
+import { listSkills } from "@/actions/skill/skills";
 import type { Project } from "@/db/schema/project";
-import type { Skill } from "@/db/schema/skill";
+import type { Skill } from "@/db/schema/skill/skill";
 import { getActionContext } from "@/lib/auth/context";
-import { listAllChoreographyFiles } from "@/operations/choreographies";
+import { listAllChoreographyFiles } from "@/operations/choreography/choreographies";
 import {
   getRecentAutonomyEvents,
   getSkillAutonomy,
   getSkillAutonomyAcrossProjects,
   getSkillStats30d,
-} from "@/operations/skill-autonomy";
+} from "@/operations/skill/skill-autonomy";
 
 import { ProjectFilter } from "./ProjectFilter";
 import { RecentEventsBanner } from "./RecentEventsBanner";

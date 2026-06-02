@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { RUBRIC_VERSION, scorePromptQuality, formatScoreFeedback } from "@/lib/prompt-quality/rubric";
+import { RUBRIC_VERSION, scorePromptQuality, formatScoreFeedback } from "@/domain/prompt-quality/rubric";
 
 describe("scorePromptQuality", () => {
   it("returns POOR for empty / vague prompts", () => {

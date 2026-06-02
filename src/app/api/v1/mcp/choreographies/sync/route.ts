@@ -13,7 +13,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
-import { getChoreographyBundle } from "@/operations/choreographies";
+import { getChoreographyBundle } from "@/operations/choreography/choreographies";
 
 export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {

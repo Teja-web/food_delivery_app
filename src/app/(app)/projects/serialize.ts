@@ -5,7 +5,7 @@ import type {
   PortfolioRollup,
   ProjectHealth,
   TrendDir,
-} from "@/operations/portfolio";
+} from "@/operations/project/portfolio";
 
 export interface ProjectListItemDTO {
   id: string;

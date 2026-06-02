@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import { recordDeployment, listDeployments } from "@/operations/deployments";
+import { recordDeployment, listDeployments } from "@/operations/work/deployments";
 
 export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {

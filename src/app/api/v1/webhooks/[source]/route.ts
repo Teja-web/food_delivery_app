@@ -18,7 +18,7 @@
 
 import { authenticate, UnauthorizedError, withApiContext } from "@/lib/auth/api-key";
 import { db } from "@/db/client";
-import { webhookEvents, WEBHOOK_SOURCES, type WebhookSource } from "@/db/schema/webhook-event";
+import { webhookEvents, WEBHOOK_SOURCES, type WebhookSource } from "@/db/schema/audit/webhook-event";
 import {
   GITHUB_SIGNATURE_HEADER,
   resolveOrgFromInstallation,

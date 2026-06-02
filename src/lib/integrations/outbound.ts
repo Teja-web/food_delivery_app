@@ -15,11 +15,11 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan";
+import { plans } from "@/db/schema/plan/plan";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { workItems } from "@/db/schema/work-item";
-import { getOutboundBinding } from "@/operations/adapter-bindings";
-import { upsertWorkItem } from "@/operations/work-items";
+import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
+import { upsertWorkItem } from "@/operations/work/work-items";
 import { createLogger } from "@/lib/logger";
 import {
   getJiraClient,

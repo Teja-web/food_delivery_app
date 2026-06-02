@@ -79,7 +79,7 @@ vi.mock("@/db/client", () => {
 });
 
 // Import after mock.
-import { recomputeSkillAutonomy, getSkillAutonomy, LEVEL_NAMES } from "@/operations/skill-autonomy";
+import { recomputeSkillAutonomy, getSkillAutonomy, LEVEL_NAMES } from "@/operations/skill/skill-autonomy";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

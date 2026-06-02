@@ -8,9 +8,9 @@
 
 import { z } from "zod/v4";
 
-import { APPROVAL_ENTITY_TYPES } from "@/db/schema/approval";
+import { APPROVAL_ENTITY_TYPES } from "@/db/schema/plan/approval";
 import { handleApi } from "@/lib/auth/api-key";
-import { computeNextAction } from "@/lib/mcp/next-action";
+import { computeNextAction } from "@/lib/agent-context/next-action";
 import { createApprovalWithProjectResolution } from "@/operations/approvals";
 
 const bodySchema = z.object({

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { setRequireHumanApprovalForMerge } from "@/actions/projects";
+import { setRequireHumanApprovalForMerge } from "@/actions/project/projects";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";

@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { approveApproval, rejectApproval } from "@/actions/approvals";
-import { RejectModal } from "@/components/approvals/RejectModal";
+import { RejectModal } from "@/components/feature/approvals/RejectModal";
 import { Button } from "@/components/ui/button";
 
 type Props = {

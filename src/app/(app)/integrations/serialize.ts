@@ -4,7 +4,7 @@ import {
   type AdapterBinding,
   type AdapterProvider,
 } from "@/db/schema/adapter-binding";
-import type { BindingWithProject } from "@/operations/integrations";
+import type { BindingWithProject } from "@/operations/integration/integrations";
 
 export interface ProviderRow {
   provider: AdapterProvider;

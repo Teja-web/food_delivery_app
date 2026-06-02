@@ -1,22 +1,19 @@
 import { relations } from "drizzle-orm";
 import { user } from "./auth";
-import { departments, orgIdentity } from "./organization";
 import { projects } from "./project";
-import { plans } from "./plan";
-import { planRevisions } from "./plan-revision";
+import { plans } from "./plan/plan";
+import { planRevisions } from "./plan/plan-revision";
 import { rules } from "./rule";
-import { skills } from "./skill";
-import { skillOutcomes } from "./skill-outcome";
-import { skillAutonomy } from "./skill-autonomy";
-import { comments } from "./comment";
+import { skills } from "./skill/skill";
+import { skillOutcomes } from "./skill/skill-outcome";
+import { skillAutonomy } from "./skill/skill-autonomy";
+import { comments } from "./plan/comment";
 import { workItems } from "./work-item";
 import { phaseGates } from "./phase-gate";
 import { metrics } from "./metric";
 import { adapterBindings } from "./adapter-binding";
 import { promptLogs } from "./prompt-log";
 
-export const departmentsRelations = relations(departments, () => ({}));
-export const orgIdentityRelations = relations(orgIdentity, () => ({}));
 export const userRelations = relations(user, () => ({}));
 
 export const projectsRelations = relations(projects, ({ many }) => ({

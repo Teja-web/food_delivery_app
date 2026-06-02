@@ -3,17 +3,17 @@ import type { AdapterBinding } from "@/db/schema/adapter-binding";
 // instead. Sync history will be added when integrations expose it.
 import type { Deployment, DeploymentStatus } from "@/db/schema/deployment";
 import type { GateType, PhaseGate } from "@/db/schema/phase-gate";
-import type { Plan } from "@/db/schema/plan";
+import type { Plan } from "@/db/schema/plan/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
-import type { Skill } from "@/db/schema/skill";
-import type { ProjectLearning } from "@/db/schema/project-learning";
+import type { Skill } from "@/db/schema/skill/skill";
+import type { ProjectLearning } from "@/db/schema/plan/project-learning";
 import type { WorkItem, WorkItemKind, WorkItemSource } from "@/db/schema/work-item";
 import type { PhaseGuidance } from "@/domain/phases";
 import type {
   PolicyMatrixCell,
   ProjectOutcomeRow,
-} from "@/operations/project-trust";
+} from "@/operations/project/project-trust";
 
 export interface CockpitProjectClient {
   id: string;

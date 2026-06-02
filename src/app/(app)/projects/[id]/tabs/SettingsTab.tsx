@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import type { CockpitProjectClient } from "../serialize";
-import { saveProjectSettings } from "./settings-actions";
+import { saveProjectSettings } from "@/actions/project/settings";
 
 export function SettingsTab({ project }: { project: CockpitProjectClient }) {
   return (

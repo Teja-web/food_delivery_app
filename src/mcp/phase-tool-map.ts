@@ -2,11 +2,11 @@
  * Shared phase + tool map.
  *
  * Single source of truth for both the route-side enforcement engine
- * (`src/lib/mcp/phase-enforcement.ts`) and the MCP CLI's fast-fail
+ * (`src/lib/agent-context/phase-enforcement.ts`) and the MCP CLI's fast-fail
  * check (`src/mcp/phase-data.ts`). Previously the two carried duplicate
  * copies and had drifted at least once.
  *
- * Lives under `src/mcp/` (not `src/lib/mcp/`) so the MCP server bundle
+ * Lives under `src/mcp/` (not `src/lib/agent-context/`) so the MCP server bundle
  * can import it via a relative path without relying on Next.js's `@/`
  * alias. **No `@/` imports in this file** — keeps the CLI bundle slim
  * and free of Drizzle/Next.js transitive deps.

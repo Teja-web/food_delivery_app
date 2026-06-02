@@ -18,7 +18,7 @@ import { nanoid } from "nanoid";
 
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { skills } from "./skill";
+import { skills } from "./skill/skill";
 
 export const GATE_VERDICTS = ["success", "failure", "neutral"] as const;
 export type GateVerdict = (typeof GATE_VERDICTS)[number];

@@ -16,8 +16,8 @@ import {
   SUPPORTED_HOSTS,
   renderHostConfig,
   type HostName,
-} from "@/lib/mcp/host-config";
-import { MCP_VERSION } from "@/lib/mcp/version";
+} from "@/lib/agent-context/host-config";
+import { MCP_VERSION } from "@/lib/agent-context/version";
 
 interface Props {
   plaintext: string | null;

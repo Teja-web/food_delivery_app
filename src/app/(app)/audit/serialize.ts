@@ -1,4 +1,4 @@
-import type { UnifiedAuditRow } from "@/operations/audit";
+import type { UnifiedAuditRow } from "@/operations/audit/audit";
 
 export type AuditRowClient = {
   id: string;

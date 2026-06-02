@@ -1,5 +1,5 @@
 import { handleApi } from "@/lib/auth/api-key";
-import type { PlanKind, PlanStatus } from "@/db/schema/plan";
+import type { PlanKind, PlanStatus } from "@/db/schema/plan/plan";
 import { searchPlans, type SearchMode } from "@/operations/knowledge-search";
 
 export async function POST(req: Request) {

@@ -1,4 +1,4 @@
-import { getPortfolioMetrics } from "@/operations/metrics";
+import { getPortfolioMetrics } from "@/operations/dora/metrics";
 
 import { MetricsClient } from "./MetricsClient";
 
