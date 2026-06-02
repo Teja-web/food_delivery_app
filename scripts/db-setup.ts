@@ -131,6 +131,30 @@ async function applyTriggers() {
   }
 }
 
+async function verifyWiring() {
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: DATABASE_URL });
+
+  try {
+    const triggers = await pool.query(
+      `SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = 'coznt'`,
+    );
+    if (triggers.rows.length === 0) {
+      throw new Error("No CRUD triggers found in schema 'coznt' after applyTriggers()");
+    }
+    console.log(`+ ${triggers.rows.length} CRUD triggers present`);
+
+    try {
+      const queue = await pool.query(`SELECT * FROM pgmq.metrics('coznt_events')`);
+      console.log(`+ pgmq queue 'coznt_events' ready (${queue.rows[0]?.queue_length ?? 0} pending)`);
+    } catch (e) {
+      throw new Error(`pgmq queue 'coznt_events' not registered: ${(e as Error).message}`);
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
 async function seedPlatformAdmin(): Promise<void> {
   const { Pool } = await import("pg");
   const { hashPassword } = await import("better-auth/crypto");
@@ -352,21 +376,25 @@ async function main() {
   }
 
   // Step 4: Platform admin
-  console.log("\n[4/7] Platform admin...");
+  console.log("\n[4/8] Platform admin...");
   await seedPlatformAdmin();
 
   // Step 5: Platform skills
-  console.log("\n[5/7] Platform skills...");
+  console.log("\n[5/8] Platform skills...");
   const skillsResult = await seedPlatformSkills();
   console.log(`+ ${skillsResult.inserted} inserted, ${skillsResult.updated} updated`);
 
   // Step 6: CRUD triggers
-  console.log("\n[6/7] CRUD triggers...");
+  console.log("\n[6/8] CRUD triggers...");
   await applyTriggers();
 
   // Step 7: pg_cron scheduled jobs
-  console.log("\n[7/7] Scheduled jobs...");
+  console.log("\n[7/8] Scheduled jobs...");
   await setupCronJobs();
+
+  // Step 8: Verify triggers + pgmq queue actually wired up
+  console.log("\n[8/8] Verifying wiring...");
+  await verifyWiring();
 
   console.log("\n===========================================");
   console.log("           SETUP COMPLETE");
@@ -375,8 +403,7 @@ async function main() {
   console.log(`  Email:    ${ADMIN_CONFIG.email}`);
   console.log(`  Password: ${ADMIN_CONFIG.password}`);
   console.log("\nNext steps:");
-  console.log("  pnpm db:seed     # Seed demo data");
-  console.log("  pnpm db:onboard  # Create org + demo data");
+  console.log("  pnpm db:onboard  # Create org + owner");
   console.log("  pnpm dev         # Start the app\n");
 }
 

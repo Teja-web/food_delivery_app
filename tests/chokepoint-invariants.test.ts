@@ -104,10 +104,6 @@ const SKILL_OUTCOMES_ALLOWED: { path: string; reason: string }[] = [
     path: "src/operations/skill-autonomy.ts",
     reason: "canonical recordSkillOutcome / recordAssessorOutcome — the chokepoint",
   },
-  {
-    path: "src/operations/seed-sample-workspace.ts",
-    reason: "demo seed script — populates fixture data for new workspaces",
-  },
 ];
 
 describe("Chokepoint: skill_outcomes writes through skill-autonomy.ts", () => {
@@ -157,10 +153,6 @@ const AUDIT_LOGS_ALLOWED: { path: string; reason: string }[] = [
   {
     path: "src/operations/rule-engine.ts",
     reason: "rule violations recorded at write time",
-  },
-  {
-    path: "src/operations/seed-sample-workspace.ts",
-    reason: "demo seed script — populates fixture audit rows",
   },
   {
     path: "src/app/api/v1/mcp/sessions/route.ts",

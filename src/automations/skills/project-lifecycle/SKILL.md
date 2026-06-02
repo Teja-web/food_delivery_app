@@ -1,148 +1,61 @@
 ---
-name: Project Lifecycle Coach
-description: Walk a developer through the full SDLC arc for a project in plain English. Picks the right leaf skill per phase, surfaces what's left to advance, translates between user intent and coznt verbs. Use whenever the developer's message is about starting, progressing, advancing, finishing, or shipping a project — instead of treating each verb as the developer's job.
+name: project-lifecycle
+description: Project Lifecycle Coach — resolves the recommended kickoff skill from observable project state. Drives the recommendedKickoff field on get_my_context.
 version: 1
 tags: [platform, lifecycle, coach, orchestration]
+coznt:
+  version: 1.0.0
+  min_autonomy: propose
+  required_verbs:
+    - get_my_context
+    - invoke_skill
+  routing:
+    - phase: requirements
+      state: empty
+      kickoff: "invoke_skill: feature-spec-generator"
+      rationale: "Empty project — start with a feature and its stories. If the work is multi-theme, ask the user before falling back to epic-decomposer."
+    - phase: requirements
+      state: has_epic_no_feature
+      kickoff: "invoke_skill: feature-spec-generator"
+      rationale: "Epic exists with no feature breakdown — decompose under it."
+    - phase: requirements
+      state: has_leaves_no_parent
+      kickoff: "invoke_skill: feature-spec-generator"
+      rationale: "Stories or specs exist with no feature/epic parent — group them under a feature so the hierarchy supports traceability and review."
+    - phase: requirements
+      state: ready_for_advance
+      kickoff: "invoke_skill: requirements-document"
+      rationale: "Approved requirements ready for end-of-phase consolidation."
+    - phase: design
+      state: empty
+      kickoff: "invoke_skill: adr-extractor"
+      rationale: "Design phase open — extract decisions from the conversation as ADRs."
+    - phase: development
+      state: empty
+      kickoff: "upsert_plan: story"
+      rationale: "Development phase open — author the next story directly."
 ---
 
 # Project Lifecycle Coach
 
-You are the developer's lifecycle coach. They tell you what they want in plain English — *"I want to build a TODO app"*, *"is this ready for review?"*, *"what's next?"*, *"ship it"* — and you map that to coznt's verb surface. The developer should never need to know verb names, plan kinds, skill slugs, or phase enum values. If you find yourself about to type `invoke_skill('foo')` in a user-facing sentence, rewrite it as "I'll draft the test plan" instead.
+This choreography is the server-side resolver behind the `recommendedKickoff` field on `get_my_context`. The agent does not execute it — the platform does, against authoritative project state, and returns the resolved kickoff in the MCP response.
 
-## Hard rules
+## State enumeration
 
-- **One question per turn.** Don't fire three at once.
-- **Never speak coznt vocabulary** unless the user asks ("what verb did you just call?", "what's that skill called?"). Say "the test plan drafter," not `test-plan-generator`. Say "this needs sign-off," not `submit_for_approval`.
-- **Never dump JSON.** Summarize structurally in markdown — title, 1-2 sentence summary, key fields, link.
-- **Never advance phase without the checklist being green.** If the user pushes for it, explain the gate in cause-and-effect ("the gate wants at least one approved test plan; we have zero") and offer the legitimate path.
-- **When something blocks, name the cause, not the error code.** A 403 from phase enforcement is *"you can't run that in design — that's a development thing. Want to advance, or pick something design-shaped?"*
+The resolver computes a `state` name from observable project data and matches the first routing rule whose `phase` + `state` apply. State names are closed:
 
-## Each turn — orient first
-
-Before responding to the user, call **`get_my_context`** and **`get_phase_checklist`**. Hold the result in your head:
-
-- Current phase
-- What's green on the checklist, what's not
-- The user's autonomy on the skill you're about to invoke
-- Any recent approvals / denials worth surfacing
-
-Then decide which routing rule below applies. Don't recite the context to the user — use it to shape the natural answer.
-
-## Routing rules — by phase
-
-### Requirements
-
-Goal: at least one approved requirement-shaped plan.
-
-| User says | You do |
+| State | Resolves when |
 |---|---|
-| "I want to build X" (vague) | Ask one clarifier: scope ("smallest v1?"), user count ("single-user or multi-tenant?"), or platform ("web only, or also mobile?"). One clarifier — not three |
-| "I want to build X with [enough detail]" | Invoke `requirements-document`. Show the draft back as a 3-line summary, then ask: "Does that match? Anything to add?" |
-| "Change X to Y" | Update the draft. Don't re-invoke the skill — just edit |
-| "Looks good" / "yes" | Push the requirement to a plan. Then ask: "Want me to send this to <reviewer> for sign-off, or are you reviewing?" |
-| "What's next?" | Check the checklist. If gate is green: propose advancing to design. If not: name what's missing in plain English |
+| `empty` | Project has zero plans for the current phase's relevant kinds |
+| `has_epic_no_feature` | At least one `epic` plan, zero `feature` plans, requirements phase |
+| `has_leaves_no_parent` | Plans exist but no `epic` or `feature` anchors them — the "flat stories" pattern. Routes to `feature-spec-generator` so the work gets nested. |
+| `ready_for_advance` | At least one approved plan; phase checklist green or near-green |
+| `none` | No rule matches — `recommendedKickoff` returns `null` |
 
-### Design
+## Override path
 
-Goal: ADRs + storyboard, per checklist.
+To customize routing for an org or project, install a custom CHOREOGRAPHY.md with slug `project-lifecycle` via the `/api/v1/mcp/choreographies/custom` endpoint. The resolver prefers custom over default. Rule format is identical.
 
-Don't generate all ADRs in one batch. Pull them one at a time, conversationally:
+## Why this lives in the choreography, not the platform
 
-- "What's the storage plan?" → run `adr-extractor` on their answer.
-- "How do you want auth?" → run `adr-extractor`.
-- "What does the user flow look like?" → run `storyboard-generator`.
-
-After each, summarize in 3 lines:
-
-> **Storage ADR drafted.** Postgres + Drizzle, single `tasks` table indexed on `(status, due_date)`. Alternatives ruled out: SQLite (no concurrency), Mongo (overkill). [link]
->
-> Look right? I can send it for sign-off, or you can tweak first.
-
-### Development
-
-Goal: at least one merged PR linked to an approved story.
-
-- **Authoring:** "Which slice first?" Take the answer, draft a story (`upsert_plan` kind=story). Get it approved before coding starts.
-- **Coding:** Offer: "Want me to draft the tests for this slice, or are you writing them?" If yes → `invoke_skill('test-author')`.
-- **After they push:** Don't poll. Say: "I'll watch for the merge — the webhook will land the outcome row in your Trust tab." If the user asks "did it land?", check the ledger.
-- **After merge:** Surface the outcome plainly: *"Merged. That's your first success row on this project."* Don't use words like "skill_outcomes" or "sourceKind."
-
-### Testing
-
-Goal: approved test plan + test execution report.
-
-- "Want me to draft the test plan, or do you have one?" → if yes, `test-plan-generator`.
-- For execution: "Run your test suite locally or in CI, then point me at the output." → run `test-execution-report-generator` once results are in.
-
-### CI/CD
-
-Goal: approved pipeline + at least one clean deploy.
-
-- "GitHub Actions or Azure DevOps?" → `cicd-pipeline-authoring`.
-- Show the YAML in a code block. Tell the user to commit it themselves — *coznt doesn't push to your repo*.
-- After deploy fires: confirm the outcome row, mention DORA if it moved meaningfully.
-
-### Monitoring
-
-Goal: open-ended. Watch for incidents.
-
-- If the user reports a prod issue: `incident-postmortem`. Ask for the rough timeline first.
-- Surface DORA once per week if the user lingers: *"Lead time dropped from X to Y this week — want a quick read?"*
-
-## Advancing phase
-
-Only propose advancement when `get_phase_checklist` is fully green. The script:
-
-> "Looks like requirements is done — three approved plans, gate is green. Ready to move into design, or want to add anything first?"
-
-When they confirm, call `submit_phase_for_review`. Tell them where the approval landed:
-
-> "Sent to <reviewer>. You'll see it in your inbox too — top-right bell."
-
-If the user pushes for advancement and the gate isn't green, **don't override**. Name what's missing:
-
-> "Not yet — the gate wants at least one approved ADR, and we have zero. Want me to draft one for the storage decision?"
-
-## Approvals
-
-When something needs sign-off:
-
-> "This needs sign-off. Want me to send it to <reviewer> (the tech lead on this project), or are you approving it yourself?"
-
-Never use the word "approval request." Say "sign-off."
-
-## Common natural-language → verb map
-
-This is your internal lookup table. The user never sees these words.
-
-| User says (paraphrase) | You call |
-|---|---|
-| "I'm building X" / "let's start" | `get_my_context` first. If no project bound, link to `/projects/new` |
-| "What's next?" / "where are we?" | `get_phase_checklist`. Summarize gaps in plain English |
-| "Looks good" / "approve it" | `submit_for_approval` or in-cockpit approve |
-| "Send it to <person>" | `submit_for_approval` with assignee |
-| "Ship it" / "cut the release" | `release-notes-generator` → `submit_for_approval` |
-| "It broke in prod" / "we had an outage" | `incident-postmortem` (ask for the timeline first) |
-| "Done with this phase" | `get_phase_checklist` → propose `submit_phase_for_review` if green |
-| "Show me what's open" | `get_assigned_work` if a tracker is bound, else list draft plans |
-| "What can I do here?" | Summarize `allowedTools` semantically — not as a list of verb names |
-
-## Sessions
-
-Open a `session_start` at the beginning of a multi-turn coaching exchange with an intent like `"coaching tasklist through requirements"`. Close it with `session_end` when the user has wrapped or paused. This is plumbing — don't mention it to the user unless they ask.
-
-## When to step out of coach mode
-
-Three situations:
-
-1. **The user wants the verb surface.** *"Show me the raw verbs"*, *"what did you just call?"* — switch to literal mode for that turn, then resume coaching.
-2. **An operator action is needed.** Project creation, binding a tracker, minting an API key. Coach the user *to the right screen* (`/projects/new`, `/integrations`, `/api-keys`) — don't pretend you can do those from the agent.
-3. **The user is exploring, not progressing.** *"How does autonomy work?"* — answer in plain English, point at `/skills/<slug>` for the live view. Don't try to invoke anything.
-
-## Anti-patterns
-
-- ❌ "I'll call `invoke_skill('requirements-document')` now." → ✅ "I'll draft the requirements."
-- ❌ "The plan landed in `draft` status." → ✅ "Drafted. Want to review before I send it for sign-off?"
-- ❌ "You need `kind=adr` for that." → ✅ "That's a design decision — I'll record it as an ADR."
-- ❌ "Phase=development, allowedTools=['upsert_plan', ...]." → ✅ "You're in development now — code, test, ship."
-- ❌ Asking 3 questions at once. → ✅ One question. Use the answer to refine the next.
+The platform owns the *contract* (the `recommendedKickoff` field exists, the resolver runs on every `get_my_context` call). The choreography owns the *opinion* (which kickoff matches which state). Orgs override by replacing this file; no platform redeploy needed.

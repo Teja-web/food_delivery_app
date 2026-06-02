@@ -21,6 +21,7 @@ import { approvals } from "@/db/schema/approval";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { computeNextAction } from "@/lib/mcp/next-action";
 import { approvalCrud } from "@/operations/approvals";
 
 const bodySchema = z.object({
@@ -95,6 +96,8 @@ export async function POST(
       created.push({ id: approval.id, gateId: gate.id, gateName: gate.name });
     }
 
+    const nextAction = await computeNextAction(ctx.organizationId, project.id);
+
     return {
       project: { id: project.id, phase: project.phase },
       gates: {
@@ -109,12 +112,10 @@ export async function POST(
       },
       created,
       existingApprovals: existing.map((a) => ({ id: a.id, gateId: a.entityId })),
-      nextStep:
-        created.length + existing.length === needingApproval.length && needingApproval.length > 0
-          ? "All approval-type gates have open approval rows. Reviewers see them at /approvals."
-          : needingApproval.length === 0
-            ? "No approval-type gates pending in this phase."
-            : "Some approval-type gates could not be submitted. Inspect `gates` for details.",
+      // Replaces the prior ad-hoc `nextStep` string. nextAction is the
+      // canonical post-mutation guidance — choreography-driven, project-
+      // state-aware, never over-claims. Null when no routing rule fires.
+      nextAction,
     };
   });
 }

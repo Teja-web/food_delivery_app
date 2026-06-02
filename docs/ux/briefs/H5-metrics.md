@@ -1,6 +1,6 @@
 # H5 Brief — `/metrics` Cross-Project DORA
 
-**References:** `docs/ux/DESIGN.md`, `docs/ux/sample-data.md`, `docs/ux/moments.md` (Moment 5), `docs/ux/personas.md` (Priya + Jordan).
+**References:** `docs/ux/DESIGN.md`, `docs/ux/moments.md` (Moment 5), `docs/ux/personas.md` (Priya + Jordan).
 
 ## Anchor (read this first)
 
@@ -68,20 +68,6 @@ The live storyline in the fixture: portfolio CFR went 8% → 11% over the last m
    - **Skill state** — current autonomy + any recent level changes tied to this attribution
    - **Action buttons** — open incident plan (pre-populated), view skill detail, view affected project
 7. **Window selector** — segmented control (7d / 30d / 90d). Changes the time scope of all sparklines and aggregates.
-
-## Sample data — use the metrics from `sample-data.md` exactly
-
-- Portfolio: Lead time 4.8d (↑0.6d MoM), Deploy freq 4.2/wk (flat), **CFR 11% (↑3pt MoM — the regression)**, MTTR 2.3h (flat)
-- Per project:
-  - payments-api: 3.4d / 6.2/wk / 8% / 1.8h — healthy
-  - data-warehouse-v2: no deploy data (still in Design phase) → all dashes
-  - auth-service-migration: 5.7d / 4.8/wk / **18% ↑** / 4.2h — **the regression source**
-  - kafka-pipeline-modernization: no data (Requirements phase)
-- Attribution panel populated for the CFR regression:
-  - Driver: auth-service-migration (8% → 18% over 14d)
-  - Cause: 3 auto-merges by schema-migration-reviewer
-  - The 3 specific PRs: #432 (5/2), #438 (5/6), #441 (5/8), each linked to its rollback
-  - Skill state: demoted 5/10
 
 ## Interactions
 

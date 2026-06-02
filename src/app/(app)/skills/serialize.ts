@@ -48,9 +48,9 @@ export interface SkillLedgerRowClient {
   /** Number of distinct projects with a `skill_autonomy` row for this skill. */
   projectAutonomyCount: number;
   /**
-   * Presence + identity of the pushed `CHOREOGRAPHY.md` for this skill.
-   * `null` when no choreography file exists yet (the skill is server-only
-   * for now). The skill list doubles as the choreography catalog.
+   * Presence + identity of the pushed `SKILL.md` for this skill.
+   * `null` when no SKILL.md exists yet (the skill is server-only for
+   * now). The skill list doubles as the choreography catalog.
    */
   choreography: ChoreographyIndicator | null;
 }

@@ -1,8 +1,32 @@
 import Link from "next/link";
 import { ArrowRight, Clock, UserCheck, Activity } from "lucide-react";
 import type { getMeDashboard } from "@/operations/personal";
+import type { Approval } from "@/db/schema/approval";
 
 type DashboardData = Awaited<ReturnType<typeof getMeDashboard>>;
+
+/**
+ * Destination for a "decide this approval" affordance. /approvals is gone —
+ * every approval lives on its target entity's detail page (where Approve /
+ * Reject buttons render and a reviewer can see context). `phase_gate` and
+ * `work_item` route to the project detail page; `skill_invocation` has no
+ * dedicated home yet, so we fall back to the originating skill.
+ */
+function approvalDecisionHref(a: Approval): string {
+  switch (a.entityType) {
+    case "plan":
+    case "release":
+      return `/plans/${a.entityId}`;
+    case "phase_gate":
+      return a.projectId ? `/projects/${a.projectId}#phases` : "/projects";
+    case "work_item":
+      return a.projectId ? `/projects/${a.projectId}#workitems` : "/projects";
+    case "skill_invocation":
+      return "/skills";
+    default:
+      return "/plans";
+  }
+}
 
 const LEVEL_LABEL = ["observe", "propose", "merge", "lead"];
 
@@ -79,7 +103,7 @@ export function MePersonalDashboard({
                   )}
                 </div>
                 <Link
-                  href={`/approvals/${a.id}`}
+                  href={approvalDecisionHref(a)}
                   className="text-xs text-foreground hover:underline shrink-0 inline-flex items-center gap-1"
                 >
                   Decide <ArrowRight className="h-3 w-3" aria-hidden />
@@ -107,7 +131,7 @@ export function MePersonalDashboard({
                   </p>
                 </div>
                 <Link
-                  href={`/approvals/${a.id}`}
+                  href={approvalDecisionHref(a)}
                   className="text-xs text-muted-foreground hover:text-foreground shrink-0"
                 >
                   View

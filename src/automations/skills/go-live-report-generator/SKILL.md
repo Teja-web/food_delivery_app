@@ -1,146 +1,120 @@
 ---
-name: Go-Live / Production Readiness Report Generator
-description: Generate a Go-Live Readiness Report covering operational readiness, monitoring, rollback, and approvals for production cutover
+name: go-live-report-generator
+description: Draft a Go-Live Readiness Report — phase-gate posture, monitoring readiness, rollback plan, on-call coverage, and the formal go/no-go recommendation for production cutover. Use when: "go-live report", "production readiness", "go/no-go", "ready to ship", "CAB review". Voice triggers (speech-to-text aliases): "go no go", "production readiness", "ship readiness".
 version: 1
-tags: [platform, go-live, production, readiness, monitoring, sdlc]
 plan_kind: go_live_report
+tags: [platform, go-live, production, readiness, monitoring, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_requirements
+  - mcp__coznt__get_pipeline_status
+  - mcp__coznt__get_phase_checklist
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "go-live", "go/no-go", "production readiness", "CAB", or "change advisory"
+    - Immediately before a production release, prepping the go/no-go meeting
+    - Compliance review needs evidence of operational readiness
+  required_verbs:
+    - get_my_context
+    - get_requirements
+    - get_pipeline_status
+    - get_phase_checklist
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Go-Live / Production Readiness Report Generator
 
-Generate a comprehensive **Go-Live Readiness Report** for the current project release. This document captures the operational posture immediately before production cutover — monitoring, runbooks, on-call coverage, rollback readiness, and the formal go/no-go decision.
+Compose a `go_live_report` plan immediately before production cutover. The verdict + LLM drafting runs server-side via `invoke_skill`; gate posture is read from `get_phase_checklist`.
 
-## When to Use
+## When to use
 
 - Immediately before a production release, as the document the go/no-go meeting works from.
-- When the team needs a formal record that operational readiness was assessed.
-- As an audit artifact for compliance reviews (CISO drill, change advisory board).
+- Compliance review (CISO drill, change advisory board) needs a formal record that readiness was assessed.
+- An auditor asks "show me the go-live evidence for release X."
 
-## Instructions
+## When NOT to use
 
-### Step 1 — Gather Context
+- **Project is not in `cicd` or `monitoring` phase.** Premature; refuse and point user at `get_phase_checklist` instead.
+- **No `release_plan` is in flight.** Need a target release to assess. Ask user to file one first.
+- **The user wants a *post-release* writeup.** That's a different shape — they want `dev-summary-generator` or release notes, not go-live.
+- **Test plan hasn't been approved.** Without test sign-off, recommendation must be NO-GO; consider whether running this skill now is premature.
 
-Call `get_my_context` to retrieve the current project details. Then gather everything upstream of go-live:
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Confirm phase is `cicd` or `monitoring`.
+
+### 2. Pull gate posture + release
+Call:
+- `get_phase_checklist` — **load-bearing**. The gate state IS the go/no-go evidence.
+- `get_requirements { kind: "release_plan", status: "in_progress" }`
+- `get_requirements { kind: "test_plan", status: "approved" }`
+- `get_pipeline_status`
+
+### 3. Refuse early if release missing
+If no in-flight `release_plan`, stop. Tell the user to author one (target version, cutover window, rollback playbook).
+
+### 4. Ask the user for unstated context
+Coznt cannot know these without help — ask:
+- On-call assignment for the cutover window
+- Rollback playbook URL
+- Customer comms plan (if regulated)
+- Cutover window date/time/timezone
+
+### 5. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_requirements { kind: "release_plan", status: "in_progress" }
-invoke: get_requirements { kind: "test_plan", status: "approved" }
-invoke: get_pipeline_status
-invoke: get_phase_checklist
+slug: "go-live-report-generator"
+input: {
+  projectId,
+  releasePlanSlug,
+  phaseChecklist,          // verbatim from step 2
+  testPlanApproved,        // bool
+  pipelineStatus,          // from step 2
+  cutoverWindow,
+  onCallAssignment,
+  rollbackPlaybookUrl,
+  customerCommsPlan
+}
 ```
+Server returns `{ verdict, markdown, confidence }`. `verdict` ∈ { "GO", "NO-GO", "GO WITH CONDITIONS" }.
 
-`get_phase_checklist` is the load-bearing call — it returns the gate state for the current phase, which is exactly what go/no-go decisions depend on.
+### 6. Route based on verdict + confidence
+- `verdict === "NO-GO"` → present immediately to user; this is the most important signal. Confidence threshold doesn't matter.
+- `verdict === "GO" && confidence >= 0.8` → present to user for review.
+- Anything else → `submit_for_approval` with the verdict + the gate evidence attached.
 
-### Step 2 — Generate the Document
-
-Produce a Markdown document with the following structure. Every section is mandatory; use "N/A" if information is not available.
-
-```markdown
-# Go-Live Readiness Report
-
-**Project:** {Project Name}
-**Release:** v{version}
-**Target cutover:** {YYYY-MM-DD HH:MM} {timezone}
-**Source release plan:** plan/{slug}
-
-## 1. Go / No-Go Recommendation
-
-**Verdict:** GO / NO-GO / GO WITH CONDITIONS
-
-**Justification:** {one paragraph tying back to evidence below}
-
-## 2. Phase-Gate Posture
-
-For each gate returned by `get_phase_checklist`:
-
-| Gate | Type | Status | Owner | Blocking? |
-|---|---|---|---|---|
-| ... | approval/coverage/lint/security/custom | PASSED/PENDING/FAILED | ... | yes/no |
-
-Any non-passed blocking gates → automatic NO-GO unless waived.
-
-## 3. Test Posture
-
-Pull from the test-execution report:
-- Pass rate
-- Open defects by severity (S1/S2/S3/S4)
-- Performance posture vs target
-- Security findings
-
-S1 / S2 open defects → automatic NO-GO unless waived with sign-off.
-
-## 4. Operational Readiness
-
-### 4.1 Monitoring
-- Dashboards green pre-cutover? (link)
-- New signals added for this release? (list)
-- Alert thresholds calibrated? (yes/no)
-
-### 4.2 On-call
-- Primary on-call: ...
-- Secondary on-call: ...
-- Escalation path: ...
-- Pager test in last 24h: yes/no
-
-### 4.3 Runbooks
-- Cutover runbook: link
-- Rollback runbook: link
-- Common-failure runbooks reviewed: yes/no
-
-### 4.4 Capacity
-- Expected load delta: ...
-- Provisioning verified: yes/no
-
-## 5. Rollback Readiness
-
-- **Trigger criteria:** ...
-- **Estimated time to rollback:** ...
-- **Last drill date:** ...
-- **Data-loss risk on rollback:** none / list
-
-## 6. Compliance & Approvals
-
-- Change advisory board: approved/pending/n-a
-- Security review: passed/pending/waived
-- Legal/privacy review: passed/pending/n-a
-- Production access: who has it for cutover
-
-## 7. Communications Plan
-
-- Customer notification: scheduled / not required
-- Internal announcement: ...
-- Status page: prepared / not prepared
-
-## 8. Waivers
-
-For each open issue waived for go-live: who approved, why, when it must be resolved.
-
-## 9. Post-Cutover Checks (T+1h, T+24h)
-
-- Specific metrics to inspect at T+1h
-- Specific metrics to inspect at T+24h
-- Trigger criteria for emergency rollback during this window
+### 7. File the report
+Call `upsert_plan`:
 ```
-
-### Step 3 — File the Document
-
-Call `upsert_plan` to land the go-live report:
-
-```
-invoke: upsert_plan {
+upsert_plan {
   kind: "go_live_report",
-  slug: "go-live-{project-slug}-v{version}",
-  title: "Go-Live Report — {Project Name} v{version}",
-  summary: "Verdict: {GO|NO-GO|GO WITH CONDITIONS}. Target cutover {YYYY-MM-DD}.",
-  body: "{generated markdown}",
-  changeNote: "Go/no-go assessed {YYYY-MM-DD}"
+  slug: "go-live-<project-slug>-v<version>",
+  title: "Go-Live Readiness — <Project Name> v<version>",
+  body: <generated markdown>,
+  changeNote: "<verdict> — cutover <YYYY-MM-DD HH:MM>"
 }
 ```
 
-## Quality Checklist
+## Constraints
 
-- [ ] Go/no-go verdict is explicit and tied to evidence in sections 2–6
-- [ ] Every blocking gate from `get_phase_checklist` is in the table
-- [ ] Rollback section has named owner, named procedure, last-drill date
-- [ ] On-call section names humans, not roles
-- [ ] Every waiver has approver + rationale + resolution deadline
+- **NO-GO is a valid output.** Don't soft-pedal a failing gate to make the report "look better." Honest verdict = useful report.
+- **No invented evidence.** Gates and test status come from coznt's own data. Never claim "PASSED" for something the checklist shows as PENDING.
+- **Rollback section must be concrete.** Named owner, named procedure URL, ETA. "Follow standard procedure" is a fail.
+- **Don't publish anywhere external.** Coznt files the plan; humans circulate it.
+
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `get_phase_checklist` shows blocking gates not passed | Project is not actually ready | Verdict will be NO-GO; that's the correct output — file the report |
+| No `release_plan` in flight | Skill invoked too early | Refuse; tell user to file a release plan first |
+| Pipeline status shows failing recent deploys | Production at risk | Verdict trends NO-GO or GO WITH CONDITIONS; flag explicitly |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled evidence — this is exactly the scenario approvals are for |

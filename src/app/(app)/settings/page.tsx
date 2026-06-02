@@ -270,10 +270,6 @@ export default async function SettingsPage() {
             <span>Go to portfolio</span>
             <kbd className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px]">g p</kbd>
           </div>
-          <div className="flex items-center justify-between">
-            <span>Go to approvals</span>
-            <kbd className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px]">g a</kbd>
-          </div>
           <p className="pt-1 text-[11px] text-muted-foreground">
             Additional bindings are added per moment in the build plan.
           </p>

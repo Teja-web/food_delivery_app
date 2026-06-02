@@ -1,6 +1,6 @@
 # DX Brief — MCP `/context` Endpoint + Cursor Onboarding
 
-**References:** `docs/ux/DESIGN.md`, `docs/ux/sample-data.md`, `docs/ux/moments.md` (Moment 6), `docs/ux/personas.md` (Devin).
+**References:** `docs/ux/DESIGN.md`, `docs/ux/moments.md` (Moment 6), `docs/ux/personas.md` (Devin).
 
 ## Why this brief is different
 
@@ -32,7 +32,7 @@ Content-Type: application/json
 }
 ```
 
-### Response shape (see `sample-data.md` for full example)
+### Response shape
 
 ```json
 {

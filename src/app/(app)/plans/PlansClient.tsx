@@ -1,8 +1,9 @@
 "use client";
 
-import { ExternalLink, ScrollText } from "lucide-react";
+import { CircleAlert, ExternalLink, ScrollText } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const KIND_TONE_CLASS: Record<PlanKind, string> = {
   epic: "border-autonomy-lead/40 text-autonomy-lead",
   feature: "border-autonomy-merge/40 text-autonomy-merge",
   story: "border-autonomy-propose/40 text-autonomy-propose",
+  spec: "border-autonomy-propose/40 text-autonomy-propose",
   adr: "border-foreground/30 text-foreground/85",
   test_plan: "border-state-pending/40 text-state-pending",
   release_plan: "border-trend-up/40 text-trend-up",
@@ -33,6 +35,7 @@ const KIND_TONE_CLASS: Record<PlanKind, string> = {
   dev_summary: "border-foreground/30 text-foreground/85",
   go_live_report: "border-trend-up/40 text-trend-up",
   cicd_pipeline: "border-state-pending/40 text-state-pending",
+  risk_register: "border-state-failed/40 text-state-failed",
 };
 
 const STATUS_FILTER_TONE: Record<PlanStatus, string> = {
@@ -49,6 +52,7 @@ const KIND_DOT_CLASS: Record<PlanKind, string> = {
   epic: "bg-autonomy-lead",
   feature: "bg-autonomy-merge",
   story: "bg-autonomy-propose",
+  spec: "bg-autonomy-propose",
   adr: "bg-foreground/60",
   test_plan: "bg-state-pending",
   release_plan: "bg-trend-up",
@@ -57,10 +61,12 @@ const KIND_DOT_CLASS: Record<PlanKind, string> = {
   dev_summary: "bg-foreground/60",
   go_live_report: "bg-trend-up",
   cicd_pipeline: "bg-state-pending",
+  risk_register: "bg-state-failed",
 };
 
 type Filter =
   | { kind: "all" }
+  | { kind: "needs_approval" }
   | { kind: "status"; status: PlanStatus }
   | { kind: "kind"; planKind: PlanKind };
 
@@ -140,12 +146,23 @@ function KindFilterChip({
 }
 
 export function PlansClient({ data }: { data: PlansPageClient }) {
-  const [filter, setFilter] = useState<Filter>({ kind: "all" });
+  const params = useSearchParams();
+  // Linkable filter — landing pages and rollup tiles deep-link to
+  // `/plans?needs=approval` to land in the pending-approval slice.
+  const initialFilter: Filter =
+    params?.get("needs") === "approval" ? { kind: "needs_approval" } : { kind: "all" };
+  const [filter, setFilter] = useState<Filter>(initialFilter);
   const [query, setQuery] = useState("");
+
+  // Pick up URL changes after mount (e.g. nav from PortfolioTable).
+  useEffect(() => {
+    if (params?.get("needs") === "approval") setFilter({ kind: "needs_approval" });
+  }, [params]);
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return data.rows.filter((r) => {
+      if (filter.kind === "needs_approval" && !r.needsApproval) return false;
       if (filter.kind === "status" && r.status !== filter.status) return false;
       if (filter.kind === "kind" && r.kind !== filter.planKind) return false;
       if (!q) return true;
@@ -161,6 +178,7 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
   const inReview = data.counts.byStatus.in_review ?? 0;
   const approved = (data.counts.byStatus.approved ?? 0) + (data.counts.byStatus.in_progress ?? 0);
   const completed = data.counts.byStatus.completed ?? 0;
+  const needsApproval = data.counts.needsApproval ?? 0;
 
   return (
     <div className="space-y-6">
@@ -186,6 +204,15 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
           <StatusFilterChip active={filter.kind === "all"} onClick={() => setFilter({ kind: "all" })}>
             All · {data.counts.total}
           </StatusFilterChip>
+          {needsApproval > 0 ? (
+            <StatusFilterChip
+              active={filter.kind === "needs_approval"}
+              tone="border-state-pending/50 bg-state-pending/15 text-state-pending"
+              onClick={() => setFilter({ kind: "needs_approval" })}
+            >
+              Needs approval · {needsApproval}
+            </StatusFilterChip>
+          ) : null}
           {(["draft", "in_review", "approved", "in_progress", "completed", "rejected"] as const).map((s) => {
             const n = data.counts.byStatus[s] ?? 0;
             if (n === 0 && filter.kind !== "status") return null;
@@ -253,7 +280,15 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
                   <td className="max-w-md px-4 py-3 align-top">
                     <div className="flex items-start gap-2">
                       <Link href={`/plans/${r.id}`} className="block min-w-0 hover:underline">
-                        <div className="truncate font-medium">{r.title}</div>
+                        <div className="flex items-center gap-1.5 truncate font-medium">
+                          {r.needsApproval ? (
+                            <CircleAlert
+                              className="h-3.5 w-3.5 shrink-0 text-state-pending"
+                              aria-label="Needs approval"
+                            />
+                          ) : null}
+                          <span className="truncate">{r.title}</span>
+                        </div>
                         {r.summary ? (
                           <div className="line-clamp-1 text-xs text-muted-foreground">{r.summary}</div>
                         ) : null}

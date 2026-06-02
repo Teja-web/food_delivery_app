@@ -17,7 +17,7 @@ import { db } from "@/db/client";
 import { skills } from "@/db/schema/skill";
 import { intelligence } from "@/db/schema/intelligence";
 import { automationLog } from "@/db/schema/automation-log";
-import { generate } from "@/lib/ai";
+import { generate, DEFAULT_MODEL } from "@/lib/ai";
 import {
   CHANGE_RISK_CLASSIFIER_SLUG,
   changeRiskClassifierAgent,
@@ -136,7 +136,7 @@ export async function classifyChangeRiskTask(
         summary: `${object.riskClass.toUpperCase()} — ${object.rationale.slice(0, 140)}`,
         body: text,
         data: object as unknown as Record<string, unknown>,
-        modelId: changeRiskClassifierAgent.model,
+        modelId: changeRiskClassifierAgent.model ?? DEFAULT_MODEL,
         lastRunId: runId,
         lastEvaluatedAt: new Date(),
         evaluationCount: 1,
@@ -147,7 +147,7 @@ export async function classifyChangeRiskTask(
           summary: `${object.riskClass.toUpperCase()} — ${object.rationale.slice(0, 140)}`,
           body: text,
           data: object as unknown as Record<string, unknown>,
-          modelId: changeRiskClassifierAgent.model,
+          modelId: changeRiskClassifierAgent.model ?? DEFAULT_MODEL,
           lastRunId: runId,
           lastEvaluatedAt: new Date(),
           updatedAt: new Date(),

@@ -16,7 +16,3 @@ cp ~/Downloads/<image>.png /Users/ram/Projects/coznt/docs/ux/refs/<expected-file
 ```
 
 Then add the file to git: `git add docs/ux/refs/`. PNGs are small enough to commit; we're not running a binary-asset CDN for v1.
-
-## Companion descriptions
-
-For each binary reference, there is a sibling `.md` file that describes the visual intent in prose. The description survives cache eviction and is the canonical artifact for prompting external generators. See `lovable-h1-portfolio.md` for an example.

@@ -18,6 +18,9 @@ export type PlanRowClient = {
   updatedAtIso: string;
   updatedAtLabel: string;
   assigneeName: string | null;
+  /** True when at least one pending Approval row targets this plan.
+   * Drives the "Needs approval" filter chip + per-row affordance. */
+  needsApproval: boolean;
 };
 
 export type PlansPageClient = {
@@ -26,6 +29,7 @@ export type PlansPageClient = {
     total: number;
     byStatus: Record<PlanStatus, number>;
     byKind: Record<PlanKind, number>;
+    needsApproval: number;
   };
 };
 
@@ -33,6 +37,7 @@ const KIND_LABEL: Record<PlanKind, string> = {
   epic: "Epic",
   feature: "Feature",
   story: "Story",
+  spec: "Spec",
   adr: "ADR",
   test_plan: "Test plan",
   release_plan: "Release",
@@ -41,6 +46,7 @@ const KIND_LABEL: Record<PlanKind, string> = {
   dev_summary: "Dev summary",
   go_live_report: "Go-live report",
   cicd_pipeline: "CI/CD pipeline",
+  risk_register: "Risk register",
 };
 
 const STATUS_LABEL: Record<PlanStatus, string> = {
@@ -76,7 +82,10 @@ function formatRelative(date: Date): string {
   return `${months}mo ago`;
 }
 
-export function serializePlanRow(plan: Plan & { project?: Project | null }): PlanRowClient {
+export function serializePlanRow(
+  plan: Plan & { project?: Project | null },
+  opts: { needsApproval?: boolean } = {},
+): PlanRowClient {
   const proj = plan.project;
   return {
     id: plan.id,
@@ -95,5 +104,6 @@ export function serializePlanRow(plan: Plan & { project?: Project | null }): Pla
     updatedAtIso: plan.updatedAt.toISOString(),
     updatedAtLabel: formatRelative(plan.updatedAt),
     assigneeName: plan.assigneeName ?? null,
+    needsApproval: opts.needsApproval ?? false,
   };
 }

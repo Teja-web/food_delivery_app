@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  CheckCircle2,
   FileCheck,
   FilePlus,
   FolderKanban,
@@ -37,7 +36,7 @@ type Props = {
 const NAV_ITEMS = [
   { label: "Projects", href: "/projects", Icon: FolderKanban, group: "Navigate" },
   { label: "Plans", href: "/plans", Icon: ScrollText, group: "Navigate" },
-  { label: "Approvals", href: "/approvals", Icon: CheckCircle2, group: "Navigate" },
+  { label: "Needs approval", href: "/plans?needs=approval", Icon: FileCheck, group: "Navigate" },
   { label: "Skills", href: "/skills", Icon: Sparkles, group: "Navigate" },
   { label: "Rules", href: "/rules", Icon: Shield, group: "Navigate" },
   { label: "Adapters", href: "/integrations", Icon: Plug, group: "Navigate" },

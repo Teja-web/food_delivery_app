@@ -15,7 +15,9 @@ export const draftRequirementInput = z.object({
   kind: z
     .enum(["epic", "feature", "story", "adr", "test_plan", "release_plan", "incident"])
     .optional()
-    .describe("Defaults to `story`."),
+    .describe(
+      "Plan kind. No implicit default — pick from the enum based on project state and `recommendedKickoff` guidance. `story` for individual deliverables; `feature` when grouping stories under a feature; `epic` for multi-feature scope.",
+    ),
   title: z.string().min(1),
   summary: z.string().optional(),
   body: z.string().optional(),

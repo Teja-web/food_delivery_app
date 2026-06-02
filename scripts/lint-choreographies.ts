@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Lint CHOREOGRAPHY.md files under src/automations/skills/.
+ * Lint SKILL.md files under src/automations/skills/.
  *
  * Validates:
  *   1. YAML frontmatter parses
@@ -172,12 +172,12 @@ function main(): void {
   let totalMissing = 0;
 
   for (const slug of entries) {
-    const choreoPath = join(SKILLS_DIR, slug, "CHOREOGRAPHY.md");
+    const choreoPath = join(SKILLS_DIR, slug, "SKILL.md");
     let content: string;
     try {
       content = readFileSync(choreoPath, "utf-8");
     } catch {
-      const msg = `[missing] ${slug}/CHOREOGRAPHY.md`;
+      const msg = `[missing] ${slug}/SKILL.md`;
       if (warnMissing) console.warn(`WARN  ${msg}`);
       else { console.error(`ERROR ${msg}`); totalMissing++; }
       continue;

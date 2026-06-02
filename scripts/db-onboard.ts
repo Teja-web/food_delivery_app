@@ -3,14 +3,10 @@
  * Coznt Onboarding Script — interactive CLI.
  *
  * Asks for organization + owner details, then delegates to the shared
- * `bootstrapOrg()` helper in `scripts/lib/bootstrap-org.ts` so this CLI
- * and `walkthrough-seed.ts` share a single audited code path. Demo data
- * always comes from `seedSampleWorkspace` — never inserted ad-hoc here.
+ * `bootstrapOrg()` helper in `scripts/lib/bootstrap-org.ts`.
  *
  * Usage:
- *   pnpm db:onboard                 # interactive (asks about sample data)
- *   pnpm db:onboard --sample        # non-interactive, seed sample data
- *   pnpm db:onboard --no-sample     # non-interactive, skip sample seed
+ *   pnpm db:onboard
  */
 
 import "dotenv/config";
@@ -18,13 +14,6 @@ import { Pool } from "pg";
 import { createInterface } from "readline/promises";
 
 import { bootstrapOrg, slugify } from "./lib/bootstrap-org";
-
-const argv = new Set(process.argv.slice(2));
-const SAMPLE_FLAG: "yes" | "no" | "ask" = argv.has("--sample")
-  ? "yes"
-  : argv.has("--no-sample")
-    ? "no"
-    : "ask";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -79,23 +68,9 @@ async function main() {
     process.exit(1);
   }
 
-  let seedSample: boolean;
-  if (SAMPLE_FLAG === "yes") seedSample = true;
-  else if (SAMPLE_FLAG === "no") seedSample = false;
-  else {
-    console.log("\nSample workspace:");
-    console.log("  Populates the org with 5 projects (covering all six SDLC phases),");
-    console.log("  17 plans (all 11 plan kinds), 5 skills with per-project autonomy");
-    console.log("  history, 8 rules, ~19 gates, deployments, DORA metrics, webhook");
-    console.log("  events, gate evaluations, prompt logs, test runs, repo policies,");
-    console.log("  and custom choreographies. Every UI surface lights up on first sign-in.");
-    seedSample = await confirm("Seed sample workspace?", true);
-  }
-
   console.log("\n-----------------------------------------");
   console.log(`  Organization:  ${orgName} (${orgSlug})`);
   console.log(`  Owner:         ${ownerName} <${ownerEmail}>`);
-  console.log(`  Sample data:   ${seedSample ? "yes" : "no"}`);
   console.log("-----------------------------------------");
 
   const proceed = await confirm("Proceed?", true);
@@ -107,33 +82,17 @@ async function main() {
   rl.close();
 
   console.log("\nCreating organization & owner...");
-  const result = await bootstrapOrg({
+  await bootstrapOrg({
     databaseUrl: DATABASE_URL!,
     orgName,
     orgSlug,
     ownerName,
     ownerEmail,
     password,
-    seedSample,
   });
   console.log(`  ${orgName} (${orgSlug})`);
   console.log(`  ${ownerName} <${ownerEmail}> (owner)`);
   console.log("  Default department");
-
-  if (result.seed) {
-    if (result.seed.inserted) {
-      const c = result.seed.counts;
-      console.log("\nSeeded sample workspace:");
-      console.log(`  ${c.projects} projects · ${c.plans} plans · ${c.skills} skills (${c.autonomyRows} autonomy rows, ${c.skillOutcomes} outcomes)`);
-      console.log(`  ${c.rules} rules · ${c.gates} gates · ${c.approvals} approvals · ${c.bindings} adapter bindings`);
-      console.log(`  ${c.deployments} deployments · ${c.metrics} metric rows · ${c.auditLogs} audit entries`);
-      console.log(`  ${c.workItems} work items · ${c.notifications} notifications`);
-      console.log(`  ${c.webhookEvents} webhook events · ${c.gateEvaluations} gate evaluations · ${c.testRuns} test runs`);
-      console.log(`  ${c.promptLogs} prompt logs · ${c.repoPolicies} repo policies · ${c.customChoreographies} custom choreographies`);
-    } else {
-      console.log("\n  Sample seed skipped — org already has projects.");
-    }
-  }
 
   console.log("\n=========================================");
   console.log("       ONBOARDING COMPLETE");

@@ -17,7 +17,7 @@
  */
 
 import { z } from "zod/v4";
-import { DEFAULT_MODEL, type Agent } from "@/lib/ai";
+import { type Agent } from "@/lib/ai";
 import { changeRiskClassifierPrompt } from "../prompts/change-risk-classifier";
 
 export const changeRiskSchema = z.object({
@@ -50,7 +50,6 @@ export const changeRiskClassifierAgent: Agent = {
   name: "Change Risk Classifier",
   description: "Reads a PR diff + project critical paths and classifies merge risk with rationale.",
   category: "code-review",
-  model: DEFAULT_MODEL,
   temperature: 0.2,
   systemPrompt: changeRiskClassifierPrompt,
   outputSchema: changeRiskSchema,

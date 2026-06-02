@@ -75,10 +75,56 @@ export const McpLearningSchema = z.object({
   createdByName: z.string().nullable(),
 });
 
+/**
+ * What the platform recommends as the first action on this project. Null
+ * when no routing rule in the active choreography matches current state
+ * — the platform never invents a recommendation. Source identifies
+ * whether the rule came from a custom org/project choreography or the
+ * platform default, so consumers (and the audit log) can attribute it.
+ */
+export const McpRecommendedKickoffSchema = z.object({
+  action: z.string(),
+  rationale: z.string(),
+  source: z.enum([
+    "choreography_custom_project",
+    "choreography_custom_org",
+    "choreography_default",
+  ]),
+});
+
+/**
+ * Project state snapshot — plans / approvals / phase-gate counts plus
+ * verification-debt total. Surfaced on every `get_my_context` so the
+ * agent can self-orient without firing N follow-up queries. byKind /
+ * byStatus maps include every enum value (zero when absent) so consumers
+ * can index without `.has(...)` checks.
+ */
+export const McpProjectArtifactsSchema = z.object({
+  plans: z.object({
+    total: z.number().int().nonnegative(),
+    byKind: z.record(z.string(), z.number().int().nonnegative()),
+    byStatus: z.record(z.string(), z.number().int().nonnegative()),
+  }),
+  approvals: z.object({
+    pendingTotal: z.number().int().nonnegative(),
+    oldestOpenAgeHours: z.number().int().nonnegative().nullable(),
+  }),
+  phaseGates: z.object({
+    total: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+    passed: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+  }),
+  verificationDebt: z.number().nullable(),
+});
+
 export const McpResponseSchema = z.object({
   project: McpProjectSchema,
   workItem: McpWorkItemSchema.nullable(),
   phaseDiscipline: McpPhaseDisciplineSchema,
+  recommendedKickoff: McpRecommendedKickoffSchema.nullable(),
+  projectArtifacts: McpProjectArtifactsSchema,
   /**
    * Names of MCP tools the agent may call in the current phase. Sourced
    * from `src/lib/mcp/phase-enforcement.ts`. The agent self-polices by

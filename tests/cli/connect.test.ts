@@ -78,9 +78,10 @@ describe("MCP config writers", () => {
   });
 
   it("Claude Code merges into an existing config without destroying other entries", () => {
-    mkdirSync(join(tmpRoot, ".claude"));
+    // Claude Code reads from `.mcp.json` at the repo root, not `.claude/mcp.json`.
+    // See HOST_SHAPES["claude-code"] in src/lib/mcp/host-config.ts.
     writeFileSync(
-      join(tmpRoot, ".claude", "mcp.json"),
+      join(tmpRoot, ".mcp.json"),
       JSON.stringify({
         mcpServers: {
           filesystem: { command: "npx", args: ["@modelcontextprotocol/server-filesystem"] },
@@ -95,9 +96,8 @@ describe("MCP config writers", () => {
   });
 
   it("Claude Code overwrites a prior coznt entry and flags overwrote=true", () => {
-    mkdirSync(join(tmpRoot, ".claude"));
     writeFileSync(
-      join(tmpRoot, ".claude", "mcp.json"),
+      join(tmpRoot, ".mcp.json"),
       JSON.stringify({
         mcpServers: {
           coznt: { command: "old", args: [], env: {} },
@@ -148,10 +148,16 @@ describe("gitignore helper", () => {
     expect(content).toContain(".coznt/.local/");
   });
 
-  it("is idempotent if the entry is already present", () => {
-    writeFileSync(join(tmpRoot, ".gitignore"), "node_modules\n.coznt/.local/\n");
+  it("is idempotent if both entries are already present", () => {
+    // The helper adds two entries today: `.coznt/.local/` AND `.mcp.json`.
+    // Pre-seed both so the helper has nothing to do.
+    writeFileSync(
+      join(tmpRoot, ".gitignore"),
+      "node_modules\n.coznt/.local/\n.mcp.json\n",
+    );
     const r = ensureCozntLocalGitignored(tmpRoot);
     expect(r.changed).toBe(false);
+    expect(r.addedEntries).toEqual([]);
   });
 
   it("appends to an existing .gitignore preserving prior entries", () => {

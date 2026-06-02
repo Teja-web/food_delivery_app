@@ -222,7 +222,7 @@ function RollupStrip({ rollup }: { rollup: PortfolioClient["rollup"] }) {
   return (
     <div className="flex items-center gap-8 rounded-lg border bg-card/30 px-6 py-4">
       <Link
-        href="/approvals"
+        href="/plans?needs=approval"
         className="flex items-baseline gap-2 transition-opacity hover:opacity-80"
       >
         <span className="font-display text-3xl font-bold tabular-nums">

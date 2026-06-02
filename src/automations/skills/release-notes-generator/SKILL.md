@@ -1,134 +1,110 @@
 ---
-name: Release Notes Generator
-description: Generate Release Notes covering features, fixes, test summary, deployment checklist, and rollback plan
+name: release-notes-generator
+description: Draft release notes for a coznt-tracked project — features shipped, bug fixes, test summary, deployment checklist, rollback plan. Use when: "release notes", "changelog", "what shipped", "PR rollup", end-of-sprint, pre-deploy. Voice triggers (speech-to-text aliases): "release notes", "rel notes", "ship notes", "what's in the release".
 version: 1
-tags: [platform, release, notes, cicd, deployment, sdlc]
 plan_kind: release_plan
+tags: [platform, release, notes, cicd, deployment, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_pipeline_status
+  - mcp__coznt__get_requirements
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "release notes", "changelog", "what shipped", or "PR rollup"
+    - End-of-sprint or pre-deploy timing on a coznt-tracked project
+    - Project phase is `cicd` or `monitoring`
+  required_verbs:
+    - get_my_context
+    - get_pipeline_status
+    - get_requirements
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Release Notes Generator
 
-Generate **Release Notes** for the current project release. This document provides a comprehensive summary of what is being released, including new features, bug fixes, test results, deployment checklist, and rollback procedures.
+Draft release notes server-side via coznt's `invoke_skill`; this file tells you *when* to call which verb. The LLM call happens on coznt — never locally.
 
-## When to Use
+## When to use
 
-- At the end of the CI/CD phase, before production cutover.
-- When stakeholders need a clear summary of what's in this release.
-- As the document distributed to customers / downstream teams.
+- The user asks for release notes, a changelog, or "what shipped" / "rel notes".
+- The project is in the `cicd` or `monitoring` phase (verify with `get_my_context`).
+- A `release_plan` is in flight (verify with `get_pipeline_status`).
 
-## Instructions
+## When NOT to use
 
-### Step 1 — Gather Context
+- **Project is in `requirements`, `design`, `development`, or `testing` phase** — release notes are premature; warn the user and stop. Suggest `get_phase_checklist` so they see what's still pending.
+- **The user wants a per-PR summary, not a release rollup** — that's a different ask; do not invoke this skill.
+- **No `release_plan` is in flight AND the user hasn't given a version** — ask the user for intent first; if they want an ad-hoc rollup, proceed with `version: "draft"`.
+- **Outside a coznt-bound repo** — this choreography only works against an MCP-mounted coznt project. If `get_my_context` errors with `project_not_bound`, point the user at `coznt connect`.
 
-Call `get_my_context` to retrieve the current project details. Then gather what's in this release:
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Capture `projectId`, `phase`, and bound project name.
+
+### 2. Verify a release is in flight
+Call `get_pipeline_status`. If no `release_plan` has `status: "in_progress"`, ask the user for a target version + audience before continuing.
+
+### 3. Gather completed work
+Call `get_requirements` four times:
+- `{ kind: "feature", status: "completed" }`
+- `{ kind: "story", status: "completed" }`
+- `{ kind: "incident", status: "completed" }`
+- `{ kind: "release_plan", status: "in_progress" }`
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_requirements { kind: "feature", status: "completed" }
-invoke: get_requirements { kind: "story", status: "completed" }
-invoke: get_requirements { kind: "incident", status: "completed" }
-invoke: get_requirements { kind: "release_plan", status: "in_progress" }
-invoke: get_pipeline_status
+slug: "release-notes-generator"
+input: {
+  projectId,
+  version,                 // ask user if not derivable from release_plan
+  targetEnvironment,       // default: "production"
+  completedFeatures,       // from step 3
+  completedStories,        // from step 3
+  completedIncidents,      // from step 3
+  releasePlanSlug,         // from step 3
+  rollbackPlaybookUrl      // ask user if needed
+}
 ```
+Server runs the prompt, returns the drafted markdown plus a `confidence` score, and records an outcome in the ledger automatically.
 
-`get_pipeline_status` gives the most recent build/test posture and the in-flight release_plan slug. The completed `story` / `feature` / `incident` plans are what made it in.
+### 5. Route based on confidence
+- `confidence >= 0.7` → present draft to the user for review.
+- `confidence < 0.7` → call `submit_for_approval` with the draft attached.
 
-If the caller has a version number, target environment, or rollback playbook URL not visible to the platform, ask for them.
-
-### Step 2 — Generate the Document
-
-Produce a Markdown document with the following structure. Every section is mandatory; use "N/A" if information is not available.
-
-```markdown
-# Release Notes — {Project Name} v{version}
-
-**Release date:** {YYYY-MM-DD}
-**Environment target:** production
-**Release lead:** ...
-**Source release plan:** plan/{slug}
-
-## 1. Highlights
-
-{2–4 bullets the audience cares about most.}
-
-## 2. New Features
-
-For each completed feature in this release:
-
-### 2.{n} {Feature Title}
-- **Source:** plan/{slug}
-- **What changed:** ...
-- **User impact:** ...
-
-## 3. Bug Fixes
-
-For each completed incident plan in this release:
-
-### 3.{n} {Incident Title}
-- **Source:** plan/{slug}
-- **Symptom:** ...
-- **Fix:** ...
-
-## 4. Breaking Changes
-
-List, with migration guidance. "N/A" if none.
-
-## 5. Deprecations
-
-List, with sunset dates. "N/A" if none.
-
-## 6. Test Summary
-
-Pull from the test-execution report if one was filed for this release. Fields:
-- Total cases executed
-- Pass rate
-- Open defects (by severity)
-- Sign-off status
-
-## 7. Deployment Checklist
-
-- [ ] Database migrations applied (commit hash)
-- [ ] Feature flags configured (list)
-- [ ] Secrets rotated where required
-- [ ] Monitoring dashboards verified green pre-deploy
-- [ ] On-call notified
-
-## 8. Rollback Plan
-
-- **Trigger criteria:** when to roll back
-- **Procedure:** step-by-step
-- **Owner:** ...
-- **Estimated time to rollback:** ...
-
-## 9. Known Issues
-
-Issues shipping with the release, with workarounds.
-
-## 10. References
-
-- Test plan: plan/{slug}
-- Test execution report: plan/{slug}
-- Architecture decisions: plan/{slug}, ...
+### 6. File the document
+Once approved (or if confidence was high), call `upsert_plan`:
 ```
-
-### Step 3 — File the Document
-
-Call `upsert_plan` to land the release notes:
-
-```
-invoke: upsert_plan {
+upsert_plan {
   kind: "release_plan",
-  slug: "release-notes-{project-slug}-v{version}",
-  title: "Release Notes — {Project Name} v{version}",
-  summary: "Release {version}: {n} features, {n} fixes.",
-  body: "{generated markdown}",
-  changeNote: "Cut {YYYY-MM-DD}"
+  slug: "release-notes-<project-slug>-v<version>",
+  title: "Release Notes — <Project Name> v<version>",
+  summary: "Release <version>: N features, N fixes.",
+  body: <generated markdown>,
+  changeNote: "Cut <YYYY-MM-DD>"
 }
 ```
 
-## Quality Checklist
+## Constraints
 
-- [ ] Every completed feature and incident has a section
-- [ ] Test summary numbers match the test-execution report
-- [ ] Rollback plan is concrete (named owner, named procedure, ETA)
-- [ ] Breaking changes have migration guidance, not just notification
-- [ ] No internal-only language ("we did X") — written for the release audience
+- **Do not publish to external systems.** Coznt does not write to GitHub releases, Jira, or Confluence on your behalf. The `release_plan` row is the record; integrations consume it via webhook.
+- **Never invent test numbers.** If a `test_execution_report` plan doesn't exist for this release, mark the test summary section as "N/A — no test-execution report filed."
+- **Concrete rollback only.** The rollback section must name an owner, a procedure, and an ETA — not "follow standard procedure."
+- **One skill = one decision tree.** If the user asks you to *also* author the test execution report, stop and tell them to invoke that skill separately.
+
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy on this project is below `propose` | Call `submit_for_approval` with the assembled input; reviewer dispatches manually |
+| `get_pipeline_status` shows no in-flight `release_plan` | Release wasn't planned | Ask user to author one first, or proceed with `version: "draft"` if they confirm ad-hoc |
+| Test summary requested but no `test_execution_report` plan | Test execution skipped or not filed | Use "N/A" in the test summary; flag to user before filing |
+| `get_my_context` errors `project_not_bound` | Repo isn't connected | Point user at `coznt connect` and stop |

@@ -21,7 +21,8 @@ import {
 } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
-import { planCrud } from "@/operations/plans";
+import { computeNextAction } from "@/lib/mcp/next-action";
+import { createPlan } from "@/operations/plans";
 
 const DEFAULT_KIND: PlanKind = "story";
 
@@ -155,13 +156,13 @@ export async function POST(
 
     const list = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
 
-    // planCrud.create handles validation + hooks (applyRulesToPlan, audit).
-    // We sequence rather than Promise.all so a single rule-violation
+    // createPlan handles slug derivation + validation + hooks (applyRulesToPlan,
+    // audit). We sequence rather than Promise.all so a single rule-violation
     // throws cleanly without orphan partial writes — and audit ordering
     // is preserved.
     const created: Array<{ id: string; kind: PlanKind; title: string }> = [];
     for (const item of list) {
-      const plan = await planCrud.create({
+      const plan = await createPlan({
         projectId: project.id,
         kind: item.kind ?? DEFAULT_KIND,
         title: item.title,
@@ -176,11 +177,14 @@ export async function POST(
       created.push({ id: plan.id, kind: plan.kind, title: plan.title });
     }
 
+    const nextAction = await computeNextAction(ctx.organizationId, project.id);
+
     return {
       project: { id: project.id },
       batch: Array.isArray(parsed.data),
       created,
       total: created.length,
+      nextAction,
     };
   });
 }

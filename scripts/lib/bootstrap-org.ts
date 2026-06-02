@@ -1,20 +1,14 @@
 /**
- * Shared org + owner + sample-workspace bootstrap.
+ * Shared org + owner bootstrap. Creates the org, owner user + credential,
+ * default department, and seeds the org-wide platform skill catalog.
  *
- * Used by both onboarding entry points so there's a single, audited path
- * for "create org → create owner → optionally seed convincing demo data":
- *   - scripts/db-onboard.ts   (interactive CLI, with --sample flag)
- *   - scripts/walkthrough-seed.ts  (headless preset for the demo walkthrough)
- *
- * Demo data ALWAYS comes from `seedSampleWorkspace`. No script should
- * insert sample rows directly — extend `seed-sample-workspace.ts` instead.
+ * Used by scripts/db-onboard.ts.
  */
 
 import { randomBytes } from "crypto";
 import { Pool, type PoolClient } from "pg";
 import { hashPassword } from "better-auth/crypto";
 
-import { seedSampleWorkspace, type SeedResult } from "../../src/operations/seed-sample-workspace";
 import { seedPlatformSkills } from "../seed-platform-skills";
 
 export function generateId(prefix: string): string {
@@ -35,8 +29,6 @@ export interface BootstrapOrgArgs {
   ownerName: string;
   ownerEmail: string;
   password: string;
-  /** Seed the sample workspace? Default: true. */
-  seedSample?: boolean;
 }
 
 export interface BootstrapResult {
@@ -44,8 +36,6 @@ export interface BootstrapResult {
   ownerUserId: string;
   ownerName: string;
   ownerEmail: string;
-  /** Present only when seedSample !== false. */
-  seed?: SeedResult;
 }
 
 async function insertOrganization(
@@ -141,20 +131,10 @@ export async function bootstrapOrg(args: BootstrapOrgArgs): Promise<BootstrapRes
     );
   }
 
-  const result: BootstrapResult = {
+  return {
     orgId,
     ownerUserId,
     ownerName: args.ownerName,
     ownerEmail: args.ownerEmail,
   };
-
-  if (args.seedSample !== false) {
-    result.seed = await seedSampleWorkspace({
-      organizationId: orgId,
-      userId: ownerUserId,
-      userName: args.ownerName,
-    });
-  }
-
-  return result;
 }

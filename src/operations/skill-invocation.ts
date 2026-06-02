@@ -108,13 +108,15 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
     { organizationId: ctx.organizationId, projectId: ctx.projectId ?? skill.projectId ?? null },
   );
 
+  const resolvedModel = req.model ?? DEFAULT_MODEL;
+
   try {
     const result = await generate({
       agent: {
         slug: skill.slug,
         name: skill.name,
         systemPrompt: skill.body,
-        model: req.model ?? DEFAULT_MODEL,
+        ...(req.model && { model: req.model }),
       },
       prompt: resolveSkillBody(skill, req.input),
     });
@@ -149,7 +151,7 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
         summary: skill.description ?? skill.name,
         body: typeof output === "string" ? output : null,
         data: typeof output === "object" && output !== null ? (output as Record<string, unknown>) : null,
-        modelId: req.model ?? DEFAULT_MODEL,
+        modelId: resolvedModel,
         lastRunId: runId,
         lastEvaluatedAt: new Date(),
         evaluationCount: 1,
@@ -160,7 +162,7 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
           summary: skill.description ?? skill.name,
           body: typeof output === "string" ? output : null,
           data: typeof output === "object" && output !== null ? (output as Record<string, unknown>) : null,
-          modelId: req.model ?? DEFAULT_MODEL,
+          modelId: resolvedModel,
           lastRunId: runId,
           lastEvaluatedAt: new Date(),
           updatedAt: new Date(),

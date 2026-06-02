@@ -1,6 +1,6 @@
 # H3 Brief — `/approvals` Inbox
 
-**References:** `docs/ux/DESIGN.md`, `docs/ux/sample-data.md`, `docs/ux/moments.md` (Moment 3), `docs/ux/personas.md` (Sam).
+**References:** `docs/ux/DESIGN.md`, `docs/ux/moments.md` (Moment 3), `docs/ux/personas.md` (Sam).
 
 ## Anchor (read this first)
 
@@ -65,15 +65,6 @@ This is also where bulk-approve lives. Three of the 12 are auto-approval-eligibl
 9. **Stale tag** — for 7d+ rows, an amber "STALE Xd" pill.
 10. **Reject modal** — small modal with **required reason textarea** + a "select a common reason" dropdown (style: "Needs more context", "Risk concern", "Owner ambiguity", etc.).
 11. **Undo toast** — appears for 5s after every approve/reject action. Click "Undo" to revert.
-
-## Sample data — use all 12 approvals from `sample-data.md` exactly
-
-The 12 approvals in `sample-data.md` cover the full state matrix:
-- 3 auto-approval-eligible (api-contract-checker Merge, doc-updater Lead)
-- 1 requires manual review despite skill request (schema-migration-reviewer Propose, recently demoted)
-- 1 intentionally stale (9 days)
-- Mix of plan, phase_gate, work_item, release entity types
-- Span of all 4 projects
 
 ## Interactions
 

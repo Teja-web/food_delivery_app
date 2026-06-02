@@ -6,11 +6,12 @@ AI-native SDLC platform. Plans, phase gates, and deployments are coordinated by 
 
 ```bash
 pnpm install
+pnpm db:setup --reset  # creates DB, schema, triggers, default org + admin user
 pnpm dev               # Next.js dev server + worker
-pnpm db:setup --reset
-pnpm db:seed --reset
-pnpm db:onboard --reset
+# sign in at http://localhost:3029 with admin@coznt.app / admin123
 ```
+
+`pnpm db:onboard` is optional — use it only to create an *additional* organization with its own owner.
 
 For ongoing schema work:
 

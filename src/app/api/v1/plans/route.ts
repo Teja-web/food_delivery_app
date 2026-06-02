@@ -1,4 +1,4 @@
-import { planCrud } from "@/operations/plans";
+import { planCrud, createPlan } from "@/operations/plans";
 import { handleApi } from "@/lib/auth/api-key";
 
 export async function GET(req: Request) {
@@ -15,6 +15,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   return handleApi(req, async () => {
     const body = await req.json();
-    return planCrud.create(body);
+    return createPlan(body);
   });
 }

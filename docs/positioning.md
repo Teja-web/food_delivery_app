@@ -2,17 +2,47 @@
 
 *Purpose: definitive product positioning. What coznt is, what it claims, the loop it tightens. Source of truth — every other doc derives from this.*
 
-**Coznt is autonomy with observability for AI-assisted software delivery.**
+## Tagline
 
-Cursor, Devin, Copilot, Claude Code, and the new wave of CLI agents (`claude -p`, `cursor-agent`, `codex exec`) make individual developers dramatically faster. Coznt is the **daemon that makes those editors and CLIs project-aware, phase-aware, and policy-aware** — so individual velocity becomes organizational throughput, safely. Every AI-assisted action earns the next one less friction; every action lands with the evidence a governed organization needs.
+**AI-DLC Governed.**
 
-Coznt runs *inside* the editor loop, not above it:
+Used as the headline on marketing surfaces. AI-DLC is a compatibility claim ("Scrum-compliant", "DORA-aligned") — specific enough to be memorable, narrow enough to stay defensible as alternative methodologies emerge. The marketing surface cites a methodology; the data model does not.
 
-- **Individual AI productivity tools** (Cursor, Devin, Copilot, Claude Code) make each developer faster — they're great at that. They don't know the project's phase, the org's policy, or whether a workflow has earned the right to ship this kind of change without human review. Coznt does.
-- **Work trackers** (Linear, Jira, Asana) record what's planned and shipped. They don't act on it, and they don't grade the quality of AI-assisted action. Coznt does.
-- **Autonomy with observability** is what lets AI velocity compound at organizational scale instead of paying for itself in reviews.
+## What it is in one sentence
 
-For organizations that have to ship faster *and* show their work — without each new piece of AI work re-paying the review tax of the first.
+**Coznt turns individual AI productivity into safe organizational throughput.** Cursor, Devin, Copilot, Claude Code, and the new wave of CLI agents (`claude -p`, `cursor-agent`, `codex exec`) make individual developers dramatically faster. Coznt is the **daemon that makes those editors and CLIs project-aware, phase-aware, and policy-aware** — so individual velocity becomes organizational throughput, safely. Every AI-assisted action earns the next one less friction; every action lands with the evidence a governed organization needs.
+
+---
+
+## Operating model: Govern. Verify. Trust.
+
+The tagline is the category claim. The operating model is how coznt delivers on it.
+
+```
+Govern what AI can do.
+Verify what AI produces.
+Trust what can be proven.
+```
+
+| Pillar | Question it answers | Primary mechanism |
+|---|---|---|
+| **Govern** | Who is allowed to act, and how far? | Skill autonomy ladder (0–3, per project), policy rules, phase gates, approval routing |
+| **Verify** | How do we know the output is correct? | Skill outcome ledger, deterministic CI/CD assessors, automated gate types (coverage, lint, security) |
+| **Trust** | Can we explain, audit, and stand behind it? | Audit log, source-of-record linking on every UI claim, provenance, portfolio rollups |
+
+The pillars are causally ordered: govern action → verify output → establish trust through evidence. Governance is the *mechanism*; trust through proven evidence is the *outcome*.
+
+### Why this operating model, why now
+
+Generating plausible code is cheap. **Establishing trust in it is the scarce resource.** Organizations that don't operationalize Govern–Verify–Trust accrue *verification debt* — unverified AI output that compounds risk until something fails in production. The full thesis, evidence, primitive mapping, and the `verification_debt` formula are in [verification-debt-thesis.md](product/verification-debt-thesis.md).
+
+### Pillar relationship to existing claims
+
+- "AI-DLC Governed" (tagline) = the **Govern** pillar surfaced for marketing.
+- "Trust observable" (UX thesis) = the **Trust** pillar surfaced for users — every claim links to source of record.
+- DX metrics (lead time, deploy frequency, CFR, MTTR) = byproducts of the **Verify** pillar's ledger.
+
+Nothing is being replaced. The pillars are the spine that connects what was already there.
 
 ---
 
@@ -52,8 +82,6 @@ That cycle fires hundreds of times a day in every developer's editor. The ledger
 Audit defense falls out for free. If every autonomous action is observed and committed to the ledger, the evidence packet already exists.
 
 **Autonomy isn't a permanent grant.** The same ledger that earned a skill Merge also revokes it the moment a critical incident lands — and every open pull request by that skill flips from passing to blocked, automatically. The execution gate evaluates each PR against a published policy (autonomy × change risk × active rules × phase × human override) and posts the verdict as a GitHub check-run, so the merge UI is physically gated on earned trust, not advisory text.
-
-The result: faster delivery without losing operational control.
 
 ---
 
@@ -99,7 +127,7 @@ Coznt closes it with two converging layers, both shipped:
 
 Coznt writes governance metadata — verdicts, check-runs, approvals, ledger rows. **It does not write the underlying work product — branches, PRs, tickets, source code.** That separation is load-bearing: the autonomy ledger is only credible if the grader isn't also the actor for the thing it grades. The agent opens the PR; coznt grades it. Jira owns the ticket; coznt records the outcome. This is why MCP verbs like `create_pr` and `push_to_external` are excluded from the surface — not because they're hard, but because shipping them would compromise the trust property that makes the ledger worth anything.
 
-This split is what makes a per-project autonomy ledger possible. If the **governed-skill LLM call** ran locally, the ledger could only ever be reactive — a record of what already happened. With the daemon as the chokepoint for skill invocations, the gate is *preventive*: a skill operating below its required autonomy on a given project is denied before any governed tokens are spent, and the call routes into the approval inbox instead. Trust is graded per project from evidence, not granted at install.
+If the **governed-skill LLM call** ran locally, the ledger could only ever be reactive — a record of what already happened. With the daemon as the chokepoint for skill invocations, the gate is *preventive*: a skill operating below its required autonomy on a given project is denied before any governed tokens are spent, and the call routes into the approval inbox instead. Trust is graded per project from evidence, not granted at install.
 
 ### Convergence on chassis, divergence on engine
 
@@ -120,8 +148,9 @@ It continuously converts proven execution patterns into safe autonomous delivery
 | GitLab / Azure DevOps | Pipeline automation + signal | Earned autonomy — pipelines don't graduate |
 | Sonar / Snyk | Risk signal | Action — they detect, they don't allow more |
 | ai-sdlc-framework (OSS) | The loop, single-repo | Multi-project, hosted, portfolio-wide |
-| Cursor-first SDLC platforms (e.g. SDLC Transformation Platform) | An MCP write surface for the agent — tools for requirements / ADRs / tests / plans, so the editor lands artifacts directly into a system of record | **The gating layer underneath.** Writes execute on call, not after a per-project policy gate; outcomes are not graded into an autonomy ledger; no role separation between the agent that writes and the system that grades. The audit trail records what happened, but the next cycle isn't structurally safer than the last. *Also missing:* cross-project portfolio view, causal DORA attribution, audit-grade hash-chained execution history. |
+| Cursor-first SDLC platforms | An MCP write surface for the agent — tools for requirements / ADRs / tests / plans, so the editor lands artifacts directly into a system of record | **The gating layer underneath.** Writes execute on call, not after a per-project policy gate; outcomes are not graded into an autonomy ledger; no role separation between the agent that writes and the system that grades. The audit trail records what happened, but the next cycle isn't structurally safer than the last. |
 | Local-AI workflow toolkits (gstack, `.claude/skills`, `.cursor/rules`) | Frictionless skill files distributed with the repo and loaded natively by the AI editor — the pattern Coznt borrows for choreography distribution | A server-side governed runtime. They *distribute* but never *execute* centrally — no observable invocations, no autonomy ledger, no per-project trust budget |
+| GetDX (DX measurement) | Survey-derived DX metrics, tracker-derived velocity | Evidence-graded ledger underneath the metrics. Coznt emits the same DORA signal *from the same audit ledger that gates production merges* — the metrics are the byproduct of governance, not a separate survey loop. |
 
 Coznt closes the loop none of these close — between an AI taking action in any editor or CLI and an organization being able to trust it with more.
 
@@ -131,11 +160,34 @@ Coznt closes the loop none of these close — between an AI taking action in any
 
 ---
 
+## Stack position
+
+Coznt overlays your SDLC sources of truth — it doesn't replace them. The peer set is Linear (work tracking), Vercel (deploy), Datadog/Grafana (observability), Cursor (AI authoring), GetDX (developer experience). The systems below remain the systems of record; coznt is the governance + observability layer on top.
+
+| Layer | System of record | Coznt's role |
+|---|---|---|
+| Code | Git (GitHub / GitLab / Bitbucket / ADO Repos) | Webhook-graded; never pushes |
+| Work items | Jira / ADO Boards / Linear / GitHub Issues | Mirrored in when bound; status writes routed back via adapter. Authored natively only when no tracker is bound (greenfield) |
+| Docs | Confluence / Notion | ADR + spec publish-down, post-approval, server-side |
+| CI/CD | GitHub Actions / ADO Pipelines | Pipeline read + scaffold; runs stay upstream |
+| Deploy | Vercel / Render / Fly / k8s | Webhook-graded deploy outcomes drain to the ledger |
+
+### What coznt doesn't try to be
+
+- Not a tracker — Jira / ADO / Linear own the work-item write path
+- Not a Git host — GitHub / GitLab / Bitbucket own code
+- Not a wiki — Confluence / Notion own long-form docs
+- Not an authoring AI — Cursor / Copilot / Claude Code own the editor turn
+
+The only thing coznt owns end-to-end is the governance overlay: phase gates, approvals, the skill autonomy ledger, audit, and the DX rollups that fall out of it.
+
+---
+
 ## Core capabilities
 
 Every capability either tightens the loop or makes one side of it cheaper.
 
-1. **IDE-native workflow guidance** — *the daily-touch surface.* On every agent turn the editor or CLI pulls project + phase + allowed/forbidden tools + active rules + the developer's skill-autonomy levels from coznt. Choreographies sync into `.coznt/skills/` as SKILL.md files the agent loads natively (slash-commands in Cursor, frontmatter in Claude Code, MCP-discoverable in Cline / Continue / Zed, same files served to `claude -p` / `cursor-agent` / `codex exec`). The agent's reasoning runs grounded in the same truth the server-side gate enforces — no drift between what the agent thinks is allowed and what is.
+1. **IDE-native workflow guidance** — *the daily-touch surface.* On every agent turn the editor or CLI pulls project + phase + allowed/forbidden tools + active rules + the developer's skill-autonomy levels from coznt. Choreographies sync into `.coznt/skills/` as SKILL.md files the agent loads natively. The agent's reasoning runs grounded in the same truth the server-side gate enforces — no drift between what the agent thinks is allowed and what is.
 2. **Trust and autonomy scoring** — *tightens the loop.* Workflows and agents earn graduated autonomy from real delivery outcomes. Escalation only when uncertainty or risk is high.
 3. **Continuous delivery risk evaluation** — *tightens the loop.* Every change is scored by a published policy (autonomy × change risk × rules × phase) before it can merge. The policy is a pure function — table-testable, reproducible across runs. When autonomy changes mid-stream, open changes are automatically re-evaluated; nothing has to be re-run by hand.
 4. **Automated evidence collection** — *makes observability cheaper.* Every gate decision, agent action, and override is captured and directly exportable to SOC 2 / ISO 27001 evidence packets.
@@ -145,6 +197,65 @@ Every capability either tightens the loop or makes one side of it cheaper.
 8. **Per-phase tool discipline** — *makes autonomy cheaper.* Each phase declares allowed and forbidden actions explicitly. Agents see the boundary in their context payload (`get_my_context`); the gate enforces it server-side. *"No source-code work outside `development`"* stops being a wiki page and starts being a 409 on the wire.
 
 A feature that only adds another chart is table-stakes. A feature that only adds another agent is a tool. A feature that tightens the loop between observation and earned autonomy is Coznt.
+
+---
+
+## Schema vocabulary: vendor-neutral
+
+| Term | Why neutral |
+|---|---|
+| Project | Universal |
+| Plan | Universal — covers Scrum Epic/Story, AI-DLC Unit, Shape Up Pitch |
+| Phase Gate | Universal governance term |
+| Approval | Universal |
+| Skill / Skill Outcome / Skill Autonomy | Generic English; aligns with Anthropic/OpenAI agent vocabulary |
+| Audit Log | Universal |
+| Rule | Universal |
+| Adapter | Universal connector term |
+| Release | Universal |
+| Choreography | Internal term for async task flows |
+| Risk Register | Universal Agile/SAFe touchpoint, retained by AI-DLC |
+| DORA metrics | Industry standard |
+
+### Plan kinds
+
+**Current** (`src/db/schema/plan-kinds.ts`): `epic`, `feature`, `story`, `spec`, `adr`, `test_plan`, `release_plan`, `incident`, `storyboard`, `dev_summary`, `go_live_report`, `cicd_pipeline`, `risk_register`.
+
+### Terms never to introduce in schema
+
+| Term | Why blocked |
+|---|---|
+| `bolt` | AWS / AI-DLC-specific |
+| `unit` (as Plan kind) | AWS / AI-DLC-specific — `work_item` covers it |
+| `prfaq` | Amazon-internal artefact form |
+| `sprint` | Scrum-locked |
+| `intent` (as schema noun) | AWS-tilted via AI-DLC; ambiguous with Cisco intent-based networking |
+
+### Methodology overlays (display only)
+
+Overlays change labels, not schema:
+
+| Methodology | Overlay |
+|---|---|
+| AI-DLC | Phases shown grouped as Inception / Construction / Operations |
+| Scrum | Plans labeled Epic / Story / Feature (already match) |
+| SAFe | Plans labeled Portfolio Epic / Program Increment |
+| Shape Up | Plans labeled Pitch / Bet / Cycle |
+
+## Supported methodologies
+
+One-line claim under the headline: *"Supports AI-DLC, Scrum, SAFe, Shape Up."*
+
+---
+
+## Vendor lens
+
+| Buyer | Surface positioning | Why |
+|---|---|---|
+| AWS-aligned | "AI-DLC Governed" + Inception/Construction/Operations overlay | First-published AI-native methodology |
+| Microsoft / GitHub-aligned | Highlight `spec` Plan kind, spec-driven framing | GitHub Workspace momentum |
+| Google / DORA-aligned | Lead with DORA metrics | DORA is the universal language; we already emit it |
+| Methodology-agnostic | "AI-native SDLC governance" | Neutral fallback |
 
 ---
 
@@ -160,3 +271,11 @@ Organizations using Coznt develop increasingly autonomous delivery systems:
 - and leadership gains real-time operational visibility across the portfolio.
 
 Coznt is the infrastructure that lets AI-native software organizations scale execution without losing trust, accountability, or control.
+
+---
+
+## What does not change
+
+- Phase enum: `requirements → design → development → testing → cicd → monitoring`
+- Outcome sources: `pr_merge`, `pr_revert`, `pr_abandon`, `deploy_clean`, `deploy_incident` — "PR" is industry pidgin (GitHub + Bitbucket; GitLab MR is well-understood as the same concept)
+- Audit log as the source of truth for every claim on screen

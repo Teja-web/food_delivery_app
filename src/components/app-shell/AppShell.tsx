@@ -3,7 +3,6 @@
 import {
   Activity,
   Bell,
-  CheckCircle2,
   FileCheck,
   FolderKanban,
   Key,
@@ -55,7 +54,6 @@ const GROUPS: NavGroup[] = [
       { href: "/projects", label: "Projects", Icon: FolderKanban, matchPrefix: "/projects" },
       { href: "/plans", label: "Plans", Icon: ScrollText, matchPrefix: "/plans" },
       { href: "/releases", label: "Releases", Icon: Rocket, matchPrefix: "/releases" },
-      { href: "/approvals", label: "Approvals", Icon: CheckCircle2 },
     ],
   },
   {
@@ -77,7 +75,6 @@ const GROUPS: NavGroup[] = [
 const SECTION_LABELS: Record<string, string> = {
   "/projects": "Portfolio",
   "/plans": "Plans",
-  "/approvals": "Approvals",
   "/skills": "Skills",
   "/audit": "Audit log",
   "/rules": "Rules",

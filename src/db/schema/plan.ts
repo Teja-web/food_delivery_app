@@ -47,7 +47,7 @@ export const plans = cozntSchema.table(
     projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
 
     kind: text().$type<PlanKind>().notNull(),
-    slug: text(),
+    slug: text().notNull(),
 
     /** Optional rollup: e.g. a story's parent feature, a feature's parent epic. */
     parentPlanId: text("parent_plan_id"),
@@ -101,8 +101,9 @@ export const plans = cozntSchema.table(
     index("plans_generated_by_skill_idx").on(table.generatedBySkillId),
     /**
      * Upsert key for `upsertPlanByKindAndSlug` — the `(project, kind, slug)`
-     * triple is the agent-visible identifier. Null slug stays distinct (rows
-     * not authored via the upsert path).
+     * triple is the agent-visible identifier. Slug is always set: callers via
+     * `createPlan` get an auto-derived slug from title; MCP upsert callers
+     * supply their own readable slug.
      */
     uniqueIndex("plans_project_kind_slug_idx").on(table.projectId, table.kind, table.slug),
     index("plans_fts_idx").using(

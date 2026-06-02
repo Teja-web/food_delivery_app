@@ -56,25 +56,7 @@ In the coznt web UI:
 
 You should immediately see future webhook deliveries get a `project_id` resolved in the `webhook_events` table.
 
-## 4. Smoke test against the seeded workspace
-
-```bash
-pnpm db:seed              # if you haven't already
-pnpm smoke:milestone-a
-```
-
-The script (in `scripts/smoke-milestone-a.ts`) walks through:
-
-1. Initial execution-gate evaluation
-2. Synthetic revert PR → `assessPrReverted` → `skill_outcomes.pr_revert` row
-3. Idempotency check (duplicate insert returns null)
-4. `recomputeSkillAutonomy` reflects the new outcome
-5. Deferred `assessPrMerged` → `skill_outcomes.pr_merge` row
-6. Re-evaluated gate uses the new autonomy
-
-A clean run prints six `✓` lines and exits 0. Any failure exits 1 with a labelled error.
-
-## 5. Live test on the bound repo
+## 4. Live test on the bound repo
 
 1. On the bound repo, open a branch and add a commit with the trailer:
 
@@ -92,7 +74,7 @@ A clean run prints six `✓` lines and exits 0. Any failure exits 1 with a label
 
 4. To simulate the reverted path immediately: open a revert PR (`Revert "test: smoke flow"` with a body containing `This reverts commit <sha>`) and merge it. Within ~10 seconds a `pr_revert` outcome should land on the *original* skill (not the revert author).
 
-## 6. Lookback cron — automatic via pg_cron
+## 5. Lookback cron — automatic via pg_cron
 
 You don't register a system crontab or a platform scheduled job. `pnpm db:setup` (`scripts/db-setup.ts` → `setupCronJobs()`) registers a pg_cron job named `coznt:assess-outcomes` that fires hourly inside Postgres. The job body is a single `SELECT pgmq.send(...)` that enqueues a `cron_tick` event onto `coznt_events`; the worker drains it and routes via `src/lib/rules.ts` to `assessOutcomesTask`, which runs the deferred `assessPrMerged` + `assessDeployClean` passes.
 
@@ -114,7 +96,7 @@ pnpm assess-outcomes
 
 Both paths call the same `runOutcomeAssessment()` function and are idempotent — `(skill_id, source_kind, source_ref)` partial unique index prevents double-writes even if you fire both at once.
 
-## 7. Acceptance criteria
+## 6. Acceptance criteria
 
 Tick these off in order; you're done with Milestone A when every box is checked against the bound real repo:
 

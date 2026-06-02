@@ -14,7 +14,7 @@ import { db } from "@/db/client";
 import { projects, type Project } from "@/db/schema/project";
 import { PHASE_GUIDANCE } from "@/domain/phases";
 import { handleApi } from "@/lib/auth/api-key";
-import { planCrud } from "@/operations/plans";
+import { createPlan } from "@/operations/plans";
 
 const bodySchema = z.object({
   projectId: z.string().min(1),
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       throw err;
     }
 
-    const plan = await planCrud.create({
+    const plan = await createPlan({
       projectId: parsed.data.projectId,
       kind: "adr",
       title: parsed.data.title,

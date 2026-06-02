@@ -24,6 +24,7 @@ import { db } from "@/db/client";
 import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { computeNextAction } from "@/lib/mcp/next-action";
 import { tryAdvancePhase } from "@/operations/phase-advance";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -72,7 +73,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         projectId: project.id,
         triggeredByName: "mcp:mark-passed",
       });
-      return { gate: { id: gate.id, status: gate.status }, advance };
+      const nextAction = await computeNextAction(ctx.organizationId, project.id);
+      return { gate: { id: gate.id, status: gate.status }, advance, nextAction };
     }
 
     const now = new Date();
@@ -87,9 +89,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       triggeredByName: "mcp:mark-passed",
     });
 
+    const nextAction = await computeNextAction(ctx.organizationId, project.id);
+
     return {
       gate: { id: gate.id, status: "passed" as const, evaluatedAt: now.toISOString() },
       advance,
+      nextAction,
     };
   });
 }

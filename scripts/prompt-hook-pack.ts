@@ -13,8 +13,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { deterministicPack } from "./lib/deterministic-pack";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const rootPkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
@@ -64,14 +65,11 @@ writeFileSync(
 
 run("chmod", ["+x", "coznt-capture-prompt-hook.mjs"], distDir);
 
-console.log("[prompt-hook:pack] npm pack…");
-run("npm", ["pack", "--silent"], distDir);
-
 const tarballName = `coznt-prompt-hook-${version}.tgz`;
-mkdirSync(publicInstallDir, { recursive: true });
-const tarballSrc = join(distDir, tarballName);
 const tarballDst = join(publicInstallDir, tarballName);
-renameSync(tarballSrc, tarballDst);
+mkdirSync(publicInstallDir, { recursive: true });
 
+console.log("[prompt-hook:pack] writing deterministic tarball…");
+await deterministicPack({ stageDir: distDir, tarballPath: tarballDst });
 console.log(`[prompt-hook:pack] → ${tarballDst}`);
 console.log("[prompt-hook:pack] done.");

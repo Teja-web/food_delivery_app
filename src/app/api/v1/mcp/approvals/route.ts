@@ -10,6 +10,7 @@ import { z } from "zod/v4";
 
 import { APPROVAL_ENTITY_TYPES } from "@/db/schema/approval";
 import { handleApi } from "@/lib/auth/api-key";
+import { computeNextAction } from "@/lib/mcp/next-action";
 import { createApprovalWithProjectResolution } from "@/operations/approvals";
 
 const bodySchema = z.object({
@@ -35,6 +36,22 @@ export async function POST(req: Request) {
       requestedByName: requesterName,
       requesterNote: parsed.data.note,
     });
-    return { id: approval.id, status: approval.status, requestedByName: requesterName };
+
+    // nextAction is project-scoped. Approvals can be org-wide (null
+    // projectId) — those get null.
+    const projectId =
+      ctx.projectId ??
+      (approval as { projectId?: string | null }).projectId ??
+      null;
+    const nextAction = projectId
+      ? await computeNextAction(ctx.organizationId, projectId)
+      : null;
+
+    return {
+      id: approval.id,
+      status: approval.status,
+      requestedByName: requesterName,
+      nextAction,
+    };
   });
 }

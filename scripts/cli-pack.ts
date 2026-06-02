@@ -12,8 +12,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { deterministicPack } from "./lib/deterministic-pack";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const rootPkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
@@ -62,11 +63,11 @@ const stagePkg = {
 };
 writeFileSync(join(stageDir, "package.json"), JSON.stringify(stagePkg, null, 2) + "\n");
 
-console.log("[cli:pack] running npm pack…");
-run("npm", ["pack", "--silent"], stageDir);
-
 const tarballName = `coznt-cli-${version}.tgz`;
+const tarballPath = join(publicInstallDir, tarballName);
 mkdirSync(publicInstallDir, { recursive: true });
-renameSync(join(stageDir, tarballName), join(publicInstallDir, tarballName));
-console.log(`[cli:pack] → ${join(publicInstallDir, tarballName)}`);
+
+console.log("[cli:pack] writing deterministic tarball…");
+await deterministicPack({ stageDir, tarballPath });
+console.log(`[cli:pack] → ${tarballPath}`);
 console.log("[cli:pack] done.");

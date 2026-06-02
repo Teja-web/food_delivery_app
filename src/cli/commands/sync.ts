@@ -1,23 +1,25 @@
 /**
- * `coznt sync` — align `<repo>/.coznt/skills/` with the server's
- * current choreography bundle for the bound project.
+ * `coznt sync` — the universal "pull what's drifted" command.
  *
- * Flow:
- *   1. Read `.coznt/config.json`
- *   2. Fetch manifest from `/api/v1/mcp/choreographies`
- *   3. Classify each entry (new / unchanged / remote-only / drift / conflict)
- *   4. For non-unchanged entries:
- *        - prompt the user on conflicts (overwrite / keep / diff)
- *        - fetch the bundle for entries that need updating
- *        - verify each entry's hash against the manifest before writing
- *   5. Write SKILL.md + .lock per fetched entry
+ * Connect is one-time (API key, project pick, editor pick). Sync is
+ * the frequent-update command — runnable anytime, idempotent, takes
+ * no user input. Everything that the server is the source of truth for
+ * gets refreshed here:
+ *
+ *   1. MCP tarball version (rewrites editor's .mcp.json if drifted).
+ *   2. Posture files (CLAUDE.md / AGENTS.md / per-editor rules).
+ *   3. Prompt-hook version metadata (URL uses /latest, so no settings
+ *      rewrite is needed — just keep .coznt/config.json honest).
+ *   4. Choreography content (manifest diff + bundle fetch + write).
+ *
+ * Anything that requires a human decision stays in `connect`.
  *
  * Flags:
  *   --force    skip drift prompts (always overwrite)
  *   --dry-run  print planned actions, write nothing
  */
 
-import { readConfig } from "../lib/config.js";
+import { readConfig, writeConfig } from "../lib/config.js";
 import { fetchManifest, fetchBundle } from "../lib/api.js";
 import { sha256 } from "../lib/hashing.js";
 import {
@@ -27,7 +29,16 @@ import {
 } from "../lib/lock-file.js";
 import { classify, summarize, type Classification } from "../lib/diff.js";
 import { askChoice } from "../lib/prompt.js";
-import { fetchCurrentHookVersion } from "../lib/prompt-hook-installer.js";
+import {
+  fetchCurrentArtifactVersion,
+  fetchCurrentHookVersion,
+} from "../lib/prompt-hook-installer.js";
+import { detectEditors, type EditorName } from "../lib/editor-detect.js";
+import { writePostureFiles } from "../lib/posture-writer.js";
+import { writeForEditor } from "../lib/mcp-config-writers/index.js";
+import { tarballUrl } from "../../lib/mcp/host-config.js";
+import { resolveApiKey } from "../lib/auth.js";
+import { getRunningCliVersion } from "../lib/cli-version.js";
 
 export interface SyncOptions {
   force?: boolean;
@@ -36,16 +47,115 @@ export interface SyncOptions {
 
 export async function runSync(options: SyncOptions = {}): Promise<number> {
   const cfg = readConfig();
+  const repoRoot = process.cwd();
   console.log(`coznt sync — project ${cfg.projectId} @ ${cfg.serverUrl}`);
 
-  // Prompt-hook version drift — warn but never fail the sync.
+  // 0. CLI self-check. The CLI is the one distribution channel sync
+  // can't refresh on its own — if the running CLI is older than the
+  // server's published version, every feature added since then is
+  // silently absent. Nudge once, prominently, before doing any other
+  // work; the user can keep going (drift is not fatal).
+  const localCli = getRunningCliVersion();
+  const serverCli = await fetchCurrentArtifactVersion(cfg.serverUrl, "coznt-cli");
+  if (localCli && serverCli && localCli !== serverCli) {
+    console.warn("");
+    console.warn(
+      `[warn] coznt CLI is stale: installed=${localCli}, server=${serverCli}.`,
+    );
+    console.warn(
+      `       Run: pnpm install -g ${cfg.serverUrl}/install/coznt-cli-${serverCli}.tgz`,
+    );
+    console.warn(
+      `       Then re-run \`coznt sync\` to pick up any new sync features in the newer CLI.`,
+    );
+    console.warn("");
+  }
+
+  // Best-effort editor detection. Used by posture-file writer and the
+  // MCP-config refresh below; if undetected, those steps skip silently
+  // rather than guessing wrong.
+  const detected = detectEditors(repoRoot);
+  const editor: EditorName | null = detected[0]?.name ?? null;
+
+  let editorRestartNeeded = false;
+
+  // 1. MCP tarball version refresh. The editor config pins a version in
+  // the tarball URL; when the server's current version moves ahead, the
+  // editor keeps spawning the pinned (older) MCP server even after every
+  // other artifact is fresh. Rewrite the editor config so the next launch
+  // fetches the new tarball.
+  if (editor && cfg.mcp?.version) {
+    const currentMcp = await fetchCurrentArtifactVersion(cfg.serverUrl, "coznt-mcp");
+    if (currentMcp && currentMcp !== cfg.mcp.version) {
+      if (options.dryRun) {
+        console.log(
+          `[dry-run] MCP tarball drift: installed=${cfg.mcp.version}, deployment=${currentMcp}. Would refresh .mcp.json.`,
+        );
+      } else {
+        try {
+          const apiKey = resolveApiKey(cfg.apiKeyRef);
+          const apiKeyEnvValue =
+            cfg.apiKeyRef.kind === "env"
+              ? `\${${cfg.apiKeyRef.name}}`
+              : apiKey;
+          const cozntEntry = {
+            command: "npx",
+            args: ["-y", tarballUrl(cfg.serverUrl, currentMcp)],
+            env: { COZNT_URL: cfg.serverUrl, COZNT_API_KEY: apiKeyEnvValue },
+          };
+          const wrote = writeForEditor(editor, { repoRoot, cozntEntry });
+          console.log(
+            `✓ Refreshed ${wrote.path} → MCP v${currentMcp} (was v${cfg.mcp.version})`,
+          );
+          writeConfig({ ...cfg, mcp: { version: currentMcp } }, repoRoot);
+          editorRestartNeeded = true;
+        } catch (e) {
+          console.warn(
+            `[warn] could not refresh MCP config: ${(e as Error).message}. Re-run \`coznt connect\` to recover.`,
+          );
+        }
+      }
+    }
+  } else if (editor && !cfg.mcp?.version) {
+    // First sync after a connect that pre-dated mcp.version tracking.
+    // Backfill the recorded version so future drift detection works.
+    const currentMcp = await fetchCurrentArtifactVersion(cfg.serverUrl, "coznt-mcp");
+    if (currentMcp && !options.dryRun) {
+      writeConfig({ ...cfg, mcp: { version: currentMcp } }, repoRoot);
+    }
+  }
+
+  // 2. Posture files (CLAUDE.md / AGENTS.md / per-editor rules) —
+  // idempotent managed-block writes. Cheap to call every sync.
+  if (editor && !options.dryRun) {
+    const postures = writePostureFiles(repoRoot, editor);
+    for (const p of postures) {
+      if (!p.changed) continue;
+      const verb = p.replaced ? "Refreshed" : p.existed ? "Updated" : "Wrote";
+      console.log(`✓ ${verb} ${p.path}`);
+    }
+  }
+
+  // 3. Prompt-hook version metadata. The hook URL uses `/latest`, so the
+  // hook script itself refreshes on every invocation via `npx -y`. The
+  // only thing to keep honest is the version recorded in config.json so
+  // future operators can audit what's in flight.
   if (cfg.promptHook?.installed && cfg.promptHook.version) {
     const current = await fetchCurrentHookVersion(cfg.serverUrl);
     if (current && current !== cfg.promptHook.version) {
-      console.warn(
-        `[warn] prompt-hook drift detected: installed=${cfg.promptHook.version}, deployment=${current}. ` +
-          `Run \`coznt connect --install-prompt-hook\` to refresh.`,
-      );
+      if (options.dryRun) {
+        console.log(
+          `[dry-run] prompt-hook version drift: ${cfg.promptHook.version} → ${current}. Would update config metadata.`,
+        );
+      } else {
+        writeConfig(
+          { ...cfg, promptHook: { ...cfg.promptHook, version: current } },
+          repoRoot,
+        );
+        console.log(
+          `✓ Prompt-hook version metadata refreshed: ${cfg.promptHook.version} → ${current}`,
+        );
+      }
     }
   }
 
@@ -140,8 +250,8 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     }
   }
 
-  // All verified — write files + locks
-  const repoRoot = process.cwd();
+  // All verified — write files + locks. `repoRoot` already declared at
+  // the top of runSync.
   const now = new Date().toISOString();
   for (const entry of bundle.choreographies) {
     writeLocalSkill(repoRoot, entry.slug, entry.content, "platform");
@@ -184,6 +294,17 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   console.log(
     `\nSync complete: ${bundle.choreographies.length} platform, ${customWritten} custom written, ${skipped.length} skipped, ${summary.unchanged} already current.`,
   );
+
+  if (editorRestartNeeded) {
+    console.log("");
+    console.log(
+      "Restart your editor so it spawns a fresh MCP server with the new tarball.",
+    );
+    console.log(
+      "If it still serves stale tool descriptions, clear the npx cache: `rm -rf ~/.npm/_npx`.",
+    );
+  }
+
   return 0;
 }
 

@@ -1,139 +1,114 @@
 ---
-name: Incident Postmortem Author
-description: Draft a blameless incident postmortem — timeline, impact, root cause hypothesis, contributing factors, action items
+name: incident-postmortem
+description: Draft a blameless incident postmortem — concrete timeline assembled from skill outcomes, impact summary, root-cause hypothesis, contributing factors, named action items. Use when: "postmortem", "incident review", "RCA", "what happened", "write up the outage". Voice triggers (speech-to-text aliases): "incident report", "RCA", "what went wrong".
 version: 1
-tags: [platform, incident, postmortem, ops, sdlc]
 plan_kind: incident
+tags: [platform, incident, postmortem, ops, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_plans
+  - mcp__coznt__get_outcomes
+  - mcp__coznt__get_pipeline_status
+  - mcp__coznt__get_design_context
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "postmortem", "RCA", "incident review", or "what happened"
+    - A `deploy_incident` outcome was recorded and the incident is now closed
+    - A user filed an `incident` plan in `in_progress` and the resolution has landed
+    - Second-tier incident review prep — first draft missing
+  required_verbs:
+    - get_my_context
+    - get_plans
+    - get_outcomes
+    - get_pipeline_status
+    - get_design_context
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Incident Postmortem Author
 
-When an incident closes, draft the postmortem. Blameless tone, concrete timeline, honest root-cause hypothesis, action items with named owners. Humans then review, edit, and approve — the agent's job is to remove the cold-start blank-page tax.
+Draft the postmortem with the timeline already assembled from `skill_outcomes` evidence. Removes the cold-start blank-page tax. LLM drafting runs server-side via `invoke_skill`.
 
-The product hypothesis: postmortems are skipped or rushed because the moment they're needed is also the moment everyone's tired. A draft with the timeline already assembled changes that.
+## When to use
 
-## When to Use
+- A `deploy_incident` outcome was recorded and the incident is now closed.
+- The user filed an `incident` plan in `in_progress` and the resolution has landed.
+- A second-tier incident review is being prepped and the first draft is missing.
 
-- A `deploy_incident` outcome has been recorded and the incident is now closed.
-- A user has manually filed an `incident` plan in `in_progress` and the resolution has landed.
-- A second-tier incident review is being prepared and the first draft is missing.
+## When NOT to use
 
-## Instructions
+- **No `incident` plan exists.** This skill draws against an explicitly-tracked incident, not a hallucinated one. Ask the user to file a stub `incident` plan first (title, one-line summary, start time).
+- **Incident is still active.** Refuse — premature postmortems re-litigate as facts arrive. Wait until the resolution has actually landed.
+- **The user wants a customer-facing status update.** Different shape — postmortem is internal/blameless, not external.
+- **No coznt evidence in the window.** If `get_outcomes` returns nothing in the incident window, the timeline must be hand-built from external sources — flag the gap rather than invent.
 
-### Step 1 — Gather Context
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Confirm phase is `monitoring` or `cicd`.
+
+### 2. Find the incident plan
+Call `get_plans { kind: "incident", status: "in_progress" }`. If none, refuse — ask user to file the stub.
+
+### 3. Assemble timeline evidence
+Call:
+- `get_outcomes { limit: 50 }` — **load-bearing**. Skill outcomes around the incident window are the timeline spine.
+- `get_pipeline_status` — recent deploys + rollbacks.
+- `get_design_context` — active features + ADRs for cross-reference.
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_my_context
-invoke: get_plans { kind: "incident", status: "in_progress" }
-invoke: get_outcomes { limit: 50 }
-invoke: get_pipeline_status
-invoke: get_design_context
+slug: "incident-postmortem"
+input: {
+  projectId,
+  incidentPlanSlug,        // from step 2
+  outcomes,                // from step 3 — sort chronologically server-side
+  pipelineStatus,
+  designContext,
+  externalEvidence         // optional — user-pasted Slack / on-call notes
+}
 ```
+Server returns `{ markdown, confidence, gaps }` — `gaps` lists windows with no recorded events that need investigation.
 
-`get_outcomes` is critical: it gives you the chain of skill outcomes around the incident window, including the failed deploy that triggered it and any rollback. `get_pipeline_status` tells you which deploys ran in the window. Cross-reference timestamps to build the timeline.
+### 5. Surface evidence gaps to the user
+Before filing, if `gaps.length > 0`, tell the user explicitly: "The timeline has N minutes of silence at <window>. Investigate or annotate before filing." Do not paper over.
 
-If no `in_progress` incident plan exists, refuse: this skill writes a postmortem against an explicitly-tracked incident, not a hallucinated one. If the caller insists, ask them to file an `incident` plan stub first (title, one-line summary, when it started).
+### 6. Route based on confidence
+- `confidence >= 0.7` and gaps are annotated → present to user.
+- `confidence < 0.7` or gaps remain → `submit_for_approval` with timeline + gaps attached.
 
-### Step 2 — Build the Timeline From Evidence
-
-This is the load-bearing section. Postmortems live or die on whether the timeline is real. Use the recorded `skill_outcomes` and pipeline events as the spine — do NOT invent timestamps.
-
-For each row:
-- Timestamp (UTC, ISO-8601, minute precision)
-- Actor (system | human | which skill)
-- Event (what happened, one sentence)
-- Evidence (`plan/{slug}`, `deploy/{ref}`, `pr/{number}` — link the source)
-
-Sort chronologically. If the source data has gaps (e.g., 14 minutes with no recorded event), say so explicitly: `XX:XX — gap, no recorded events (investigate)`. Don't paper over silence with prose.
-
-### Step 3 — Draft
-
-Use the lightweight blameless format:
-
-```markdown
-# Incident Postmortem — {Short Description}
-
-**Status:** draft
-**Severity:** {sev0 | sev1 | sev2 | sev3}
-**Started:** {YYYY-MM-DD HH:MM UTC}
-**Resolved:** {YYYY-MM-DD HH:MM UTC}
-**Duration:** {humanized — "47 minutes"}
-**Authors:** {drafted by incident-postmortem; humans add their names on review}
-
-## Summary
-
-{2–3 sentences a busy executive can read. What broke. Who was affected. What restored it.}
-
-## Impact
-
-- **Customer-facing:** {affected users / accounts / regions — quantify if possible, "unknown" if not}
-- **Revenue:** {known impact or "not yet calculated"}
-- **Internal:** {on-call hours, oncalls paged, teams diverted}
-- **Reputational:** {social / customer-comm signal, or "none observed"}
-
-## Timeline
-
-| When (UTC) | Actor | Event | Evidence |
-|---|---|---|---|
-| ... | ... | ... | ... |
-
-## Root Cause (hypothesis)
-
-{2–3 paragraphs. The technical or process chain that led to the failure. This is a HYPOTHESIS until verified — say so. Avoid "human error" as a root cause; if a human took the wrong action, the system allowed it — describe what allowed it.}
-
-## Contributing Factors
-
-Bullets. Not the same as the root cause — these are the things that made the incident worse, longer, or harder to detect.
-
-- Monitoring gap that delayed detection
-- Runbook drift
-- Skill autonomy that allowed an untested path
-- Tooling friction during rollback
-- ... etc
-
-## What Went Well
-
-At least 2 bullets. Always. This isn't compliment-fishing — it tells future incident handlers which existing systems they can trust.
-
-## Action Items
-
-Each item: owner, due date, plan slug (file separately as a `feature` or `story` plan and link), priority. No vague "improve monitoring" items — they must be specific enough to ship.
-
-| Owner | Due | Plan | Priority | What |
-|---|---|---|---|---|
-| ... | ... | plan/{slug} | p0 | ... |
-
-## Lessons
-
-1–3 paragraphs. The DURABLE takeaways, separate from action items. Action items are concrete fixes; lessons are what we learned about how the system behaves under stress.
-
-## What we still don't know
-
-Bullets. Open questions whose answers would change the postmortem. Surface them so the review meeting can target them.
+### 7. File the postmortem
+Update the existing `incident` plan via `upsert_plan`:
 ```
-
-### Step 4 — File It
-
-```
-invoke: upsert_plan {
+upsert_plan {
   kind: "incident",
-  slug: "incident-{YYYYMMDD}-{kebab-of-short-description}",
-  title: "Incident Postmortem — {Short Description}",
-  summary: "{Summary section, first sentence}",
-  body: "{generated markdown}",
-  changeNote: "Drafted by incident-postmortem from outcomes window {start}–{end}"
+  slug: <incidentPlanSlug>,      // same slug — adds revision
+  body: <generated markdown>,
+  changeNote: "Postmortem drafted from N outcome events + M gaps"
 }
 ```
 
-If action items are filed as separate plans (recommended), they should be filed BEFORE the postmortem upsert so the postmortem can link them by slug.
+## Constraints
 
-## Quality Checklist
+- **Blameless tone, always.** No "X failed to do Y." Use system-actor language: "the deploy at HH:MM did not detect the regression."
+- **Never invent timestamps.** If `get_outcomes` doesn't have an event for a window, write "XX:XX — gap, no recorded events (investigate)."
+- **Action items must have named owners.** Anonymous action items don't ship; flag and ask the user.
+- **Root cause is a hypothesis on first draft.** Status starts as `proposed`. Humans confirm or revise.
+- **One skill = one decision tree.** Don't also draft the customer update — different audience, different skill.
 
-- [ ] Timeline timestamps come from `skill_outcomes` / pipeline events, not invented
-- [ ] Gaps in the timeline are flagged, not papered over
-- [ ] Root cause is named as a HYPOTHESIS, not a certainty
-- [ ] At least one negative consequence-style entry in "Contributing Factors"
-- [ ] At least two "What Went Well" bullets
-- [ ] Every action item has an owner and a due date, or it's not an action item
-- [ ] No "human error" as a terminal root cause
-- [ ] "What we still don't know" exists, even if short
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `get_plans { kind: "incident", in_progress }` is empty | No tracked incident | Refuse; ask user to file a stub plan first |
+| `get_outcomes` returns no events in the window | Incident happened before coznt was wired up, or assessor lagged | Flag gaps explicitly in the timeline; ask user to paste external evidence |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled evidence |
+| Multiple recent incidents overlap | Unclear which one to write | Ask user to confirm which incident slug; do one per invocation |

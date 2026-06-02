@@ -13,8 +13,9 @@
 import { runSync } from "./commands/sync.js";
 import { runConnect } from "./commands/connect.js";
 import { runPromptHook } from "./commands/prompt-hook.js";
-import { runCall } from "./commands/call.js";
 import { MCP_VERSION } from "../lib/mcp/version.js";
+// `call` is dynamic-imported in its case branch — it pulls in src/mcp/ which
+// is not packaged into the CLI tarball (see scripts/cli-pack.ts).
 
 interface ParsedArgs {
   subcommand: string | null;
@@ -144,6 +145,7 @@ async function main(): Promise<void> {
       }
       case "call": {
         const format = args.flags.get("format");
+        const { runCall } = await import("./commands/call.js");
         const code = await runCall({
           verb: args.positional[0] ?? null,
           flags: args.flags,

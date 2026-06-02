@@ -12,6 +12,7 @@ export const PLAN_KINDS = [
   "epic",
   "feature",
   "story",
+  "spec",
   "adr",
   "test_plan",
   "release_plan",
@@ -20,6 +21,7 @@ export const PLAN_KINDS = [
   "dev_summary",
   "go_live_report",
   "cicd_pipeline",
+  "risk_register",
 ] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
@@ -27,13 +29,15 @@ export type PlanKind = (typeof PLAN_KINDS)[number];
 export const PLAN_KIND_PARENTS: Partial<Record<PlanKind, PlanKind[]>> = {
   feature: ["epic"],
   story: ["feature", "epic"],
-  adr: ["epic", "feature"],
-  test_plan: ["feature", "story"],
+  spec: ["feature", "story", "epic"],
+  adr: ["epic", "feature", "spec"],
+  test_plan: ["feature", "story", "spec"],
   release_plan: ["epic", "feature"],
   storyboard: ["feature", "epic"],
   dev_summary: ["feature", "story"],
   go_live_report: ["release_plan"],
   cicd_pipeline: ["release_plan", "epic"],
+  risk_register: ["epic", "feature", "release_plan"],
 };
 
 export const PLAN_STATUSES = [

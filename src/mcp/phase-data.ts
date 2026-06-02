@@ -22,6 +22,13 @@ export interface LocalPhaseCheck {
 }
 
 /**
+ * Project-binding verbs — allowed without a project bound since they're
+ * how a session acquires one. `set_project` resolves the API key's bound
+ * project (or fuzzy-matches one by id/slug/name); `switch_project` swaps.
+ */
+const PROJECT_BINDING_VERBS = new Set(["set_project", "switch_project"]);
+
+/**
  * Draft verbs operate on local in-memory state and are project-agnostic.
  * Allowed without a bound project; phase-gated normally (to requirements
  * phase only) once a project IS bound.
@@ -46,6 +53,10 @@ export function checkLocalPhase(
     if (toolName === "get_my_context") {
       return { allowed: true, message: "" };
     }
+    if (PROJECT_BINDING_VERBS.has(toolName)) {
+      // Project-binding verbs are the path out of the unbound state.
+      return { allowed: true, message: "" };
+    }
     if (DRAFT_VERBS.has(toolName)) {
       // Drafts are local-only — let them through without a bound project.
       // push_requirements will enforce a project at commit time.
@@ -54,7 +65,7 @@ export function checkLocalPhase(
     return {
       allowed: false,
       message:
-        "No active project on the session. The API key's bound project couldn't be resolved — check COZNT_API_KEY.",
+        "No active project on the session. Call `set_project` (fuzzy-matches by id/slug/name) to bind one, or check COZNT_API_KEY if the key should resolve to a default project.",
     };
   }
   if (ALWAYS_ALLOWED.has(toolName)) return { allowed: true, message: "" };

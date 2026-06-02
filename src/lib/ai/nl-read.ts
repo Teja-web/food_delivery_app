@@ -13,7 +13,6 @@ import { RECRUIT_SCHEMA_CONTEXT, RECRUIT_TABLES } from "../sql/schema-context";
 const nlReadAgent = {
   slug: "nl-read",
   name: "NL Read Engine",
-  model: "openai/gpt-oss-120b" as const,
   temperature: 0,
   systemPrompt: `You are a SQL generation engine for a recruiting application.
 Given a natural language question and the database schema context below, generate a single SELECT statement that answers the question.

@@ -1,11 +1,18 @@
 /**
- * Choreography operations — reads CHOREOGRAPHY.md files from
- * `src/automations/skills/<slug>/CHOREOGRAPHY.md` and produces the
- * manifest + bundle shapes the MCP distribution verbs return.
+ * Choreography operations — reads SKILL.md files from
+ * `src/automations/skills/<slug>/SKILL.md` and produces the manifest +
+ * bundle shapes the MCP distribution verbs return.
  *
  * Filesystem is the source of truth for choreography *content*; the DB
  * `coznt.skills` table is the source of truth for *which* skills a
  * project can see (project-scoped vs org-wide, `enabled` flag).
+ *
+ * Each skill has ONE file (`SKILL.md`) — both the DB seed metadata
+ * (tags / plan_kind / version) and the editor-facing workflow guide
+ * (description / coznt block / body) live in its frontmatter + body.
+ * The previously-separate `SKILL.md` was collapsed into SKILL.md
+ * to remove the dual-source confusion that let `name:` drift between
+ * them.
  *
  * Used by:
  *   - `/api/v1/mcp/choreographies` (GET → manifest)
@@ -63,53 +70,204 @@ interface SkillRow {
 
 type AutonomyLabel = "observe" | "propose" | "merge" | "lead";
 
+/**
+ * One routing rule. `phase` + `state` are matched against project data
+ * by the recommendedKickoff resolver; the first matching rule wins.
+ * State names are closed (see resolveKickoffState in
+ * src/lib/mcp/recommended-kickoff.ts) — unknown states never match.
+ */
+export interface ChoreographyRoutingRule {
+  phase: string;
+  state: string;
+  kickoff: string;
+  rationale: string;
+}
+
 interface ParsedFrontmatter {
   description: string;
   version: string;
   minAutonomy: AutonomyLabel | null;
+  routing: ChoreographyRoutingRule[];
 }
 
-/** Read frontmatter + body. Returns null if frontmatter delimiter missing. */
+const STRIP_QUOTES = (s: string) => s.trim().replace(/^["']|["']$/g, "");
+
+/**
+ * Parse the body of a markdown YAML frontmatter block. Hand-rolled to
+ * avoid pulling in a YAML dep — supports the subset coznt choreographies
+ * actually use:
+ *   description: <string>
+ *   coznt:
+ *     version: <string>
+ *     min_autonomy: <label>
+ *     routing:
+ *       - phase: <string>
+ *         state: <string>
+ *         kickoff: <string>
+ *         rationale: <string>
+ */
+function parseFrontmatter(yaml: string): ParsedFrontmatter {
+  let description = "";
+  let version = "0.0.0";
+  let minAutonomy: AutonomyLabel | null = null;
+  const routing: ChoreographyRoutingRule[] = [];
+  const allowedLabels: AutonomyLabel[] = ["observe", "propose", "merge", "lead"];
+
+  let inCoznt = false;
+  let inRouting = false;
+  let currentRule: Partial<ChoreographyRoutingRule> | null = null;
+
+  const commitRule = () => {
+    if (
+      currentRule &&
+      currentRule.phase &&
+      currentRule.state &&
+      currentRule.kickoff !== undefined &&
+      currentRule.rationale !== undefined
+    ) {
+      routing.push(currentRule as ChoreographyRoutingRule);
+    }
+    currentRule = null;
+  };
+
+  for (const line of yaml.split("\n")) {
+    // Top-level key (column 0) ends any active nested context.
+    if (/^[a-z_-]+:/.test(line) && !line.startsWith(" ")) {
+      commitRule();
+      inRouting = false;
+      inCoznt = /^coznt:\s*$/.test(line);
+      const descMatch = line.match(/^description:\s*(.+)$/);
+      if (descMatch) description = STRIP_QUOTES(descMatch[1]);
+      continue;
+    }
+
+    if (!inCoznt) continue;
+
+    // Inside `coznt:` block.
+    const verMatch = line.match(/^\s+version:\s*(.+)$/);
+    if (verMatch && !inRouting) {
+      version = STRIP_QUOTES(verMatch[1]);
+      continue;
+    }
+    const autMatch = line.match(/^\s+min_autonomy:\s*(.+)$/);
+    if (autMatch && !inRouting) {
+      const raw = STRIP_QUOTES(autMatch[1]);
+      if ((allowedLabels as string[]).includes(raw)) {
+        minAutonomy = raw as AutonomyLabel;
+      }
+      continue;
+    }
+    if (/^\s+routing:\s*$/.test(line)) {
+      inRouting = true;
+      continue;
+    }
+    if (!inRouting) continue;
+
+    // Inside `routing:` array. New rule starts on `- phase: <value>`.
+    const newRule = line.match(/^\s+-\s+phase:\s*(.+)$/);
+    if (newRule) {
+      commitRule();
+      currentRule = { phase: STRIP_QUOTES(newRule[1]) };
+      continue;
+    }
+    if (!currentRule) continue;
+
+    const stateMatch = line.match(/^\s+state:\s*(.+)$/);
+    if (stateMatch) {
+      currentRule.state = STRIP_QUOTES(stateMatch[1]);
+      continue;
+    }
+    const kickoffMatch = line.match(/^\s+kickoff:\s*(.+)$/);
+    if (kickoffMatch) {
+      currentRule.kickoff = STRIP_QUOTES(kickoffMatch[1]);
+      continue;
+    }
+    const ratMatch = line.match(/^\s+rationale:\s*(.+)$/);
+    if (ratMatch) {
+      currentRule.rationale = STRIP_QUOTES(ratMatch[1]);
+      continue;
+    }
+  }
+  commitRule();
+
+  return { description, version, minAutonomy, routing };
+}
+
+/** Read frontmatter + body from SKILL.md. Returns null if missing or malformed. */
 function readChoreographyFile(slug: string): { content: string; parsed: ParsedFrontmatter } | null {
-  const path = join(SKILLS_DIR, slug, "CHOREOGRAPHY.md");
+  const path = join(SKILLS_DIR, slug, "SKILL.md");
   try {
     statSync(path);
   } catch {
     return null;
   }
   const content = readFileSync(path, "utf-8");
+  return readChoreographyContent(content);
+}
+
+/**
+ * Parse a raw SKILL.md string (frontmatter + body). Exposed so
+ * custom-choreography rows (stored as text in the DB, not on disk) can
+ * be parsed via the same pipeline as platform files.
+ */
+export function readChoreographyContent(
+  content: string,
+): { content: string; parsed: ParsedFrontmatter } | null {
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!fmMatch) return null;
-  const [, yaml] = fmMatch;
+  return { content, parsed: parseFrontmatter(fmMatch[1]) };
+}
 
-  let description = "";
-  let version = "0.0.0";
-  let minAutonomy: AutonomyLabel | null = null;
-  const allowedLabels: AutonomyLabel[] = ["observe", "propose", "merge", "lead"];
+/**
+ * Return the routing rules for a given slug. Prefers a custom row
+ * (project-scoped > org-wide); falls back to the platform file. Returns
+ * an empty array if no source carries routing.
+ *
+ * Used by the recommendedKickoff resolver. Project-mediated lookup so
+ * org and project overrides flow without a platform redeploy.
+ */
+export async function getRoutingRulesForSlug(
+  organizationId: string,
+  projectId: string,
+  slug: string,
+): Promise<{ rules: ChoreographyRoutingRule[]; source: "choreography_custom_project" | "choreography_custom_org" | "choreography_default" | "none" }> {
+  const customRows = await db
+    .select()
+    .from(customChoreographies)
+    .where(
+      and(
+        eq(customChoreographies.organizationId, organizationId),
+        eq(customChoreographies.slug, slug),
+        eq(customChoreographies.enabled, true),
+        isNull(customChoreographies.deletedAt),
+        or(
+          eq(customChoreographies.projectId, projectId),
+          isNull(customChoreographies.projectId),
+        ),
+      ),
+    );
 
-  const lines = yaml.split("\n");
-  let inCoznt = false;
-  for (const line of lines) {
-    if (/^description:\s*(.+)$/.test(line)) {
-      description = line.replace(/^description:\s*/, "").trim().replace(/^["']|["']$/g, "");
-    } else if (/^coznt:\s*$/.test(line)) {
-      inCoznt = true;
-    } else if (/^[a-z_-]+:/.test(line) && !line.startsWith("  ")) {
-      inCoznt = false;
-    } else if (inCoznt && /^\s+version:\s*(.+)$/.test(line)) {
-      version = line.replace(/^\s+version:\s*/, "").trim().replace(/^["']|["']$/g, "");
-    } else if (inCoznt && /^\s+min_autonomy:\s*(.+)$/.test(line)) {
-      const m = line.match(/^\s+min_autonomy:\s*(.+)$/);
-      if (m) {
-        const raw = m[1].trim().replace(/^["']|["']$/g, "");
-        if ((allowedLabels as string[]).includes(raw)) {
-          minAutonomy = raw as AutonomyLabel;
-        }
-      }
+  // Project-scoped wins over org-wide.
+  const projectCustom = customRows.find((r) => r.projectId === projectId);
+  const orgCustom = customRows.find((r) => r.projectId === null);
+
+  for (const [row, source] of [
+    [projectCustom, "choreography_custom_project"] as const,
+    [orgCustom, "choreography_custom_org"] as const,
+  ]) {
+    if (!row) continue;
+    const parsed = readChoreographyContent(row.body);
+    if (parsed && parsed.parsed.routing.length > 0) {
+      return { rules: parsed.parsed.routing, source };
     }
   }
 
-  return { content, parsed: { description, version, minAutonomy } };
+  const platform = readChoreographyFile(slug);
+  if (platform && platform.parsed.routing.length > 0) {
+    return { rules: platform.parsed.routing, source: "choreography_default" };
+  }
+
+  return { rules: [], source: "none" };
 }
 
 function sha256(s: string): string {
@@ -145,7 +303,7 @@ async function loadVisibleSkills(organizationId: string, projectId: string): Pro
 /**
  * List the choreography manifest for a project. Reads from the
  * filesystem; only includes skills that (a) are enabled and visible
- * to the project per the DB, and (b) have a `CHOREOGRAPHY.md` on disk.
+ * to the project per the DB, and (b) have a `SKILL.md` on disk.
  */
 export async function listChoreographies(
   organizationId: string,
@@ -178,7 +336,7 @@ export async function listChoreographies(
  * requested. Unknown slugs throw.
  */
 /**
- * Filesystem-only manifest — every slug that carries a `CHOREOGRAPHY.md`
+ * Filesystem-only manifest — every slug that carries a `SKILL.md`
  * regardless of org / project / enabled state. Used by the skill catalog
  * UI to indicate "this skill has a choreography file" without needing a
  * project-scoped MCP call.

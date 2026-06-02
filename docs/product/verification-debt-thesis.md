@@ -1,6 +1,6 @@
 # Govern. Verify. Trust. — Coznt's Operating Model
 
-Companion to [positioning.md](positioning.md). Positioning answers *what coznt is*. This document answers *why the operating model is shaped this way and why now*.
+Companion to [positioning.md](../positioning.md). Positioning answers *what coznt is*. This document answers *why the operating model is shaped this way and why now*.
 
 ## The operating model
 
@@ -12,7 +12,7 @@ Trust what can be proven.
 
 | Pillar | Question it answers | Coznt mechanism |
 |---|---|---|
-| **Govern** | Who is allowed to act, and how far? | `skill_autonomy` ladder (intern → junior → senior → principal), per-project; `rules` engine; phase gates; approval routing |
+| **Govern** | Who is allowed to act, and how far? | `skill_autonomy` ladder (observe → propose → merge → lead), per-project; `rules` engine; phase gates; approval routing |
 | **Verify** | How do we know the output is correct? | `skill_outcomes` ledger; Milestone-A deterministic assessors (`pr_merge`, `pr_revert`, `pr_abandon`, `deploy_clean`, `deploy_incident`); gate types `coverage`, `lint`, `security`, `custom` |
 | **Trust** | Can we explain, audit, and stand behind it? | Audit log as source of truth; every UI claim links to source of record; provenance on plans and work items; portfolio-level evidence rollups |
 

@@ -63,6 +63,8 @@ import { generateTestsInput, runGenerateTests } from "./tools/generate-tests.js"
 import { getAssignedWorkInput, runGetAssignedWork } from "./tools/get-assigned-work.js";
 import { getDesignContextInput, runGetDesignContext } from "./tools/get-design-context.js";
 import { getMyContextInput, runGetMyContext } from "./tools/get-my-context.js";
+import { setProjectInput, runSetProject } from "./tools/set-project.js";
+import { switchProjectInput, runSwitchProject } from "./tools/switch-project.js";
 import { getOutcomesInput, runGetOutcomes } from "./tools/get-outcomes.js";
 import { getPhaseChecklistInput, runGetPhaseChecklist } from "./tools/get-phase-checklist.js";
 import { getPipelineStatusInput, runGetPipelineStatus } from "./tools/get-pipeline-status.js";
@@ -145,6 +147,28 @@ function tool<T extends ZodTypeAny>(def: ToolDef<T>): ToolDef<T> {
 }
 
 export const tools = [
+  tool({
+    name: "set_project",
+    description: [
+      "Bind the session to a project by id, slug, or name. Fuzzy-matches",
+      "within the API key's org. Use at session start when the agent",
+      "knows which project to work on but doesn't have its canonical id.",
+      "Subsequent verbs read phase, gates, and rules from the bound project.",
+    ].join(" "),
+    schema: setProjectInput,
+    run: runSetProject,
+  }),
+  tool({
+    name: "switch_project",
+    description: [
+      "Switch the session to a different project mid-conversation, or",
+      "omit `project` to clear the binding entirely (next call rebinds",
+      "from the API key default if one is set). Same fuzzy matcher as",
+      "set_project.",
+    ].join(" "),
+    schema: switchProjectInput,
+    run: runSwitchProject,
+  }),
   tool({
     name: "get_my_context",
     description: [
@@ -376,7 +400,12 @@ export const tools = [
     name: "draft_requirement",
     description: [
       "Add a requirement-like draft to the session's local working set.",
-      "In-memory only — drafts die with the MCP process. Use",
+      "Before using this tool, check `recommendedKickoff` on your most",
+      "recent `get_my_context` response — when set, it points at the",
+      "kickoff skill (e.g. feature-spec-generator) that should run first;",
+      "calling this tool directly bypasses that routing. Use this tool",
+      "only when recommendedKickoff is null or after the kickoff skill",
+      "has run. In-memory only — drafts die with the MCP process. Use",
       "push_requirements (no items) to commit the draft set to the",
       "platform. Allowed in the requirements phase.",
     ].join(" "),
@@ -691,12 +720,26 @@ export function createCozntMcpServer(): Server {
         isError: true,
       };
     }
+    // Verbs that legitimately operate without a bound project — drafts
+    // (in-memory only), project-binding verbs themselves, and the
+    // unbound-state orientation call. These skip the auto-bind so the
+    // dispatcher doesn't fail when COZNT_URL is unreachable but the verb
+    // doesn't need it.
+    const PROJECT_OPTIONAL_VERBS = new Set([
+      "set_project",
+      "switch_project",
+      "get_my_context",
+      "draft_requirement",
+      "list_draft_requirements",
+      "update_draft_requirement",
+      "delete_draft_requirement",
+    ]);
+
     // Lazy session bind: every API key is project-pinned, so the first
     // tool call resolves the key's project and caches it in the session.
     // After that, getSessionProject() is populated for the lifetime of
-    // the MCP process. A failure here is fatal — without a bound project
-    // no governed verb can run.
-    if (!getSessionProject()) {
+    // the MCP process.
+    if (!getSessionProject() && !PROJECT_OPTIONAL_VERBS.has(req.params.name)) {
       try {
         const { project } = await client.get<{ project: SessionProject }>("/api/v1/mcp/me");
         setSessionProject(project);
@@ -711,7 +754,7 @@ export function createCozntMcpServer(): Server {
           content: [
             {
               type: "text" as const,
-              text: `Failed to resolve project from API key: ${msg}. Check that COZNT_API_KEY is valid and bound to a live project.`,
+              text: `Failed to resolve project from API key: ${msg}. Check that COZNT_API_KEY is valid and bound to a live project, or call \`set_project\` with an id/slug/name to bind one explicitly for this session.`,
             },
           ],
           isError: true,

@@ -1,136 +1,109 @@
 ---
-name: Storyboard & UI Flow Generator
-description: Generate UI storyboards, wireframe descriptions, and user flow diagrams from approved requirements
+name: storyboard-generator
+description: Translate approved requirements into a UI storyboard — personas, screen-by-screen wireframe descriptions, and Mermaid user-flow diagrams bridging requirements and development. Use when: "storyboard", "user flow", "wireframes", "screen specs", "UI flow diagram". Voice triggers (speech-to-text aliases): "draft a storyboard", "user flows", "wireframes".
 version: 1
-tags: [platform, design, storyboard, wireframe, user-flow, mermaid]
 plan_kind: storyboard
+tags: [platform, design, storyboard, wireframe, user-flow, mermaid]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_requirements
+  - mcp__coznt__get_design_context
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "storyboard", "wireframe", "user flow", "screen spec", or "UI flow"
+    - DESIGN phase active, requirements approved
+    - Team needs a shared visual model before UI dev starts
+    - Stakeholders want a screen-by-screen walkthrough
+  required_verbs:
+    - get_my_context
+    - get_requirements
+    - get_design_context
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Storyboard & UI Flow Generator
 
-Generate a comprehensive **UI Storyboard & User Flow Document** for the current project. This document translates approved requirements into concrete screen descriptions, navigation flows, and interaction patterns — bridging the gap between requirements and development.
+Compose a `storyboard` plan from approved requirements + design context. Output uses Mermaid for flows. LLM drafting runs server-side via `invoke_skill`.
 
-## When to Use
+## When to use
 
-- During the DESIGN phase, after requirements have been approved.
-- When the team needs wireframe specifications before UI development begins.
-- To create a shared visual understanding of the user experience across stakeholders.
+- DESIGN phase, after requirements approved, before UI dev.
+- Stakeholders need a screen-by-screen walkthrough.
+- A new persona was added and existing flows need a refresh.
 
-## Instructions
+## When NOT to use
 
-### Step 1 — Gather Context
+- **Project not in `design` phase.** Premature in `requirements`; too late in `development` (use design-review tooling instead).
+- **No approved `story` plans.** Storyboards trace user stories — refuse if there's nothing approved.
+- **User wants high-fidelity mockups.** This skill produces wireframe *descriptions* + flow diagrams, not pixel-level designs. Tell them to take the storyboard into Figma.
+- **No personas identifiable.** If requirements never name a user role, ask the user to add one before invoking.
 
-Call `get_my_context` to retrieve the current project details and phase. Then fetch approved requirements and any existing design decisions:
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Confirm phase is `design`.
+
+### 2. Gather approved work + design surface
+Call:
+- `get_requirements { kind: "story", status: "approved" }`
+- `get_design_context` — ADRs, in-flight features, linked work items
+
+### 3. Identify personas
+Scan the approved stories for `As a <persona>...` patterns. If none, ask the user to name 1–3 personas before invoking.
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_requirements { kind: "story", status: "approved" }
-invoke: get_design_context  // returns ADRs and design notes for this project
+slug: "storyboard-generator"
+input: {
+  projectId,
+  approvedStories,
+  designContext,           // from step 2
+  personas,                // from step 3
+  designPrinciples         // optional — pull from ADRs if present
+}
 ```
+Server returns `{ markdown, confidence, coverageGaps }` — `coverageGaps` lists stories with no screen mapping.
 
-### Step 2 — Generate the Storyboard Document
+### 5. Surface coverage gaps
+If `coverageGaps.length > 0`, flag to the user: "These stories have no screen in the storyboard: [...]". Either patch (re-invoke with more context) or annotate before filing.
 
-Produce a Markdown document with the following structure. Use Mermaid diagrams for user flows and state transitions. Every section is mandatory; use "N/A" if information is not available.
+### 6. Route based on confidence
+- `confidence >= 0.7` and gaps acknowledged → present to user.
+- `confidence < 0.7` or gaps unresolved → `submit_for_approval`.
 
-```markdown
-# UI Storyboard & User Flow Document
-
-**Project:** {Project Name}
-**Version:** 1.0
-**Date:** {YYYY-MM-DD}
-
-## 1. Overview
-
-{1–2 paragraphs: who the users are, what they're trying to accomplish, key
-design principles drawn from approved ADRs.}
-
-## 2. Personas
-
-For each persona referenced by requirements:
-
-### 2.{n} {Persona Name}
-- **Role:** ...
-- **Primary goals:** ...
-- **Key pain points:** ...
-
-## 3. Information Architecture
-
-A Mermaid diagram of the top-level navigation structure.
-
-\`\`\`mermaid
-graph TD
-  A[Home] --> B[Section]
-  ...
-\`\`\`
-
-## 4. User Flows
-
-For each major flow tied to a requirement:
-
-### 4.{n} {Flow Name}
-
-- **Triggers:** {what initiates this flow}
-- **Outcome:** {success state}
-- **Diagram:**
-
-\`\`\`mermaid
-sequenceDiagram
-  ...
-\`\`\`
-
-## 5. Screen Descriptions
-
-For each screen referenced in flows:
-
-### 5.{n} {Screen Name}
-
-- **Purpose:** ...
-- **Primary action:** ...
-- **Key components:** ...
-- **States:** loading, empty, error, success
-- **Source requirements:** {list plan slugs}
-
-## 6. State Transitions
-
-Mermaid state diagrams for the screens whose states are non-trivial (e.g. multi-step forms, approval flows).
-
-## 7. Navigation Map
-
-Concrete URL structure (paths) for each screen.
-
-## 8. Responsive Behavior
-
-Breakpoint behavior: mobile / tablet / desktop. "N/A" if single-form-factor.
-
-## 9. Accessibility Considerations
-
-WCAG-level conformance targets, keyboard navigation notes, screen-reader expectations.
-
-## 10. Traceability
-
-| Screen | Source Requirement(s) |
-|---|---|
-| ... | plan/{slug} |
+### 7. File the storyboard
+Call `upsert_plan`:
 ```
-
-### Step 3 — File the Document
-
-Call `upsert_plan` to land the storyboard:
-
-```
-invoke: upsert_plan {
+upsert_plan {
   kind: "storyboard",
-  slug: "storyboard-{project-slug}",
-  title: "Storyboard — {Project Name}",
-  summary: "UI storyboard + user flows for approved requirements.",
-  body: "{generated markdown}",
-  changeNote: "Regenerated by storyboard-generator skill"
+  slug: "storyboard-<project-slug>-v<version>",
+  title: "UI Storyboard & User Flow — <Project Name>",
+  body: <generated markdown with Mermaid blocks>,
+  changeNote: "Drafted from N approved stories + M personas"
 }
 ```
 
-## Quality Checklist
+## Constraints
 
-- [ ] Every approved requirement is referenced by at least one flow or screen
-- [ ] Mermaid diagrams render without syntax errors
-- [ ] Each screen has loading / empty / error / success states described
-- [ ] Navigation map shows complete URL structure
-- [ ] No screens are orphaned (unreachable from the IA diagram)
+- **Use Mermaid for flows.** Plaintext step-by-step is acceptable as a fallback but Mermaid is the preferred shape.
+- **Screen descriptions are wireframe-level.** Layout zones + key controls + states. No CSS, no exact pixels.
+- **Every persona ties to ≥1 flow.** If a persona appears but never drives a flow, either remove or flag as orphan.
+- **Cite the source story for every screen.** Coverage trace matters — auditors and designers both ask for it.
+- **One skill = one decision tree.** If the user asks for HTML mockups, stop and point at `/design-html` (gstack) or Figma.
+
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| No approved stories | Requirements phase incomplete | Refuse; tell user how many stories are approved vs draft |
+| No personas extractable from stories | Stories not user-story-shaped | Ask user to supply 1–3 personas before invoking |
+| `coverageGaps` non-empty | Stories cover system behavior not user-facing screens | Flag explicitly; backend-only stories shouldn't be in the storyboard |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled input |

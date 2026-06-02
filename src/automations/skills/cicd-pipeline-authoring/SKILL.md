@@ -1,131 +1,113 @@
 ---
-name: CI/CD Pipeline Authoring
-description: Author a tailored CI/CD pipeline file by combining the generate_pipeline templater with project-specific customization
+name: cicd-pipeline-authoring
+description: Author a tailored CI/CD pipeline file (GitHub Actions, Azure DevOps, GitLab CI, or Jenkins) by combining the `generate_pipeline` templater with project-specific customization. Use when: "set up CI", "pipeline file", "draft a CI config", "new project needs a pipeline". Voice triggers (speech-to-text aliases): "set up CI", "pipeline yaml", "build config".
 version: 1
-tags: [platform, cicd, pipeline, devops, sdlc]
 plan_kind: cicd_pipeline
+tags: [platform, cicd, pipeline, devops, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_design_context
+  - mcp__coznt__get_plans
+  - mcp__coznt__generate_pipeline
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "CI", "pipeline", "build config", "GitHub Actions", "Azure Pipelines", "GitLab CI", "Jenkins"
+    - A new project has no pipeline file checked in
+    - Existing pipeline drifted and team wants a clean baseline to diff against
+    - Platform team rolling out a new pipeline convention
+  required_verbs:
+    - get_my_context
+    - get_design_context
+    - get_plans
+    - generate_pipeline
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # CI/CD Pipeline Authoring
 
-The `generate_pipeline` MCP verb renders a baseline pipeline file (GitHub Actions, Azure DevOps, GitLab CI, Jenkins) from a small template library. This skill is the **authoring** layer on top: it inspects the project, picks the right template inputs, calls `generate_pipeline`, then customizes the output for this codebase's actual needs before filing the pipeline as a reviewable `cicd_pipeline` plan.
+Compose `generate_pipeline` (baseline templater) with project-specific customization, then file as a `cicd_pipeline` plan for review. The LLM customization runs server-side via `invoke_skill`.
 
-Use this skill when a project needs a pipeline that the template alone won't produce — extra test matrices, repo-specific secrets, deploy stages keyed to the project's environments, etc.
+## When to use
 
-## When to Use
+- New project needs its first pipeline file.
+- Existing pipeline drifted; the team wants a clean baseline.
+- Platform team is rolling out a new pipeline convention and wants per-project drafts.
 
-- A new project has no pipeline file checked in.
-- An existing pipeline drifted and the team wants a clean baseline to diff against.
-- A platform team is rolling out a new pipeline convention and wants per-project drafts to PR.
+## When NOT to use
 
-## Instructions
+- **Tech stack unknown after context-gathering.** Ask the user; don't guess between `node` / `python` / `java` / `go` / `dotnet`.
+- **CI platform unknown.** Do not default to GitHub Actions silently — ask.
+- **The user wants to *apply* the pipeline, not draft it.** Coznt files a reviewable plan; the actual commit happens through a human PR in the repo.
+- **Pipeline changes for an *existing* well-maintained pipeline** where a small diff is the right answer — this skill is for new files / clean baselines, not surgical edits.
 
-### Step 1 — Gather Context
+## Steps
 
+### 1. Load context
+Call `get_my_context` and `get_design_context`. Capture project name, repo URL, and any deploy targets named in features.
+
+### 2. Inspect existing plans
+Call `get_plans { kind: "release_plan", status: "in_progress" }` and `get_plans { kind: "adr" }`. ADRs frequently name the container story (Docker / K8s) and target environments.
+
+### 3. Confirm inputs with user
+You MUST have these four before continuing — ask if any are missing:
+- `platform`: github_actions | azure_devops | gitlab_ci | jenkins
+- `techStack`: node | python | java | go | dotnet
+- `includeDocker`: true | false
+- `includeKubernetes`: true | false
+
+### 4. Render baseline
+Call `generate_pipeline` with the four inputs. Returns `{ filename, content }`. Treat content as starting point, not the answer.
+
+### 5. Invoke server-side customization
+Call `invoke_skill` with:
 ```
-invoke: get_my_context
-invoke: get_design_context
-invoke: get_plans { kind: "release_plan", status: "in_progress" }
-invoke: get_plans { kind: "adr" }
-```
-
-What you're looking for:
-
-- **Tech stack** — explicit in the project description, or implied by linked work items. Map to one of: `node`, `python`, `java`, `go`, `dotnet`.
-- **Target platform** — the customer's existing CI provider. If unstated, ask. Do not default to GitHub Actions silently.
-- **Deploy targets** — environments named in design context or release plans (staging / prod / preview / etc).
-- **Container story** — Docker yes/no, K8s yes/no. Look in ADRs.
-
-If any of (platform, stack) is missing after this step, ask the caller. Don't guess.
-
-### Step 2 — Render the Baseline
-
-Call the templater:
-
-```
-invoke: generate_pipeline {
-  platform: "github_actions" | "azure_devops" | "gitlab_ci" | "jenkins",
-  techStack: "node" | "python" | "java" | "go" | "dotnet",
-  includeDocker: true | false,
-  includeKubernetes: true | false
+slug: "cicd-pipeline-authoring"
+input: {
+  projectId,
+  baselineContent: <from step 4>,
+  baselineFilename: <from step 4>,
+  projectBranches,         // e.g. ["main", "develop"]; ask if unknown
+  deployTargets,           // from step 2 + ask user
+  secrets                  // names only — never values
 }
 ```
+Server adapts branches, secrets, deploy stages, and adds project-specific matrices. Returns `{ content, confidence, customizations[] }`.
 
-Returns `{ filename, content }`. The `content` is the templated YAML — usable as-is but generic. Treat it as the **starting point**, not the answer.
+### 6. Route based on confidence
+- `confidence >= 0.7` → present customized YAML to user.
+- `confidence < 0.7` → `submit_for_approval` with the customizations list attached.
 
-### Step 3 — Customize
-
-Walk through the rendered content and adapt to this project:
-
-- **Branch triggers** — replace generic `main` / `develop` with the project's actual branch names.
-- **Test matrix** — pull from project's `package.json` / `pyproject.toml` / `pom.xml` if the caller can paste it. Match the actual versions in use.
-- **Secrets** — list the env vars the pipeline expects, not just their existence. Reference the secret-manager (`GitHub Secrets`, `Azure Key Vault`, etc.) the customer uses.
-- **Deploy stages** — add a stage per environment named in design context. Don't include stages for environments the project doesn't have.
-- **Approval gates** — wire to coznt's `submit_phase_for_review` or to the platform's native gate (e.g., GitHub Environment protection rules). Per the project's conventions.
-- **Coverage thresholds** — pull the project's enforced threshold from an ADR if one exists; otherwise leave commented with a TODO.
-
-For each customization, leave an inline `# coznt: <reason>` comment so a human reviewer can see WHY each non-template change exists.
-
-### Step 4 — File the Plan
-
-The plan body holds the FULL pipeline YAML plus a short header explaining what's tailored vs templated. The agent that consumes this plan (or a human) checks it into the repo at `{filename}`.
-
+### 7. File the pipeline
+Once approved, call `upsert_plan`:
 ```
-invoke: upsert_plan {
+upsert_plan {
   kind: "cicd_pipeline",
-  slug: "cicd-{project-slug}-{platform}",
-  title: "CI/CD Pipeline — {Project Name} ({platform})",
-  summary: "{stack} on {platform}; {N} deploy stages; {Docker? K8s? coverage gate?}",
-  body: "{markdown body with the YAML embedded — see below}",
-  details: {
-    platform: "...",
-    stack: "...",
-    filename: "...",
-    rendered_with: "generate_pipeline@1",
-    customizations: ["branch-triggers", "test-matrix", "deploy-stages", ...]
-  },
-  changeNote: "Drafted by cicd-pipeline-authoring from generate_pipeline baseline"
+  slug: "pipeline-<project-slug>-<platform>",
+  title: "CI/CD pipeline — <project-name> (<platform>)",
+  body: <customized YAML in a fenced code block + customizations list>,
+  changeNote: "Drafted from <platform>/<techStack> template + N project-specific changes"
 }
 ```
 
-### Step 5 — Body Format
+## Constraints
 
-```markdown
-# CI/CD Pipeline — {Project Name}
+- **Never write secret values.** Reference secrets by name only (`${{ secrets.NPM_TOKEN }}`); the actual value is the customer's responsibility.
+- **Do not commit the pipeline file directly.** Coznt files a reviewable plan; a human opens the PR.
+- **Don't invent deploy targets.** If the project's environments aren't named in features / ADRs, ask the user.
+- **Container assumptions live in ADRs.** Don't assume Docker / K8s — read the ADR catalog first.
 
-**Target platform:** {platform}
-**Stack:** {stack}
-**Container:** Docker {y/n}, Kubernetes {y/n}
-**Filename in repo:** `{filename}`
+## Failure modes
 
-## What's templated vs customized
-
-Templated (from `generate_pipeline@1`):
-- {bullet list — base stages from the template library}
-
-Customized for this project:
-- {bullet list — each non-template change, why it exists}
-
-## Pre-merge checklist
-
-- [ ] Required secrets exist in {secret manager name}: {list}
-- [ ] Branch protection rules align with the pipeline's `on:` triggers
-- [ ] Coverage threshold matches the team's stated bar
-- [ ] Deploy stages reference real environments, not template placeholders
-- [ ] On-call / alerting is wired for production deploys
-
-## Pipeline file
-
-\`\`\`yaml
-{full YAML content here, with the `# coznt:` annotations preserved}
-\`\`\`
-```
-
-## Quality Checklist
-
-- [ ] No template placeholders left (e.g., `your-app-name`, `change-me`)
-- [ ] Every secret the pipeline reads is named in the pre-merge checklist
-- [ ] Every non-template change has a `# coznt:` comment explaining why
-- [ ] Deploy stages correspond to real environments named in design context
-- [ ] Coverage threshold is sourced from an ADR or explicitly TODO'd, never silently default
-- [ ] `details.customizations` list matches the bullets in "Customized for this project"
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `generate_pipeline` errors with `unsupported_platform` | Platform string is wrong | Confirm with user; valid: github_actions / azure_devops / gitlab_ci / jenkins |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | Call `submit_for_approval` with the baseline + intended customizations |
+| `confidence < 0.5` from customization | Stack or deploy targets were ambiguous | Ask user to clarify; rerun |
+| Existing `cicd_pipeline` plan already filed for this project | Re-authoring an existing pipeline | Confirm with user; pass `changeNote: "Rewrite from baseline"` |

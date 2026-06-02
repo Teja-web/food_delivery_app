@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Rocket } from "lucide-react";
+import { CircleAlert, ExternalLink, Rocket } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,8 +35,11 @@ function PlanRow({ p }: { p: ReleasePlanClient }) {
       >
         {p.projectSlug || p.projectName.slice(0, 16)}
       </Link>
-      <Link href={`/plans/${p.id}`} className="min-w-0 flex-1 truncate text-sm hover:underline">
-        {p.title}
+      <Link href={`/plans/${p.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm hover:underline">
+        {p.needsApproval ? (
+          <CircleAlert className="h-3.5 w-3.5 shrink-0 text-state-pending" aria-label="Needs approval" />
+        ) : null}
+        <span className="truncate">{p.title}</span>
       </Link>
       {p.priority ? (
         <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] uppercase">
@@ -90,6 +93,7 @@ export function ReleasesClient({ data }: { data: ReleasesPageData }) {
   const { plans, recentDeployments } = data;
   const active = plans.filter((p) => p.status !== "completed" && p.status !== "rejected");
   const completed = plans.filter((p) => p.status === "completed");
+  const activeNeedsApproval = active.filter((p) => p.needsApproval).length;
 
   return (
     <div className="space-y-6">
@@ -107,8 +111,16 @@ export function ReleasesClient({ data }: { data: ReleasesPageData }) {
         <CardContent className="p-0">
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
             <span className="font-display text-base font-semibold">Active release plans</span>
-            <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70">
-              {active.length} {active.length === 1 ? "plan" : "plans"}
+            <span className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70">
+              {activeNeedsApproval > 0 ? (
+                <span className="inline-flex items-center gap-1 text-state-pending">
+                  <CircleAlert className="h-3 w-3" aria-hidden />
+                  {activeNeedsApproval} needs approval
+                </span>
+              ) : null}
+              <span>
+                {active.length} {active.length === 1 ? "plan" : "plans"}
+              </span>
             </span>
           </div>
           {active.length === 0 ? (

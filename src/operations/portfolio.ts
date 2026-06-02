@@ -1,11 +1,11 @@
 /**
  * Portfolio operation — composes the H1 portfolio view data.
  *
- * Mixes real DB data (projects, gates, approval counts) with v1 stubs
- * (sparklines, CFR, lead time, deploys, autonomy events) sourced from
- * `docs/ux/sample-data.md`. The stubs are keyed by project slug so that
- * once metrics + skill-autonomy pipelines populate, replacements are
- * mechanical — drop the fixture and read from `metrics`/`skill_outcomes`.
+ * Mixes real DB data (projects, gates, approval counts) with v1 placeholder
+ * values for sparklines, CFR, lead time, deploys, and autonomy events. The
+ * placeholders are keyed by project slug so that once metrics +
+ * skill-autonomy pipelines populate, the replacement is mechanical — drop
+ * the stub and read from `metrics`/`skill_outcomes`.
  */
 
 import { and, eq, inArray, sql } from "drizzle-orm";

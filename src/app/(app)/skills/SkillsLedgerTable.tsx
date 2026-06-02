@@ -69,7 +69,7 @@ function SkillRow({ row }: { row: SkillLedgerRowClient }) {
         title={
           row.choreography
             ? `Choreography v${row.choreography.version} · hash ${row.choreography.hash.slice(0, 12)}…`
-            : "No CHOREOGRAPHY.md file — this skill is server-only for now"
+            : "No SKILL.md file — this skill is server-only for now"
         }
       >
         {row.choreography ? (

@@ -43,6 +43,13 @@
       "when": 1780199988910,
       "tag": "0005_overjoyed_harry_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780366761785,
+      "tag": "0006_nappy_randall",
+      "breakpoints": true
     }
   ]
 }

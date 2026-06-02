@@ -1,6 +1,6 @@
 # H1 Brief — `/projects` Portfolio View
 
-**References:** `docs/ux/DESIGN.md`, `docs/ux/sample-data.md`, `docs/ux/moments.md` (Moment 1), `docs/ux/personas.md` (Sam).
+**References:** `docs/ux/DESIGN.md`, `docs/ux/moments.md` (Moment 1), `docs/ux/personas.md` (Sam).
 
 ## Anchor (read this first)
 
@@ -47,16 +47,6 @@ The screen's job: **scan-and-attribute in under two minutes.** Every claim — p
 
 Use shadcn `Table`, `Badge`, `Button` (size sm), Lucide icons. Build the sparkline as a thin React component (no chart library — single SVG path).
 
-## Sample data
-
-Use the 4 projects from `sample-data.md` exactly:
-1. **Internal Payments API** — DEVELOPMENT, 4/4 gates ●●●●, healthy
-2. **Data Warehouse v2** — DESIGN, 2/4 gates ●●○○, 5 open approvals (the ADR quorum bottleneck)
-3. **Auth Service Migration** — TESTING, 3/4 gates ●●●○, **warning state** (CFR 18% — the regression)
-4. **Kafka Pipeline Modernization** — REQUIREMENTS, 1/3 gates ●○○, early-stage
-
-Rollup strip values: 12 open approvals · 18 deploys/wk · ↑1 ↓1 (doc-updater promoted, schema-migration-reviewer demoted) · CFR 11% ↑3pt WoW.
-
 ## Interactions
 
 - **Click row body** → navigate to `/projects/[id]` (H2)
@@ -101,8 +91,7 @@ Rollup strip values: 12 open approvals · 18 deploys/wk · ↑1 ↓1 (doc-update
 
 ## Visual references
 
-- **`docs/ux/refs/lovable-h1-portfolio.md`** — prose description of the validated Lovable mockup. Read this first. This is the canonical reference.
-- **`docs/ux/refs/lovable-h1-portfolio.png`** — the actual mockup PNG. Drop manually if missing (see `docs/ux/refs/README.md`).
+- **`docs/ux/refs/lovable-h1-portfolio.png`** — the validated Lovable mockup PNG (drop manually if missing; see `docs/ux/refs/README.md`).
 - **`docs/ux/refs/marketing-one-pager.png`** — brand-direction anchor (dark/teal/precise). Drop manually if missing.
 - Linear's projects list (peer aesthetic, public)
 - Vercel's project dashboard (peer density, public)

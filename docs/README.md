@@ -6,7 +6,7 @@ Every doc here has one job. Start with [`positioning.md`](positioning.md) — it
 
 1. **[`positioning.md`](positioning.md)** — what coznt is, what it claims, the loop it tightens.
 2. **[`product/architecture.md`](product/architecture.md)** — how the daemon + choreography spine implements that loop.
-3. **[`product/walkthrough.md`](product/walkthrough.md)** — what each persona's day looks like across the surface.
+3. **[`tutorial/first-project.md`](tutorial/first-project.md)** — four-act walkthrough: ship v1, watch a skill earn promotion, survive an incident, read the portfolio.
 
 ## By purpose
 
@@ -17,7 +17,8 @@ How coznt works and what it feels like to use.
 | File | Purpose |
 |---|---|
 | [`product/architecture.md`](product/architecture.md) | System architecture, daemon + choreography, decision log. |
-| [`product/walkthrough.md`](product/walkthrough.md) | End-to-end persona narrative across the surface. |
+| [`product/verification-debt-thesis.md`](product/verification-debt-thesis.md) | Why-now thesis and the four-component verification-debt formula. |
+| [`product/landscape-matrix.md`](product/landscape-matrix.md) | Comparison matrix vs the peer set. |
 
 ### `operate/` — runbooks (you DO these)
 
@@ -28,8 +29,8 @@ Imperative-named operator and developer runbooks.
 | [`operate/install.md`](operate/install.md) | Take coznt from seeded data to a real repo. Run once per environment. |
 | [`operate/github-app.md`](operate/github-app.md) | One-time GitHub App registration for the execution gate. |
 | [`operate/cli.md`](operate/cli.md) | `coznt` CLI command and flag reference. |
-| [`operate/mcp-clients/verify.md`](operate/mcp-clients/verify.md) | Confirm each supported MCP client can reach the server. |
-| [`operate/mcp-clients/*.json`](operate/mcp-clients/) | Drop-in config templates per client (Claude Code, Cursor, Cline, Zed). |
+| [`operate/webhook-auth.md`](operate/webhook-auth.md) | Webhook signing + verification for inbound GitHub/Jira/deploy events. |
+| [`operate/prompt-hook.md`](operate/prompt-hook.md) | Install the IDE prompt-capture hook (Claude Code, Cursor) for prompt-quality scoring. |
 
 ### `spec/` — contracts and formats (you READ these)
 

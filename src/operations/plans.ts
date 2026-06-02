@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { and, desc, eq } from "drizzle-orm";
+import { customAlphabet } from "nanoid";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
 import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, PLAN_PRIORITIES, PLAN_STATUSES, type PlanKind } from "@/db/schema/plan";
@@ -8,10 +9,21 @@ import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 import { applyRulesToPlan } from "./rule-engine";
 
+const slugSuffix = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 6);
+
+function slugify(title: string): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return `${base || "plan"}-${slugSuffix()}`;
+}
+
 const planSchema = z.object({
   projectId: z.string().min(1),
   kind: z.enum(PLAN_KINDS),
-  slug: z.string().optional(),
+  slug: z.string().min(1),
   parentPlanId: z.string().optional().nullable(),
   title: z.string().min(1),
   summary: z.string().optional(),
@@ -44,6 +56,18 @@ export const planCrud = createEntityCrud({
     },
   },
 });
+
+type PlanCreateInput = Omit<z.input<typeof planSchema>, "slug"> & { slug?: string };
+
+/**
+ * Canonical plan-creation path. Auto-derives `slug` from `title` when callers
+ * don't supply one (UI form, batch requirement ingest, ADR logging). Routes
+ * authoring an idempotent identity (MCP `upsert_plan`) pass an explicit slug.
+ */
+export async function createPlan(input: PlanCreateInput) {
+  const slug = input.slug ?? slugify(input.title);
+  return planCrud.create({ ...input, slug });
+}
 
 /** List plans for a project, ordered by most recent. */
 export async function listPlansByProject(projectId: string, opts: { limit?: number; offset?: number } = {}) {

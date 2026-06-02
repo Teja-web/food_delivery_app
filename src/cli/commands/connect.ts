@@ -33,6 +33,7 @@ import {
   installClaudePromptHook,
   fetchCurrentHookVersion,
 } from "../lib/prompt-hook-installer.js";
+import { writePostureFiles } from "../lib/posture-writer.js";
 
 export interface ConnectOptions {
   editor?: string;
@@ -197,13 +198,16 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
     }
   }
 
-  // 6. .coznt/config.json
+  // 6. .coznt/config.json — record the MCP version we're about to wire
+  // into the editor config (step 9). Sync compares this against the
+  // server's current version to detect drift.
   writeConfig(
     {
       serverUrl,
       projectId: picked.id,
       apiKeyRef,
       promptHook: promptHookEntry,
+      mcp: { version: MCP_VERSION },
     },
     repoRoot,
   );
@@ -221,6 +225,16 @@ export async function runConnect(options: ConnectOptions = {}): Promise<number> 
 
   // 8. .coznt/README.md
   writeReadme(repoRoot);
+
+  // 8b. Editor-agnostic posture (AGENTS.md) + editor-native posture file
+  // (CLAUDE.md / .cursor/rules / .rules). Idempotent — re-runs replace
+  // the managed block between markers and leave user content alone.
+  const postures = writePostureFiles(repoRoot, editor);
+  for (const p of postures) {
+    if (!p.changed) continue;
+    const verb = p.replaced ? "Refreshed" : p.existed ? "Updated" : "Wrote";
+    console.log(`✓ ${verb} ${p.path}`);
+  }
 
   // 9. Editor MCP config — default to the tarball this coznt instance serves
   // (`npx -y https://<server>/install/coznt-mcp-<version>.tgz`). Mirrors

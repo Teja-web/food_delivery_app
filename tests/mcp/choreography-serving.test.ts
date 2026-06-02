@@ -94,7 +94,7 @@ describe("Choreography distribution", () => {
     expect(manifest.choreographies[0].minAutonomy).toBe("propose");
   });
 
-  it("skips DB skills that have no CHOREOGRAPHY.md on disk", async () => {
+  it("skips DB skills that have no SKILL.md on disk", async () => {
     mockSkillRows.rows = [
       { slug: "release-notes-generator", enabled: true, projectId: null },
       { slug: "nonexistent-skill", enabled: true, projectId: null },

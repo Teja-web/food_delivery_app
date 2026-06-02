@@ -1,117 +1,102 @@
 ---
-name: ADR Extractor
-description: Extract an Architecture Decision Record from a design discussion, PR thread, or recent code change — Status / Context / Decision / Consequences
+name: adr-extractor
+description: Extract an Architecture Decision Record (Status / Context / Decision / Consequences) from a design discussion, PR thread, or recently-merged change. Use when: "write the ADR", "extract an ADR", "ADR for this decision", "where's the ADR for X". Voice triggers (speech-to-text aliases): "draft ADR", "decision record", "capture this decision".
 version: 1
-tags: [platform, adr, design, decisions, sdlc]
 plan_kind: adr
+tags: [platform, adr, design, decisions, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_design_context
+  - mcp__coznt__get_plans
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "ADR", "decision record", or "architecture decision"
+    - A non-trivial design decision just landed in a PR / meeting / Slack
+    - A reviewer asked "where's the ADR for X?"
+    - End of design phase and the gate requires named ADRs
+  required_verbs:
+    - get_my_context
+    - get_design_context
+    - get_plans
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # ADR Extractor
 
-Read the available signal — a design discussion, a recently-merged PR, a Slack-style decision thread the caller pastes in — and produce a single, well-shaped **Architecture Decision Record**. One ADR per invocation. If you find two decisions tangled, file one and flag the other in open questions.
+Turn a design-decision trail into a draft ADR. The LLM call runs server-side via `invoke_skill`; this file tells you when to call which verb.
 
-The product hypothesis: most teams DON'T write ADRs because the moment of decision is busy and ADR templates feel like ceremony. An agent that turns the trail into a draft removes that friction.
+## When to use
 
-## When to Use
+- A non-trivial design decision was made in a PR / meeting / Slack and nobody volunteered to write the ADR.
+- A feature-spec reviewer asked "where's the ADR for X?"
+- End of the design phase and `get_phase_checklist` shows an unmet ADR gate.
 
-- A non-trivial design decision was made in a meeting / PR / Slack and nobody volunteered to write the ADR.
-- A reviewer of a feature spec asked "where's the ADR for X?"
-- The end of a design phase has arrived and the gate requires named ADRs.
+## When NOT to use
 
-## Instructions
+- **No source material.** ADRs cannot be hallucinated from project context alone. Ask the user to paste the PR url, meeting notes, or thread before invoking.
+- **The "decision" is actually an implementation note.** Implementation belongs in the PR description, not an ADR. If you can't articulate Decision + Context + Consequences as separate things, refuse.
+- **Two decisions tangled in one source.** File one ADR per invocation; flag the other in open questions for a follow-up call.
+- **Vendor evaluation in progress.** Don't file an ADR until the decision has actually been made.
 
-### Step 1 — Gather Context
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Capture `projectId` and the current phase.
+
+### 2. Load design surface
+Call `get_design_context` (active features + linked work items + pending plans) and `get_plans { kind: "adr", limit: 10 }`. Existing ADRs anchor your numbering and prevent duplicate decisions.
+
+### 3. Confirm the source
+If the user hasn't supplied source material, ask for it — a PR url, meeting transcript, or thread is required. Stop until provided.
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_my_context
-invoke: get_design_context
-invoke: get_plans { kind: "adr", limit: 10 }
-```
-
-`get_design_context` is the richer view: in-flight features, linked work items, pending plans. Use it to find what's being designed *right now* so the ADR can reference the right plans.
-
-Existing ADRs do two things: (1) save you from re-extracting a decision that's already filed, (2) anchor your numbering convention — pull the next ADR number from there.
-
-If the caller has not supplied the source material (discussion transcript, PR url, design notes), ask for it. ADRs cannot be hallucinated from project context alone.
-
-### Step 2 — Detect, Don't Synthesize
-
-Before drafting, decide what the actual decision is. Many "decisions" in a thread are actually:
-
-- A vendor evaluation that didn't converge → not an ADR yet
-- A "let's try X and see" → not yet an ADR (file once committed)
-- An implementation note → not an ADR (lives in the PR description)
-- A working agreement → a team convention, not an ADR
-
-A real ADR has: a Decision (single sentence, present tense), a Context (why now, why not before), and Consequences (what you give up). If you can't articulate all three from the source, refuse and say what's missing.
-
-### Step 3 — Draft
-
-Use the lightweight Nygard format. Status is **always** `proposed` on first creation — humans flip to `accepted` after review:
-
-```markdown
-# ADR-{NNN}: {Short Decision Phrase}
-
-**Status:** proposed
-**Date:** {YYYY-MM-DD}
-**Deciders:** {names from the source material; "TBD" if not extractable}
-**Source:** {PR url / meeting date / discussion thread, verbatim}
-
-## Context
-
-{2–4 paragraphs. What forces are at play. What other options were considered. Why the team is choosing now rather than deferring. Reference relevant plans (`plan/{slug}`) and external links.}
-
-## Decision
-
-{One sentence in present tense: "We adopt X."}
-
-{Then 1–2 paragraphs unpacking what that concretely means — the system change, the new constraint, the new convention.}
-
-## Consequences
-
-### Positive
-- {what we get}
-
-### Negative
-- {what we give up — at least one bullet. An ADR with no negative consequences is suspect: surface the trade-off honestly.}
-
-### Neutral / observable
-- {effects that aren't clearly good or bad — operational surface area, learning curve, blast radius}
-
-## Alternatives Considered
-
-For each option NOT chosen, one paragraph: what it was, why it was rejected. At least one alternative is required — "we considered nothing else" is a red flag.
-
-## Compliance
-
-How adherence is enforced. Examples:
-- Lint rule: `<rule-id>`
-- Code review checklist item
-- Phase gate at {phase}
-- "Convention, not enforced" (must say so explicitly if true)
-```
-
-### Step 4 — File It
-
-```
-invoke: upsert_plan {
-  kind: "adr",
-  slug: "adr-{NNN}-{kebab-of-decision-phrase}",
-  title: "ADR-{NNN}: {Short Decision Phrase}",
-  summary: "{The Decision sentence, verbatim}",
-  body: "{generated markdown}",
-  changeNote: "Drafted by adr-extractor from {source}"
+slug: "adr-extractor"
+input: {
+  projectId,
+  source,                  // verbatim text or url provided by user
+  nextAdrNumber,           // from step 2's existing ADRs
+  deciders                 // names if extractable from source
 }
 ```
+Server returns the drafted ADR markdown + `confidence`.
 
-Status stays `draft` on the plan side (drift between Nygard `proposed` and the plan's `draft` is fine — the ADR header is the source of truth for ADR status, the plan status tracks the document workflow).
+### 5. Route based on confidence
+- `confidence >= 0.7` → present draft to user for review.
+- `confidence < 0.7` → call `submit_for_approval` with the draft attached.
 
-## Quality Checklist
+### 6. File the ADR
+Once approved, call `upsert_plan`:
+```
+upsert_plan {
+  kind: "adr",
+  slug: "adr-<NNN>-<short-decision-phrase>",
+  title: "ADR-<NNN>: <Short Decision Phrase>",
+  body: <generated markdown>,
+  changeNote: "Drafted from <source>"
+}
+```
+**Status on creation is always `proposed`** — humans flip to `accepted` after review.
 
-- [ ] Exactly one decision per ADR — if you saw two, file one and flag the other
-- [ ] Context names what forces are at play, not just "we needed to choose X or Y"
-- [ ] Decision is one sentence, present tense
-- [ ] At least one negative consequence — no all-upside ADRs
-- [ ] At least one alternative considered, with the reason for rejection
-- [ ] Source is verbatim: a URL, a meeting date, a transcript reference — not "team discussion"
-- [ ] Status is `proposed` (humans flip to `accepted` after review — don't pre-decide)
+## Constraints
+
+- **One ADR per invocation.** Tangled decisions get one filed, the rest noted as open questions.
+- **Never invent deciders.** If names aren't in the source, use "TBD" — don't guess.
+- **Status starts at `proposed`.** Do not write `accepted` even if the decision feels obvious.
+- **Source is verbatim.** Paste the PR url or meeting timestamp; don't paraphrase the trail.
+
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | Call `submit_for_approval` with the assembled input; reviewer dispatches manually |
+| `confidence < 0.5` on output | Source material was thin / one of {Decision, Context, Consequences} couldn't be extracted | Refuse to file; tell user what's missing |
+| Source mentions two decisions | Tangled thread | File the primary; flag the other in "Open questions"; suggest a second invocation |

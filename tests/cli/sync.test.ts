@@ -136,6 +136,83 @@ describe("coznt sync", () => {
     expect(calls.some((c) => c.includes("/sync"))).toBe(false);
   });
 
+  it("warns when the running CLI is older than the server's published CLI", async () => {
+    // Stub fetch to advertise a newer CLI via the /install/coznt-cli/latest
+    // redirect. The CLI's package.json declares 0.1.0, so any other version
+    // triggers the drift warning.
+    const manifest = { choreographies: [], manifestHash: "x" };
+    const baseStub = stubFetch(manifest, { choreographies: [], manifestHash: "x" });
+    global.fetch = vi.fn(async (input: unknown, init?: unknown) => {
+      const url = String(input);
+      if (url.includes("/install/coznt-cli/latest")) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: `${"http://test"}/install/coznt-cli-9.9.9.tgz` },
+        });
+      }
+      const fn = baseStub as unknown as (i: unknown, init?: unknown) => Promise<Response>;
+      return fn(input, init);
+    }) as unknown as typeof fetch;
+
+    const warns: string[] = [];
+    const spy = vi.spyOn(console, "warn").mockImplementation((...args) => {
+      warns.push(args.map(String).join(" "));
+    });
+
+    const code = await runSync({});
+    expect(code).toBe(0);
+
+    const all = warns.join("\n");
+    expect(all).toContain("coznt CLI is stale");
+    expect(all).toContain("9.9.9");
+    expect(all).toMatch(/pnpm install -g .*coznt-cli-9\.9\.9\.tgz/);
+
+    spy.mockRestore();
+  });
+
+  it("writes posture files (AGENTS.md + editor-native) when an editor is detected", async () => {
+    // Posture writer keys off `detectEditors` — present `.claude/`
+    // to trigger claude-code detection, which also writes CLAUDE.md.
+    mkdirSync(join(tmpRoot, ".claude"), { recursive: true });
+
+    const manifest = {
+      choreographies: [
+        {
+          slug: "fixture",
+          version: "1.0.0",
+          hash: FIXTURE_HASH,
+          description: "Fixture choreography for tests",
+          minAutonomy: 0,
+        },
+      ],
+      manifestHash: "abc123",
+    };
+    const bundle = {
+      choreographies: [
+        {
+          slug: "fixture",
+          version: "1.0.0",
+          hash: FIXTURE_HASH,
+          description: "Fixture choreography for tests",
+          minAutonomy: 0,
+          content: FIXTURE_CONTENT,
+        },
+      ],
+      manifestHash: "abc123",
+    };
+    global.fetch = stubFetch(manifest, bundle) as unknown as typeof fetch;
+
+    const code = await runSync({});
+    expect(code).toBe(0);
+
+    // Posture files should now exist with the managed-block markers.
+    const agents = readFileSync(join(tmpRoot, "AGENTS.md"), "utf-8");
+    const claude = readFileSync(join(tmpRoot, "CLAUDE.md"), "utf-8");
+    expect(agents).toContain("Coznt governance");
+    expect(claude).toContain("Coznt governance");
+    expect(agents).toContain("<!-- coznt:posture:start -->");
+  });
+
   it("--dry-run writes no files", async () => {
     const manifest = {
       choreographies: [

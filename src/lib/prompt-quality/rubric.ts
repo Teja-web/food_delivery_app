@@ -161,7 +161,7 @@ export function scorePromptQuality(input: PromptScoreInput): PromptScore {
 
   // Equal-weight overall — simple and explainable. Future revisions may
   // weight; bump RUBRIC_VERSION to trigger rescore.
-  const overallScore = Math.round(
+  const rawScore = Math.round(
     (dimensions.clarity +
       dimensions.context +
       dimensions.specificity +
@@ -169,6 +169,11 @@ export function scorePromptQuality(input: PromptScoreInput): PromptScore {
       dimensions.phaseFit +
       dimensions.safety) / 6,
   );
+
+  // Safety is a gate, not a dimension to be averaged away. A prompt with
+  // safety<50 (e.g. leaked secret) can otherwise score ~88 overall when the
+  // other five dimensions are strong, since equal-weighting dilutes it.
+  const overallScore = dimensions.safety < 50 ? Math.min(rawScore, 49) : rawScore;
 
   const tier: PromptQualityTier =
     overallScore >= 80 ? "GOOD" : overallScore >= 50 ? "NEEDS_IMPROVEMENT" : "POOR";

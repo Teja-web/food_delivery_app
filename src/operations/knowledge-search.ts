@@ -102,7 +102,7 @@ export async function searchLearnings(args: {
 
 export interface PlanHit {
   id: string;
-  slug: string | null;
+  slug: string;
   kind: PlanKind;
   status: PlanStatus;
   title: string;

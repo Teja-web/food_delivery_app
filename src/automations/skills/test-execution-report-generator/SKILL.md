@@ -1,117 +1,108 @@
 ---
-name: Test Execution Report Generator
-description: Generate a Test Execution Report summarizing test runs, pass/fail rates, defects, and coverage for the project
+name: test-execution-report-generator
+description: Draft a Test Execution Report — pass/fail summary, defect inventory by severity, sign-off recommendation, and the audit record QA stakeholders sign against. Use when: "test execution report", "QA sign-off doc", "test results summary", "how did testing go". Voice triggers (speech-to-text aliases): "test report", "QA report", "test execution".
 version: 1
-tags: [platform, testing, execution, reporting, sdlc]
 plan_kind: test_plan
+tags: [platform, testing, execution, reporting, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_requirements
+  - mcp__coznt__get_pipeline_status
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "test execution report", "QA sign-off", "test results", or "TER"
+    - End of TESTING phase, before advancing to CI/CD
+    - QA needs an audit-grade record of what was tested + outcome
+    - Input artifact for release-notes-generator or go-live-report-generator
+  required_verbs:
+    - get_my_context
+    - get_requirements
+    - get_pipeline_status
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Test Execution Report Generator
 
-Generate a comprehensive **Test Execution Report** for the current project. This document summarizes the results of test runs, captures defects, and provides the audit-grade record that QA sign-off depends on.
+Compose a `test_plan`-bucketed Test Execution Report rolling up pass/fail + defects + QA sign-off recommendation. LLM drafting runs server-side via `invoke_skill`.
 
-## When to Use
+## When to use
 
-- At the end of the TESTING phase, before requesting QA sign-off.
-- When the team needs an audit-grade record of what was tested and the outcome.
-- As input to the release-notes generator and go-live report.
+- End of TESTING phase, before QA sign-off and phase advance.
+- Audit needs the record of what was tested and the outcome.
+- Upstream of release-notes / go-live skills.
 
-## Instructions
+## When NOT to use
 
-### Step 1 — Gather Context
+- **Project not in `testing` phase.** Premature in earlier phases; retroactive in later ones — use `dev-summary-generator` or `release-notes-generator` instead.
+- **No approved `test_plan`.** Without an approved plan, there's nothing to report against. Refuse and tell user to invoke `test-plan-generator` first.
+- **Pipeline status has no recent test runs.** Either testing hasn't happened or it ran somewhere coznt can't see; ask user to paste raw results.
 
-Call `get_my_context` to retrieve the current project details. Then fetch the test plans and the pipeline status (which surfaces aggregated pass/fail counts):
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Confirm phase is `testing`.
+
+### 2. Load test plan + pipeline status
+Call:
+- `get_requirements { kind: "test_plan", status: "approved" }`
+- `get_pipeline_status` — aggregates pass/fail counts from recent test runs
+
+If approved test_plan count is 0, refuse — invoke `test-plan-generator` first.
+
+### 3. Reconcile with user
+If pipeline status is missing recent runs (assessor lag, or CI ran somewhere coznt can't observe), ask user to paste raw test results. Don't invent numbers.
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_requirements { kind: "test_plan", status: "approved" }
-invoke: get_pipeline_status
+slug: "test-execution-report-generator"
+input: {
+  projectId,
+  testPlan,                // approved plan body
+  pipelineStatus,
+  extraTestResults,        // user-pasted, optional
+  defectInventory          // ask user; coznt doesn't auto-classify defects today
+}
 ```
+Server returns `{ markdown, confidence, signoffRecommendation }` — `signoffRecommendation` ∈ { "READY", "NOT_READY", "READY_WITH_WAIVERS" }.
 
-If the caller has fresher per-test-run data not yet reflected in `get_pipeline_status` (for example a CI run from the last hour), ask them to paste it; the assessor task that backfills `test_runs` may lag.
+### 5. Route based on recommendation
+- `NOT_READY` → present immediately; this is the load-bearing signal.
+- `READY` and `confidence >= 0.8` → present to user for sign-off.
+- Anything else → `submit_for_approval` with the test-plan + results attached.
 
-### Step 2 — Generate the Document
-
-Produce a Markdown document with the following structure. Every section is mandatory; use "N/A" if information is not available.
-
-```markdown
-# Test Execution Report
-
-**Project:** {Project Name}
-**Version:** 1.0
-**Date:** {YYYY-MM-DD}
-**Test plan:** plan/{test-plan-slug}
-
-## 1. Executive Summary
-
-- **Total cases executed:** {n}
-- **Pass rate:** {%}
-- **Open defects:** {S1: n, S2: n, S3: n, S4: n}
-- **Sign-off recommendation:** READY / NOT READY / READY WITH WAIVERS
-
-## 2. Coverage
-
-| Level | Planned | Executed | Pass | Fail | Blocked | Skipped |
-|---|---|---|---|---|---|---|
-| Unit | ... | ... | ... | ... | ... | ... |
-| Integration | ... | ... | ... | ... | ... | ... |
-| E2E | ... | ... | ... | ... | ... | ... |
-| Performance | ... | ... | ... | ... | ... | ... |
-| Security | ... | ... | ... | ... | ... | ... |
-
-## 3. Defects
-
-For each open or recently closed defect:
-
-### 3.{n} {Defect Title}
-
-- **Severity:** S1 / S2 / S3 / S4
-- **Status:** open / in-progress / fixed-pending-verify / closed
-- **Affected requirement:** plan/{slug}
-- **Repro steps:** ...
-- **Owner:** ...
-
-## 4. Performance Results
-
-- **Target:** {latency, throughput}
-- **Observed:** ...
-- **Delta:** ...
-- **Verdict:** met / not met / waived (justification)
-
-## 5. Security Results
-
-- **OWASP Top 10 categories tested:** ...
-- **Findings:** none / list
-- **Remediation status:** ...
-
-## 6. Traceability
-
-For each row in the test plan's traceability matrix, mark executed-and-passed / executed-and-failed / not-executed.
-
-## 7. Risks & Recommendations
-
-- Risks that remain post-execution
-- Recommended waivers (with rationale)
-- Conditions for sign-off
+### 6. File the report
+Call `upsert_plan`:
 ```
-
-### Step 3 — File the Document
-
-Call `upsert_plan` to land the report (uses `kind: "test_plan"` since coznt doesn't distinguish plan-vs-report at the kind level — the slug prefix does):
-
-```
-invoke: upsert_plan {
+upsert_plan {
   kind: "test_plan",
-  slug: "test-execution-{project-slug}-{YYYY-MM-DD}",
-  title: "Test Execution Report — {Project Name} ({YYYY-MM-DD})",
-  summary: "Execution results for {test plan slug}. Pass rate {%}. Sign-off: {READY|NOT READY}.",
-  body: "{generated markdown}",
-  changeNote: "Run {YYYY-MM-DD}"
+  slug: "test-execution-report-<project-slug>-v<version>",
+  title: "Test Execution Report — <Project Name> v<version>",
+  body: <generated markdown>,
+  changeNote: "<recommendation> — N defects (S1: x, S2: y, …)"
 }
 ```
 
-## Quality Checklist
+## Constraints
 
-- [ ] Coverage table accounts for every planned test
-- [ ] Every open defect has severity, owner, and affected requirement
-- [ ] Sign-off recommendation is justified by the data above it
-- [ ] Performance and security verdicts are explicit (no "see logs")
+- **NOT_READY is a valid output.** Don't soften an honest fail just to look better — downstream skills (release notes, go-live) consume this verdict.
+- **Defect severity is from the user, not invented.** Coznt does not auto-classify; ask if S1/S2/S3/S4 counts are unknown.
+- **Pass rate is computed, not estimated.** Use only pipeline-status totals or user-pasted run data.
+- **Cite each defect.** Defect rows reference work_item slugs or external tracker IDs. No anonymous bugs.
+- **One skill = one decision tree.** Don't also draft release notes — that's `release-notes-generator`.
+
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| No approved `test_plan` | Phase too early | Refuse; tell user to invoke `test-plan-generator` first |
+| `get_pipeline_status` shows no recent test runs | Assessor lag OR tests ran in a system coznt doesn't observe | Ask user to paste raw run data |
+| Pass rate < 80% | Tests failing, project not ready | Recommendation will be NOT_READY; that's correct — file the report |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled input |

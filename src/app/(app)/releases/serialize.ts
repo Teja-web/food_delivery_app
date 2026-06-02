@@ -12,6 +12,8 @@ export interface ReleasePlanClient {
   projectSlug: string;
   updatedAt: string;
   dueDate: string | null;
+  /** Pending Approval row targeting this release_plan. */
+  needsApproval: boolean;
 }
 
 export interface ReleaseDeploymentClient {
@@ -32,7 +34,10 @@ export interface ReleasesPageData {
   recentDeployments: ReleaseDeploymentClient[];
 }
 
-export function serializeReleasePlan(p: Plan & { project: Project | null }): ReleasePlanClient {
+export function serializeReleasePlan(
+  p: Plan & { project: Project | null },
+  opts: { needsApproval?: boolean } = {},
+): ReleasePlanClient {
   return {
     id: p.id,
     title: p.title,
@@ -43,6 +48,7 @@ export function serializeReleasePlan(p: Plan & { project: Project | null }): Rel
     projectSlug: p.project?.slug ?? "",
     updatedAt: p.updatedAt.toISOString(),
     dueDate: p.dueDate?.toISOString() ?? null,
+    needsApproval: opts.needsApproval ?? false,
   };
 }
 

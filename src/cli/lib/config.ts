@@ -21,11 +21,23 @@ export interface PromptHookConfig {
   editor: string | null;
 }
 
+/**
+ * Records the MCP tarball version currently pinned in the editor's
+ * MCP config (e.g. `.mcp.json` for Claude Code). `coznt sync` compares
+ * this against the server's current version and refreshes the editor
+ * config if drifted. Optional for backwards compatibility — sync
+ * backfills on first run if missing.
+ */
+export interface McpConfig {
+  version: string;
+}
+
 export interface CozntConfig {
   serverUrl: string;
   projectId: string;
   apiKeyRef: ApiKeyRef;
   promptHook?: PromptHookConfig;
+  mcp?: McpConfig;
 }
 
 const CONFIG_PATH = ".coznt/config.json";
@@ -72,11 +84,19 @@ function validateConfig(raw: unknown): CozntConfig {
       editor: typeof ph.editor === "string" ? ph.editor : null,
     };
   }
+  let mcp: McpConfig | undefined;
+  if (c.mcp && typeof c.mcp === "object") {
+    const m = c.mcp as Record<string, unknown>;
+    if (typeof m.version === "string" && m.version) {
+      mcp = { version: m.version };
+    }
+  }
   return {
     serverUrl: c.serverUrl.replace(/\/$/, ""),
     projectId: c.projectId,
     apiKeyRef: c.apiKeyRef as ApiKeyRef,
     promptHook,
+    mcp,
   };
 }
 

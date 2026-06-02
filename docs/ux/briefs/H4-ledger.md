@@ -1,6 +1,6 @@
 # H4 Brief — `/skills` Autonomy Ledger
 
-**References:** `docs/ux/DESIGN.md`, `docs/ux/sample-data.md`, `docs/ux/moments.md` (Moment 4), `docs/ux/personas.md` (Priya).
+**References:** `docs/ux/DESIGN.md`, `docs/ux/moments.md` (Moment 4), `docs/ux/personas.md` (Priya).
 
 ## Anchor (read this first)
 
@@ -77,17 +77,6 @@ This is the **buying-decision surface** for Priya. If this screen looks like a s
 6. **Trend sparkline** — success rate over 30 days, 60×16. Direction: up = green, down = red, flat = muted.
 7. **Pending review chip** — amber `⏳ pending review 5/19` inline at the row, with a blocking reason expansion
 8. **Portfolio autonomy footer** — small horizontal bar showing the distribution (1 Lead · 2 Merge · etc) + auto-approval coverage stat with MoM delta
-
-## Sample data — use all 5 skills from `sample-data.md` exactly
-
-The fixture is specifically designed for this screen:
-- **doc-updater** — just promoted Lead (celebration)
-- **schema-migration-reviewer** — just demoted Propose (negative, the story)
-- **api-contract-checker** — stable Merge, clean stats
-- **frontend-test-author** — Merge, eligible for Lead review on 6/4
-- **security-scan-runner** — Observe, struggling, pending review on 5/19 blocked by rollback rate
-
-The two opposite events (5/9 promotion + 5/10 demotion) are intentionally adjacent in time — the demo shows both directions of trust on the same screen.
 
 ## Interactions
 

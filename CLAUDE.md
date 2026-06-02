@@ -2,7 +2,14 @@
 
 ## What this is
 
-Coznt is an **AI-assisted SDLC governance + observability platform** — peer set Linear, Vercel, Datadog, Grafana, Cursor. Not an ATS. The marketing thesis is "trust observable": every claim on screen links to a source-of-record.
+Coznt is **AI-DLC Governed** — the governance + observability layer that turns individual AI productivity (Cursor, Claude Code, Devin) into safe organizational throughput. Peer set Linear, Vercel, Datadog, Grafana, Cursor. Not an ATS.
+
+The operating spine is **Govern — Verify — Trust**:
+- **Govern** — phases, phase gates, rule engine (`keyword-presence`, `action-policy`), per-project autonomy thresholds. What an AI is allowed to do.
+- **Verify** — deterministic outcome ledger (`skill_outcomes`), autonomy recompute from a 30-day window of evidence. Whether what AI produced actually held up.
+- **Trust** — hash-chained audit log, source-of-record links on every claim, **verification debt** as the load-bearing analytical primitive. *"Trust observable"* is the UX thesis under this pillar.
+
+Canonical positioning source: `docs/positioning.md`. Verification-debt formula: `docs/product/verification-debt-thesis.md`.
 
 Core domain (real, ground truth in `src/db/schema/`):
 
@@ -10,7 +17,7 @@ Core domain (real, ground truth in `src/db/schema/`):
 - **Plan** — authored unit of work. Kinds: `epic`, `feature`, `story`, `adr`, `test_plan`, `release_plan`. Status flow: draft → in_review → approved → in_progress → completed.
 - **Phase Gate** — checkpoint that must PASS (or be SKIPPED) before a project can advance phase. Types: `approval`, `coverage`, `lint`, `security`, `custom`.
 - **Approval** — polymorphic sign-off request against any entity (`plan`, `phase_gate`, `release`, `work_item`).
-- **Skill** — a capability that can be invoked (eventually by AI agents). Skills earn autonomy **per-project**: 0 intern, 1 junior, 2 senior, 3 principal.
+- **Skill** — a capability invoked by AI agents (live as of Milestone C). Skills earn autonomy **per-project**: 0 observe, 1 propose, 2 merge, 3 lead.
 - **Skill Outcome** — append-only ledger row. `verdict`: `success` | `rolled_back` | `incident`. `sourceKind`: `invocation` (AI path) or one of the Milestone-A deterministic assessors (`pr_merge`, `pr_revert`, `pr_abandon`, `deploy_clean`, `deploy_incident`). Drives autonomy recompute.
 - **Skill Autonomy** — current level per `(skillId, projectId)` pair. Recomputed from the trailing 30-day window of outcomes.
 
@@ -86,7 +93,7 @@ operations: skillCrud.get(id, { with: {              SkillDetailClient.tsx impor
 
 ## AI Agent Pattern
 
-> Status: forward-looking. The `definitions/` directory is empty as of Milestone A — coznt is observing deterministic CI signal first (PR merge, deploy success). The first real AI agent lands at Milestone C. This pattern is the contract for when it does.
+> Status: **SHIPPED at Milestone C.** `change-risk-classifier` is the first agent — definition at `src/automations/agents/definitions/change-risk-classifier.ts`, prompt at `src/automations/agents/prompts/change-risk-classifier.ts`, task at `src/automations/tasks/classify-change-risk.ts`. The agent runs from `process-webhook-event` on inbound PR webhooks and writes its classification to `skill_outcomes`. The Milestone-D autonomy gate (shipped via PreToolUse interceptor at `src/operations/tool-events.ts`) decides whether subsequent skill invocations execute or route to the approvals inbox.
 
 Every AI call follows the same 3-file pattern:
 

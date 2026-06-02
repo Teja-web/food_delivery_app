@@ -5,14 +5,16 @@
  * Reads the hook event JSON from stdin, scores the user's prompt locally
  * with the canonical rubric port, fires-and-forgets a POST to the coznt
  * deployment, and emits hook output:
- *   - GOOD tier → silent (exit 0).
- *   - Sub-GOOD tier → emit `additionalContext` with feedback so the
- *     model sees the coaching alongside the user's prompt.
- *   - Score below COZNT_PROMPT_MIN_SCORE → emit `{decision: "block", reason}`.
+ *   - ALWAYS emits `additionalContext` containing the current-phase
+ *     posture (phase name + forbidden actions + governance reminder).
+ *     Per-turn injection beats top-of-context decay for project posture.
+ *   - Sub-GOOD tier → appends rubric coaching to the posture context.
+ *   - Score below COZNT_PROMPT_MIN_SCORE → emit `{decision: "block", reason}`
+ *     with posture+coaching attached.
  *
  * Reads `.coznt/project-phase.txt` (written by `get_my_context`) for
- * phase-aware scoring. Reads `.coznt/config.json` for the platform URL
- * and API key reference. Appends every captured prompt to
+ * phase-aware scoring and posture. Reads `.coznt/config.json` for the
+ * platform URL and API key reference. Appends every captured prompt to
  * `.coznt/prompt-buffer.jsonl` as a durability hedge — `flush_local_prompts`
  * drains it later.
  */
@@ -29,6 +31,50 @@ const COZNT_DIR = ".coznt";
 const PHASE_FILE = "project-phase.txt";
 const BUFFER_FILE = "prompt-buffer.jsonl";
 const CONFIG_FILE = "config.json";
+
+/**
+ * Per-phase forbidden actions surfaced to the agent every turn. Keep
+ * each list short — these tokens enter the context window on every
+ * prompt. Phases mirror src/db/schema/projects.ts.
+ */
+const PHASE_FORBIDDEN = {
+  requirements:
+    "scaffolding (create-next-app, npm init), source-code writes, package install, git commits, deploys",
+  design:
+    "scaffolding, source-code writes outside ADR / storyboard fixtures, deploys",
+  development:
+    "production deploys, force-push to main, schema migrations without an approved ADR",
+  testing:
+    "production deploys, source-code changes outside test fixes, schema migrations",
+  cicd:
+    "force-push to main, source-code changes outside pipeline files, production data writes",
+  monitoring:
+    "production deploys without release plan, force-push to main, untracked schema migrations",
+};
+
+/**
+ * Build the per-turn posture text injected into every prompt via
+ * `additionalContext`. When the phase file is missing (typical pre-bind
+ * state) we still emit a short reminder so the agent knows to call
+ * `get_my_context` before acting.
+ */
+export function buildPhasePosture(phase) {
+  if (!phase) {
+    return [
+      "[coznt] Project not bound this session.",
+      "Before any new work, call `mcp__coznt__get_my_context` to learn the current phase and allowed actions.",
+      "Do not scaffold, install packages, or write source files until you have done so.",
+    ].join("\n");
+  }
+  const forbidden =
+    PHASE_FORBIDDEN[phase] ||
+    "see `mcp__coznt__get_my_context` for the allowed-action set";
+  return [
+    `[coznt] phase=${phase}`,
+    `forbidden in this phase: ${forbidden}`,
+    "If the user's request requires a forbidden action, surface that to the user before proceeding — do not bypass the framework.",
+  ].join("\n");
+}
 
 async function readStdin() {
   return new Promise((resolve, reject) => {
@@ -148,7 +194,12 @@ async function main() {
     );
   }
 
-  // Decide hook output.
+  // Decide hook output. Posture (phase + forbidden actions) is ALWAYS
+  // emitted; rubric coaching is appended on sub-GOOD scores.
+  const posture = buildPhasePosture(phase);
+  const additionalContext =
+    score.tier === "GOOD" ? posture : `${posture}\n\n${formatScoreFeedback(score)}`;
+
   const minScore = Number(process.env.COZNT_PROMPT_MIN_SCORE || "");
   if (Number.isFinite(minScore) && score.overallScore < minScore) {
     const out = {
@@ -156,23 +207,29 @@ async function main() {
       reason: `Prompt scored ${score.overallScore} (<${minScore}). ${score.suggestions[0] ?? ""}`,
       hookSpecificOutput: {
         hookEventName: "UserPromptSubmit",
-        additionalContext: formatScoreFeedback(score),
+        additionalContext,
       },
     };
     process.stdout.write(JSON.stringify(out));
     process.exit(0);
   }
-  if (score.tier === "GOOD") {
-    process.exit(0); // silent
-  }
+
   const out = {
     hookSpecificOutput: {
       hookEventName: "UserPromptSubmit",
-      additionalContext: formatScoreFeedback(score),
+      additionalContext,
     },
   };
   process.stdout.write(JSON.stringify(out));
   process.exit(0);
 }
 
-main().catch(() => process.exit(0)); // never block on hook crash
+// Only run as entry point — keep importability for unit tests of the
+// exported helpers (buildPhasePosture).
+const invokedAsEntry =
+  import.meta.url === `file://${process.argv[1]}` ||
+  process.argv[1]?.endsWith("coznt-capture-prompt-hook.mjs") ||
+  process.argv[1]?.endsWith("coznt-prompt-hook");
+if (invokedAsEntry) {
+  main().catch(() => process.exit(0)); // never block on hook crash
+}

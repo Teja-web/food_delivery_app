@@ -75,8 +75,9 @@ Coznt is one feedback loop. The developer ships → webhooks become ledger rows 
          ▼
   ┌────────────────────────────────────────────┐    visible to dev
   │  PORTFOLIO / AUDIT / METRICS               │◀────────────────── back to IDE
-  │  "trust observable" — every claim links    │      autonomy upgrades unlock
-  │  to a source-of-record                     │      more skill autonomy in IDE
+  │  Trust pillar — every claim links to       │      autonomy upgrades unlock
+  │  a source-of-record. Verification debt =   │      more skill autonomy in IDE
+  │  the analytical primitive over this layer  │
   └────────────────────────────────────────────┘
 ```
 
@@ -321,13 +322,7 @@ The math: a **30-day trailing window** of `skill_outcomes` rows (`verdict ∈ {s
 - The gate flips its **GitHub check-run** on each PR's merge UI automatically.
 - The agent's next `get_my_context` reflects the lower level.
 
-If coznt is running locally and you want to watch the whole loop:
-
-```bash
-pnpm tsx scripts/demo-execution-gate.ts
-```
-
-This prints a 7-step trace: snapshot starting state → open synthetic PR → gate evaluates → record incident → recompute autonomy → demote → confirm PRs flipped to blocked. It's the single best way to see the autonomy ledger become physical.
+To see the loop yourself, point coznt at a real repo and follow A7.
 
 ## A7. Walking the full loop
 
@@ -407,7 +402,7 @@ Or in the UI, refresh the project's **Trust** tab. You should see a new row appe
 
 The ledger insert triggers `recomputeSkillAutonomyTask`. It walks the 30-day window for the affected `(skill, project)` pair and promotes / demotes. Open **Insight → Skills**, click the skill that just ran — its autonomy level for this project, the outcomes that earned it, the trailing-window math, and the choreography pushed to dev repos are all on one page.
 
-A single success rarely promotes. Burst-merge a few clean PRs to feel a promotion; introduce a deliberate revert (push a bad commit, revert it within 7 days) to feel a demotion. The `demo-execution-gate.ts` script in A6 is the fastest way to see this without touching a real repo.
+A single success rarely promotes. Burst-merge a few clean PRs to feel a promotion; introduce a deliberate revert (push a bad commit, revert it within 7 days) to feel a demotion.
 
 ### Step 8 — Cut the release, advance the phase
 
@@ -425,7 +420,7 @@ Agent calls `submit_phase_for_review`. Operator (or self, if you have the role) 
 
 ### Step 9 — Read the audit, watch the long arc
 
-Everything you just did is in **Insight → Audit log** — an append-only feed with a row-hash chain. Filter by your user or by the project. Each row links back to the entity it mutated. This is the "trust observable" claim: nothing on screen is unbacked.
+Everything you just did is in **Insight → Audit log** — an append-only feed with a row-hash chain. Filter by your user or by the project. Each row links back to the entity it mutated. This is the **Trust** pillar of coznt's operating model (Govern → Verify → Trust): the audit log is the substrate, "trust observable" is the UX thesis on top of it, and *verification debt* (Insight → Verification Debt) is the single derived score that summarizes how much unverified AI output has accumulated on each project. Drill from the score to the rows that contributed to it.
 
 For the long arc, open **Insight → DORA**. After a few cycles, you should see lead time, deploy frequency, change-fail rate, and MTTR move. DORA is how you answer "is the loop actually making us faster, or just busier?" — and the ledger underneath is how you answer "why."
 
@@ -454,7 +449,6 @@ Copy `.env.example` to `.env` and fill at minimum:
 ```bash
 pnpm install
 pnpm db:setup --reset      # schema + pgmq queues + pg_cron jobs + seeds 12 platform skills into the `default` org + creates a platform admin
-pnpm db:seed               # verifies CRUD triggers + pgmq queue are wired (does NOT seed skills — that's db:setup)
 pnpm dev                   # Next.js dev server + background worker
 ```
 
@@ -463,12 +457,10 @@ pnpm dev                   # Next.js dev server + background worker
 Then create your working organization (Better Auth is configured with `allowUserToCreateOrganization: false`, so sign-up alone won't create one):
 
 ```bash
-pnpm tsx scripts/db-onboard.ts             # interactive: prompts for org + owner + sample data
-# or, headless preset:
-pnpm tsx scripts/walkthrough-seed.ts       # bootstraps "Acme Corporation" with sample workspace
+pnpm db:onboard                            # interactive: prompts for org + owner
 ```
 
-Both paths go through `scripts/lib/bootstrap-org.ts`, which seeds the 12 platform skills into the new org automatically — so `coznt sync` returns them immediately, no manual seeding needed.
+`db:onboard` goes through `scripts/lib/bootstrap-org.ts`, which seeds the 12 platform skills into the new org automatically — so `coznt sync` returns them immediately, no manual seeding needed.
 
 If you have existing orgs predating that change (or any org that's missing platform skills), backfill with:
 
@@ -490,32 +482,24 @@ Sign in at <http://localhost:3029> with the credentials the bootstrap script pri
 
 End result: every coznt deployment self-hosts its own MCP client tarball at:
 
-- `<your-coznt-url>/install/coznt-mcp-<version>.tgz` — pinned, what the host-config panel recommends (npm caches by URL, so pinning keeps the cache hot)
+- `<your-coznt-url>/install/coznt-mcp-<version>.tgz` — pinned, what the host-config panel recommends. Tarballs are **byte-deterministic**: same source tree → identical tarball bytes → identical sha512. That makes `pnpm i -g <url>` idempotent — rebuilds at the same version don't invalidate cached integrity hashes.
 - `<your-coznt-url>/install/coznt-mcp/latest` — redirects to the deployment's current pinned version (handy for local dev, internal demos)
 
-Developers paste `npx -y <coznt>/install/coznt-mcp-<version>.tgz` into their editor's MCP config — no public npm, no internal artifact registry, no separate install script to ship. Re-running `pnpm build` after bumping the version in `package.json` re-packs the tarball and updates `version.ts` in one step; the next `coznt connect` (or a refresh of `/api-keys`) hands developers the new pinned URL.
+Developers paste `npx -y <coznt>/install/coznt-mcp-<version>.tgz` into their editor's MCP config — no public npm, no internal artifact registry, no separate install script to ship. The pack scripts (`scripts/cli-pack.ts`, `scripts/mcp-pack.ts`, `scripts/prompt-hook-pack.ts`) skip `npm pack` and use the `tar` npm package directly with `portable: true`, fixed mtime, sorted file list, and deterministic gzip — so two consecutive builds produce byte-identical tarballs.
+
+Retired tarballs are append-only: never delete a published version from `public/install/`. pnpm's global manifest may hold pinned URLs from prior installs; if those URLs 404, `pnpm i -g <new-url>` fails while reconciling the dead entries. Letting old tarballs linger costs ~20–40 KB each and avoids the reconciliation pitfall entirely.
+
+Re-running `pnpm build` after bumping the version repacks the tarball, updates `version.ts`, and the next `coznt connect` (or a refresh of `/api-keys`) hands developers the new pinned URL.
 
 For local dev where you want to iterate on MCP server code with hot reload, skip the tarball and point your own editor at `pnpm mcp` (tsx, source-based). The tarball flow is for distributing to other developers, not for your own iteration loop.
 
-## B3. Bootstrap a demo and verify the loop
+## B3. Verify the install
 
-Fastest sanity check — seed a full demo workspace and walk the gate loop end-to-end:
+After `pnpm db:setup --reset` and `pnpm db:onboard`, sign in at <http://localhost:3029>, create your first project (B6), and point a real repo at it. The audit-chain integrity smoke harness is the only standalone smoke script:
 
 ```bash
-pnpm tsx scripts/walkthrough-seed.ts        # bootstraps "Acme Corporation" with a sample workspace
-pnpm tsx scripts/demo-execution-gate.ts     # walks PR → gate → incident → demote → blocked PR
+pnpm smoke:audit-chain     # verifies BEFORE INSERT trigger + verifyAuditChain walker
 ```
-
-`walkthrough-seed.ts` creates an `Acme Corporation` org with `demo@coznt.local` / `demo123!` you can sign in as. `demo-execution-gate.ts` prints what's happening at each step — read its output before you point coznt at a real repo.
-
-Other smoke scripts you can run:
-
-| Script | Verifies |
-|---|---|
-| `smoke-milestone-a.ts` | Deterministic outcome ledger (PR/deploy assessors) |
-| `smoke-milestone-c.ts` | First AI-skill invocation path |
-| `smoke-milestone-d.ts` | Execution gate dispatch on PR webhooks |
-| `smoke-milestone-e.ts` | IDE input via MCP (verbs, phase enforcement) |
 
 ## B4. Wire up MCP locally (for your own dev iteration)
 
@@ -583,7 +567,7 @@ Submit. Behind the scenes:
 
 1. The project row is created (phase = `requirements`, status = `active`).
 2. The repo URL is parsed to `github.com/owner/repo` and an `adapter_bindings` row is written — this is what lets webhook traffic resolve back to your project. Without it, GitHub events arrive but can't be routed.
-3. All org-wide skills and rules (seeded by `pnpm db:seed`) become visible to the project automatically.
+3. All org-wide skills and rules (seeded by `pnpm db:setup`) become visible to the project automatically.
 
 You land on the project cockpit at `/projects/[id]` with nine tabs:
 

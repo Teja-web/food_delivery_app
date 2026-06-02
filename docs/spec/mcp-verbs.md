@@ -2,16 +2,16 @@
 
 *Purpose: inventory of every MCP verb coznt exposes, with per-verb implementation status.*
 
-Coznt's MCP surface, mapped against the verb inventory of the prior product at [`/Users/ram/Projects/SDLC/apps/mcp-server`](file:///Users/ram/Projects/SDLC/apps/mcp-server) (GitHub: `skothapalli/SDLC`). Started as a forward plan; now a status-of-record with the small set of verbs still outstanding.
+Coznt's MCP surface — the current registered verb inventory. Originated as a port plan against an internal prior product; now a status-of-record. The prior-product cross-reference is no longer load-bearing.
 
-Companion docs: [`../product/architecture.md`](../product/architecture.md), [`../ux/briefs/DX-mcp-context.md`](../ux/briefs/DX-mcp-context.md), [`../product/walkthrough.md`](../product/walkthrough.md).
+Companion docs: [`../product/architecture.md`](../product/architecture.md), [`../ux/briefs/DX-mcp-context.md`](../ux/briefs/DX-mcp-context.md), [`../tutorial/first-project.md`](../tutorial/first-project.md).
 
 ---
 
 ## Headline
 
-- **31 MCP verbs registered** (started at 6 before this work; `upsert_plan` + `get_plans` added in Phase 3 of the SDLC `b0709c9` absorption; `list_choreographies` + `sync_choreographies` added in the daemon-and-choreography work — Tier 4 below).
-- **All non-excluded SDLC verbs ported** (3 deferred — see "Blocked by design exclusion" below). Coznt-native additions absorb SDLC's document-management surface into the plan entity.
+- **44 MCP verbs registered** as of this revision. Tier breakdown below.
+- **Coznt-native additions** absorb the original document-management surface into the plan entity (no separate `doc_*` verbs).
 - **Phase enforcement** lives in two places: route-side authoritative (`src/lib/mcp/phase-enforcement.ts`) and MCP-side fast-fail (`src/mcp/phase-data.ts`). A drift between the two is a missed fast-fail, not a correctness bug.
 - **Drafts are in-memory only** (per-MCP-process session). No new DB table.
 

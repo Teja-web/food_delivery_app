@@ -1,94 +1,108 @@
 ---
-name: Epic Decomposer
-description: Translate a strategic theme or product brief into 2–5 candidate epics with business outcomes, rough sizing, and dependency edges
+name: epic-decomposer
+description: Decompose a strategic theme, quarter goal, or PRD intro into 2–5 candidate epics with business outcomes, rough sizing, and dependency edges. Use when: "decompose this theme", "what are the epics for X", "break down this PRD", "Q3 planning". Voice triggers (speech-to-text aliases): "break this into epics", "decompose the theme", "what are the big rocks".
 version: 1
-tags: [platform, planning, epic, requirements, sdlc]
 plan_kind: epic
+tags: [platform, planning, epic, requirements, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_plans
+  - mcp__coznt__get_requirements
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "theme", "PRD", "quarterly goal", "decompose", or "what are the epics"
+    - New strategic theme declared, no epics filed yet
+    - Existing epic backlog has aged out and a re-decomposition is overdue
+  required_verbs:
+    - get_my_context
+    - get_plans
+    - get_requirements
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Epic Decomposer
 
-Take a fuzzy upstream signal — a quarter goal, an approved PRD intro, an executive theme — and propose **2–5 candidate epics** that decompose it. Each epic is filed as a draft `epic` plan that humans then approve, edit, or kill before features are spec'd against it.
+Turn a fuzzy upstream signal into 2–5 candidate epics that a product lead can react to. Each epic is filed as a draft for human approval. The LLM decomposition runs server-side via `invoke_skill`.
 
-This is the front edge of the SDLC loop: garbage in, garbage in. The job is to produce decomposition options that a product lead can react to, not a single "correct" answer.
+## When to use
 
-## When to Use
+- A new strategic theme has been declared and nobody has broken it into ship-shaped units.
+- A PRD intro exists but hasn't been carved into epics yet.
+- The current epic backlog is stale and needs a re-cut for a new planning cycle.
 
-- A new strategic theme has been declared and the team needs to scope it.
-- A PRD intro exists but nobody has broken it into ship-shaped units yet.
-- The current epic backlog has aged out and a re-decomposition is overdue.
+## When NOT to use
 
-## Instructions
+- **No upstream signal supplied.** This skill operates on a *concrete* theme / PRD / one-liner. Do not invent one — ask the user.
+- **The signal is already an epic-sized chunk.** If the user has a single ship-shaped feature, invoke `feature-spec-generator` instead.
+- **The signal is a single user story.** Way too narrow; tell the user to author directly via `create_requirement`.
+- **You're being asked to decompose into *features*.** Wrong skill — use `feature-spec-generator` against an approved epic.
 
-### Step 1 — Gather Context
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Capture project name + phase.
+
+### 2. Sample the team's epic cadence
+Call:
+- `get_plans { kind: "epic", status: "in_progress" }`
+- `get_plans { kind: "epic", status: "completed", limit: 10 }`
+- `get_requirements { kind: "story", status: "approved" }`
+
+The completed-epic sample tells you how big "an epic" really is on this team. Approved stories hint at unmet customer pain.
+
+### 3. Confirm the upstream signal
+The user MUST supply the theme / PRD / one-liner. If they haven't, ask. Don't proceed.
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_my_context
-invoke: get_plans { kind: "epic", status: "in_progress" }
-invoke: get_plans { kind: "epic", status: "completed", limit: 10 }
-invoke: get_requirements { kind: "story", status: "approved" }
+slug: "epic-decomposer"
+input: {
+  projectId,
+  upstreamSignal: <theme / PRD text>,
+  recentEpicSizes,         // from step 2 — calibrates the unit
+  unmetStoryThemes,        // approved stories not yet covered
+  requestedCount           // optional — default 2–5
+}
 ```
+Server returns `{ candidates: [...], confidence, decompositionRationale }`.
 
-Existing epics tell you the team's shipping cadence (how big an "epic" really is here). Completed-recent epics anchor sizing. Approved stories hint at customer pain that should already be reflected somewhere.
+### 5. Route based on confidence
+- `confidence >= 0.7` → show all 2–5 candidates to user for ranking / edits.
+- `confidence < 0.7` → `submit_for_approval` with the full set.
 
-If the caller has not supplied the upstream signal (theme / PRD / one-liner), ask for it. Do not invent one.
-
-### Step 2 — Decompose
-
-Generate Markdown with **one section per candidate epic**, 2–5 total. Fewer than 2 means you've collapsed when you should have split; more than 5 means you've enumerated when you should have grouped.
-
-```markdown
-# Epic Decomposition — {Theme}
-
-**Source signal:** {one-line description of what's being decomposed}
-**Generated:** {YYYY-MM-DD}
-
-## Candidate Epic 1 — {Working Title}
-
-- **Business outcome:** {what changes for the customer / business when this lands. One sentence. No "we will build X" — what does X enable.}
-- **Rough size:** {S | M | L | XL based on similar completed epics in this project}
-- **Confidence in size:** {low | medium | high}
-- **Depends on:** {epic slugs that must complete first, or "none"}
-- **Unlocks:** {what becomes possible after this lands — features, other epics, customer commitments}
-- **Why this exists as its own epic:** {one sentence. If you can't answer this without saying "because it's part of the theme", merge it.}
-- **Open questions:** {2–4 bullets that block this from being approved as-is}
-
-## Candidate Epic N — ...
-
-...
-
-## Decomposition Rationale
-
-{One paragraph: why this cut and not an alternative. What was considered and rejected. Helps the reviewer evaluate the SHAPE of the decomposition, not just each epic individually.}
-
-## Anti-Epics
-
-{Things that look like they belong here but explicitly DO NOT. Pre-empts scope creep during review. "N/A" if none.}
+### 6. File each candidate as a draft epic
+For each candidate, call `upsert_plan`:
 ```
-
-### Step 3 — File One Plan Per Candidate
-
-Upsert each candidate as its own draft `epic` plan so they can be approved, edited, or rejected independently:
-
-```
-for each candidate:
-  invoke: upsert_plan {
-    kind: "epic",
-    slug: "epic-{kebab-of-working-title}",
-    title: "{Working Title}",
-    summary: "{Business outcome, one sentence}",
-    body: "{the candidate's section, lifted verbatim}",
-    changeNote: "Drafted by epic-decomposer from theme '{theme}'"
-  }
+upsert_plan {
+  kind: "epic",
+  slug: "epic-<theme-slug>-<candidate-slug>",
+  title: <candidate working title>,
+  body: <markdown per candidate>,
+  status: "draft",
+  changeNote: "Drafted by epic-decomposer from <theme>"
+}
 ```
 
-Also file the **decomposition rationale** as a sibling plan with kind `adr` (slug `adr-epic-decomposition-{theme}`) so the reasoning survives even if individual epics are killed.
+## Constraints
 
-## Quality Checklist
+- **2–5 candidates is the band.** Fewer = under-decomposed. More = enumerating instead of grouping. The server enforces; respect the count.
+- **One business outcome per epic, one sentence.** No "we will build X" — what changes for the customer.
+- **Never auto-approve.** Every epic ships as `draft`. The product lead picks the winners.
+- **Don't invent dependencies.** If the source signal doesn't mention prerequisites, leave `depends_on` empty.
 
-- [ ] 2–5 candidates, not 1, not 8
-- [ ] Every business outcome is customer-facing, not internal mechanics
-- [ ] Every epic has a clear "why this exists as its own epic" answer
-- [ ] Sizing is anchored to a real completed epic — not hand-waved
-- [ ] Open questions are concrete enough that answering them changes the plan
-- [ ] An anti-epics section exists (even "N/A" forces the question)
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| Server returns 1 candidate | Theme was already epic-sized | Refuse to over-split; advise the user to invoke `feature-spec-generator` instead |
+| Server returns 6+ candidates | Theme was actually multiple themes | Present all but flag the rationale section; suggest a second invocation to split |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled input |
+| `recentEpicSizes` is empty | No completed epics yet on this project | Note this in the candidate sizing; flag low confidence |

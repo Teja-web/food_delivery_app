@@ -22,6 +22,7 @@ import {
 } from "@/db/schema/plan";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { computeNextAction } from "@/lib/mcp/next-action";
 import { upsertPlanByKindAndSlug } from "@/operations/plans";
 
 const upsertBodySchema = z.object({
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
     }
 
     const result = await upsertPlanByKindAndSlug(input);
+    const nextAction = await computeNextAction(ctx.organizationId, project.id);
     return {
       plan: {
         id: result.plan.id,
@@ -77,6 +79,7 @@ export async function POST(req: Request) {
       },
       revisionNumber: result.revisionNumber,
       created: result.created,
+      nextAction,
     };
   });
 }

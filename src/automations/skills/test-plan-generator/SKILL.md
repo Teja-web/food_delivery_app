@@ -1,156 +1,117 @@
 ---
-name: Test Plan & Script Generator
-description: Generate a Test Plan with unit, integration, e2e, performance, and security test cases for approved requirements
+name: test-plan-generator
+description: Draft a Test Plan with unit, integration, e2e, performance, and security cases mapped 1:1 to every approved requirement, plus sample test scripts. Use when: "draft a test plan", "test cases for X", "coverage from requirements to tests", "test strategy". Voice triggers (speech-to-text aliases): "test plan", "draft tests", "test coverage".
 version: 1
-tags: [platform, testing, test-plan, sdlc]
 plan_kind: test_plan
+tags: [platform, testing, test-plan, sdlc]
+allowed-tools:
+  - mcp__coznt__get_my_context
+  - mcp__coznt__get_requirements
+  - mcp__coznt__invoke_skill
+  - mcp__coznt__upsert_plan
+  - mcp__coznt__submit_for_approval
+coznt:
+  version: 1.0.0
+  triggers:
+    - User mentions "test plan", "test cases", "test coverage", or "test strategy"
+    - Start of TESTING phase, before execution begins
+    - Need a coverage map from requirements to tests
+    - Input to CI/CD pipeline config (which test stages to run)
+  required_verbs:
+    - get_my_context
+    - get_requirements
+    - invoke_skill
+    - upsert_plan
+    - submit_for_approval
+  min_autonomy: propose
 ---
 
 # Test Plan & Script Generator
 
-Generate a comprehensive **Test Plan Document** for the current project. Produce test cases covering every approved requirement across all test levels, with sample scripts the dev team can run.
+Compose a `test_plan` plan that maps every approved requirement to test cases across unit / integration / e2e / performance / security tiers. LLM drafting runs server-side via `invoke_skill`.
 
-## When to Use
+## When to use
 
-- At the start of the TESTING phase, before execution begins.
-- When the team needs a complete coverage map from requirements to tests.
-- As input to the CI/CD pipeline configuration (which test stages to run).
+- Start of TESTING phase, before execution begins.
+- Team needs a complete requirement-to-test coverage map.
+- Input artifact for the CI/CD pipeline (which stages to run).
 
-## Instructions
+## When NOT to use
 
-### Step 1 — Gather Context
+- **No approved `story` or `feature` plans.** Test plan needs requirements to cover — refuse and tell user how many are approved vs draft.
+- **An existing approved `test_plan` already covers the same requirements.** Use `upsert_plan` with `changeNote: "revision"` if revising; refuse with "already exists" if not.
+- **The user wants test *execution*, not a plan.** Different shape — they want to run tests + capture results. Point them at the test runner + `test-execution-report-generator`.
 
-Call `get_my_context` to retrieve the current project details. Then fetch approved requirements and any existing test-plan-kind plans (so you can revise rather than duplicate):
+## Steps
 
+### 1. Load context
+Call `get_my_context`. Confirm phase is `testing` (or `development` if drafting ahead of advance).
+
+### 2. Gather approved requirements + existing test plans
+Call:
+- `get_requirements { kind: "story", status: "approved" }`
+- `get_requirements { kind: "feature", status: "approved" }`
+- `get_requirements { kind: "test_plan" }` — to avoid duplicating, OR to revise
+
+If combined approved (story + feature) count is 0, refuse — nothing to cover.
+
+### 3. Identify the test runner / framework
+Ask the user (or read from project description / ADRs):
+- Unit framework: vitest / jest / pytest / junit / etc.
+- E2E framework: playwright / cypress / selenium / etc.
+- Performance: k6 / jmeter / locust / etc.
+- Security: zap / snyk / semgrep / etc.
+
+Do not default silently — different frameworks produce different sample scripts.
+
+### 4. Invoke the server-side skill
+Call `invoke_skill` with:
 ```
-invoke: get_requirements { kind: "story", status: "approved" }
-invoke: get_requirements { kind: "feature", status: "approved" }
-invoke: get_requirements { kind: "test_plan" }   // existing test plans, if any
+slug: "test-plan-generator"
+input: {
+  projectId,
+  approvedStories,
+  approvedFeatures,
+  existingTestPlans,       // for revision detection
+  frameworks: {            // from step 3
+    unit, e2e, performance, security
+  }
+}
 ```
+Server returns `{ markdown, confidence, coverageMap, gaps }`. `gaps` lists requirements with no test case (a real signal — surface).
 
-### Step 2 — Generate the Test Plan Document
+### 5. Surface coverage gaps
+If `gaps.length > 0`, flag to the user: "Requirements with no test case: [...]". Patch (re-invoke with more user input) or annotate before filing.
 
-Produce a Markdown document with the following structure. Every section is mandatory; use "N/A" if information is not available.
+### 6. Route based on confidence
+- `confidence >= 0.7` and gaps acknowledged → present to user.
+- `confidence < 0.7` or gaps unresolved → `submit_for_approval`.
 
-```markdown
-# Test Plan
-
-**Project:** {Project Name}
-**Version:** 1.0
-**Date:** {YYYY-MM-DD}
-
-## 1. Scope
-
-### 1.1 In Scope
-{Bulleted list — one entry per approved requirement.}
-
-### 1.2 Out of Scope
-{Explicitly excluded items.}
-
-## 2. Test Strategy
-
-- **Levels covered:** unit, integration, e2e, performance, security
-- **Test pyramid target:** 70 / 20 / 10 (unit / integration / e2e)
-- **Frameworks:** {derived from project — Jest, Playwright, k6, OWASP ZAP, etc.}
-
-## 3. Unit Test Cases
-
-For each approved requirement that has unit-testable logic:
-
-### 3.{n} {Requirement Title}
-
-- **Source:** plan/{slug}
-- **Cases:** {one row per behavior}
-- **Sample Test Script (Unit):**
-
-\`\`\`typescript
-describe("{Module}", () => {
-  it("{behavior}", () => { ... });
-});
-\`\`\`
-
-## 4. Integration Test Cases
-
-### 4.{n} {API/Module Integration}
-
-- **Modules involved:** ...
-- **Sample Test Script (Integration):**
-
-\`\`\`typescript
-describe("{Integration}", () => {
-  it("{cross-module behavior}", async () => { ... });
-});
-\`\`\`
-
-## 5. End-to-End Test Cases
-
-### 5.{n} {User Flow Name}
-
-- **Steps:** ...
-- **Sample Test Script (E2E):**
-
-\`\`\`typescript
-test("{flow}", async ({ page }) => { ... });
-\`\`\`
-
-## 6. Performance Test Cases
-
-- **Targets:** {latency, throughput, concurrency}
-- **Sample script:** {k6 / artillery / equivalent}
-
-## 7. Security Test Cases
-
-- **OWASP Top 10 coverage:** which categories apply, which don't, why
-- **AuthN/AuthZ tests:** ...
-- **Input validation tests:** ...
-
-## 8. Test Data Requirements
-
-What fixtures, factories, or anonymized prod snapshots are needed.
-
-## 9. Defect Management
-
-- **Severity rubric:** S1/S2/S3/S4 definitions
-- **SLA:** time-to-triage, time-to-fix per severity
-
-## 10. Traceability Matrix
-
-| Req ID | Unit | Integration | E2E |
-|---|---|---|---|
-| plan/{slug} | ✓ | ✓ | ✓ |
-
-## 11. Test Schedule
-
-| Phase | Owner | Target completion |
-|---|---|---|
-
-## 12. Sign-off Criteria
-
-- All S1 and S2 defects closed
-- {coverage}% line coverage on changed lines
-- All e2e flows passing on the staging environment
-- Performance targets met or formally waived
+### 7. File the test plan
+Call `upsert_plan`:
 ```
-
-### Step 3 — File the Document
-
-Call `upsert_plan` to land the test plan:
-
-```
-invoke: upsert_plan {
+upsert_plan {
   kind: "test_plan",
-  slug: "test-plan-{project-slug}",
-  title: "Test Plan — {Project Name}",
-  summary: "Full coverage map: unit, integration, e2e, performance, security.",
-  body: "{generated markdown}",
-  changeNote: "Regenerated by test-plan-generator skill"
+  slug: "test-plan-<project-slug>-v<version>",
+  title: "Test Plan — <Project Name> v<version>",
+  body: <generated markdown with coverage table + sample scripts>,
+  changeNote: "Drafted from N approved requirements at start of TESTING"
 }
 ```
 
-## Quality Checklist
+## Constraints
 
-- [ ] Every approved requirement appears at least once in the traceability matrix
-- [ ] Each test level (unit / integration / e2e) has at least one concrete sample script
-- [ ] Performance targets are numeric, not qualitative
-- [ ] Sign-off criteria are objectively measurable
-- [ ] Security section explicitly addresses or dismisses each OWASP Top 10 category
+- **Every approved requirement gets ≥1 test case.** If not, surface as a gap — never silently drop.
+- **Coverage table is canonical.** Each row maps `requirement-slug → test-case-ids → test-tier`. No prose substitutes for the table.
+- **Sample scripts are executable scaffolds, not production tests.** Mark with `// scaffold — flesh out per actual implementation`.
+- **Don't invent acceptance criteria.** Test cases trace to existing requirement acceptance criteria; if a requirement lacks them, flag the requirement, not the tests.
+- **One skill = one decision tree.** Don't also generate the CI pipeline — `cicd-pipeline-authoring` is a separate invocation.
+
+## Failure modes
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| No approved requirements | Phase too early | Refuse; tell user how many are approved vs draft |
+| Existing approved `test_plan` for same requirements | Already filed | Confirm with user: revision or skip |
+| `gaps.length > 0` after generation | Requirements named themes that didn't decompose to testable behavior | Surface gaps; consider whether requirements need refinement first |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the coverage map |

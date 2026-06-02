@@ -200,7 +200,7 @@ export default async function SkillDetailPage({
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             This skill&apos;s autonomy isn&apos;t high enough to clear the change risk on these PRs, or a
-            recent demotion re-graded them. A human reviewer can override via /approvals.
+            recent demotion re-graded them. A human reviewer can override from the plan detail page.
           </p>
         </div>
       ) : null}
@@ -366,8 +366,8 @@ export default async function SkillDetailPage({
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 text-xs text-muted-foreground">
-                No <span className="font-mono">CHOREOGRAPHY.md</span> exists for this skill yet —
-                it&apos;s server-only. Authoring a choreography lets developers&apos; AI editors
+                No <span className="font-mono">SKILL.md</span> exists for this skill yet —
+                it&apos;s server-only. Authoring a SKILL.md lets developers&apos; AI editors
                 discover and invoke this skill natively via{" "}
                 <span className="font-mono">coznt sync</span>.
               </CardContent>
@@ -538,7 +538,7 @@ export default async function SkillDetailPage({
                   Approval history · {skillApprovals.length}
                 </CardTitle>
                 <Link
-                  href="/approvals"
+                  href="/plans?needs=approval"
                   className="font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
                 >
                   open approvals →

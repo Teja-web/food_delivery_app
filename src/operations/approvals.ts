@@ -89,9 +89,44 @@ export const approvalCrud = createEntityCrud({
 });
 
 /**
+ * Side-effect of an approval request against a plan-shaped entity (`plan` or
+ * `release`, which are stored as plans with kind=release_plan). Mirrors the
+ * transition `requestPlanApproval` performs so MCP / agent-driven approval
+ * requests don't leave the plan in `draft` while a pending row sits on
+ * `/approvals`. Only transitions `draft → in_review`; later states (already
+ * `in_review`, `approved`, etc.) are left alone.
+ */
+async function transitionPlanToInReviewOnApproval(
+  planId: string,
+  ctx: { organizationId: string; userId: string; user: { name: string } },
+): Promise<void> {
+  await db
+    .update(plans)
+    .set({
+      status: "in_review",
+      updatedAt: new Date(),
+      updatedById: ctx.userId,
+      updatedByName: ctx.user.name,
+    })
+    .where(
+      and(
+        eq(plans.id, planId),
+        eq(plans.organizationId, ctx.organizationId),
+        eq(plans.status, "draft"),
+      ),
+    );
+  safeRevalidate(`/plans/${planId}`);
+}
+
+/**
  * Preferred create path — resolves projectId from the target entity before
- * inserting, so portfolio rollup counts are accurate. `approvalCrud.create`
- * still works for callers that already know the projectId.
+ * inserting, so portfolio rollup counts are accurate. For `plan`/`release`
+ * targets it also transitions the plan from `draft → in_review`, matching
+ * `requestPlanApproval` so the user-facing button and the MCP endpoint
+ * leave the system in the same state.
+ *
+ * `approvalCrud.create` still works for callers that already know the
+ * projectId AND don't need the plan-status transition.
  */
 export async function createApprovalWithProjectResolution(
   input: z.input<typeof approvalSchema>,
@@ -100,7 +135,12 @@ export async function createApprovalWithProjectResolution(
     input.projectId !== undefined
       ? input.projectId
       : await resolveProjectIdForApproval(input.entityType, input.entityId);
-  return approvalCrud.create({ ...input, projectId });
+  const approval = await approvalCrud.create({ ...input, projectId });
+  if (input.entityType === "plan" || input.entityType === "release") {
+    const ctx = await getActionContext();
+    await transitionPlanToInReviewOnApproval(input.entityId, ctx);
+  }
+  return approval;
 }
 
 export async function listApprovalsForEntity(entityType: ApprovalEntityType, entityId: string) {
@@ -278,7 +318,7 @@ export async function canAutoApprove(input: {
   return false;
 }
 
-/** Request an approval for a plan. Sets the plan's status to in_review. */
+/** Request an approval for a plan. Moves the plan from `draft → in_review`. */
 export async function requestPlanApproval(planId: string, note?: string) {
   const ctx = await getActionContext();
   const approval = await approvalCrud.create({
@@ -288,10 +328,6 @@ export async function requestPlanApproval(planId: string, note?: string) {
     requestedByName: ctx.user.name,
     requesterNote: note,
   });
-  await db
-    .update(plans)
-    .set({ status: "in_review", updatedAt: new Date(), updatedById: ctx.userId, updatedByName: ctx.user.name })
-    .where(and(eq(plans.id, planId), eq(plans.organizationId, ctx.organizationId)));
-  safeRevalidate(`/plans/${planId}`);
+  await transitionPlanToInReviewOnApproval(planId, ctx);
   return approval;
 }

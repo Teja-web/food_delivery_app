@@ -92,7 +92,7 @@ The CLI (`add-coznt-sync-cli`) and bootstrap (`add-coznt-connect-cli`) ship afte
 
 If the LLM call ran locally (the SDLC-platform pattern), the autonomy ledger could only be reactive — recording what already happened. With the daemon as the single execution chokepoint, the gate is *preventive*: a skill operating below its required autonomy on a given project is denied before the LLM is ever invoked, and the call routes into the approval inbox instead. Trust is graded per project from evidence, not granted at install.
 
-See [`docs/positioning.md`](../positioning.md#the-architecture-daemon--choreography) for the full architectural framing.
+See [`docs/product/architecture.md`](../product/architecture.md) for the full architectural framing — the daemon as execution chokepoint, the choreography distribution model, and how this implements the Govern pillar of the operating model.
 
 ## See it work
 

@@ -1,6 +1,6 @@
 # H2 Brief — `/projects/[id]` Cockpit
 
-**References:** `docs/ux/DESIGN.md`, `docs/ux/sample-data.md`, `docs/ux/moments.md` (Moment 2), `docs/ux/personas.md` (Sam).
+**References:** `docs/ux/DESIGN.md`, `docs/ux/moments.md` (Moment 2), `docs/ux/personas.md` (Sam).
 
 ## Anchor (read this first)
 

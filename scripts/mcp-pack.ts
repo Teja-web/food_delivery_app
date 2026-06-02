@@ -19,8 +19,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { deterministicPack } from "./lib/deterministic-pack";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const rootPkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
@@ -75,14 +76,12 @@ const stagePkg = {
 };
 writeFileSync(join(stageDir, "package.json"), JSON.stringify(stagePkg, null, 2) + "\n");
 
-console.log("[mcp:pack] running npm pack…");
-run("npm", ["pack", "--silent"], stageDir);
-
 const tarballName = `coznt-mcp-${version}.tgz`;
-mkdirSync(publicInstallDir, { recursive: true });
-const tarballSrc = join(stageDir, tarballName);
 const tarballDst = join(publicInstallDir, tarballName);
-renameSync(tarballSrc, tarballDst);
+mkdirSync(publicInstallDir, { recursive: true });
+
+console.log("[mcp:pack] writing deterministic tarball…");
+await deterministicPack({ stageDir, tarballPath: tarballDst });
 console.log(`[mcp:pack] → ${tarballDst}`);
 
 // Refresh the in-product version constant so HostConfigPanel emits the URL

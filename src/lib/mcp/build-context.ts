@@ -11,6 +11,8 @@ import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/ski
 
 import { getAllowedTools } from "./phase-enforcement";
 import type { McpResponse } from "./schemas";
+import { resolveRecommendedKickoff } from "./recommended-kickoff";
+import { gatherProjectArtifacts } from "./project-artifacts";
 
 function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3029";
@@ -79,14 +81,9 @@ async function resolveProject(
   throw new McpProjectNotFoundError();
 }
 
-const PHASE_LABEL: Record<string, string> = {
-  requirements: "REQUIREMENTS",
-  design: "DESIGN",
-  development: "DEVELOPMENT",
-  testing: "TESTING",
-  cicd: "CICD",
-  monitoring: "MONITORING",
-};
+// Phase is returned to MCP consumers as the schema enum value (lowercase,
+// matches PROJECT_PHASES in db/schema/project.ts). Display formatting is
+// the consumer's job — never overload the canonical identifier.
 
 export async function buildMcpContext(args: {
   organizationId: string;
@@ -153,7 +150,7 @@ export async function buildMcpContext(args: {
       id: project.id,
       name: project.name,
       slug: project.slug,
-      phase: PHASE_LABEL[project.phase] ?? project.phase.toUpperCase(),
+      phase: project.phase,
       url: appUrl(`/projects/${project.id}`),
     },
     workItem: args.workItemKey
@@ -170,6 +167,14 @@ export async function buildMcpContext(args: {
       forbidden: guidance.forbidden,
       nextCondition: guidance.nextCondition,
     },
+    recommendedKickoff: await resolveRecommendedKickoff(
+      project.organizationId,
+      project,
+    ),
+    projectArtifacts: await gatherProjectArtifacts(
+      project.organizationId,
+      project.id,
+    ),
     allowedTools: getAllowedTools(project.phase),
     rules: activeRules.map((r) => ({
       id: r.id,
