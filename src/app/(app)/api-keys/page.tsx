@@ -1,32 +1,46 @@
 import type { Project } from "@/db/schema/project";
-import { listApiKeysAction } from "@/actions/integration/api-keys";
+import { listApiKeysWithContextAction } from "@/actions/integration/api-keys";
 import { listProjects } from "@/actions/project/projects";
-import { ApiKeysClient } from "./ApiKeysClient";
-import { serializeApiKey, type ProjectOption } from "./serialize";
+
+import { ApiKeysAuditClient } from "./ApiKeysAuditClient";
+import {
+  computeKpis,
+  groupByProject,
+  serializeApiKey,
+  type ProjectOption,
+} from "./serialize";
 
 export default async function ApiKeysPage() {
   const [keys, projectsList] = await Promise.all([
-    listApiKeysAction(),
-    listProjects({ limit: 200 }),
+    listApiKeysWithContextAction(),
+    listProjects({ limit: 500 }),
   ]);
+  const rows = keys.map(serializeApiKey);
+  const kpis = computeKpis(rows);
+  const groups = groupByProject(rows);
   const projects: ProjectOption[] = projectsList.items.map((p: Project) => ({
     id: p.id,
     name: p.name,
     slug: p.slug,
   }));
-  const projectsById = new Map(projects.map((p) => [p.id, p] as const));
-  const rows = keys.map((k) => serializeApiKey(k, projectsById));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <header className="space-y-1">
         <h1 className="text-2xl font-semibold">API keys</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Bearer tokens for the <code>/api/v1</code> agent surface. Every key is bound to one project — the
-          IDE session auto-binds from the key at handshake. The plaintext is shown once on creation.
+        <p className="text-sm text-muted-foreground">
+          Org-wide audit of bearer tokens for the <code>/api/v1</code> agent surface. Every key
+          is bound to a single project. Primary key management lives in each project&apos;s
+          settings tab; this view is for audit and admin-side rotation.
         </p>
-      </div>
-      <ApiKeysClient initialKeys={rows} projects={projects} />
+      </header>
+
+      <ApiKeysAuditClient
+        kpis={kpis}
+        groups={groups}
+        rows={rows}
+        projects={projects}
+      />
     </div>
   );
 }

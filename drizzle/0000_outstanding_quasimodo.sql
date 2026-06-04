@@ -95,30 +95,6 @@ CREATE TABLE "auth"."verification" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "coznt"."departments" (
-	"id" text PRIMARY KEY NOT NULL,
-	"organization_id" text NOT NULL,
-	"name" text NOT NULL,
-	"description" text,
-	"lead_user_id" text,
-	"lead_name" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "departments_org_name_unique" UNIQUE("organization_id","name")
-);
---> statement-breakpoint
-CREATE TABLE "coznt"."org_identities" (
-	"id" text PRIMARY KEY NOT NULL,
-	"organization_id" text NOT NULL,
-	"raw_text" text,
-	"uploaded_documents" jsonb,
-	"extracted_identity" jsonb,
-	"extracted_at" timestamp,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "org_identities_org_unique" UNIQUE("organization_id")
-);
---> statement-breakpoint
 CREATE TABLE "coznt"."documents" (
 	"id" text PRIMARY KEY NOT NULL,
 	"table_name" text NOT NULL,
@@ -129,7 +105,7 @@ CREATE TABLE "coznt"."documents" (
 	"metadata" jsonb,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "recruit_documents_table_record_uniq" UNIQUE("table_name","record_id")
+	CONSTRAINT "coznt_documents_table_record_uniq" UNIQUE("table_name","record_id")
 );
 --> statement-breakpoint
 CREATE TABLE "coznt"."integration_credentials" (
@@ -187,20 +163,6 @@ CREATE TABLE "coznt"."automation_logs" (
 	"completed_at" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE "coznt"."entity_notes" (
-	"id" text PRIMARY KEY NOT NULL,
-	"organization_id" text NOT NULL,
-	"entity_type" text NOT NULL,
-	"entity_id" text NOT NULL,
-	"body" text NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	"created_by_id" text,
-	"created_by_name" text,
-	"updated_by_id" text,
-	"updated_by_name" text
-);
---> statement-breakpoint
 CREATE TABLE "coznt"."rate_limits" (
 	"key" text PRIMARY KEY NOT NULL,
 	"count" integer DEFAULT 0 NOT NULL,
@@ -221,6 +183,7 @@ CREATE TABLE "coznt"."projects" (
 	"confluence_space_key" text,
 	"critical_paths" text[] DEFAULT ARRAY[]::text[] NOT NULL,
 	"production_critical_paths" text[] DEFAULT ARRAY[]::text[] NOT NULL,
+	"require_human_approval_for_merge" boolean DEFAULT false NOT NULL,
 	"created_by_id" text,
 	"created_by_name" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -233,7 +196,7 @@ CREATE TABLE "coznt"."plans" (
 	"organization_id" text NOT NULL,
 	"project_id" text NOT NULL,
 	"kind" text NOT NULL,
-	"slug" text,
+	"slug" text NOT NULL,
 	"parent_plan_id" text,
 	"title" text NOT NULL,
 	"summary" text,
@@ -252,6 +215,12 @@ CREATE TABLE "coznt"."plans" (
 	"created_by_name" text,
 	"updated_by_id" text,
 	"updated_by_name" text,
+	"ai_authored" boolean DEFAULT false NOT NULL,
+	"generated_by_model" text,
+	"generated_by_skill_id" text,
+	"autonomy_at_generation" integer,
+	"prompt_hash" text,
+	"generated_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -307,14 +276,15 @@ CREATE TABLE "coznt"."skills" (
 CREATE TABLE "coznt"."skill_outcomes" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
-	"skill_id" text NOT NULL,
+	"skill_id" text,
 	"project_id" text,
 	"invocation_id" text,
-	"verdict" text NOT NULL,
+	"verdict" text,
 	"severity" text,
 	"source_kind" text,
 	"source_ref" text,
 	"rationale" text,
+	"prompt_log_id" text,
 	"recorded_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -329,6 +299,19 @@ CREATE TABLE "coznt"."skill_autonomy" (
 	"next_review_at" timestamp,
 	"last_reason" text,
 	CONSTRAINT "skill_autonomy_skill_project_unique" UNIQUE NULLS NOT DISTINCT("skill_id","project_id")
+);
+--> statement-breakpoint
+CREATE TABLE "coznt"."skill_autonomy_events" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"skill_id" text NOT NULL,
+	"project_id" text,
+	"direction" text NOT NULL,
+	"from_level" integer NOT NULL,
+	"to_level" integer NOT NULL,
+	"reason" text NOT NULL,
+	"triggering_outcome_ids" text[] DEFAULT '{}' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "coznt"."approvals" (
@@ -379,6 +362,12 @@ CREATE TABLE "coznt"."work_items" (
 	"assignee_email" text,
 	"raw" jsonb,
 	"last_synced_at" timestamp,
+	"ai_authored" boolean DEFAULT false NOT NULL,
+	"generated_by_model" text,
+	"generated_by_skill_id" text,
+	"autonomy_at_generation" integer,
+	"prompt_hash" text,
+	"generated_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "work_items_source_external_unique" UNIQUE("source","external_id")
@@ -463,10 +452,11 @@ CREATE TABLE "coznt"."events" (
 CREATE TABLE "coznt"."api_keys" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
-	"project_id" text,
+	"project_id" text NOT NULL,
 	"name" text NOT NULL,
 	"prefix" text NOT NULL,
 	"key_hash" text NOT NULL,
+	"role" text DEFAULT 'member' NOT NULL,
 	"created_by_id" text,
 	"last_used_at" timestamp,
 	"expires_at" timestamp,
@@ -493,6 +483,11 @@ CREATE TABLE "coznt"."phase_gates" (
 	"assignee_name" text,
 	"last_changed_at" timestamp,
 	"last_green_at" timestamp,
+	"overridden_at" timestamp,
+	"overridden_by_id" text,
+	"override_reason" text,
+	"override_authorizing_plan_id" text,
+	"override_autonomy_at_time" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "phase_gates_project_phase_name_unique" UNIQUE("project_id","phase","name")
@@ -625,6 +620,27 @@ CREATE TABLE "coznt"."custom_choreographies" (
 	"updated_by_name" text
 );
 --> statement-breakpoint
+CREATE TABLE "coznt"."prompt_logs" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"project_id" text,
+	"mcp_session_id" text,
+	"role" text DEFAULT 'USER' NOT NULL,
+	"source" text DEFAULT 'OTHER' NOT NULL,
+	"content" text NOT NULL,
+	"phase" text,
+	"author_name" text,
+	"author_username" text,
+	"author_email" text,
+	"client_local_id" text,
+	"prompt_score" integer,
+	"prompt_tier" text,
+	"prompt_score_detail" jsonb,
+	"rubric_version" text,
+	"scored_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "auth"."account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth"."invitation" ADD CONSTRAINT "invitation_organizationId_organization_id_fk" FOREIGN KEY ("organizationId") REFERENCES "auth"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth"."invitation" ADD CONSTRAINT "invitation_inviterId_user_id_fk" FOREIGN KEY ("inviterId") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -632,6 +648,7 @@ ALTER TABLE "auth"."member" ADD CONSTRAINT "member_organization_id_organization_
 ALTER TABLE "auth"."member" ADD CONSTRAINT "member_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth"."session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."plans" ADD CONSTRAINT "plans_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "coznt"."plans" ADD CONSTRAINT "plans_generated_by_skill_id_skills_id_fk" FOREIGN KEY ("generated_by_skill_id") REFERENCES "coznt"."skills"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."plan_revisions" ADD CONSTRAINT "plan_revisions_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "coznt"."plans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."rules" ADD CONSTRAINT "rules_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."skills" ADD CONSTRAINT "skills_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -639,13 +656,17 @@ ALTER TABLE "coznt"."skill_outcomes" ADD CONSTRAINT "skill_outcomes_skill_id_ski
 ALTER TABLE "coznt"."skill_outcomes" ADD CONSTRAINT "skill_outcomes_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."skill_autonomy" ADD CONSTRAINT "skill_autonomy_skill_id_skills_id_fk" FOREIGN KEY ("skill_id") REFERENCES "coznt"."skills"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."skill_autonomy" ADD CONSTRAINT "skill_autonomy_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "coznt"."skill_autonomy_events" ADD CONSTRAINT "skill_autonomy_events_skill_id_skills_id_fk" FOREIGN KEY ("skill_id") REFERENCES "coznt"."skills"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "coznt"."skill_autonomy_events" ADD CONSTRAINT "skill_autonomy_events_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."approvals" ADD CONSTRAINT "approvals_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."comments" ADD CONSTRAINT "comments_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "coznt"."plans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."work_items" ADD CONSTRAINT "work_items_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."work_items" ADD CONSTRAINT "work_items_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "coznt"."plans"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "coznt"."work_items" ADD CONSTRAINT "work_items_generated_by_skill_id_skills_id_fk" FOREIGN KEY ("generated_by_skill_id") REFERENCES "coznt"."skills"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."intelligence" ADD CONSTRAINT "intelligence_last_run_id_automation_logs_id_fk" FOREIGN KEY ("last_run_id") REFERENCES "coznt"."automation_logs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."api_keys" ADD CONSTRAINT "api_keys_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."phase_gates" ADD CONSTRAINT "phase_gates_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "coznt"."phase_gates" ADD CONSTRAINT "phase_gates_override_authorizing_plan_id_plans_id_fk" FOREIGN KEY ("override_authorizing_plan_id") REFERENCES "coznt"."plans"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."metrics" ADD CONSTRAINT "metrics_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."deployments" ADD CONSTRAINT "deployments_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."deployments" ADD CONSTRAINT "deployments_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "coznt"."plans"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -657,11 +678,10 @@ ALTER TABLE "coznt"."gate_evaluations" ADD CONSTRAINT "gate_evaluations_skill_id
 ALTER TABLE "coznt"."project_learnings" ADD CONSTRAINT "project_learnings_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."repo_policies" ADD CONSTRAINT "repo_policies_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "coznt"."custom_choreographies" ADD CONSTRAINT "custom_choreographies_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "departments_org_idx" ON "coznt"."departments" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "departments_fts_idx" ON "coznt"."departments" USING gin (coznt.fts_vector("name", "description"));--> statement-breakpoint
-CREATE INDEX "recruit_documents_org_idx" ON "coznt"."documents" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "recruit_documents_table_idx" ON "coznt"."documents" USING btree ("table_name");--> statement-breakpoint
-CREATE INDEX "recruit_documents_embedding_idx" ON "coznt"."documents" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
+ALTER TABLE "coznt"."prompt_logs" ADD CONSTRAINT "prompt_logs_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "coznt"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "coznt_documents_org_idx" ON "coznt"."documents" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "coznt_documents_table_idx" ON "coznt"."documents" USING btree ("table_name");--> statement-breakpoint
+CREATE INDEX "coznt_documents_embedding_idx" ON "coznt"."documents" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
 CREATE INDEX "integration_credentials_org_idx" ON "coznt"."integration_credentials" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "oauth_connections_organization_id_idx" ON "coznt"."oauth_connections" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "oauth_connections_user_id_idx" ON "coznt"."oauth_connections" USING btree ("user_id");--> statement-breakpoint
@@ -672,15 +692,14 @@ CREATE INDEX "automation_logs_task_entity_status_idx" ON "coznt"."automation_log
 CREATE INDEX "automation_logs_entity_activity_idx" ON "coznt"."automation_logs" USING btree ("entity_type","entity_id","created_at");--> statement-breakpoint
 CREATE INDEX "automation_logs_output_ref_idx" ON "coznt"."automation_logs" USING btree ("output_table","output_id");--> statement-breakpoint
 CREATE INDEX "automation_logs_trace_idx" ON "coznt"."automation_logs" USING btree ("trace_id");--> statement-breakpoint
-CREATE INDEX "recruit_entity_notes_entity_idx" ON "coznt"."entity_notes" USING btree ("entity_type","entity_id","created_at");--> statement-breakpoint
-CREATE INDEX "recruit_entity_notes_org_idx" ON "coznt"."entity_notes" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "recruit_rate_limits_window_idx" ON "coznt"."rate_limits" USING btree ("window_start");--> statement-breakpoint
+CREATE INDEX "coznt_rate_limits_window_idx" ON "coznt"."rate_limits" USING btree ("window_start");--> statement-breakpoint
 CREATE INDEX "projects_org_idx" ON "coznt"."projects" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "projects_fts_idx" ON "coznt"."projects" USING gin (coznt.fts_vector("name", "description"));--> statement-breakpoint
 CREATE INDEX "plans_org_idx" ON "coznt"."plans" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "plans_project_idx" ON "coznt"."plans" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "plans_parent_idx" ON "coznt"."plans" USING btree ("parent_plan_id");--> statement-breakpoint
 CREATE INDEX "plans_kind_status_idx" ON "coznt"."plans" USING btree ("kind","status");--> statement-breakpoint
+CREATE INDEX "plans_generated_by_skill_idx" ON "coznt"."plans" USING btree ("generated_by_skill_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "plans_project_kind_slug_idx" ON "coznt"."plans" USING btree ("project_id","kind","slug");--> statement-breakpoint
 CREATE INDEX "plans_fts_idx" ON "coznt"."plans" USING gin (coznt.fts_vector("title", "summary", "body"));--> statement-breakpoint
 CREATE INDEX "plan_revisions_plan_idx" ON "coznt"."plan_revisions" USING btree ("plan_id","revision_number");--> statement-breakpoint
@@ -694,9 +713,13 @@ CREATE INDEX "skills_fts_idx" ON "coznt"."skills" USING gin (coznt.fts_vector("n
 CREATE INDEX "skill_outcomes_skill_time_idx" ON "coznt"."skill_outcomes" USING btree ("skill_id","recorded_at");--> statement-breakpoint
 CREATE INDEX "skill_outcomes_org_time_idx" ON "coznt"."skill_outcomes" USING btree ("organization_id","recorded_at");--> statement-breakpoint
 CREATE INDEX "skill_outcomes_project_skill_time_idx" ON "coznt"."skill_outcomes" USING btree ("project_id","skill_id","recorded_at");--> statement-breakpoint
+CREATE INDEX "skill_outcomes_project_kind_time_idx" ON "coznt"."skill_outcomes" USING btree ("project_id","source_kind","recorded_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "skill_outcomes_source_unique_idx" ON "coznt"."skill_outcomes" USING btree ("skill_id","source_kind","source_ref") WHERE "coznt"."skill_outcomes"."source_ref" is not null;--> statement-breakpoint
 CREATE INDEX "skill_autonomy_skill_idx" ON "coznt"."skill_autonomy" USING btree ("skill_id");--> statement-breakpoint
 CREATE INDEX "skill_autonomy_project_idx" ON "coznt"."skill_autonomy" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "skill_autonomy_events_skill_time_idx" ON "coznt"."skill_autonomy_events" USING btree ("skill_id","created_at");--> statement-breakpoint
+CREATE INDEX "skill_autonomy_events_project_time_idx" ON "coznt"."skill_autonomy_events" USING btree ("project_id","created_at");--> statement-breakpoint
+CREATE INDEX "skill_autonomy_events_org_time_idx" ON "coznt"."skill_autonomy_events" USING btree ("organization_id","created_at");--> statement-breakpoint
 CREATE INDEX "approvals_entity_idx" ON "coznt"."approvals" USING btree ("entity_type","entity_id","status");--> statement-breakpoint
 CREATE INDEX "approvals_org_idx" ON "coznt"."approvals" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "approvals_project_status_idx" ON "coznt"."approvals" USING btree ("project_id","status");--> statement-breakpoint
@@ -706,6 +729,7 @@ CREATE INDEX "comments_fts_idx" ON "coznt"."comments" USING gin (coznt.fts_vecto
 CREATE INDEX "work_items_org_idx" ON "coznt"."work_items" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "work_items_project_idx" ON "coznt"."work_items" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "work_items_plan_idx" ON "coznt"."work_items" USING btree ("plan_id");--> statement-breakpoint
+CREATE INDEX "work_items_generated_by_skill_idx" ON "coznt"."work_items" USING btree ("generated_by_skill_id");--> statement-breakpoint
 CREATE INDEX "work_items_fts_idx" ON "coznt"."work_items" USING gin (coznt.fts_vector("title", "description"));--> statement-breakpoint
 CREATE INDEX "webhook_events_unprocessed_idx" ON "coznt"."webhook_events" USING btree ("source","processed_at");--> statement-breakpoint
 CREATE INDEX "audit_logs_entity_idx" ON "coznt"."audit_logs" USING btree ("entity_type","entity_id","created_at");--> statement-breakpoint
@@ -739,4 +763,9 @@ CREATE UNIQUE INDEX "repo_policies_org_remote_uniq" ON "coznt"."repo_policies" U
 CREATE INDEX "repo_policies_org_idx" ON "coznt"."repo_policies" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "custom_choreographies_org_slug_uniq" ON "coznt"."custom_choreographies" USING btree ("organization_id","slug");--> statement-breakpoint
 CREATE INDEX "custom_choreographies_project_idx" ON "coznt"."custom_choreographies" USING btree ("project_id");--> statement-breakpoint
-CREATE INDEX "custom_choreographies_org_idx" ON "coznt"."custom_choreographies" USING btree ("organization_id");
+CREATE INDEX "custom_choreographies_org_idx" ON "coznt"."custom_choreographies" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "prompt_logs_project_time_idx" ON "coznt"."prompt_logs" USING btree ("project_id","created_at");--> statement-breakpoint
+CREATE INDEX "prompt_logs_project_tier_idx" ON "coznt"."prompt_logs" USING btree ("project_id","prompt_tier");--> statement-breakpoint
+CREATE INDEX "prompt_logs_session_idx" ON "coznt"."prompt_logs" USING btree ("mcp_session_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "prompt_logs_client_local_unique" ON "coznt"."prompt_logs" USING btree ("project_id","client_local_id") WHERE "coznt"."prompt_logs"."client_local_id" is not null;--> statement-breakpoint
+CREATE INDEX "prompt_logs_fts_idx" ON "coznt"."prompt_logs" USING gin (coznt.fts_vector("content"));

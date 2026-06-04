@@ -18,9 +18,9 @@ function approvalDecisionHref(a: Approval): string {
     case "release":
       return `/plans/${a.entityId}`;
     case "phase_gate":
-      return a.projectId ? `/projects/${a.projectId}#phases` : "/projects";
+      return a.projectId ? `/projects/${a.projectId}/phases` : "/projects";
     case "work_item":
-      return a.projectId ? `/projects/${a.projectId}#workitems` : "/projects";
+      return a.projectId ? `/projects/${a.projectId}/work-items` : "/projects";
     case "skill_invocation":
       return "/skills";
     default:

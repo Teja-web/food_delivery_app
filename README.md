@@ -45,6 +45,38 @@ pnpm db:migrate        # Apply committed migrations (prod path)
 
 Versioned at `/api/v1/*`: `projects`, `plans`, `deployments`, `metrics`, `rules`, `skills/[slug]/invoke`, `test-runs`, `work-items`, `webhooks/[source]`, `context`. SSE event stream at `/api/events/stream`.
 
+## Process model
+
+Three product binaries, all symmetric under `src/`:
+
+| Binary | Entry point | Start command |
+|---|---|---|
+| Next.js web | `src/app/` | `pnpm dev` / `pnpm start:server` |
+| pgmq worker daemon | `src/worker.ts` | `pnpm dev:worker` / `pnpm start:worker` |
+| MCP server | `src/mcp/bin.ts` | `pnpm mcp` |
+| CLI | `src/cli/cli.ts` | `pnpm cli` |
+
+`pnpm dev` and `pnpm start` run web + worker together via `concurrently`.
+
+## CLI
+
+The `coznt` CLI ships as a self-contained tarball produced by `pnpm cli:pack` (or rolled up with `pnpm prebuild`). Install from your local dev server:
+
+```bash
+pnpm i -g http://localhost:3029/install/coznt-cli-0.1.0.tgz
+coznt --help
+```
+
+To reset to a fresh build (after `pnpm prebuild` produces a new tarball at the same version):
+
+```bash
+pnpm rm -g coznt-cli
+pnpm store prune
+pnpm i -g http://localhost:3029/install/coznt-cli-0.1.0.tgz
+```
+
+The same install URL pattern works for the MCP server (`coznt-mcp-0.1.0.tgz`) and the prompt hook (`coznt-prompt-hook-0.1.0.tgz`) — both also produced by `pnpm prebuild`.
+
 ## Architecture
 
-See [CLAUDE.md](./CLAUDE.md) for patterns, conventions, and detailed architecture docs.
+See [CLAUDE.md](./CLAUDE.md) for patterns and conventions. For the file-organization layout (layer-first top level, domain-family subfolders), see [docs/dev/file-organization-strategy.md](./docs/dev/file-organization-strategy.md).

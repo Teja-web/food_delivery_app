@@ -7,13 +7,7 @@ import type { Plan } from "@/db/schema/plan/plan";
 import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
 import type { Skill } from "@/db/schema/skill/skill";
-import type { ProjectLearning } from "@/db/schema/plan/project-learning";
 import type { WorkItem, WorkItemKind, WorkItemSource } from "@/db/schema/work-item";
-import type { PhaseGuidance } from "@/domain/phases";
-import type {
-  PolicyMatrixCell,
-  ProjectOutcomeRow,
-} from "@/operations/project/project-trust";
 
 export interface CockpitProjectClient {
   id: string;
@@ -121,57 +115,6 @@ export interface CockpitGatesByPhase {
   phase: ProjectPhase;
   label: string;
   gates: CockpitGateClient[];
-}
-
-export interface CockpitClient {
-  project: CockpitProjectClient;
-  nextPhase: ProjectPhase | null;
-  canAdvance: boolean;
-  blockedReason: string | null;
-  guidance: PhaseGuidance;
-  gates: CockpitGateClient[];
-  gatesAllPassed: boolean;
-  /** Gates grouped by phase — used by the Phases tab timeline. */
-  gatesByPhase: CockpitGatesByPhase[];
-  bindings: CockpitBindingClient[];
-  plans: CockpitPlanClient[];
-  workItems: CockpitWorkItemClient[];
-  deployments: CockpitDeploymentClient[];
-  rules: CockpitRuleClient[];
-  skills: CockpitSkillClient[];
-  apiKey: {
-    prefix: string;
-    /** Only present when newly minted in this request. */
-    plaintext: string | null;
-    isNew: boolean;
-  };
-  /**
-   * Per-project trust surface — recent skill outcomes + active autonomy
-   * policy matrix + project learnings. Closes UI-audit P1.5 + P1.7 and
-   * the gstack-knowledge gap-1.
-   */
-  trust: {
-    outcomes: ProjectOutcomeRow[];
-    policy: PolicyMatrixCell[];
-    learnings: ProjectLearning[];
-    /** Whether the deployment exposes the agent-loop governance surface. */
-    promptGovernanceEnabled: boolean;
-    /** Prompt-quality summary when enabled; null otherwise. */
-    promptQuality: {
-      attenuationFactor: number;
-      distribution: { good: number; needsImprovement: number; poor: number; total: number };
-      recent: Array<{
-        id: string;
-        role: "USER" | "ASSISTANT" | "SYSTEM";
-        source: string;
-        content: string;
-        promptScore: number | null;
-        promptTier: "GOOD" | "NEEDS_IMPROVEMENT" | "POOR" | null;
-        authorName: string | null;
-        createdAt: string;
-      }>;
-    } | null;
-  };
 }
 
 function formatAge(date: Date | null | undefined): string | null {

@@ -11,9 +11,9 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { phaseGates } from "@/db/schema/phase-gate";
-import { projects } from "@/db/schema/project";
 import { canAdvanceFrom, nextPhase } from "@/domain/phases";
 import { handleApi } from "@/lib/auth/api-key";
+import { requireProjectScope } from "@/lib/auth/scope";
 import { PHASES, type Phase } from "@/mcp/phase-tool-map";
 
 export async function GET(
@@ -22,19 +22,7 @@ export async function GET(
 ) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     // C4: optional `?phase=` overrides project's current phase. Useful for
     // portfolio / /me UI that wants to see gates for an upcoming phase.

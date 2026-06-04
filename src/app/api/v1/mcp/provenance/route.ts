@@ -17,6 +17,7 @@ import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan/plan";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError } from "@/lib/auth/scope";
 import { summarizeProvenance } from "@/domain/provenance/summarize";
 
 export async function GET(req: Request) {
@@ -34,11 +35,7 @@ export async function GET(req: Request) {
       ctx.projectId &&
       requestedProjectId !== ctx.projectId
     ) {
-      const err = new Error("API key scoped to a different project.") as Error & {
-        status?: number;
-      };
-      err.status = 403;
-      throw err;
+      throw httpError(403, "API key scoped to a different project.");
     }
 
     const [planRows, workItemRows] = await Promise.all([

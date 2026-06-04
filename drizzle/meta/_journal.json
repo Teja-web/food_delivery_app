@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1779432514790,
-      "tag": "0000_cloudy_stature",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1779436488555,
-      "tag": "0001_daily_the_anarchist",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1779633098207,
-      "tag": "0002_clumsy_sunspot",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1779952248573,
-      "tag": "0003_square_firebird",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1779953055427,
-      "tag": "0004_striped_proudstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1780199988910,
-      "tag": "0005_overjoyed_harry_osborn",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1780366761785,
-      "tag": "0006_nappy_randall",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1780400554571,
-      "tag": "0007_typical_lord_tyger",
+      "when": 1780548834944,
+      "tag": "0000_outstanding_quasimodo",
       "breakpoints": true
     }
   ]

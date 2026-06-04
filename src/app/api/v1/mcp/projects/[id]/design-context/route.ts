@@ -12,9 +12,9 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { plans } from "@/db/schema/plan/plan";
-import { projects } from "@/db/schema/project";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
+import { requireProjectScope } from "@/lib/auth/scope";
 
 const ACTIVE_PLAN_STATUSES = ["in_review", "approved", "in_progress"] as const;
 
@@ -24,25 +24,12 @@ export async function GET(
 ) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true, organizationId: true, name: true, phase: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     const [adrs, activeFeatures, openWorkItems] = await Promise.all([
       db.query.plans.findMany({
         where: and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           eq(plans.kind, "adr"),
         ),
@@ -59,7 +46,7 @@ export async function GET(
       }),
       db.query.plans.findMany({
         where: and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           inArray(plans.kind, ["feature", "story"]),
           inArray(plans.status, [...ACTIVE_PLAN_STATUSES]),
@@ -79,7 +66,7 @@ export async function GET(
       }),
       db.query.workItems.findMany({
         where: and(
-          eq(workItems.organizationId, project.organizationId),
+          eq(workItems.organizationId, ctx.organizationId),
           eq(workItems.projectId, project.id),
         ),
         orderBy: [desc(workItems.updatedAt)],

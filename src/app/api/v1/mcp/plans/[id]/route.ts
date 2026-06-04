@@ -10,6 +10,7 @@ import { plans } from "@/db/schema/plan/plan";
 import { planRevisions } from "@/db/schema/plan/plan-revision";
 import { approvals } from "@/db/schema/plan/approval";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError } from "@/lib/auth/scope";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,15 +18,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const plan = await db.query.plans.findFirst({
       where: and(eq(plans.id, id), eq(plans.organizationId, ctx.organizationId)),
     });
-    if (!plan) {
-      const err = new Error("Plan not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
+    if (!plan) throw httpError(404, "Plan not found");
     if (ctx.projectId && ctx.projectId !== plan.projectId) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
+      throw httpError(403, "API key scoped to a different project.");
     }
 
     const [revisions, planApprovals] = await Promise.all([

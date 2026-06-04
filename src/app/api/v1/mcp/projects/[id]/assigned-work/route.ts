@@ -14,9 +14,9 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { plans } from "@/db/schema/plan/plan";
-import { projects } from "@/db/schema/project";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
+import { requireProjectScope } from "@/lib/auth/scope";
 
 const OPEN_PLAN_STATUSES = ["in_review", "approved", "in_progress"] as const;
 const CLOSED_WORK_ITEM_STATUSES = [
@@ -33,20 +33,7 @@ export async function GET(
 ) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true, organizationId: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     const url = new URL(req.url);
     const assigneeEmail = url.searchParams.get("assigneeEmail");
@@ -68,7 +55,7 @@ export async function GET(
 
     const planWhere = assigneeEmail
       ? and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           inArray(plans.status, [...OPEN_PLAN_STATUSES]),
           // No match → return no plans. Avoid eq(col, null) which would
@@ -77,20 +64,20 @@ export async function GET(
           eq(plans.assigneeId, assigneeUserId ?? "__no_such_user__"),
         )
       : and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           inArray(plans.status, [...OPEN_PLAN_STATUSES]),
         );
 
     const workItemWhere = assigneeEmail
       ? and(
-          eq(workItems.organizationId, project.organizationId),
+          eq(workItems.organizationId, ctx.organizationId),
           eq(workItems.projectId, project.id),
           eq(workItems.assigneeEmail, assigneeEmail),
           notInArray(workItems.status, CLOSED_WORK_ITEM_STATUSES),
         )
       : and(
-          eq(workItems.organizationId, project.organizationId),
+          eq(workItems.organizationId, ctx.organizationId),
           eq(workItems.projectId, project.id),
           notInArray(workItems.status, CLOSED_WORK_ITEM_STATUSES),
         );

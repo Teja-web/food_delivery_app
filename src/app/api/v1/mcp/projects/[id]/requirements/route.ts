@@ -19,8 +19,8 @@ import {
   type PlanKind,
   type PlanStatus,
 } from "@/db/schema/plan/plan";
-import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
 import { createPlan } from "@/operations/plan/plans";
 
@@ -49,20 +49,7 @@ export async function GET(
 ) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true, organizationId: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     const url = new URL(req.url);
     const rawKind = url.searchParams.get("kind") ?? DEFAULT_KIND;
@@ -80,13 +67,13 @@ export async function GET(
 
     const where = status
       ? and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           eq(plans.kind, kind),
           eq(plans.status, status),
         )
       : and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           eq(plans.kind, kind),
         );
@@ -131,27 +118,11 @@ export async function POST(
 ) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true, organizationId: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     const parsed = postBodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
-      const err = new Error("Invalid body") as Error & { status?: number; details?: unknown };
-      err.status = 400;
-      err.details = parsed.error.issues;
-      throw err;
+      throw httpError(400, "Invalid body", parsed.error.issues);
     }
 
     const list = Array.isArray(parsed.data) ? parsed.data : [parsed.data];

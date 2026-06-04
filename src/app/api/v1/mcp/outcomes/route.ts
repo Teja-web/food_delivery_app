@@ -16,6 +16,7 @@ import { projects } from "@/db/schema/project";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
 import { skills } from "@/db/schema/skill/skill";
 import { handleApi, type ApiContext } from "@/lib/auth/api-key";
+import { httpError } from "@/lib/auth/scope";
 
 export interface ListOutcomesForAgentQuery {
   projectId?: string | null;
@@ -40,9 +41,7 @@ export async function listOutcomesForAgent(ctx: ApiContext, query: ListOutcomesF
     requestedProjectId &&
     requestedProjectId !== ctx.projectId
   ) {
-    const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-    err.status = 403;
-    throw err;
+    throw httpError(403, "API key scoped to a different project.");
   }
 
   let skillId: string | null = null;
@@ -51,13 +50,7 @@ export async function listOutcomesForAgent(ctx: ApiContext, query: ListOutcomesF
       where: and(eq(skills.slug, query.skillSlug), eq(skills.organizationId, ctx.organizationId)),
       columns: { id: true },
     });
-    if (!skill) {
-      const err = new Error(`Skill "${query.skillSlug}" not found in this org`) as Error & {
-        status?: number;
-      };
-      err.status = 404;
-      throw err;
-    }
+    if (!skill) throw httpError(404, `Skill "${query.skillSlug}" not found in this org`);
     skillId = skill.id;
   }
 

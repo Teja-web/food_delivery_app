@@ -17,6 +17,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { skills } from "@/db/schema/skill/skill";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError } from "@/lib/auth/scope";
 import {
   getSkillAutonomy,
   getSkillAutonomyAcrossProjects,
@@ -35,11 +36,7 @@ export async function GET(req: Request) {
       ctx.projectId &&
       requestedProjectId !== ctx.projectId
     ) {
-      const err = new Error("API key scoped to a different project.") as Error & {
-        status?: number;
-      };
-      err.status = 403;
-      throw err;
+      throw httpError(403, "API key scoped to a different project.");
     }
 
     if (skillSlug) {
@@ -47,11 +44,7 @@ export async function GET(req: Request) {
         where: and(eq(skills.organizationId, ctx.organizationId), eq(skills.slug, skillSlug)),
         columns: { id: true, slug: true, name: true },
       });
-      if (!skill) {
-        const err = new Error(`Skill not found: ${skillSlug}`) as Error & { status?: number };
-        err.status = 404;
-        throw err;
-      }
+      if (!skill) throw httpError(404, `Skill not found: ${skillSlug}`);
       const [forProject, acrossProjects] = await Promise.all([
         getSkillAutonomy(skill.id, effectiveProjectId ?? null),
         getSkillAutonomyAcrossProjects(skill.id),

@@ -12,6 +12,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError } from "@/lib/auth/scope";
 import { computeProjectDebt } from "@/operations/verification-debt";
 
 export async function GET(req: Request) {
@@ -25,11 +26,7 @@ export async function GET(req: Request) {
       ctx.projectId &&
       requestedProjectId !== ctx.projectId
     ) {
-      const err = new Error("API key scoped to a different project.") as Error & {
-        status?: number;
-      };
-      err.status = 403;
-      throw err;
+      throw httpError(403, "API key scoped to a different project.");
     }
 
     const breakdown = await computeProjectDebt(effectiveProjectId, ctx.organizationId);

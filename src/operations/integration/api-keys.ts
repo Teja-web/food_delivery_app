@@ -6,13 +6,21 @@
  * to display it to the user immediately and never persist it again.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
 import { db } from "@/db/client";
 import { apiKeys, type ApiKey } from "@/db/schema/api-key";
+import { user } from "@/db/schema/auth";
 import { projects } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { safeRevalidate } from "@/lib/safe-revalidate";
+
+export interface ApiKeyWithContext extends ApiKey {
+  projectName: string | null;
+  projectSlug: string | null;
+  createdByName: string | null;
+  createdByEmail: string | null;
+}
 
 const KEY_BYTES = 32;
 const PREFIX_CHARS = 8;
@@ -66,6 +74,7 @@ export async function mintApiKey(input: MintInput): Promise<MintResult> {
     .returning({ id: apiKeys.id });
 
   await safeRevalidate("/api-keys");
+  await safeRevalidate(`/projects/${input.projectId}/settings`);
   return { id: row.id, plaintext, prefix };
 }
 
@@ -75,6 +84,50 @@ export async function listApiKeys(): Promise<ApiKey[]> {
     .select()
     .from(apiKeys)
     .where(eq(apiKeys.organizationId, ctx.organizationId))
+    .orderBy(desc(apiKeys.createdAt));
+}
+
+/**
+ * Org-wide listing enriched with project and creator info. Used by the
+ * org-level audit view at `/api-keys`. Keeps the page to a single query
+ * regardless of org size.
+ */
+export async function listApiKeysWithContext(): Promise<ApiKeyWithContext[]> {
+  const ctx = await getActionContext();
+  const rows = await db
+    .select({
+      key: apiKeys,
+      projectName: projects.name,
+      projectSlug: projects.slug,
+      createdByName: user.name,
+      createdByEmail: user.email,
+    })
+    .from(apiKeys)
+    .leftJoin(projects, eq(projects.id, apiKeys.projectId))
+    .leftJoin(user, eq(user.id, apiKeys.createdById))
+    .where(eq(apiKeys.organizationId, ctx.organizationId))
+    .orderBy(desc(apiKeys.createdAt));
+
+  return rows.map((r) => ({
+    ...r.key,
+    projectName: r.projectName,
+    projectSlug: r.projectSlug,
+    createdByName: r.createdByName,
+    createdByEmail: r.createdByEmail,
+  }));
+}
+
+export async function listApiKeysForProject(projectId: string): Promise<ApiKey[]> {
+  const ctx = await getActionContext();
+  return db
+    .select()
+    .from(apiKeys)
+    .where(
+      and(
+        eq(apiKeys.organizationId, ctx.organizationId),
+        eq(apiKeys.projectId, projectId),
+      ),
+    )
     .orderBy(desc(apiKeys.createdAt));
 }
 
@@ -93,7 +146,11 @@ export async function getOrCreateProjectKey(
     .select({ prefix: apiKeys.prefix })
     .from(apiKeys)
     .where(
-      and(eq(apiKeys.organizationId, ctx.organizationId), eq(apiKeys.projectId, projectId)),
+      and(
+        eq(apiKeys.organizationId, ctx.organizationId),
+        eq(apiKeys.projectId, projectId),
+        isNull(apiKeys.revokedAt),
+      ),
     )
     .orderBy(desc(apiKeys.createdAt))
     .limit(1);
@@ -107,9 +164,13 @@ export async function getOrCreateProjectKey(
 
 export async function revokeApiKey(id: string): Promise<void> {
   const ctx = await getActionContext();
-  await db
+  const [row] = await db
     .update(apiKeys)
     .set({ revokedAt: new Date() })
-    .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, ctx.organizationId)));
+    .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, ctx.organizationId)))
+    .returning({ projectId: apiKeys.projectId });
   await safeRevalidate("/api-keys");
+  if (row?.projectId) {
+    await safeRevalidate(`/projects/${row.projectId}/settings`);
+  }
 }

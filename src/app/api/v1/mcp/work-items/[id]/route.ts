@@ -16,6 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError } from "@/lib/auth/scope";
 import { workItemCrud } from "@/operations/work/work-items";
 import { syncWorkItemStatusToJira } from "@/lib/integrations/outbound";
 
@@ -32,31 +33,18 @@ export async function PATCH(
   return handleApi(req, async (ctx) => {
     const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
-      const err = new Error("Invalid body") as Error & { status?: number; details?: unknown };
-      err.status = 400;
-      err.details = parsed.error.issues;
-      throw err;
+      throw httpError(400, "Invalid body", parsed.error.issues);
     }
     if (parsed.data.status === undefined && parsed.data.assigneeEmail === undefined) {
-      const err = new Error("Nothing to update — provide status or assigneeEmail.") as Error & {
-        status?: number;
-      };
-      err.status = 400;
-      throw err;
+      throw httpError(400, "Nothing to update — provide status or assigneeEmail.");
     }
 
     const existing = await db.query.workItems.findFirst({
       where: and(eq(workItems.id, id), eq(workItems.organizationId, ctx.organizationId)),
     });
-    if (!existing) {
-      const err = new Error("Work item not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
+    if (!existing) throw httpError(404, "Work item not found");
     if (ctx.projectId && existing.projectId && ctx.projectId !== existing.projectId) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
+      throw httpError(403, "API key scoped to a different project.");
     }
 
     const updated = await workItemCrud.update(id, {

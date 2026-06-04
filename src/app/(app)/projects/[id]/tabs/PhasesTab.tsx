@@ -46,11 +46,15 @@ import { cn } from "@/lib/utils";
 
 import { createGate, deleteGate, setGateStatus, updateGate } from "@/actions/gate/phase-gates";
 
-import type { CockpitClient as CockpitData, CockpitGateClient } from "../serialize";
+import type {
+  CockpitGateClient,
+  CockpitGatesByPhase,
+  CockpitProjectClient,
+} from "../serialize";
 
 type GateStatus = CockpitGateClient["status"];
 type GateType = CockpitGateClient["type"];
-type ProjectPhase = CockpitData["project"]["phase"];
+type ProjectPhase = CockpitProjectClient["phase"];
 
 const PHASE_ORDER: ProjectPhase[] = [
   "requirements",
@@ -95,8 +99,12 @@ interface DialogState {
 
 const CLOSED: DialogState = { open: false, mode: "create", phase: "requirements", gate: null };
 
-export function PhasesTab({ data }: { data: CockpitData }) {
-  const { project, gatesByPhase } = data;
+export interface PhasesTabProps {
+  project: Pick<CockpitProjectClient, "id" | "phase">;
+  gatesByPhase: CockpitGatesByPhase[];
+}
+
+export function PhasesTab({ project, gatesByPhase }: PhasesTabProps) {
   const currentIdx = PHASE_ORDER.indexOf(project.phase);
   const router = useRouter();
   const [, startTransition] = useTransition();

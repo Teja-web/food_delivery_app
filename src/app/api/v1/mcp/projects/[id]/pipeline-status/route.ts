@@ -12,9 +12,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
 import { plans } from "@/db/schema/plan/plan";
-import { projects } from "@/db/schema/project";
 import { testRuns } from "@/db/schema/test-run";
 import { handleApi } from "@/lib/auth/api-key";
+import { requireProjectScope } from "@/lib/auth/scope";
 
 export async function GET(
   req: Request,
@@ -22,20 +22,7 @@ export async function GET(
 ) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true, organizationId: true, name: true, phase: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     const [recentDeploys, recentTestRuns, activeReleasePlan] = await Promise.all([
       db.query.deployments.findMany({
@@ -72,7 +59,7 @@ export async function GET(
       }),
       db.query.plans.findFirst({
         where: and(
-          eq(plans.organizationId, project.organizationId),
+          eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
           eq(plans.kind, "release_plan"),
           eq(plans.status, "in_progress"),

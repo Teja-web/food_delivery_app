@@ -12,12 +12,10 @@
  */
 
 import { z } from "zod/v4";
-import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
-import { plans, PLAN_KINDS, type Plan, type PlanKind } from "@/db/schema/plan/plan";
-import { projects } from "@/db/schema/project";
+import { PLAN_KINDS, type Plan, type PlanKind } from "@/db/schema/plan/plan";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { applyActionPolicyRules, evaluatePlanAgainstRules } from "@/operations/rule-engine";
 
 const planCheckSchema = z.object({
@@ -49,29 +47,10 @@ export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {
     const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
-      const err = new Error("Invalid body") as Error & { status?: number; details?: unknown };
-      err.status = 400;
-      err.details = parsed.error.issues;
-      throw err;
+      throw httpError(400, "Invalid body", parsed.error.issues);
     }
 
-    const project = await db.query.projects.findFirst({
-      where: and(
-        eq(projects.id, parsed.data.projectId),
-        eq(projects.organizationId, ctx.organizationId),
-      ),
-      columns: { id: true, organizationId: true, phase: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, parsed.data.projectId);
 
     const allViolations: Array<{
       ruleId: string;

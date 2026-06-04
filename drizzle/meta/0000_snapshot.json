@@ -1,5 +1,5 @@
 {
-  "id": "e5c801b7-28ca-4a82-990c-4526d00542cf",
+  "id": "f0da77d5-97fc-41cb-a572-6648646af044",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -634,180 +634,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "coznt.departments": {
-      "name": "departments",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lead_user_id": {
-          "name": "lead_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lead_name": {
-          "name": "lead_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "departments_org_idx": {
-          "name": "departments_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "departments_fts_idx": {
-          "name": "departments_fts_idx",
-          "columns": [
-            {
-              "expression": "coznt.fts_vector(\"name\", \"description\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "departments_org_name_unique": {
-          "name": "departments_org_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "name"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "coznt.org_identities": {
-      "name": "org_identities",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "raw_text": {
-          "name": "raw_text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "uploaded_documents": {
-          "name": "uploaded_documents",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "extracted_identity": {
-          "name": "extracted_identity",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "extracted_at": {
-          "name": "extracted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "org_identities_org_unique": {
-          "name": "org_identities_org_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "organization_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "coznt.documents": {
       "name": "documents",
       "schema": "coznt",
@@ -870,8 +696,8 @@
         }
       },
       "indexes": {
-        "recruit_documents_org_idx": {
-          "name": "recruit_documents_org_idx",
+        "coznt_documents_org_idx": {
+          "name": "coznt_documents_org_idx",
           "columns": [
             {
               "expression": "organization_id",
@@ -885,8 +711,8 @@
           "method": "btree",
           "with": {}
         },
-        "recruit_documents_table_idx": {
-          "name": "recruit_documents_table_idx",
+        "coznt_documents_table_idx": {
+          "name": "coznt_documents_table_idx",
           "columns": [
             {
               "expression": "table_name",
@@ -900,8 +726,8 @@
           "method": "btree",
           "with": {}
         },
-        "recruit_documents_embedding_idx": {
-          "name": "recruit_documents_embedding_idx",
+        "coznt_documents_embedding_idx": {
+          "name": "coznt_documents_embedding_idx",
           "columns": [
             {
               "expression": "embedding",
@@ -920,8 +746,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "recruit_documents_table_record_uniq": {
-          "name": "recruit_documents_table_record_uniq",
+        "coznt_documents_table_record_uniq": {
+          "name": "coznt_documents_table_record_uniq",
           "nullsNotDistinct": false,
           "columns": [
             "table_name",
@@ -1451,130 +1277,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "coznt.entity_notes": {
-      "name": "entity_notes",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by_id": {
-          "name": "created_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_name": {
-          "name": "created_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_id": {
-          "name": "updated_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_name": {
-          "name": "updated_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "recruit_entity_notes_entity_idx": {
-          "name": "recruit_entity_notes_entity_idx",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "recruit_entity_notes_org_idx": {
-          "name": "recruit_entity_notes_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "coznt.rate_limits": {
       "name": "rate_limits",
       "schema": "coznt",
@@ -1601,8 +1303,8 @@
         }
       },
       "indexes": {
-        "recruit_rate_limits_window_idx": {
-          "name": "recruit_rate_limits_window_idx",
+        "coznt_rate_limits_window_idx": {
+          "name": "coznt_rate_limits_window_idx",
           "columns": [
             {
               "expression": "window_start",
@@ -1709,6 +1411,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "ARRAY[]::text[]"
+        },
+        "require_human_approval_for_merge": {
+          "name": "require_human_approval_for_merge",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_by_id": {
           "name": "created_by_id",
@@ -1817,7 +1526,7 @@
           "name": "slug",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "parent_plan_id": {
           "name": "parent_plan_id",
@@ -1929,6 +1638,43 @@
           "primaryKey": false,
           "notNull": false
         },
+        "ai_authored": {
+          "name": "ai_authored",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "generated_by_model": {
+          "name": "generated_by_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generated_by_skill_id": {
+          "name": "generated_by_skill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "autonomy_at_generation": {
+          "name": "autonomy_at_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_hash": {
+          "name": "prompt_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2011,6 +1757,21 @@
           "method": "btree",
           "with": {}
         },
+        "plans_generated_by_skill_idx": {
+          "name": "plans_generated_by_skill_idx",
+          "columns": [
+            {
+              "expression": "generated_by_skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "plans_project_kind_slug_idx": {
           "name": "plans_project_kind_slug_idx",
           "columns": [
@@ -2067,6 +1828,20 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_generated_by_skill_id_skills_id_fk": {
+          "name": "plans_generated_by_skill_id_skills_id_fk",
+          "tableFrom": "plans",
+          "tableTo": "skills",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "generated_by_skill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2555,7 +2330,7 @@
           "name": "skill_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "project_id": {
           "name": "project_id",
@@ -2573,7 +2348,7 @@
           "name": "verdict",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "severity": {
           "name": "severity",
@@ -2595,6 +2370,12 @@
         },
         "rationale": {
           "name": "rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_log_id": {
+          "name": "prompt_log_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2661,6 +2442,33 @@
             },
             {
               "expression": "skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "skill_outcomes_project_kind_time_idx": {
+          "name": "skill_outcomes_project_kind_time_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2876,6 +2684,174 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.skill_autonomy_events": {
+      "name": "skill_autonomy_events",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skill_id": {
+          "name": "skill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_level": {
+          "name": "from_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_level": {
+          "name": "to_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "triggering_outcome_ids": {
+          "name": "triggering_outcome_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "skill_autonomy_events_skill_time_idx": {
+          "name": "skill_autonomy_events_skill_time_idx",
+          "columns": [
+            {
+              "expression": "skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "skill_autonomy_events_project_time_idx": {
+          "name": "skill_autonomy_events_project_time_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "skill_autonomy_events_org_time_idx": {
+          "name": "skill_autonomy_events_org_time_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "skill_autonomy_events_skill_id_skills_id_fk": {
+          "name": "skill_autonomy_events_skill_id_skills_id_fk",
+          "tableFrom": "skill_autonomy_events",
+          "tableTo": "skills",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "skill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "skill_autonomy_events_project_id_projects_id_fk": {
+          "name": "skill_autonomy_events_project_id_projects_id_fk",
+          "tableFrom": "skill_autonomy_events",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3308,6 +3284,43 @@
           "primaryKey": false,
           "notNull": false
         },
+        "ai_authored": {
+          "name": "ai_authored",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "generated_by_model": {
+          "name": "generated_by_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generated_by_skill_id": {
+          "name": "generated_by_skill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "autonomy_at_generation": {
+          "name": "autonomy_at_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_hash": {
+          "name": "prompt_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -3369,6 +3382,21 @@
           "method": "btree",
           "with": {}
         },
+        "work_items_generated_by_skill_idx": {
+          "name": "work_items_generated_by_skill_idx",
+          "columns": [
+            {
+              "expression": "generated_by_skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "work_items_fts_idx": {
           "name": "work_items_fts_idx",
           "columns": [
@@ -3407,6 +3435,20 @@
           "schemaTo": "coznt",
           "columnsFrom": [
             "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "work_items_generated_by_skill_id_skills_id_fk": {
+          "name": "work_items_generated_by_skill_id_skills_id_fk",
+          "tableFrom": "work_items",
+          "tableTo": "skills",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "generated_by_skill_id"
           ],
           "columnsTo": [
             "id"
@@ -4133,7 +4175,7 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "name": {
           "name": "name",
@@ -4152,6 +4194,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'member'"
         },
         "created_by_id": {
           "name": "created_by_id",
@@ -4354,6 +4403,36 @@
           "primaryKey": false,
           "notNull": false
         },
+        "overridden_at": {
+          "name": "overridden_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overridden_by_id": {
+          "name": "overridden_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "override_reason": {
+          "name": "override_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "override_authorizing_plan_id": {
+          "name": "override_authorizing_plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "override_autonomy_at_time": {
+          "name": "override_autonomy_at_time",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -4411,6 +4490,20 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "phase_gates_override_authorizing_plan_id_plans_id_fk": {
+          "name": "phase_gates_override_authorizing_plan_id_plans_id_fk",
+          "tableFrom": "phase_gates",
+          "tableTo": "plans",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "override_authorizing_plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -5743,6 +5836,240 @@
         "custom_choreographies_project_id_projects_id_fk": {
           "name": "custom_choreographies_project_id_projects_id_fk",
           "tableFrom": "custom_choreographies",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.prompt_logs": {
+      "name": "prompt_logs",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mcp_session_id": {
+          "name": "mcp_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USER'"
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'OTHER'"
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author_name": {
+          "name": "author_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author_username": {
+          "name": "author_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author_email": {
+          "name": "author_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_local_id": {
+          "name": "client_local_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_score": {
+          "name": "prompt_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_tier": {
+          "name": "prompt_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_score_detail": {
+          "name": "prompt_score_detail",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rubric_version": {
+          "name": "rubric_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scored_at": {
+          "name": "scored_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "prompt_logs_project_time_idx": {
+          "name": "prompt_logs_project_time_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "prompt_logs_project_tier_idx": {
+          "name": "prompt_logs_project_tier_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "prompt_tier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "prompt_logs_session_idx": {
+          "name": "prompt_logs_session_idx",
+          "columns": [
+            {
+              "expression": "mcp_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "prompt_logs_client_local_unique": {
+          "name": "prompt_logs_client_local_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_local_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"coznt\".\"prompt_logs\".\"client_local_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "prompt_logs_fts_idx": {
+          "name": "prompt_logs_fts_idx",
+          "columns": [
+            {
+              "expression": "coznt.fts_vector(\"content\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "prompt_logs_project_id_projects_id_fk": {
+          "name": "prompt_logs_project_id_projects_id_fk",
+          "tableFrom": "prompt_logs",
           "tableTo": "projects",
           "schemaTo": "coznt",
           "columnsFrom": [

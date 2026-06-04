@@ -20,8 +20,8 @@ import {
   type PlanKind,
   type PlanStatus,
 } from "@/db/schema/plan/plan";
-import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
 import { upsertPlanByKindAndSlug } from "@/operations/plan/plans";
 
@@ -44,27 +44,11 @@ export async function POST(req: Request) {
   return handleApi(req, async (ctx) => {
     const parsed = upsertBodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
-      const err = new Error("Invalid body") as Error & { status?: number; details?: unknown };
-      err.status = 400;
-      err.details = parsed.error.issues;
-      throw err;
+      throw httpError(400, "Invalid body", parsed.error.issues);
     }
     const input = parsed.data;
 
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, input.projectId), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, input.projectId);
 
     const result = await upsertPlanByKindAndSlug(input);
     const nextAction = await computeNextAction(ctx.organizationId, project.id);
@@ -88,26 +72,9 @@ export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {
     const url = new URL(req.url);
     const projectId = url.searchParams.get("projectId");
-    if (!projectId) {
-      const err = new Error("`projectId` query param is required") as Error & { status?: number };
-      err.status = 400;
-      throw err;
-    }
+    if (!projectId) throw httpError(400, "`projectId` query param is required");
 
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, projectId), eq(projects.organizationId, ctx.organizationId)),
-      columns: { id: true },
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, projectId);
 
     const rawKind = url.searchParams.get("kind");
     const rawStatus = url.searchParams.get("status");

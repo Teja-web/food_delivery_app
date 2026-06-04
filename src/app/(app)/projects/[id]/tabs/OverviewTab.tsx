@@ -6,9 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-import type { CockpitClient as CockpitData, CockpitGateClient } from "../serialize";
+import type {
+  CockpitBindingClient,
+  CockpitGateClient,
+  CockpitProjectClient,
+} from "../serialize";
+import type { PhaseGuidance } from "@/domain/phases";
+import type { ProjectPhase } from "@/db/schema/project";
 
-const PHASE_LABEL: Record<CockpitData["project"]["phase"], string> = {
+const PHASE_LABEL: Record<CockpitProjectClient["phase"], string> = {
   requirements: "REQUIREMENTS",
   design: "DESIGN",
   development: "DEVELOPMENT",
@@ -58,8 +64,27 @@ function GateRow({ gate }: { gate: CockpitGateClient }) {
   );
 }
 
-export function OverviewTab({ data }: { data: CockpitData }) {
-  const { guidance, gates, gatesAllPassed, nextPhase, canAdvance, blockedReason, bindings, project } = data;
+export interface OverviewTabProps {
+  project: Pick<CockpitProjectClient, "slug" | "createdAt">;
+  guidance: PhaseGuidance;
+  gates: CockpitGateClient[];
+  gatesAllPassed: boolean;
+  nextPhase: ProjectPhase | null;
+  canAdvance: boolean;
+  blockedReason: string | null;
+  bindings: CockpitBindingClient[];
+}
+
+export function OverviewTab({
+  project,
+  guidance,
+  gates,
+  gatesAllPassed,
+  nextPhase,
+  canAdvance,
+  blockedReason,
+  bindings,
+}: OverviewTabProps) {
   return (
     <div className="space-y-6">
       <Card className="border-primary/30 bg-card/60">

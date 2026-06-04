@@ -19,8 +19,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { approvals } from "@/db/schema/plan/approval";
 import { phaseGates } from "@/db/schema/phase-gate";
-import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
+import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
 import { approvalCrud } from "@/operations/approvals";
 
@@ -36,25 +36,10 @@ export async function POST(
   return handleApi(req, async (ctx) => {
     const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
-      const err = new Error("Invalid body") as Error & { status?: number; details?: unknown };
-      err.status = 400;
-      err.details = parsed.error.issues;
-      throw err;
+      throw httpError(400, "Invalid body", parsed.error.issues);
     }
 
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, ctx.organizationId)),
-    });
-    if (!project) {
-      const err = new Error("Project not found") as Error & { status?: number };
-      err.status = 404;
-      throw err;
-    }
-    if (ctx.projectId && ctx.projectId !== project.id) {
-      const err = new Error("API key scoped to a different project.") as Error & { status?: number };
-      err.status = 403;
-      throw err;
-    }
+    const project = await requireProjectScope(ctx, id);
 
     const gates = await db.query.phaseGates.findMany({
       where: and(eq(phaseGates.projectId, project.id), eq(phaseGates.phase, project.phase)),
