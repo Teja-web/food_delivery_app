@@ -91,6 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       action: "mcp.session_end",
       entityType: "mcp_session",
       entityId: id,
+      invokedVia: "mcp:close",
       summary:
         `MCP session ended (${outcome}, ${toolCalls} tool calls, ${Math.round(durationMs / 1000)}s)` +
         (body.summary ? `: ${body.summary}` : "") +

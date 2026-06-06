@@ -273,7 +273,19 @@ function WindowSelector({ active }: { active: number }) {
   );
 }
 
-export function MetricsClient({ data }: { data: PortfolioMetricsData }) {
+export interface PromptCacheStats {
+  hits: number;
+  misses: number;
+  size: number;
+}
+
+export function MetricsClient({
+  data,
+  cacheStats,
+}: {
+  data: PortfolioMetricsData;
+  cacheStats: PromptCacheStats;
+}) {
   const metricList = [
     { metric: "lead_time" as DoraMetric, label: "Lead time", unit: "d" },
     { metric: "deployment_frequency" as DoraMetric, label: "Deploy freq", unit: "/wk" },
@@ -302,6 +314,35 @@ export function MetricsClient({ data }: { data: PortfolioMetricsData }) {
       <SmallMultiplesGrid columns={data.columns} metrics={metricList} />
 
       {data.attribution ? <AttributionPanel finding={data.attribution} /> : null}
+
+      <PromptCacheCard stats={cacheStats} />
     </div>
+  );
+}
+
+function PromptCacheCard({ stats }: { stats: PromptCacheStats }) {
+  const total = stats.hits + stats.misses;
+  const hitRate = total === 0 ? 0 : Math.round((stats.hits / total) * 100);
+  return (
+    <Card className="bg-card/40">
+      <CardContent className="space-y-2 pt-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          Prompt cache · daemon
+        </div>
+        <div className="flex items-baseline gap-4 font-mono text-xs tabular-nums">
+          <span>
+            <span className="font-display text-xl font-bold">{hitRate}%</span>{" "}
+            <span className="text-muted-foreground">hit rate</span>
+          </span>
+          <span className="text-muted-foreground">
+            {stats.hits} / {total} lookups · {stats.size} entries
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          In-memory LRU on the coznt server. Replays of identical{" "}
+          <code className="font-mono">(agent, model, prompt)</code> tuples skip the LLM call.
+        </p>
+      </CardContent>
+    </Card>
   );
 }

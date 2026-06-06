@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       entityType: "mcp_session",
       entityId: sessionId,
       summary: `MCP session started: ${intent}`,
+      invokedVia: "mcp:handshake",
       after: {
         intent,
         repoUrl: body.repoUrl ?? null,

@@ -196,6 +196,7 @@ export async function applyRulesToPlan(plan: Plan): Promise<RuleViolation[]> {
         entityType: "plan",
         entityId: plan.id,
         summary: w.message,
+        invokedVia: "rule-engine:plan-write",
         after: { ruleSeverity: w.severity },
       })),
     );
@@ -279,6 +280,7 @@ export async function applyActionPolicyRules(
         entityType: appliesTo,
         entityId: proposedAction.command ?? "(unknown)",
         summary: w.message,
+        invokedVia: `rule-engine:${appliesTo}`,
         after: { ruleSeverity: w.severity, appliesTo },
       })),
     );

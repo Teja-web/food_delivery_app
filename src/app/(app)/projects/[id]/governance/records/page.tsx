@@ -56,6 +56,7 @@ export default async function GovernanceRecordsPage({
               <th className="px-3 py-2 font-medium">Plan</th>
               <th className="px-3 py-2 font-medium">Kind</th>
               <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Policy hash</th>
               <th className="px-3 py-2 font-medium">Decided by</th>
               <th className="px-3 py-2 font-medium">Updated</th>
             </tr>
@@ -80,6 +81,12 @@ export default async function GovernanceRecordsPage({
                   <Badge variant="outline" className="font-mono text-[10px] uppercase">
                     {r.status}
                   </Badge>
+                </td>
+                <td
+                  className="px-3 py-2 font-mono text-[10px] text-muted-foreground"
+                  title={r.policySnapshot?.hash ?? "no snapshot"}
+                >
+                  {r.policySnapshot?.hash?.slice(0, 12) ?? "—"}
                 </td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">
                   {r.decidedByName ?? r.decidedById ?? "—"}
