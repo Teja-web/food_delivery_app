@@ -9,12 +9,14 @@
  * layer) is responsible for passing the authenticated user's id/email.
  */
 
-import { and, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { approvals, type Approval } from "@/db/schema/plan/approval";
+import {
+  governanceRecords,
+  type GovernanceRecord,
+} from "@/db/schema/governance/records";
 import { skillOutcomes, type SkillOutcome } from "@/db/schema/skill/skill-outcome";
-import { plans } from "@/db/schema/plan/plan";
-import { workItems } from "@/db/schema/work-item";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { projects } from "@/db/schema/project";
 import {
   getSkillAutonomyAcrossProjects,
@@ -22,47 +24,50 @@ import {
 } from "@/operations/skill/skill-autonomy";
 
 /**
- * Approvals the user is waiting on someone else to decide — i.e. the user
- * requested approval and the request is still open.
+ * Pending approval-kind governance records the user is waiting on someone
+ * else to decide — i.e. the user requested approval (details.requestedById)
+ * and the record is still pending.
  */
 export async function listMyOpenApprovals(
   organizationId: string,
   userId: string,
-): Promise<Approval[]> {
+): Promise<GovernanceRecord[]> {
   return db
     .select()
-    .from(approvals)
+    .from(governanceRecords)
     .where(
       and(
-        eq(approvals.organizationId, organizationId),
-        eq(approvals.requestedById, userId),
-        eq(approvals.status, "pending"),
+        eq(governanceRecords.organizationId, organizationId),
+        eq(governanceRecords.kind, "approval"),
+        eq(governanceRecords.status, "pending"),
+        sql`${governanceRecords.details}->>'requestedById' = ${userId}`,
       ),
     )
-    .orderBy(desc(approvals.createdAt));
+    .orderBy(desc(governanceRecords.createdAt));
 }
 
 /**
- * Approvals where the user is an assigned approver and a decision is owed.
- * "Blocking me" in the sense that the user's lack of decision is what's
- * keeping these from advancing.
+ * Pending approval-kind governance records where the user is an assigned
+ * approver. Approvers live in `details.approverIds` (jsonb array). "Blocking
+ * me" = the user's lack of decision is what's keeping these from advancing.
  */
 export async function listApprovalsBlockingMe(
   organizationId: string,
   userId: string,
-): Promise<Approval[]> {
+): Promise<GovernanceRecord[]> {
   return db
     .select()
-    .from(approvals)
+    .from(governanceRecords)
     .where(
       and(
-        eq(approvals.organizationId, organizationId),
-        eq(approvals.status, "pending"),
-        // PG array contains: approver_ids @> ARRAY[userId]
-        sql`${approvals.approverIds} @> ARRAY[${userId}]::text[]`,
+        eq(governanceRecords.organizationId, organizationId),
+        eq(governanceRecords.kind, "approval"),
+        eq(governanceRecords.status, "pending"),
+        // jsonb array containment: details->'approverIds' @> '["<userId>"]'
+        sql`${governanceRecords.details}->'approverIds' @> ${JSON.stringify([userId])}::jsonb`,
       ),
     )
-    .orderBy(desc(approvals.createdAt));
+    .orderBy(desc(governanceRecords.createdAt));
 }
 
 /**

@@ -11,9 +11,9 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall, getSessionProject } from "../../session.js";
-import { PIPELINE_PLATFORMS, PIPELINE_STACKS } from "../../../domain/pipelines/templates.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall, getSessionProject } from "../../session";
+import { PIPELINE_PLATFORMS, PIPELINE_STACKS } from "../../../domain/pipelines/templates";
 
 export const generatePipelineInput = z.object({
   projectId: z.string().optional().describe("Defaults to the session's bound project."),

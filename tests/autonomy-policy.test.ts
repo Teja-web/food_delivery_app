@@ -1,118 +1,18 @@
 /**
- * `autonomy-threshold` rule kind — policy-aware execution gate.
+ * `autonomy-threshold` rule validator — frontmatter parsing + rule matching.
  *
- * Two test surfaces:
- *   1. Pure decisions in `decideExecutionGate` with the new `policy` input.
- *   2. Frontmatter parsing in `parseAutonomyThresholdConfig`.
- *
- * The `resolveAutonomyThreshold` DB-resolver is exercised end-to-end
- * via mocked-fetch integration tests in the e2e suite (where Postgres
- * is available). Here we keep it unit-level.
+ * The DB-resolver `resolveAutonomyThreshold` and the runtime tool-event
+ * gate live elsewhere and are exercised via integration tests.
  */
 
 import { describe, expect, it } from "vitest";
 
-import { decideExecutionGate, type GateInput } from "@/operations/gate/execution-gate";
 import {
   parseAutonomyThresholdConfig,
   ruleMatches,
   requiredLevelInt,
   type AutonomyThresholdConfig,
 } from "@/domain/rule-validators/autonomy-threshold";
-
-function baseInput(overrides: Partial<GateInput> = {}): GateInput {
-  return {
-    organizationId: "org_1",
-    projectId: "proj_1",
-    prRef: "github:acme/api#1",
-    skillId: "skill_1",
-    skillLevel: 1, // propose
-    changeRisk: "low",
-    ruleViolations: [],
-    phase: "development",
-    hasHumanApproval: false,
-    ...overrides,
-  };
-}
-
-describe("decideExecutionGate with policy", () => {
-  it("default fallback: propose (level 1) clears low-risk merge", () => {
-    const v = decideExecutionGate(baseInput({ skillLevel: 1, changeRisk: "low" }));
-    expect(v.verdict).toBe("success");
-    expect(v.details.some((d) => d.includes("default fallback"))).toBe(true);
-    expect(v.enforcedByRuleId).toBeNull();
-  });
-
-  it("default fallback: propose (level 1) blocked on medium-risk merge", () => {
-    const v = decideExecutionGate(baseInput({ skillLevel: 1, changeRisk: "medium" }));
-    expect(v.verdict).toBe("failure");
-    expect(v.enforcedByRuleId).toBeNull();
-  });
-
-  it("policy override: a rule requires lead for low-risk merge → propose blocked", () => {
-    const v = decideExecutionGate(
-      baseInput({
-        skillLevel: 1,
-        changeRisk: "low",
-        policy: { minLevel: 3, enforcedByRuleId: "rule_abc" },
-      }),
-    );
-    expect(v.verdict).toBe("failure");
-    expect(v.enforcedByRuleId).toBe("rule_abc");
-    expect(v.details.some((d) => d.includes("rule rule_abc"))).toBe(true);
-  });
-
-  it("policy override: a rule loosens medium-risk to propose → propose passes", () => {
-    const v = decideExecutionGate(
-      baseInput({
-        skillLevel: 1,
-        changeRisk: "medium",
-        policy: { minLevel: 1, enforcedByRuleId: "rule_xyz" },
-      }),
-    );
-    expect(v.verdict).toBe("success");
-    expect(v.enforcedByRuleId).toBe("rule_xyz");
-  });
-
-  it("policy override: Infinity minLevel never auto-merges", () => {
-    const v = decideExecutionGate(
-      baseInput({
-        skillLevel: 3, // lead
-        changeRisk: "high",
-        policy: { minLevel: Infinity, enforcedByRuleId: "rule_strict" },
-      }),
-    );
-    expect(v.verdict).toBe("failure");
-    expect(v.reason).toMatch(/not authorised/);
-    expect(v.details.some((d) => d.match(/Auto-merge disabled/))).toBe(true);
-  });
-
-  it("policy override is bypassed by a human approval", () => {
-    const v = decideExecutionGate(
-      baseInput({
-        skillLevel: 0,
-        changeRisk: "high",
-        hasHumanApproval: true,
-        policy: { minLevel: 3, enforcedByRuleId: "rule_strict" },
-      }),
-    );
-    expect(v.verdict).toBe("success");
-    expect(v.reason).toMatch(/human/i);
-  });
-
-  it("policy override does NOT save a PR with an error-severity rule violation", () => {
-    const v = decideExecutionGate(
-      baseInput({
-        skillLevel: 3,
-        changeRisk: "low",
-        ruleViolations: [{ ruleId: "no-secrets", severity: "error" }],
-        policy: { minLevel: 0, enforcedByRuleId: "rule_loose" },
-      }),
-    );
-    expect(v.verdict).toBe("failure");
-    expect(v.reason).toMatch(/error-severity/);
-  });
-});
 
 describe("parseAutonomyThresholdConfig", () => {
   it("parses a valid rule body", () => {

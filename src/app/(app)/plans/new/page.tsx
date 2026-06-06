@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan/plan";
+import { planArtifacts as plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan/plan-artifact";
 import type { Project } from "@/db/schema/project";
 import { createPlan } from "@/actions/plan/plans";
 import { listProjects } from "@/actions/project/projects";
@@ -13,14 +13,15 @@ import { Label } from "@/components/ui/label";
 
 async function action(formData: FormData) {
   "use server";
-  const parentId = String(formData.get("parentPlanId") ?? "").trim();
+  // Note: parent linkage now lives in plan_relationships (kind=parent_of).
+  // The relationships row should be created post-insert from a dedicated
+  // form; for the inline create flow we just create the artifact.
   const created = await createPlan({
     projectId: String(formData.get("projectId")),
     kind: String(formData.get("kind")) as PlanKind,
     title: String(formData.get("title") ?? "").trim(),
     summary: String(formData.get("summary") ?? "").trim() || undefined,
     body: String(formData.get("body") ?? ""),
-    parentPlanId: parentId || undefined,
   });
   redirect(`/plans/${created.id}`);
 }
@@ -39,7 +40,7 @@ export default async function NewPlanPage({
 
   const { organizationId } = await getCurrentUser();
   const parentOptions = selectedProjectId && organizationId && allowedParentKinds.length
-    ? await db.query.plans.findMany({
+    ? await db.query.planArtifacts.findMany({
         where: and(
           eq(plans.projectId, selectedProjectId),
           eq(plans.organizationId, organizationId),

@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return handleApi(req, async () => {
     const body = await req.json();
     if (typeof body?.body === "string") {
-      await appendPlanRevision({ planId: id, body: body.body, details: body.details, changeNote: body.changeNote });
+      await appendPlanRevision({ planArtifactId: id, body: body.body, details: body.details, changeNote: body.changeNote });
     }
     const { body: _ignore, changeNote: _cn, ...rest } = body ?? {};
     if (Object.keys(rest).length > 0) {

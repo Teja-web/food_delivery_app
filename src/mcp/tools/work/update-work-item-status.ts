@@ -9,8 +9,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall } from "../../session.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall } from "../../session";
 
 export const updateWorkItemStatusInput = z.object({
   workItemId: z.string().min(1).describe("The coznt work_item id (not the external id)."),

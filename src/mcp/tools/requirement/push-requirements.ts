@@ -15,8 +15,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall, clearDrafts, getSessionProject, listDrafts } from "../../session.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall, clearDrafts, getSessionProject, listDrafts } from "../../session";
 
 const itemSchema = z.object({
   kind: z

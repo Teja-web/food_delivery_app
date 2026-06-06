@@ -14,7 +14,7 @@ import type { NotificationClient } from "./serialize";
 
 const ENTITY_LABEL: Record<string, string> = {
   plan: "Plan",
-  phase_gate: "Phase gate",
+  governance_record: "Governance record",
   approval: "Approval",
   release: "Release",
   work_item: "Work item",

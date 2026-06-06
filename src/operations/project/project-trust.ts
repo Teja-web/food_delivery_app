@@ -9,10 +9,13 @@
  *     so operators can see *which* policy is active without grepping rules.
  */
 
-import { and, desc, eq, or, like, isNotNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals, type ApprovalStatus } from "@/db/schema/plan/approval";
+import {
+  governanceRecords,
+  type GovernanceRecordStatus,
+} from "@/db/schema/governance/records";
 import { projects } from "@/db/schema/project";
 import { skillOutcomes, type SkillOutcomeSeverity, type SkillOutcomeVerdict } from "@/db/schema/skill/skill-outcome";
 import { skills } from "@/db/schema/skill/skill";
@@ -98,13 +101,10 @@ function levelDisplay(level: number): PolicyMatrixCell["minLevelDisplay"] {
 
 export interface SkillApprovalRow {
   id: string;
-  entityType: string;
-  entityId: string;
-  status: ApprovalStatus;
-  projectId: string | null;
+  planArtifactId: string;
+  status: GovernanceRecordStatus;
+  projectId: string;
   projectName: string | null;
-  requestedByName: string | null;
-  requesterNote: string | null;
   decidedByName: string | null;
   decisionNote: string | null;
   createdAt: Date;
@@ -112,9 +112,8 @@ export interface SkillApprovalRow {
 }
 
 /**
- * Approvals where this skill was the requester. Matches by both the
- * canonical `agent:<slug>` requestedById form (Milestone D
- * skill_invocation) and the legacy `<slug> (bot)` requestedByName form.
+ * Approval-kind governance records where this skill was the requester.
+ * Matches by `details.requestedById = "agent:<slug>"`.
  */
 export async function getRecentApprovalsForSkill(
   organizationId: string,
@@ -122,35 +121,29 @@ export async function getRecentApprovalsForSkill(
   limit = 20,
 ): Promise<SkillApprovalRow[]> {
   const agentId = `agent:${skillSlug}`;
-  const legacyName = `${skillSlug} (bot)%`;
 
   const rows = await db
     .select({
-      id: approvals.id,
-      entityType: approvals.entityType,
-      entityId: approvals.entityId,
-      status: approvals.status,
-      projectId: approvals.projectId,
+      id: governanceRecords.id,
+      planArtifactId: governanceRecords.planArtifactId,
+      status: governanceRecords.status,
+      projectId: governanceRecords.projectId,
       projectName: projects.name,
-      requestedByName: approvals.requestedByName,
-      requesterNote: approvals.requesterNote,
-      decidedByName: approvals.decidedByName,
-      decisionNote: approvals.decisionNote,
-      createdAt: approvals.createdAt,
-      decidedAt: approvals.decidedAt,
+      decidedByName: governanceRecords.decidedByName,
+      decisionNote: governanceRecords.decisionNote,
+      createdAt: governanceRecords.createdAt,
+      decidedAt: governanceRecords.decidedAt,
     })
-    .from(approvals)
-    .leftJoin(projects, eq(projects.id, approvals.projectId))
+    .from(governanceRecords)
+    .leftJoin(projects, eq(projects.id, governanceRecords.projectId))
     .where(
       and(
-        eq(approvals.organizationId, organizationId),
-        or(
-          eq(approvals.requestedById, agentId),
-          like(approvals.requestedByName, legacyName),
-        ),
+        eq(governanceRecords.organizationId, organizationId),
+        eq(governanceRecords.kind, "approval"),
+        sql`${governanceRecords.details}->>'requestedById' = ${agentId}`,
       ),
     )
-    .orderBy(desc(approvals.createdAt))
+    .orderBy(desc(governanceRecords.createdAt))
     .limit(limit);
 
   return rows;

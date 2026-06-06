@@ -8,8 +8,8 @@
 
 import { z } from "zod";
 
-import { bumpToolCall } from "../../session.js";
-import { resolveVibeAuthor, type VibeAuthor } from "../../lib/resolve-vibe-author.js";
+import { bumpToolCall } from "../../session";
+import { resolveVibeAuthor, type VibeAuthor } from "../../lib/resolve-vibe-author";
 
 export const getPromptAuthorInput = z.object({
   workspaceDir: z

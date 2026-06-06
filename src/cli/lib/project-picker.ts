@@ -7,13 +7,12 @@
  * because at connect time the config doesn't exist yet.
  */
 
-import { ask } from "./prompt.js";
+import { ask } from "./prompt";
 
 export interface PickableProject {
   id: string;
   slug: string;
   name: string;
-  phase?: string;
 }
 
 interface ListResponse {
@@ -67,7 +66,7 @@ export async function pickProject(
 
   console.log("Available projects:");
   projects.forEach((p, i) => {
-    console.log(`  ${i + 1}. ${p.name} (${p.slug})${p.phase ? ` — ${p.phase}` : ""}`);
+    console.log(`  ${i + 1}. ${p.name} (${p.slug})`);
   });
 
   while (true) {

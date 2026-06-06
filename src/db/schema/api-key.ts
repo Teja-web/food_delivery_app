@@ -27,9 +27,10 @@ export const apiKeys = cozntSchema.table(
     /**
      * Authorization role for this key. `member` (default) covers normal
      * read/write/skill traffic from IDE agents. `admin` / `owner` keys can
-     * also hit governance-sensitive routes like advance-phase. Mint a
-     * separate admin key for CI/promotion automation; keep IDE keys at
-     * `member` so a leaked editor token can't advance phases.
+     * also hit governance-sensitive routes (e.g. deciding governance_records,
+     * mutating skill_autonomy). Mint a separate admin key for CI/promotion
+     * automation; keep IDE keys at `member` so a leaked editor token can't
+     * approve its own work.
      */
     role: text().notNull().default("member"),
 

@@ -1,22 +1,18 @@
+import { and, eq, gte } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
-import { sql } from "drizzle-orm";
-
-import { listGatesForPhase } from "@/actions/gate/phase-gates";
 import { getProject } from "@/actions/project/projects";
+import { Toaster } from "@/components/ui/sonner";
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/plan/approval";
+import { governanceRecords } from "@/db/schema/governance/records";
+import { planArtifacts } from "@/db/schema/plan/plan-artifact";
 import type { Project } from "@/db/schema/project";
-import { canAdvanceFrom, nextPhase, PHASE_GUIDANCE } from "@/domain/phases";
+import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
 import { getActionContext } from "@/lib/auth/context";
 import { listBindingsForProject } from "@/operations/choreography/adapter-bindings";
 
-import {
-  serializeCockpitBinding,
-  serializeCockpitGate,
-  serializeCockpitProject,
-} from "../serialize";
-import { OverviewTab } from "../tabs/OverviewTab";
+import { serializeCockpitBinding } from "../serialize";
+import { OverviewTab, type PendingGovernanceRow, type ProjectPulse } from "../tabs/OverviewTab";
 
 export default async function ProjectOverviewPage({
   params,
@@ -28,51 +24,98 @@ export default async function ProjectOverviewPage({
   if (!project) notFound();
 
   const ctx = await getActionContext();
-  const [currentPhaseGates, bindings] = await Promise.all([
-    listGatesForPhase(id, project.phase),
+  const now = Date.now();
+  const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000);
+  const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const [allPlans, pendingRows, outcomes30dRows, incidents7dRows, bindings] = await Promise.all([
+    db
+      .select({
+        id: planArtifacts.id,
+        title: planArtifacts.title,
+        status: planArtifacts.status,
+      })
+      .from(planArtifacts)
+      .where(
+        and(
+          eq(planArtifacts.organizationId, ctx.organizationId),
+          eq(planArtifacts.projectId, id),
+        ),
+      ),
+    db
+      .select({
+        id: governanceRecords.id,
+        kind: governanceRecords.kind,
+        planArtifactId: governanceRecords.planArtifactId,
+        createdAt: governanceRecords.createdAt,
+      })
+      .from(governanceRecords)
+      .where(
+        and(
+          eq(governanceRecords.organizationId, ctx.organizationId),
+          eq(governanceRecords.projectId, id),
+          eq(governanceRecords.status, "pending"),
+        ),
+      ),
+    db
+      .select({ id: skillOutcomes.id })
+      .from(skillOutcomes)
+      .where(
+        and(
+          eq(skillOutcomes.organizationId, ctx.organizationId),
+          eq(skillOutcomes.projectId, id),
+          gte(skillOutcomes.recordedAt, since30d),
+        ),
+      ),
+    db
+      .select({ id: skillOutcomes.id })
+      .from(skillOutcomes)
+      .where(
+        and(
+          eq(skillOutcomes.organizationId, ctx.organizationId),
+          eq(skillOutcomes.projectId, id),
+          eq(skillOutcomes.verdict, "incident"),
+          gte(skillOutcomes.recordedAt, since7d),
+        ),
+      ),
     listBindingsForProject(id),
   ]);
 
-  const pendingByGate = new Map<string, number>();
-  if (currentPhaseGates.length > 0) {
-    const rows = await db
-      .select({
-        gateId: approvals.entityId,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(approvals)
-      .where(
-        sql`${approvals.organizationId} = ${ctx.organizationId}
-          AND ${approvals.entityType} = 'phase_gate'
-          AND ${approvals.status} = 'pending'`,
-      )
-      .groupBy(approvals.entityId);
-    for (const r of rows) pendingByGate.set(r.gateId, r.count);
-  }
+  const plansTotal = allPlans.length;
+  const plansInReview = allPlans.filter((p) => p.status === "in_review").length;
+  const plansInProgress = allPlans.filter((p) => p.status === "in_progress").length;
+  const planTitleById = new Map(allPlans.map((p) => [p.id, p.title]));
 
-  const gatesAllPassed = currentPhaseGates.every(
-    (g) => g.status === "passed" || g.status === "skipped",
-  );
-  const next = nextPhase(project.phase);
-  const canAdvance = canAdvanceFrom(project.phase) && gatesAllPassed;
-  const blockedReason = !gatesAllPassed
-    ? `${currentPhaseGates.filter((g) => g.status !== "passed" && g.status !== "skipped").length} gate(s) not yet cleared`
-    : null;
+  const pulse: ProjectPulse = {
+    plansTotal,
+    plansInReview,
+    plansInProgress,
+    governancePending: pendingRows.length,
+    outcomes30d: outcomes30dRows.length,
+    incidents7d: incidents7dRows.length,
+  };
 
-  const serialized = serializeCockpitProject(project);
+  const pendingGovernance: PendingGovernanceRow[] = pendingRows
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      planArtifactId: r.planArtifactId,
+      planTitle: planTitleById.get(r.planArtifactId) ?? null,
+      createdAtIso: r.createdAt.toISOString(),
+    }));
 
   return (
-    <OverviewTab
-      project={{ slug: serialized.slug, createdAt: serialized.createdAt }}
-      guidance={PHASE_GUIDANCE[project.phase]}
-      gates={currentPhaseGates.map((g) =>
-        serializeCockpitGate(g, pendingByGate.get(g.id) ?? 0),
-      )}
-      gatesAllPassed={gatesAllPassed}
-      nextPhase={next}
-      canAdvance={canAdvance}
-      blockedReason={blockedReason}
-      bindings={bindings.map(serializeCockpitBinding)}
-    />
+    <>
+      <OverviewTab
+        projectId={project.id}
+        projectName={project.name}
+        pulse={pulse}
+        pendingGovernance={pendingGovernance}
+        bindings={bindings.map(serializeCockpitBinding)}
+      />
+      <Toaster />
+    </>
   );
 }

@@ -12,8 +12,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall } from "../../session.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall } from "../../session";
 
 export const logDecisionInput = z.object({
   projectId: z.string().min(1).describe("Coznt project id (from get_my_context)."),

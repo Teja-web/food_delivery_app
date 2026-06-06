@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan";
+import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan-artifact";
 import { cn } from "@/lib/utils";
 
 import type { PlanRowClient, PlansPageClient } from "./serialize";
@@ -30,12 +30,8 @@ const KIND_TONE_CLASS: Record<PlanKind, string> = {
   adr: "border-foreground/30 text-foreground/85",
   test_plan: "border-state-pending/40 text-state-pending",
   release_plan: "border-trend-up/40 text-trend-up",
-  incident: "border-state-failed/40 text-state-failed",
-  storyboard: "border-foreground/30 text-foreground/85",
-  dev_summary: "border-foreground/30 text-foreground/85",
-  go_live_report: "border-trend-up/40 text-trend-up",
-  cicd_pipeline: "border-state-pending/40 text-state-pending",
   risk_register: "border-state-failed/40 text-state-failed",
+  incident: "border-state-failed/40 text-state-failed",
 };
 
 const STATUS_FILTER_TONE: Record<PlanStatus, string> = {
@@ -45,6 +41,7 @@ const STATUS_FILTER_TONE: Record<PlanStatus, string> = {
   in_progress: "border-foreground/40 bg-foreground/10 text-foreground",
   completed: "border-trend-up/50 bg-trend-up/15 text-trend-up",
   rejected: "border-state-failed/50 bg-state-failed/15 text-state-failed",
+  changes_requested: "border-autonomy-propose/50 bg-autonomy-propose/15 text-autonomy-propose",
   cancelled: "border-border/60 bg-muted/40 text-muted-foreground",
 };
 
@@ -56,12 +53,8 @@ const KIND_DOT_CLASS: Record<PlanKind, string> = {
   adr: "bg-foreground/60",
   test_plan: "bg-state-pending",
   release_plan: "bg-trend-up",
-  incident: "bg-state-failed",
-  storyboard: "bg-foreground/60",
-  dev_summary: "bg-foreground/60",
-  go_live_report: "bg-trend-up",
-  cicd_pipeline: "bg-state-pending",
   risk_register: "bg-state-failed",
+  incident: "bg-state-failed",
 };
 
 type Filter =

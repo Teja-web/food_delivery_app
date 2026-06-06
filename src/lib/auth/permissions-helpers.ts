@@ -70,7 +70,7 @@ export interface OrgPermissionFlags {
   canManageIntegrations: boolean;
   canManageApiKeys: boolean;
   canManageRules: boolean;
-  canManagePhaseGates: boolean;
+  canManageGovernanceRecords: boolean;
   canConfigureSkillAutonomy: boolean;
   canUpdateMemberProfile: boolean;
   canInviteMember: boolean;
@@ -80,7 +80,7 @@ const DENY_ALL: OrgPermissionFlags = {
   canManageIntegrations: false,
   canManageApiKeys: false,
   canManageRules: false,
-  canManagePhaseGates: false,
+  canManageGovernanceRecords: false,
   canConfigureSkillAutonomy: false,
   canUpdateMemberProfile: false,
   canInviteMember: false,
@@ -106,7 +106,7 @@ export async function getOrgPermissions(): Promise<OrgPermissionFlags> {
     callHasPermission({ integration: ["manage-credentials"] }, organizationId).catch(() => false),
     callHasPermission({ "api-key": ["create"] }, organizationId).catch(() => false),
     callHasPermission({ rule: ["update"] }, organizationId).catch(() => false),
-    callHasPermission({ "phase-gate": ["update"] }, organizationId).catch(() => false),
+    callHasPermission({ "governance-record": ["update"] }, organizationId).catch(() => false),
     callHasPermission({ "skill-autonomy": ["update"] }, organizationId).catch(() => false),
     callHasPermission({ "member-profile": ["update"] }, organizationId).catch(() => false),
     callHasPermission({ invitation: ["create"] }, organizationId).catch(() => false),
@@ -115,7 +115,7 @@ export async function getOrgPermissions(): Promise<OrgPermissionFlags> {
     canManageIntegrations: checks[0],
     canManageApiKeys: checks[1],
     canManageRules: checks[2],
-    canManagePhaseGates: checks[3],
+    canManageGovernanceRecords: checks[3],
     canConfigureSkillAutonomy: checks[4],
     canUpdateMemberProfile: checks[5],
     canInviteMember: checks[6],

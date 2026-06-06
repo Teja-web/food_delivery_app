@@ -8,8 +8,8 @@
  * as its own bundle.
  */
 
-import type { CozntConfig } from "./config.js";
-import { resolveApiKey } from "./auth.js";
+import type { CozntConfig } from "./config";
+import { resolveApiKey } from "./auth";
 
 export interface ManifestEntry {
   slug: string;

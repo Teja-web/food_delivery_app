@@ -11,9 +11,9 @@
  *                        server hasn't changed; respect their edit (skip)
  */
 
-import { sha256 } from "./hashing.js";
-import type { ManifestEntry } from "./api.js";
-import { readLock, readLocalSkill } from "./lock-file.js";
+import { sha256 } from "./hashing";
+import type { ManifestEntry } from "./api";
+import { readLock, readLocalSkill } from "./lock-file";
 
 export type Classification =
   | { kind: "new"; slug: string; remote: ManifestEntry }

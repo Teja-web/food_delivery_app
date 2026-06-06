@@ -14,8 +14,8 @@
  * loads the same `tools` array the stdio server registers.
  */
 
-import { CozntClient, readConfig } from "../../mcp/client.js";
-import { tools } from "../../mcp/server.js";
+import { CozntClient, readConfig } from "../../mcp/client";
+import { tools } from "../../mcp/registry";
 
 export interface CallOptions {
   /** First positional arg: the verb name. */

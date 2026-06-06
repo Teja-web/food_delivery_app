@@ -7,8 +7,8 @@
  *                 and clear `promptHook.installed` in `.coznt/config.json`.
  */
 
-import { readConfig, writeConfig, ConfigError } from "../lib/config.js";
-import { uninstallClaudePromptHook } from "../lib/prompt-hook-installer.js";
+import { readConfig, writeConfig, ConfigError } from "../lib/config";
+import { uninstallClaudePromptHook } from "../lib/prompt-hook-installer";
 
 export interface PromptHookOptions {
   subcommand: string | null;

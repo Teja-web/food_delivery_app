@@ -27,7 +27,7 @@ export interface CreateAutonomyThresholdRuleInput {
   title: string;
   /** null = org-wide */
   projectId: string | null;
-  actionKind: "merge_pr" | "advance_phase_gate" | "co_sign_promotion" | "deploy_production" | "*";
+  actionKind: "merge_pr" | "co_sign_promotion" | "deploy_production" | "*";
   changeRisk: "low" | "medium" | "high" | "critical" | "*";
   minAutonomy: "observe" | "propose" | "merge" | "lead";
   severity?: RuleSeverity;

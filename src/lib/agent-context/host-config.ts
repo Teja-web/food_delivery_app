@@ -138,8 +138,7 @@ export const HOST_SHAPES: Record<HostName, HostShape> = {
       "disable-model-invocation": [
         "invoke_skill",
         "upsert_plan",
-        "mark_gate_passed",
-        "advance_phase",
+        "submit_for_approval",
       ],
     }),
   },

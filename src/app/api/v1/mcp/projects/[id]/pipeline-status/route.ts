@@ -11,7 +11,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { testRuns } from "@/db/schema/test-run";
 import { handleApi } from "@/lib/auth/api-key";
 import { requireProjectScope } from "@/lib/auth/scope";
@@ -57,7 +57,7 @@ export async function GET(
           ciRunUrl: true,
         },
       }),
-      db.query.plans.findFirst({
+      db.query.planArtifacts.findFirst({
         where: and(
           eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
@@ -73,7 +73,7 @@ export async function GET(
     const latestDeploy = recentDeploys[0];
 
     return {
-      project: { id: project.id, name: project.name, phase: project.phase },
+      project: { id: project.id, name: project.name },
       activeReleasePlan: activeReleasePlan
         ? {
             id: activeReleasePlan.id,

@@ -11,8 +11,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall, getSessionProject } from "../../session.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall, getSessionProject } from "../../session";
 
 export const getAutonomyInput = z.object({
   skillSlug: z

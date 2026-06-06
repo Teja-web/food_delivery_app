@@ -9,13 +9,23 @@ import { Sparkline } from "@/components/viz/Sparkline";
 import type { Skill } from "@/db/schema/skill/skill";
 import type { SkillOutcomeVerdict } from "@/db/schema/skill/skill-outcome";
 import { getSkill } from "@/actions/skill/skills";
-import { computeAutonomyDistance } from "@/domain/autonomy-distance";
+import { computeAutonomyDistance, type AutonomyDistance } from "@/domain/autonomy-distance";
 import { readChoreographyBody } from "@/operations/choreography/choreographies";
-import { countBlockedPrsForSkill } from "@/operations/gate/execution-gate";
 import {
   getRecentApprovalsForSkill,
   type SkillApprovalRow,
 } from "@/operations/project/project-trust";
+
+// NOTE: blocked-PR counting via the legacy execution-gate op is gone in the
+// governance refactor. Until a replacement reads from the PreToolUse
+// interceptor's automation_log, surface 0 here.
+async function countBlockedPrsForSkill(
+  _organizationId: string,
+  _skillId: string,
+  _projectId: string | null,
+): Promise<number> {
+  return 0;
+}
 import {
   getRecentSkillOutcomes,
   getSkillAutonomy,
@@ -59,7 +69,7 @@ const LEVEL_PERMISSIONS: Record<LevelKey, { granted: string[]; gated: string[] }
   MERGE: {
     granted: [
       "Auto-approve eligible for low-risk PRs (work_item, plan)",
-      "Can advance phase gates of type APPROVAL when scoped to its project",
+      "Can decide governance records of kind `approval` when scoped to its project",
     ],
     gated: ["Production releases still require human sign-off", "Demotes on a single critical incident"],
   },
@@ -105,25 +115,27 @@ export default async function SkillDetailPage({
   // Transitional: org-wide view (projectId=null). Per-project breakdown lands
   // in Milestone B alongside the skills ledger redesign.
   const ctx = await getActionContext();
-  const [autonomy, stats, recent, blockedPrs, perProject, skillApprovals] = await Promise.all([
-    getSkillAutonomy(skill.id, null),
-    getSkillStats30d(skill.id, null),
-    getRecentSkillOutcomes(skill.id, 20),
-    countBlockedPrsForSkill(ctx.organizationId, skill.id, null),
-    getSkillAutonomyAcrossProjects(skill.id),
-    getRecentApprovalsForSkill(ctx.organizationId, skill.slug, 20),
-  ]);
+  const autonomy = await getSkillAutonomy(skill.id, null);
+  const stats = await getSkillStats30d(skill.id, null);
+  const recent = await getRecentSkillOutcomes(skill.id, 20);
+  const blockedPrs = await countBlockedPrsForSkill(ctx.organizationId, skill.id, null);
+  const perProject = await getSkillAutonomyAcrossProjects(skill.id);
+  const skillApprovals = await getRecentApprovalsForSkill(ctx.organizationId, skill.slug, 20);
 
   // Resolve project names for the cross-project rollup pane. The autonomy
   // rows only carry projectId; without the join the pane has nothing
   // human-readable to print.
   const referencedProjectIds = Array.from(
-    new Set(perProject.map((p) => p.projectId).filter((id): id is string => Boolean(id))),
+    new Set(
+      perProject
+        .map((p: { projectId: string | null }) => p.projectId)
+        .filter((id: string | null): id is string => Boolean(id)),
+    ),
   );
   const projectsById = new Map<string, { id: string; name: string }>();
   if (referencedProjectIds.length > 0) {
     const projectRows = await Promise.all(
-      referencedProjectIds.map((id) => projectCrud.get(id).catch(() => null)),
+      referencedProjectIds.map((id: string) => projectCrud.get(id).catch(() => null)),
     );
     for (const p of projectRows) {
       if (p) projectsById.set(p.id, { id: p.id, name: p.name });
@@ -137,8 +149,13 @@ export default async function SkillDetailPage({
   // Per-project stats + distance-to-next, for the cross-project pane.
   // N+1 query is fine for the small number of projects per skill; revisit if
   // we ever materialise hundreds of (skill, project) pairs.
-  const perProjectStats = await Promise.all(
-    perProject.map(async (row) => {
+  type PerProjectStats = {
+    projectId: string | null;
+    sparkline: number[];
+    distance: AutonomyDistance;
+  };
+  const perProjectStats: PerProjectStats[] = await Promise.all(
+    perProject.map(async (row): Promise<PerProjectStats> => {
       const s = await getSkillStats30d(skill.id, row.projectId);
       const daysAtLevel = (Date.now() - row.levelSetAt.getTime()) / (24 * 60 * 60 * 1000);
       const distance = computeAutonomyDistance({
@@ -568,9 +585,10 @@ export default async function SkillDetailPage({
 
 const APPROVAL_TONE: Record<SkillApprovalRow["status"], string> = {
   pending: "border-state-pending/40 text-state-pending",
-  approved: "border-trend-up/40 text-trend-up",
-  rejected: "border-state-failed/40 text-state-failed",
-  cancelled: "border-muted-foreground/30 text-muted-foreground",
+  passed: "border-trend-up/40 text-trend-up",
+  failed: "border-state-failed/40 text-state-failed",
+  skipped: "border-muted-foreground/30 text-muted-foreground",
+  expired: "border-muted-foreground/30 text-muted-foreground",
 };
 
 function SkillApprovalListItem({ approval }: { approval: SkillApprovalRow }) {
@@ -586,7 +604,7 @@ function SkillApprovalListItem({ approval }: { approval: SkillApprovalRow }) {
         variant="outline"
         className="shrink-0 px-1.5 py-0 font-mono text-[10px] uppercase text-muted-foreground"
       >
-        {approval.entityType}
+        plan
       </Badge>
       <span className="min-w-0 flex-1 truncate text-xs text-foreground/85">
         {approval.projectName && approval.projectId ? (
@@ -596,8 +614,8 @@ function SkillApprovalListItem({ approval }: { approval: SkillApprovalRow }) {
         ) : (
           <span className="text-muted-foreground">org-wide</span>
         )}
-        {approval.requesterNote ? (
-          <span className="ml-2 text-muted-foreground/70">— {approval.requesterNote}</span>
+        {approval.decisionNote ? (
+          <span className="ml-2 text-muted-foreground/70">— {approval.decisionNote}</span>
         ) : null}
       </span>
       <span

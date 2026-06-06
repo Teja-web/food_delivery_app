@@ -13,10 +13,10 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall, getSessionProject } from "../../session.js";
-import { PLAN_KINDS, type PlanKind } from "../../../db/schema/plan/plan-kinds.js";
-import { parseShortSyntax } from "../../../domain/short-syntax/parser.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall, getSessionProject } from "../../session";
+import { PLAN_KINDS, type PlanKind } from "../../../db/schema/plan/plan-kinds";
+import { parseShortSyntax } from "../../../domain/short-syntax/parser";
 
 export const upsertPlanInput = z.object({
   projectId: z.string().optional().describe("Defaults to the session's bound project."),

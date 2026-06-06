@@ -11,9 +11,8 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/plan/approval";
-import { phaseGates, type GateStatus } from "@/db/schema/phase-gate";
-import { projects, type Project, type ProjectPhase } from "@/db/schema/project";
+import { governanceRecords, type GovernanceRecordStatus } from "@/db/schema/governance/records";
+import { projects, type Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { computePortfolioRollup, computeProjectDora } from "@/operations/dora/dora-compose";
 import { getProjectAutonomyAggregate } from "@/operations/skill/skill-autonomy";
@@ -23,7 +22,7 @@ export type TrendDir = "up" | "down" | "flat";
 
 export type PortfolioGate = {
   name: string;
-  status: GateStatus;
+  status: GovernanceRecordStatus;
 };
 
 export type AutonomyPosture = {
@@ -87,7 +86,11 @@ function deriveHealth(project: Project, cfr: number | null): ProjectHealth {
   return "healthy";
 }
 
-/** Phase-expected gates plus how many are currently passed. */
+/**
+ * Per-project gate-kind governance records plus how many are currently passed.
+ * Gate sub-kind / display name is derived from `details.type` when present,
+ * falling back to "gate".
+ */
 async function fetchGatesForProjects(
   organizationId: string,
   projectIds: string[],
@@ -95,35 +98,29 @@ async function fetchGatesForProjects(
   if (projectIds.length === 0) return new Map();
   const rows = await db
     .select({
-      projectId: phaseGates.projectId,
-      phase: phaseGates.phase,
-      name: phaseGates.name,
-      status: phaseGates.status,
+      projectId: governanceRecords.projectId,
+      details: governanceRecords.details,
+      status: governanceRecords.status,
     })
-    .from(phaseGates)
+    .from(governanceRecords)
     .where(
       and(
-        eq(phaseGates.organizationId, organizationId),
-        inArray(phaseGates.projectId, projectIds),
+        eq(governanceRecords.organizationId, organizationId),
+        eq(governanceRecords.kind, "gate"),
+        inArray(governanceRecords.projectId, projectIds),
       ),
     );
 
-  const byProject = new Map<
-    string,
-    { passed: number; total: number; items: PortfolioGate[]; phase: ProjectPhase | null }
-  >();
+  const byProject = new Map<string, { passed: number; total: number; items: PortfolioGate[] }>();
   for (const r of rows) {
-    const slot = byProject.get(r.projectId) ?? { passed: 0, total: 0, items: [], phase: null };
-    slot.items.push({ name: r.name, status: r.status });
+    const slot = byProject.get(r.projectId) ?? { passed: 0, total: 0, items: [] };
+    const name = (r.details as { type?: string } | null)?.type ?? "gate";
+    slot.items.push({ name, status: r.status });
     slot.total += 1;
     if (r.status === "passed" || r.status === "skipped") slot.passed += 1;
     byProject.set(r.projectId, slot);
   }
-  const out = new Map<string, { passed: number; total: number; items: PortfolioGate[] }>();
-  for (const [projectId, slot] of byProject) {
-    out.set(projectId, { passed: slot.passed, total: slot.total, items: slot.items });
-  }
-  return out;
+  return byProject;
 }
 
 async function fetchOpenApprovalCounts(
@@ -134,18 +131,19 @@ async function fetchOpenApprovalCounts(
   if (projectIds.length === 0) return map;
   const rows = await db
     .select({
-      projectId: approvals.projectId,
+      projectId: governanceRecords.projectId,
       n: sql<number>`count(*)::int`,
     })
-    .from(approvals)
+    .from(governanceRecords)
     .where(
       and(
-        eq(approvals.organizationId, organizationId),
-        eq(approvals.status, "pending"),
-        inArray(approvals.projectId, projectIds),
+        eq(governanceRecords.organizationId, organizationId),
+        eq(governanceRecords.kind, "approval"),
+        eq(governanceRecords.status, "pending"),
+        inArray(governanceRecords.projectId, projectIds),
       ),
     )
-    .groupBy(approvals.projectId);
+    .groupBy(governanceRecords.projectId);
   for (const r of rows) {
     if (r.projectId) map.set(r.projectId, r.n);
   }

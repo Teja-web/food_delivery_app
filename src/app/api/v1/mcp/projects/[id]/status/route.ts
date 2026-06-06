@@ -1,10 +1,9 @@
 /**
  * GET /api/v1/mcp/projects/[id]/status
  *
- * Returns a compact status snapshot for one project: current phase,
- * gate counts + named pending gates, open approvals count, last
- * deployment timestamp. Sized to be the agent's "where are we?" check
- * before doing work — under 1KB of JSON.
+ * Returns a compact status snapshot for one project: governance record
+ * counts (pending/passed/failed), open approval count, last deployment.
+ * Sized to be the agent's "where are we?" check before doing work.
  *
  * Auth: bearer API key. The key's org must match the project's org;
  * a project-scoped key may only read its own project.
@@ -13,9 +12,8 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/plan/approval";
+import { governanceRecords } from "@/db/schema/governance/records";
 import { deployments } from "@/db/schema/deployment";
-import { phaseGates } from "@/db/schema/phase-gate";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
 
@@ -43,14 +41,19 @@ export async function GET(
       throw err;
     }
 
-    const [gatesForPhase, openApprovalCount, lastDeploy] = await Promise.all([
-      db.query.phaseGates.findMany({
-        where: and(eq(phaseGates.projectId, project.id), eq(phaseGates.phase, project.phase)),
+    const [records, lastDeploy] = await Promise.all([
+      db.query.governanceRecords.findMany({
+        where: and(
+          eq(governanceRecords.organizationId, ctx.organizationId),
+          eq(governanceRecords.projectId, project.id),
+        ),
+        columns: {
+          id: true,
+          kind: true,
+          status: true,
+          planArtifactId: true,
+        },
       }),
-      db.$count(
-        approvals,
-        and(eq(approvals.organizationId, ctx.organizationId), eq(approvals.status, "pending")),
-      ),
       db.query.deployments.findFirst({
         where: eq(deployments.projectId, project.id),
         orderBy: [desc(deployments.startedAt)],
@@ -58,29 +61,31 @@ export async function GET(
       }),
     ]);
 
-    const passed = gatesForPhase.filter((g) => g.status === "passed").length;
-    const failed = gatesForPhase.filter((g) => g.status === "failed").length;
-    const pending = gatesForPhase.filter((g) => g.status === "pending").length;
-    const skipped = gatesForPhase.filter((g) => g.status === "skipped").length;
+    const passed = records.filter((g) => g.status === "passed").length;
+    const failed = records.filter((g) => g.status === "failed").length;
+    const pending = records.filter((g) => g.status === "pending").length;
+    const skipped = records.filter((g) => g.status === "skipped").length;
+    const openApprovals = records.filter(
+      (g) => g.kind === "approval" && g.status === "pending",
+    ).length;
 
     return {
       project: {
         id: project.id,
         name: project.name,
         slug: project.slug,
-        phase: project.phase,
       },
-      phaseGates: {
-        total: gatesForPhase.length,
+      governanceRecords: {
+        total: records.length,
         passed,
         failed,
         pending,
         skipped,
-        pendingNames: gatesForPhase
-          .filter((g) => g.status === "pending" || g.status === "failed")
-          .map((g) => ({ name: g.name, type: g.type, status: g.status })),
+        pendingByKind: records
+          .filter((g) => g.status === "pending")
+          .map((g) => ({ id: g.id, kind: g.kind, planArtifactId: g.planArtifactId })),
       },
-      openApprovals: openApprovalCount,
+      openApprovals,
       lastDeploy: lastDeploy
         ? {
             at: lastDeploy.startedAt.toISOString(),

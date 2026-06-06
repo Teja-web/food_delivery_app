@@ -46,7 +46,7 @@ export function RulesSkillsTab({
           </div>
           {rules.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No rules apply in this phase ·{" "}
+              No rules apply to this project ·{" "}
               <Link href="/rules" className="text-primary hover:underline">
                 Declare a rule
               </Link>

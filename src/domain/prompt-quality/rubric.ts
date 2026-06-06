@@ -11,7 +11,18 @@
  * version on every scored prompt so the server-side rescore is well-defined.
  */
 
-import type { ProjectPhase } from "@/db/schema/project";
+// Project phase has been removed from the schema; the rubric keeps the six
+// phase names as a self-contained vocabulary for prompt heuristics only.
+// Callers (prompt-log scoring) may pass any of these strings, or null.
+export const PROMPT_PHASES = [
+  "requirements",
+  "design",
+  "development",
+  "testing",
+  "cicd",
+  "monitoring",
+] as const;
+type ProjectPhase = (typeof PROMPT_PHASES)[number];
 import type { PromptQualityTier } from "@/db/schema/prompt-log";
 
 export const RUBRIC_VERSION = "1.0.0";

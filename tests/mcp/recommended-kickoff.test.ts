@@ -13,36 +13,36 @@ import { describe, expect, it } from "vitest";
 import { readChoreographyContent } from "@/operations/choreography/choreographies";
 import { resolveKickoffState } from "@/lib/agent-context/recommended-kickoff";
 
-describe("resolveKickoffState — requirements phase", () => {
+describe("resolveKickoffState — plan-status driven (phase removed)", () => {
   it("returns 'empty' when no plans exist", () => {
     const s = resolveKickoffState({
-      phase: "requirements",
       planCount: 0,
       hasEpic: false,
       hasFeature: false,
       hasApprovedPlan: false,
+      draftCount: 0,
     });
     expect(s).toBe("empty");
   });
 
   it("returns 'has_epic_no_feature' when an epic exists but no features", () => {
     const s = resolveKickoffState({
-      phase: "requirements",
       planCount: 1,
       hasEpic: true,
       hasFeature: false,
       hasApprovedPlan: false,
+      draftCount: 0,
     });
     expect(s).toBe("has_epic_no_feature");
   });
 
   it("returns 'ready_for_advance' once at least one plan is approved", () => {
     const s = resolveKickoffState({
-      phase: "requirements",
       planCount: 3,
       hasEpic: false,
       hasFeature: true,
       hasApprovedPlan: true,
+      draftCount: 0,
     });
     expect(s).toBe("ready_for_advance");
   });
@@ -51,37 +51,33 @@ describe("resolveKickoffState — requirements phase", () => {
     // The "5 flat stories" scenario — agent drafted leaves but no
     // organizing parent. Should route the coach to feature-spec-generator.
     const s = resolveKickoffState({
-      phase: "requirements",
       planCount: 5,
       hasEpic: false,
       hasFeature: false,
       hasApprovedPlan: false,
+      draftCount: 0,
     });
     expect(s).toBe("has_leaves_no_parent");
   });
-});
 
-describe("resolveKickoffState — other phases", () => {
-  it("returns 'empty' for any phase with zero plans", () => {
-    for (const phase of ["design", "development", "testing", "cicd", "monitoring"] as const) {
-      const s = resolveKickoffState({
-        phase,
-        planCount: 0,
-        hasEpic: false,
-        hasFeature: false,
-        hasApprovedPlan: false,
-      });
-      expect(s, `phase=${phase}`).toBe("empty");
-    }
+  it("returns 'has_drafts' when many drafts pile up", () => {
+    const s = resolveKickoffState({
+      planCount: 4,
+      hasEpic: true,
+      hasFeature: true,
+      hasApprovedPlan: false,
+      draftCount: 3,
+    });
+    expect(s).toBe("has_drafts");
   });
 
-  it("returns 'none' for non-requirements phases with mid-flight state", () => {
+  it("returns 'none' when no rule meaningfully matches", () => {
     const s = resolveKickoffState({
-      phase: "development",
       planCount: 5,
-      hasEpic: false,
-      hasFeature: false,
-      hasApprovedPlan: true,
+      hasEpic: true,
+      hasFeature: true,
+      hasApprovedPlan: false,
+      draftCount: 0,
     });
     expect(s).toBe("none");
   });
@@ -205,6 +201,7 @@ describe("project-lifecycle/SKILL.md — shipped routing rules", () => {
       "empty",
       "has_epic_no_feature",
       "has_leaves_no_parent",
+      "has_drafts",
       "ready_for_advance",
     ]);
     for (const rule of rules) {

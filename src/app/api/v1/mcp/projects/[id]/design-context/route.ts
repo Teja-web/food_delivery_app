@@ -11,7 +11,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
 import { requireProjectScope } from "@/lib/auth/scope";
@@ -27,7 +27,7 @@ export async function GET(
     const project = await requireProjectScope(ctx, id);
 
     const [adrs, activeFeatures, openWorkItems] = await Promise.all([
-      db.query.plans.findMany({
+      db.query.planArtifacts.findMany({
         where: and(
           eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
@@ -44,7 +44,7 @@ export async function GET(
           updatedAt: true,
         },
       }),
-      db.query.plans.findMany({
+      db.query.planArtifacts.findMany({
         where: and(
           eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
@@ -60,7 +60,6 @@ export async function GET(
           summary: true,
           status: true,
           priority: true,
-          parentPlanId: true,
           updatedAt: true,
         },
       }),
@@ -79,14 +78,14 @@ export async function GET(
           externalUrl: true,
           title: true,
           status: true,
-          planId: true,
+          planArtifactId: true,
           updatedAt: true,
         },
       }),
     ]);
 
     return {
-      project: { id: project.id, name: project.name, phase: project.phase },
+      project: { id: project.id, name: project.name },
       adrs: adrs.map((p) => ({
         id: p.id,
         title: p.title,
@@ -102,7 +101,6 @@ export async function GET(
         summary: p.summary,
         status: p.status,
         priority: p.priority,
-        parentPlanId: p.parentPlanId,
         updatedAt: p.updatedAt.toISOString(),
       })),
       workItems: openWorkItems.map((w) => ({
@@ -113,7 +111,7 @@ export async function GET(
         externalUrl: w.externalUrl,
         title: w.title,
         status: w.status,
-        planId: w.planId,
+        planArtifactId: w.planArtifactId,
         updatedAt: w.updatedAt.toISOString(),
       })),
     };

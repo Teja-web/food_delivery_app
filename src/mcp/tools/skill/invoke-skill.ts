@@ -17,8 +17,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall } from "../../session.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall } from "../../session";
 
 export const invokeSkillInput = z.object({
   slug: z.string().min(1).describe("Skill slug (e.g. `test-author`, `change-risk-classifier`)."),

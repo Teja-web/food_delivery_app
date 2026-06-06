@@ -12,7 +12,6 @@ export interface ProjectListItemDTO {
   name: string;
   slug: string;
   description: string | null;
-  phase: Project["phase"];
   status: Project["status"];
   updatedAt: string;
 }
@@ -23,7 +22,6 @@ export function serializeProject(p: Project): ProjectListItemDTO {
     name: p.name,
     slug: p.slug,
     description: p.description,
-    phase: p.phase,
     status: p.status,
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -50,7 +48,6 @@ export interface PortfolioProjectClient {
   name: string;
   slug: string;
   shortKey: string;
-  phase: Project["phase"];
   status: Project["status"];
   health: ProjectHealth;
   hasRegression: boolean;
@@ -89,7 +86,6 @@ function serializePortfolioProject(row: PortfolioProjectRow): PortfolioProjectCl
     name: row.project.name,
     slug: row.project.slug,
     shortKey: row.shortKey,
-    phase: row.project.phase,
     status: row.project.status,
     health: row.health,
     hasRegression: row.hasRegression,

@@ -1,11 +1,10 @@
 /**
- * Plan enums — leaf file with no Drizzle imports.
+ * Plan Artifact enums — leaf file with no Drizzle imports.
  *
  * Lives next to the schema so the MCP CLI bundle can import these
  * constants without dragging in `drizzle-orm/pg-core` and the rest of
- * the schema chain. The full Drizzle table definition in `plan.ts`
- * re-exports from here so app-side callers keep their `@/db/schema/plan`
- * imports.
+ * the schema chain. The full Drizzle table definition in `plan-artifact.ts`
+ * re-exports from here.
  */
 
 export const PLAN_KINDS = [
@@ -16,16 +15,15 @@ export const PLAN_KINDS = [
   "adr",
   "test_plan",
   "release_plan",
-  "incident",
-  "storyboard",
-  "dev_summary",
-  "go_live_report",
-  "cicd_pipeline",
   "risk_register",
+  "incident",
 ] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
-/** Canonical parent → child rollup for hierarchy validation. */
+/**
+ * UX hint for which parent kinds the create-flow should suggest. Not
+ * schema-enforced — relationships live in `plan_relationships` (kind=`parent_of`).
+ */
 export const PLAN_KIND_PARENTS: Partial<Record<PlanKind, PlanKind[]>> = {
   feature: ["epic"],
   story: ["feature", "epic"],
@@ -33,11 +31,8 @@ export const PLAN_KIND_PARENTS: Partial<Record<PlanKind, PlanKind[]>> = {
   adr: ["epic", "feature", "spec"],
   test_plan: ["feature", "story", "spec"],
   release_plan: ["epic", "feature"],
-  storyboard: ["feature", "epic"],
-  dev_summary: ["feature", "story"],
-  go_live_report: ["release_plan"],
-  cicd_pipeline: ["release_plan", "epic"],
   risk_register: ["epic", "feature", "release_plan"],
+  // incident is root; no parent
 };
 
 export const PLAN_STATUSES = [
@@ -47,9 +42,24 @@ export const PLAN_STATUSES = [
   "in_progress",
   "completed",
   "rejected",
+  "changes_requested",
   "cancelled",
 ] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
 
 export const PLAN_PRIORITIES = ["p0", "p1", "p2", "p3"] as const;
 export type PlanPriority = (typeof PLAN_PRIORITIES)[number];
+
+export const PLAN_CLASSIFICATIONS = ["enabler", "spike", "bug", "debt"] as const;
+export type PlanClassification = (typeof PLAN_CLASSIFICATIONS)[number];
+
+export const PLAN_RELATIONSHIP_KINDS = [
+  "parent_of",
+  "supersedes",
+  "derived_from",
+  "blocks",
+  "relates_to",
+  "causes",
+  "references",
+] as const;
+export type PlanRelationshipKind = (typeof PLAN_RELATIONSHIP_KINDS)[number];

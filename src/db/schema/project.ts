@@ -1,24 +1,16 @@
 /**
- * Project — top-level container for a unit of SDLC work.
+ * Project — thin delivery container.
  *
- * Each project lives in one org, has a current `phase`, and links out to
- * external systems (repo, Jira project, ADO project, Confluence space).
+ * Multi-repo + multi-environment per project. Repo/tracker links live in
+ * `repositories`; deploy targets live in `environments`. No phase column —
+ * SDLC progression is expressed through plan-artifact status, not project
+ * state.
  */
 
-import { boolean, text, timestamp, index, unique } from "drizzle-orm/pg-core";
+import { boolean, jsonb, text, timestamp, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
-
-export const PROJECT_PHASES = [
-  "requirements",
-  "design",
-  "development",
-  "testing",
-  "cicd",
-  "monitoring",
-] as const;
-export type ProjectPhase = (typeof PROJECT_PHASES)[number];
 
 export const PROJECT_STATUSES = ["active", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -33,15 +25,13 @@ export const projects = cozntSchema.table(
     slug: text().notNull(),
     description: text(),
 
-    phase: text().$type<ProjectPhase>().notNull().default("requirements"),
     status: text().$type<ProjectStatus>().notNull().default("active"),
 
-    // External system links — optional; per-org integration credentials live in
-    // the `integrations` table.
-    repoUrl: text("repo_url"),
-    jiraProjectKey: text("jira_project_key"),
-    adoProjectId: text("ado_project_id"),
-    confluenceSpaceKey: text("confluence_space_key"),
+    /** Default approvers when no policy-level override applies. */
+    defaultApproverIds: text("default_approver_ids")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
 
     // Execution-gate inputs (docs/execution-gate-plan.md). Empty defaults
     // are permissive; the gate's change-risk heuristic upgrades a PR's
@@ -54,15 +44,18 @@ export const projects = cozntSchema.table(
 
     /**
      * When true, the execution gate forces `failure` on any PR that lacks a
-     * decided "approved" row in `approvals` — even if the originating skill's
-     * autonomy would normally clear the change. Per-project so customers can
-     * lock down sensitive projects (production / regulated) while keeping
-     * lighter projects autonomy-only. Defaults to false to preserve the
-     * pre-existing autonomy-only behavior.
+     * decided "approved" governance record — even if the originating skill's
+     * autonomy would normally clear the change.
      */
     requireHumanApprovalForMerge: boolean("require_human_approval_for_merge")
       .notNull()
       .default(false),
+
+    /** Per-project autonomy config overrides (skill → minLevel). */
+    autonomyConfig: jsonb("autonomy_config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
 
     createdById: text("created_by_id"),
     createdByName: text("created_by_name"),

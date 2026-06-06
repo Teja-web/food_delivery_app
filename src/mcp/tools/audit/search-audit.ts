@@ -8,8 +8,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall } from "../../session.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall } from "../../session";
 
 const ACTOR_TYPES = ["user", "api", "system", "agent"] as const;
 

@@ -16,10 +16,10 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall, getCurrentSession, getSessionProject } from "../../session.js";
-import { appendToLocalBuffer } from "../../lib/prompt-buffer.js";
-import { resolveVibeAuthor } from "../../lib/resolve-vibe-author.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall, getCurrentSession, getSessionProject } from "../../session";
+import { appendToLocalBuffer } from "../../lib/prompt-buffer";
+import { resolveVibeAuthor } from "../../lib/resolve-vibe-author";
 
 export const logPromptInput = z.object({
   content: z.string().min(1).describe("Prompt text. USER messages typed by the developer."),

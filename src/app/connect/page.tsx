@@ -93,8 +93,8 @@ export default function IntegrationsPage() {
               "Webhook events for everything above",
             ]}
             emit={[
-              "PR comments with gate state",
-              "Status checks for phase gate results",
+              "PR comments with governance record state",
+              "Status checks for gate / approval / review outcomes",
               "Deployment annotations",
               "Branch protection metadata",
             ]}
@@ -112,10 +112,10 @@ export default function IntegrationsPage() {
               "Custom fields mapped to plan frontmatter",
             ]}
             emit={[
-              "Transition issues on phase advance",
+              "Transition issues on plan-artifact status changes",
               "Post comments with linked plan IDs",
               "Update custom fields with autonomy state",
-              "Block transitions on failed gates",
+              "Block transitions on failed governance records",
             ]}
           />
           <IntegrationDetail
@@ -151,7 +151,7 @@ export default function IntegrationsPage() {
             ]}
             emit={[
               "Auto-generated ADR drafts",
-              "Phase-advance summaries",
+              "Plan-transition summaries",
               "Audit packet exports",
               "Cross-linked references back to plans",
             ]}
@@ -170,7 +170,7 @@ export default function IntegrationsPage() {
             name="Cursor"
             kind="MCP"
             available
-            body="The flagship MCP target. coznt.get_my_context returns project, phase, ticket, rules, callable skills with autonomy levels."
+            body="The flagship MCP target. coznt.get_my_context returns project, active plans, ticket, rules, callable skills with autonomy levels."
           />
           <AgentSurfaceCard
             name="Claude Code"
@@ -304,7 +304,7 @@ function ModelPipeline() {
       icon: ArrowLeftRight,
       verb: "Attribute",
       table: "audit_logs",
-      body: "Matched to project + phase + actor. Outcome assessors run. Ledger updates.",
+      body: "Matched to project + plan_artifact + actor. Outcome assessors run. Ledger updates.",
       tone: "primary",
     },
     {

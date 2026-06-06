@@ -1,213 +1,204 @@
 "use client";
 
-import { Check, CircleAlert, CircleCheck, CircleDashed, CircleX, X } from "lucide-react";
+import { Activity, ScrollText, ShieldAlert, Sparkles } from "lucide-react";
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
-import type {
-  CockpitBindingClient,
-  CockpitGateClient,
-  CockpitProjectClient,
-} from "../serialize";
-import type { PhaseGuidance } from "@/domain/phases";
-import type { ProjectPhase } from "@/db/schema/project";
+import type { CockpitBindingClient } from "../serialize";
 
-const PHASE_LABEL: Record<CockpitProjectClient["phase"], string> = {
-  requirements: "REQUIREMENTS",
-  design: "DESIGN",
-  development: "DEVELOPMENT",
-  testing: "TESTING",
-  cicd: "CI/CD",
-  monitoring: "MONITORING",
-};
-
-function GateIcon({ status }: { status: CockpitGateClient["status"] }) {
-  const map = {
-    passed: <CircleCheck className="h-4 w-4 text-state-passed" aria-hidden />,
-    failed: <CircleX className="h-4 w-4 text-state-failed" aria-hidden />,
-    pending: <CircleDashed className="h-4 w-4 text-state-pending" aria-hidden />,
-    skipped: <CircleAlert className="h-4 w-4 text-muted-foreground/60" aria-hidden />,
-  };
-  return map[status];
+export interface PendingGovernanceRow {
+  id: string;
+  kind: string;
+  planArtifactId: string;
+  planTitle: string | null;
+  createdAtIso: string;
 }
 
-function GateRow({ gate }: { gate: CockpitGateClient }) {
-  const failedOrPending = gate.status === "failed" || gate.status === "pending";
-  return (
-    <li className="flex items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0">
-      <GateIcon status={gate.status} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{gate.name}</span>
-          <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] uppercase">
-            {gate.type}
-          </Badge>
-        </div>
-        {failedOrPending && gate.unmetCriterion ? (
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            {gate.unmetCriterion}
-            {gate.assigneeName ? (
-              <span className="ml-1 text-foreground/80">@{gate.assigneeName}</span>
-            ) : null}
-            {gate.ageLabel ? <span className="ml-1 opacity-70">({gate.ageLabel})</span> : null}
-          </div>
-        ) : null}
-        {gate.status === "failed" && gate.lastGreenAt ? (
-          <div className="mt-0.5 text-[11px] text-trend-down/80">
-            Was green {new Date(gate.lastGreenAt).toLocaleDateString()} — what changed?
-          </div>
-        ) : null}
-      </div>
-    </li>
-  );
+export interface ProjectPulse {
+  plansTotal: number;
+  plansInReview: number;
+  plansInProgress: number;
+  governancePending: number;
+  outcomes30d: number;
+  incidents7d: number;
 }
 
 export interface OverviewTabProps {
-  project: Pick<CockpitProjectClient, "slug" | "createdAt">;
-  guidance: PhaseGuidance;
-  gates: CockpitGateClient[];
-  gatesAllPassed: boolean;
-  nextPhase: ProjectPhase | null;
-  canAdvance: boolean;
-  blockedReason: string | null;
+  projectId: string;
+  projectName: string;
+  pulse: ProjectPulse;
+  pendingGovernance: PendingGovernanceRow[];
   bindings: CockpitBindingClient[];
 }
 
+function StatTile({
+  label,
+  value,
+  Icon,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  Icon: typeof Activity;
+  hint?: string;
+  tone?: "warn" | "default";
+}) {
+  return (
+    <Card className="bg-card/40">
+      <CardContent className="space-y-1 pt-4">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            {label}
+          </span>
+          <Icon
+            className={`h-3.5 w-3.5 ${tone === "warn" ? "text-state-failed" : "text-muted-foreground"}`}
+            aria-hidden
+          />
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`font-display text-2xl font-bold tabular-nums ${
+              tone === "warn" ? "text-state-failed" : ""
+            }`}
+          >
+            {value}
+          </span>
+          {hint ? (
+            <span className="font-mono text-[10px] text-muted-foreground">{hint}</span>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Project pulse — replaces the old phase/gates-driven overview.
+ * Surfaces plan activity, governance backlog, and recent autonomy outcomes.
+ */
 export function OverviewTab({
-  project,
-  guidance,
-  gates,
-  gatesAllPassed,
-  nextPhase,
-  canAdvance,
-  blockedReason,
+  projectId,
+  projectName,
+  pulse,
+  pendingGovernance,
   bindings,
 }: OverviewTabProps) {
   return (
     <div className="space-y-6">
-      <Card className="border-primary/30 bg-card/60">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              This phase · {guidance.label}
-            </CardTitle>
-            {nextPhase ? (
-              <Button
-                size="sm"
-                disabled={!canAdvance}
-                className={cn(gatesAllPassed && "shadow-sm")}
-                title={blockedReason ?? undefined}
-              >
-                Advance to {PHASE_LABEL[nextPhase].toLowerCase()} →
-              </Button>
-            ) : (
-              <Badge variant="outline" className="text-trend-up">
-                Terminal phase
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-0">
-          <p className="text-sm text-foreground/85">{guidance.description}</p>
-          <div>
-            <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-              Suggested actions
-            </div>
-            <ul className="space-y-1 text-sm">
-              {guidance.suggestedActions.map((a) => (
-                <li key={a} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary/60" />
-                  <span className="text-foreground/85">{a}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-md border border-trend-up/30 bg-trend-up/[0.04] px-3 py-2">
-              <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-trend-up/85">
-                Allowed for agents
-              </div>
-              <ul className="space-y-1 text-xs">
-                {guidance.allowed.map((a) => (
-                  <li key={a} className="flex items-start gap-1.5 text-foreground/85">
-                    <Check className="mt-0.5 h-3 w-3 shrink-0 text-trend-up" aria-hidden />
-                    <span>{a}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-md border border-state-failed/30 bg-state-failed/[0.04] px-3 py-2">
-              <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-state-failed/85">
-                Forbidden in this phase
-              </div>
-              <ul className="space-y-1 text-xs">
-                {guidance.forbidden.map((a) => (
-                  <li key={a} className="flex items-start gap-1.5 text-muted-foreground">
-                    <X className="mt-0.5 h-3 w-3 shrink-0 text-state-failed/80" aria-hidden />
-                    <span>{a}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-              Next phase opens when
-            </span>
-            <div className="mt-0.5 text-xs text-foreground/85">{guidance.nextCondition}</div>
-          </div>
-          {blockedReason ? (
-            <div className="rounded-md border border-state-failed/40 bg-state-failed/10 px-3 py-2 text-xs text-state-failed">
-              Blocked: {blockedReason}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      <header>
+        <h2 className="font-display text-lg font-semibold">{projectName}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Project pulse — plans, governance backlog, and recent outcomes.
+        </p>
+      </header>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Plans"
+          value={pulse.plansTotal}
+          Icon={ScrollText}
+          hint={pulse.plansInReview > 0 ? `${pulse.plansInReview} in review` : undefined}
+        />
+        <StatTile
+          label="In progress"
+          value={pulse.plansInProgress}
+          Icon={Activity}
+        />
+        <StatTile
+          label="Governance pending"
+          value={pulse.governancePending}
+          Icon={ShieldAlert}
+          tone={pulse.governancePending > 0 ? "warn" : "default"}
+        />
+        <StatTile
+          label="Outcomes 30d"
+          value={pulse.outcomes30d}
+          Icon={Sparkles}
+          hint={
+            pulse.incidents7d > 0
+              ? `${pulse.incidents7d} incident${pulse.incidents7d === 1 ? "" : "s"} 7d`
+              : undefined
+          }
+          tone={pulse.incidents7d > 0 ? "warn" : "default"}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader>
             <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Gates · {gates.filter((g) => g.status === "passed" || g.status === "skipped").length}/{gates.length} cleared
+              Top blockers · pending governance
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            {gates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No gates configured for this phase — advancement is allowed.
-              </p>
+            {pendingGovernance.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No pending governance records.</p>
             ) : (
-              <ul className="divide-y-0 rounded-md border">
-                {gates.map((g) => (
-                  <GateRow key={g.id} gate={g} />
+              <ul className="divide-y rounded border text-sm">
+                {pendingGovernance.slice(0, 8).map((r) => (
+                  <li key={r.id} className="flex items-center justify-between px-3 py-2">
+                    <Link
+                      href={`/plans/${r.planArtifactId}`}
+                      className="min-w-0 truncate hover:underline"
+                    >
+                      <span className="mr-2 font-mono text-[10px] uppercase text-muted-foreground">
+                        {r.kind}
+                      </span>
+                      {r.planTitle ?? r.planArtifactId.slice(0, 8)}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(r.createdAtIso).toLocaleDateString()}
+                    </span>
+                  </li>
                 ))}
               </ul>
             )}
+            <div className="mt-3 flex justify-end">
+              <Link
+                href={`/projects/${projectId}/governance/inbox`}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Open governance inbox →
+              </Link>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader>
             <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Connected systems · {bindings.length}
+              Adapters
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {bindings.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No bindings — connect an adapter from <a className="text-primary hover:underline" href="/integrations">Integrations</a>.
+                No adapters bound yet.{" "}
+                <Link
+                  href="/integrations"
+                  className="text-foreground hover:underline"
+                >
+                  Connect one →
+                </Link>
               </p>
             ) : (
-              <ul className="space-y-1.5 text-sm">
+              <ul className="space-y-1">
                 {bindings.map((b) => (
-                  <li key={b.id} className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-2">
-                      <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] uppercase">
+                  <li
+                    key={b.id}
+                    className="flex items-center justify-between rounded border px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
                         {b.provider}
                       </Badge>
-                      <span className="font-mono text-[11px] text-muted-foreground">{b.externalKey}</span>
+                      <span className="text-muted-foreground">{b.externalKey}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(b.updatedAt).toLocaleDateString()}
                     </span>
                   </li>
                 ))}
@@ -215,10 +206,6 @@ export function OverviewTab({
             )}
           </CardContent>
         </Card>
-      </div>
-
-      <div className="text-[11px] font-mono text-muted-foreground/70">
-        Project {project.slug} · created {new Date(project.createdAt).toLocaleDateString()}
       </div>
     </div>
   );

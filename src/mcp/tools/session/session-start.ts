@@ -11,8 +11,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { attachServerId, startLocalSession } from "../../session.js";
+import { CozntClient } from "../../client";
+import { attachServerId, startLocalSession } from "../../session";
 
 export const sessionStartInput = z.object({
   intent: z

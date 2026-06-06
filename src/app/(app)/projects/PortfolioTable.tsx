@@ -102,38 +102,22 @@ function AutonomyFilterChips({
   );
 }
 
-const PHASE_LABEL: Record<PortfolioProjectClient["phase"], string> = {
-  requirements: "REQUIREMENTS",
-  design: "DESIGN",
-  development: "DEVELOPMENT",
-  testing: "TESTING",
-  cicd: "CI/CD",
-  monitoring: "MONITORING",
-};
-
-const PHASE_ACCENT: Record<PortfolioProjectClient["phase"], string> = {
-  requirements: "border-muted-foreground/30 text-muted-foreground/85",
-  design: "border-autonomy-propose/40 text-autonomy-propose",
-  development: "border-autonomy-merge/40 text-autonomy-merge",
-  testing: "border-state-pending/40 text-state-pending",
-  cicd: "border-autonomy-lead/40 text-autonomy-lead",
-  monitoring: "border-trend-up/40 text-trend-up",
-};
-
 function formatNumber(n: number, digits = 1): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
-function PhasePill({ phase }: { phase: PortfolioProjectClient["phase"] }) {
+function StatusPill({ status }: { status: PortfolioProjectClient["status"] }) {
   return (
     <Badge
       variant="outline"
       className={cn(
         "border bg-transparent px-1.5 py-0 font-mono text-[10px] uppercase tracking-[0.06em]",
-        PHASE_ACCENT[phase],
+        status === "active"
+          ? "border-autonomy-merge/40 text-autonomy-merge"
+          : "border-muted-foreground/30 text-muted-foreground/85",
       )}
     >
-      {PHASE_LABEL[phase]}
+      {status}
     </Badge>
   );
 }
@@ -307,7 +291,7 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
           </Badge>
         ) : null}
       </div>
-      <PhasePill phase={project.phase} />
+      <StatusPill status={project.status} />
       <GateCluster gates={project.gates} />
       <span className="text-center font-mono text-[12px] tabular-nums text-muted-foreground">
         {project.openApprovals > 0 ? (
@@ -429,8 +413,8 @@ export function PortfolioTable({ data }: { data: PortfolioClient }) {
             <div className="grid h-8 grid-cols-[18px_minmax(0,1.6fr)_120px_140px_72px_72px_72px_96px_88px_24px] items-center gap-3 border-b bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
               <span />
               <span>Project</span>
-              <span>Phase</span>
-              <span>Gates</span>
+              <span>Status</span>
+              <span>Records</span>
               <span className="text-center">Open</span>
               <span className="text-center">Lead</span>
               <span className="text-center">Deploys</span>

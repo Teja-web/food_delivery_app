@@ -57,6 +57,12 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
   const [expiresInDays, setExpiresInDays] = useState("");
   const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRevoked, setShowRevoked] = useState(false);
+
+  const revokedCount = initialKeys.filter((k) => k.status === "revoked").length;
+  const visibleKeys = showRevoked
+    ? initialKeys
+    : initialKeys.filter((k) => k.status !== "revoked");
 
   function handleMint(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -168,19 +174,33 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
           No API keys yet. Mint one above to call <code>/api/v1</code> from agents or CI.
         </div>
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead className="text-left text-muted-foreground">
-            <tr>
-              <th className="border-b py-2 font-medium">Name</th>
-              <th className="border-b py-2 font-medium">Prefix</th>
-              <th className="border-b py-2 font-medium">Status</th>
-              <th className="border-b py-2 font-medium">Last used</th>
-              <th className="border-b py-2 font-medium">Expires</th>
-              <th className="border-b py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {initialKeys.map((k) => (
+        <>
+          {revokedCount > 0 ? (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRevoked((v) => !v)}
+                className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+              >
+                {showRevoked
+                  ? `Hide revoked (${revokedCount})`
+                  : `Show revoked (${revokedCount})`}
+              </button>
+            </div>
+          ) : null}
+          <table className="w-full border-collapse text-sm">
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th className="border-b py-2 font-medium">Name</th>
+                <th className="border-b py-2 font-medium">Prefix</th>
+                <th className="border-b py-2 font-medium">Status</th>
+                <th className="border-b py-2 font-medium">Last used</th>
+                <th className="border-b py-2 font-medium">Expires</th>
+                <th className="border-b py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleKeys.map((k) => (
               <tr key={k.id} className="border-b">
                 <td className="py-2">{k.name}</td>
                 <td className="py-2 font-mono text-xs">{k.prefix}…</td>
@@ -205,8 +225,9 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </>
       )}
     </section>
   );

@@ -19,9 +19,9 @@ import {
   HOST_SHAPES,
   tomlServerSection,
   type HostName,
-} from "../../../lib/agent-context/host-config.js";
-import type { EditorName } from "../editor-detect.js";
-import type { CozntMcpEntry, WriteResult, WriterContext } from "./types.js";
+} from "../../../lib/agent-context/host-config";
+import type { EditorName } from "../editor-detect";
+import type { CozntMcpEntry, WriteResult, WriterContext } from "./types";
 
 function readTextIfExists(path: string): string | null {
   try {

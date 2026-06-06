@@ -3,7 +3,9 @@
  *
  * `source` says which system (`github`, `jira`, `ado`, `confluence`).
  * `externalId` uniquely identifies the artifact in that system. Optional
- * `planId` links the work item back to the coznt plan it implements.
+ * `planArtifactId` links the work item back to the plan it implements;
+ * going forward the canonical traceability surface is `evidence_links`,
+ * but this column stays as a fast lookup (one work-item → one plan).
  */
 
 import { text, timestamp, jsonb, boolean, integer, index, unique } from "drizzle-orm/pg-core";
@@ -11,7 +13,8 @@ import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { plans } from "./plan/plan";
+import { planArtifacts } from "./plan/plan-artifact";
+import { repositories } from "./repository";
 import { skills } from "./skill/skill";
 
 export const WORK_ITEM_SOURCES = ["github", "jira", "ado", "confluence"] as const;
@@ -34,7 +37,12 @@ export const workItems = cozntSchema.table(
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
     projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
-    planId: text("plan_id").references(() => plans.id, { onDelete: "set null" }),
+    planArtifactId: text("plan_artifact_id").references(() => planArtifacts.id, {
+      onDelete: "set null",
+    }),
+    repositoryId: text("repository_id").references(() => repositories.id, {
+      onDelete: "set null",
+    }),
 
     source: text().$type<WorkItemSource>().notNull(),
     externalId: text("external_id").notNull(),
@@ -50,10 +58,6 @@ export const workItems = cozntSchema.table(
 
     lastSyncedAt: timestamp("last_synced_at"),
 
-    // Provenance — populated atomically by agent-path inserts via
-    // src/lib/provenance/record.ts. Legacy rows stay aiAuthored=false;
-    // we don't manufacture provenance retroactively. The existing
-    // planId field already serves as spec linkback.
     aiAuthored: boolean("ai_authored").notNull().default(false),
     generatedByModel: text("generated_by_model"),
     generatedBySkillId: text("generated_by_skill_id").references(() => skills.id, {
@@ -69,7 +73,8 @@ export const workItems = cozntSchema.table(
   (table) => [
     index("work_items_org_idx").on(table.organizationId),
     index("work_items_project_idx").on(table.projectId),
-    index("work_items_plan_idx").on(table.planId),
+    index("work_items_plan_artifact_idx").on(table.planArtifactId),
+    index("work_items_repository_idx").on(table.repositoryId),
     index("work_items_generated_by_skill_idx").on(table.generatedBySkillId),
     unique("work_items_source_external_unique").on(table.source, table.externalId),
     index("work_items_fts_idx").using(

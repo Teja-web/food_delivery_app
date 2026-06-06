@@ -45,7 +45,7 @@ export async function savePlanRevision(args: {
 
   if ((existing.body ?? "") !== args.body) {
     await appendPlanRevision({
-      planId: args.planId,
+      planArtifactId: args.planId,
       body: args.body,
       changeNote: args.changeNote,
     });

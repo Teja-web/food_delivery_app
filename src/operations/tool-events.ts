@@ -21,13 +21,11 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db/client";
 import { skills, type Skill } from "@/db/schema/skill/skill";
-import { approvals } from "@/db/schema/plan/approval";
 import { automationLog } from "@/db/schema/audit/automation-log";
 import { intelligence } from "@/db/schema/intelligence";
 import type { ApiContext } from "@/lib/auth/api-key";
 import { applyActionPolicyRules } from "@/operations/rule-engine";
 import { getSkillAutonomy, recordSkillOutcome, LEVEL_NAMES } from "@/operations/skill/skill-autonomy";
-import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export const preToolUseSchema = z.object({
   skillSlug: z.string().min(1).describe("The skill the calling agent identifies as."),
@@ -152,26 +150,11 @@ export async function handlePreToolUse(
     : null;
   const reason = [ruleReason, autonomyReason].filter(Boolean).join("; ") || null;
 
-  // Route blocked autonomy decisions into the approvals inbox so a human
-  // (or, eventually, a merge agent) can ack.
-  let approvalId: string | null = null;
-  if (autonomyGated && skill) {
-    const [row] = await db
-      .insert(approvals)
-      .values({
-        organizationId: ctx.organizationId,
-        entityType: "skill_invocation",
-        entityId: runId,
-        projectId,
-        requestedById: `agent:${input.skillSlug}`,
-        requestedByName: skill.name,
-        requesterNote: `${input.tool}${input.command ? `: ${input.command}` : ""}`,
-        status: "pending",
-      })
-      .returning({ id: approvals.id });
-    approvalId = row.id;
-    safeRevalidate("/approvals");
-  }
+  // TODO: route to autonomy_override mechanism (spec §11.5 J10 — Skills subnav,
+  // not governance_records). Autonomy-gate denials are a distinct mechanism
+  // from plan-artifact governance; they don't belong in governance_records.
+  // For now, surface only via automationLog (recorded below) and return null.
+  const approvalId: string | null = null;
 
   // Log the pre-tool-use decision regardless of outcome.
   await db.insert(automationLog).values({

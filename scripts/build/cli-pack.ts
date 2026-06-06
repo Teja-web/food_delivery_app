@@ -39,15 +39,15 @@ console.log(`[cli:pack] version ${version}`);
 // Just clear our own staging dir.
 rmSync(stageDir, { recursive: true, force: true });
 
-console.log("[cli:pack] compiling TypeScript…");
-run("npx", ["tsc", "-p", "tsconfig.cli.json"], repoRoot);
+console.log("[cli:pack] type-checking…");
+run("npx", ["tsc", "--noEmit", "-p", "tsconfig.cli.json"], repoRoot);
+
+console.log("[cli:pack] bundling with tsup…");
+run("npx", ["tsup", "--config", "tsup.cli.config.ts"], repoRoot);
 
 console.log("[cli:pack] staging package contents…");
 mkdirSync(stageDir, { recursive: true });
 cpSync(join(distDir, "cli"), join(stageDir, "cli"), { recursive: true });
-// Only copy lib/agent-context/ — mcp:pack may have left other lib/ subtrees in dist/
-// (e.g. lib/pipelines/) that the CLI doesn't need.
-cpSync(join(distDir, "lib", "agent-context"), join(stageDir, "lib", "agent-context"), { recursive: true });
 
 const stagePkg = {
   name: "coznt-cli",
@@ -55,8 +55,8 @@ const stagePkg = {
   description: "Coznt CLI — connect / sync / status helper for governed AI development.",
   type: "module" as const,
   bin: { coznt: "./cli/cli.js" },
-  files: ["cli/**/*.js", "lib/**/*.js"],
-  // No third-party runtime deps — CLI uses only node:* builtins.
+  files: ["cli/cli.js", "cli/cli.js.map"],
+  // No third-party runtime deps — CLI is fully bundled.
   dependencies: {} as Record<string, string>,
   engines: { node: ">=20" },
   private: false,

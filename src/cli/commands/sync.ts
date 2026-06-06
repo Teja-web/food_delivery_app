@@ -19,26 +19,26 @@
  *   --dry-run  print planned actions, write nothing
  */
 
-import { readConfig, writeConfig } from "../lib/config.js";
-import { fetchManifest, fetchBundle } from "../lib/api.js";
-import { sha256 } from "../lib/hashing.js";
+import { readConfig, writeConfig } from "../lib/config";
+import { fetchManifest, fetchBundle } from "../lib/api";
+import { sha256 } from "../lib/hashing";
 import {
   writeLock,
   writeLocalSkill,
   readLocalSkill,
-} from "../lib/lock-file.js";
-import { classify, summarize, type Classification } from "../lib/diff.js";
-import { askChoice } from "../lib/prompt.js";
+} from "../lib/lock-file";
+import { classify, summarize, type Classification } from "../lib/diff";
+import { askChoice } from "../lib/prompt";
 import {
   fetchCurrentArtifactVersion,
   fetchCurrentHookVersion,
-} from "../lib/prompt-hook-installer.js";
-import { detectEditors, type EditorName } from "../lib/editor-detect.js";
-import { writePostureFiles } from "../lib/posture-writer.js";
-import { writeForEditor } from "../lib/mcp-config-writers/index.js";
-import { tarballUrl } from "../../lib/agent-context/host-config.js";
-import { resolveApiKey } from "../lib/auth.js";
-import { getRunningCliVersion } from "../lib/cli-version.js";
+} from "../lib/prompt-hook-installer";
+import { detectEditors, type EditorName } from "../lib/editor-detect";
+import { writePostureFiles } from "../lib/posture-writer";
+import { writeForEditor } from "../lib/mcp-config-writers/index";
+import { tarballUrl } from "../../lib/agent-context/host-config";
+import { resolveApiKey } from "../lib/auth";
+import { getRunningCliVersion } from "../lib/cli-version";
 
 export interface SyncOptions {
   force?: boolean;

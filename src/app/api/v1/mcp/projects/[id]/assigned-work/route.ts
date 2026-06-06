@@ -13,7 +13,7 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
 import { requireProjectScope } from "@/lib/auth/scope";
@@ -83,7 +83,7 @@ export async function GET(
         );
 
     const [openPlans, openWorkItems] = await Promise.all([
-      db.query.plans.findMany({
+      db.query.planArtifacts.findMany({
         where: planWhere,
         columns: {
           id: true,

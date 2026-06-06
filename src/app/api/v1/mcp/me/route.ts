@@ -19,7 +19,6 @@ export async function GET(req: Request) {
         id: projects.id,
         name: projects.name,
         slug: projects.slug,
-        phase: projects.phase,
       })
       .from(projects)
       .where(eq(projects.id, ctx.projectId))

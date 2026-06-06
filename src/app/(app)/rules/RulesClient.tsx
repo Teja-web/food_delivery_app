@@ -115,12 +115,14 @@ function RuleRow({ rule }: { rule: RuleRowClient }) {
         </Badge>
       </div>
       <div className="text-right">
-        <Badge
-          variant="outline"
-          className="border-border/60 bg-transparent font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground"
-        >
-          {rule.phase ?? "all phases"}
-        </Badge>
+        {rule.tags.length > 0 ? (
+          <Badge
+            variant="outline"
+            className="border-border/60 bg-transparent font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground"
+          >
+            {rule.tags[0]}
+          </Badge>
+        ) : null}
       </div>
       <div className="text-right">
         {rule.scope === "project" && rule.projectId ? (

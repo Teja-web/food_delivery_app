@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { RESOURCES, tools } from "@/mcp/server";
+import { RESOURCES, tools } from "@/mcp/registry";
 
 const SNAKE_CASE = /^[a-z][a-z0-9_]*$/;
 

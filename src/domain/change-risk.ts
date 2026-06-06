@@ -13,7 +13,8 @@
  *   - `pattern` (no glob) — exact match
  */
 
-import type { ChangeRisk } from "@/db/schema/gate-evaluation";
+export const CHANGE_RISKS = ["low", "medium", "high", "critical"] as const;
+export type ChangeRisk = (typeof CHANGE_RISKS)[number];
 
 export interface ChangedFile {
   filename: string;

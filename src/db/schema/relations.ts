@@ -1,30 +1,53 @@
 import { relations } from "drizzle-orm";
 import { user } from "./auth";
 import { projects } from "./project";
-import { plans } from "./plan/plan";
+import { repositories } from "./repository";
+import { environments } from "./environment";
+import { planArtifacts } from "./plan/plan-artifact";
+import { planRelationships } from "./plan/plan-relationship";
 import { planRevisions } from "./plan/plan-revision";
+import { comments } from "./plan/comment";
 import { rules } from "./rule";
 import { skills } from "./skill/skill";
 import { skillOutcomes } from "./skill/skill-outcome";
 import { skillAutonomy } from "./skill/skill-autonomy";
-import { comments } from "./plan/comment";
 import { workItems } from "./work-item";
-import { phaseGates } from "./phase-gate";
+import { governancePolicies } from "./governance/policies";
+import { governanceRecords } from "./governance/records";
+import { evidenceLinks } from "./evidence";
 import { metrics } from "./metric";
+import { deployments } from "./deployment";
+import { testRuns } from "./test-run";
 import { adapterBindings } from "./adapter-binding";
 import { promptLogs } from "./prompt-log";
 
 export const userRelations = relations(user, () => ({}));
 
 export const projectsRelations = relations(projects, ({ many }) => ({
-  plans: many(plans),
+  planArtifacts: many(planArtifacts),
+  repositories: many(repositories),
+  environments: many(environments),
   rules: many(rules),
   skills: many(skills),
   workItems: many(workItems),
-  phaseGates: many(phaseGates),
+  governancePolicies: many(governancePolicies),
+  governanceRecords: many(governanceRecords),
+  evidenceLinks: many(evidenceLinks),
   metrics: many(metrics),
+  deployments: many(deployments),
+  testRuns: many(testRuns),
   adapterBindings: many(adapterBindings),
   promptLogs: many(promptLogs),
+}));
+
+export const repositoriesRelations = relations(repositories, ({ one, many }) => ({
+  project: one(projects, { fields: [repositories.projectId], references: [projects.id] }),
+  workItems: many(workItems),
+}));
+
+export const environmentsRelations = relations(environments, ({ one, many }) => ({
+  project: one(projects, { fields: [environments.projectId], references: [projects.id] }),
+  deployments: many(deployments),
 }));
 
 export const promptLogsRelations = relations(promptLogs, ({ one }) => ({
@@ -35,15 +58,49 @@ export const adapterBindingsRelations = relations(adapterBindings, ({ one }) => 
   project: one(projects, { fields: [adapterBindings.projectId], references: [projects.id] }),
 }));
 
-export const plansRelations = relations(plans, ({ one, many }) => ({
-  project: one(projects, { fields: [plans.projectId], references: [projects.id] }),
+export const planArtifactsRelations = relations(planArtifacts, ({ one, many }) => ({
+  project: one(projects, { fields: [planArtifacts.projectId], references: [projects.id] }),
   revisions: many(planRevisions),
   comments: many(comments),
   workItems: many(workItems),
+  governanceRecords: many(governanceRecords),
+  evidenceLinks: many(evidenceLinks),
+  outgoingRelationships: many(planRelationships, { relationName: "fromPlanArtifact" }),
+  incomingRelationships: many(planRelationships, { relationName: "toPlanArtifact" }),
+  deployments: many(deployments),
+  testRuns: many(testRuns),
+}));
+
+export const planRelationshipsRelations = relations(planRelationships, ({ one }) => ({
+  from: one(planArtifacts, {
+    fields: [planRelationships.fromPlanArtifactId],
+    references: [planArtifacts.id],
+    relationName: "fromPlanArtifact",
+  }),
+  to: one(planArtifacts, {
+    fields: [planRelationships.toPlanArtifactId],
+    references: [planArtifacts.id],
+    relationName: "toPlanArtifact",
+  }),
 }));
 
 export const planRevisionsRelations = relations(planRevisions, ({ one }) => ({
-  plan: one(plans, { fields: [planRevisions.planId], references: [plans.id] }),
+  planArtifact: one(planArtifacts, {
+    fields: [planRevisions.planArtifactId],
+    references: [planArtifacts.id],
+  }),
+}));
+
+export const commentsRelations = relations(comments, ({ one }) => ({
+  planArtifact: one(planArtifacts, {
+    fields: [comments.planArtifactId],
+    references: [planArtifacts.id],
+  }),
+  parent: one(comments, {
+    fields: [comments.parentCommentId],
+    references: [comments.id],
+    relationName: "commentParent",
+  }),
 }));
 
 export const rulesRelations = relations(rules, ({ one }) => ({
@@ -66,20 +123,68 @@ export const skillAutonomyRelations = relations(skillAutonomy, ({ one }) => ({
   project: one(projects, { fields: [skillAutonomy.projectId], references: [projects.id] }),
 }));
 
-export const commentsRelations = relations(comments, ({ one }) => ({
-  plan: one(plans, { fields: [comments.planId], references: [plans.id] }),
-  parent: one(comments, { fields: [comments.parentCommentId], references: [comments.id], relationName: "commentParent" }),
-}));
-
 export const workItemsRelations = relations(workItems, ({ one }) => ({
   project: one(projects, { fields: [workItems.projectId], references: [projects.id] }),
-  plan: one(plans, { fields: [workItems.planId], references: [plans.id] }),
+  planArtifact: one(planArtifacts, {
+    fields: [workItems.planArtifactId],
+    references: [planArtifacts.id],
+  }),
+  repository: one(repositories, {
+    fields: [workItems.repositoryId],
+    references: [repositories.id],
+  }),
 }));
 
-export const phaseGatesRelations = relations(phaseGates, ({ one }) => ({
-  project: one(projects, { fields: [phaseGates.projectId], references: [projects.id] }),
+export const governancePoliciesRelations = relations(governancePolicies, ({ many }) => ({
+  records: many(governanceRecords),
+}));
+
+export const governanceRecordsRelations = relations(governanceRecords, ({ one }) => ({
+  planArtifact: one(planArtifacts, {
+    fields: [governanceRecords.planArtifactId],
+    references: [planArtifacts.id],
+  }),
+  policy: one(governancePolicies, {
+    fields: [governanceRecords.policyId],
+    references: [governancePolicies.id],
+  }),
+  project: one(projects, {
+    fields: [governanceRecords.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const evidenceLinksRelations = relations(evidenceLinks, ({ one }) => ({
+  planArtifact: one(planArtifacts, {
+    fields: [evidenceLinks.planArtifactId],
+    references: [planArtifacts.id],
+  }),
+  project: one(projects, {
+    fields: [evidenceLinks.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const metricsRelations = relations(metrics, ({ one }) => ({
   project: one(projects, { fields: [metrics.projectId], references: [projects.id] }),
+}));
+
+export const deploymentsRelations = relations(deployments, ({ one }) => ({
+  project: one(projects, { fields: [deployments.projectId], references: [projects.id] }),
+  planArtifact: one(planArtifacts, {
+    fields: [deployments.planArtifactId],
+    references: [planArtifacts.id],
+  }),
+  environment: one(environments, {
+    fields: [deployments.environmentId],
+    references: [environments.id],
+  }),
+}));
+
+export const testRunsRelations = relations(testRuns, ({ one }) => ({
+  project: one(projects, { fields: [testRuns.projectId], references: [projects.id] }),
+  planArtifact: one(planArtifacts, {
+    fields: [testRuns.planArtifactId],
+    references: [planArtifacts.id],
+  }),
 }));

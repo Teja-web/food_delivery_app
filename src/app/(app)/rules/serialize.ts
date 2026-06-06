@@ -7,7 +7,6 @@ export type RuleRowClient = {
   title: string;
   body: string | null;
   severity: RuleSeverity;
-  phase: string | null;
   tags: string[];
   enabled: boolean;
   scope: "org" | "project";
@@ -41,7 +40,6 @@ export function serializeRuleRow(
     title: rule.title,
     body: rule.body ?? null,
     severity: rule.severity,
-    phase: rule.phase ?? null,
     tags: rule.tags ?? [],
     enabled: rule.enabled,
     scope: rule.projectId ? "project" : "org",

@@ -1,16 +1,15 @@
 /**
  * Test Run — an execution of a test suite on a specific commit.
  *
- * Distinct from `plans.kind=test_plan` (the *strategy doc*) — this is the
- * *result*. CI posts after each test job. Drives the `test_coverage` metric
- * when coverage is reported, and feeds the `tests passing` gate validator.
+ * Distinct from `plan_artifacts.kind=test_plan` (the *strategy doc*) — this is
+ * the *result*. CI posts after each test job.
  */
 
 import { text, integer, timestamp, doublePrecision, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { plans } from "./plan/plan";
+import { planArtifacts } from "./plan/plan-artifact";
 
 export const TEST_RUN_STATUSES = ["passed", "failed", "errored", "skipped"] as const;
 export type TestRunStatus = (typeof TEST_RUN_STATUSES)[number];
@@ -22,7 +21,9 @@ export const testRuns = cozntSchema.table(
     organizationId: text("organization_id").notNull(),
     projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     /** Optional link to the test_plan this run executes. */
-    planId: text("plan_id").references(() => plans.id, { onDelete: "set null" }),
+    planArtifactId: text("plan_artifact_id").references(() => planArtifacts.id, {
+      onDelete: "set null",
+    }),
 
     suite: text(),
     commitSha: text("commit_sha"),
@@ -44,7 +45,7 @@ export const testRuns = cozntSchema.table(
   (table) => [
     index("test_runs_project_time_idx").on(table.projectId, table.ranAt),
     index("test_runs_project_status_idx").on(table.projectId, table.status, table.ranAt),
-    index("test_runs_plan_idx").on(table.planId),
+    index("test_runs_plan_artifact_idx").on(table.planArtifactId),
   ],
 );
 

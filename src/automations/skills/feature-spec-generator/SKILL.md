@@ -9,7 +9,7 @@ allowed-tools:
   - mcp__coznt__get_plans
   - mcp__coznt__invoke_skill
   - mcp__coznt__upsert_plan
-  - mcp__coznt__submit_for_approval
+  - mcp__coznt__submit_plan_for_review
 coznt:
   version: 1.0.0
   triggers:
@@ -21,7 +21,7 @@ coznt:
     - get_plans
     - invoke_skill
     - upsert_plan
-    - submit_for_approval
+    - submit_plan_for_review
   min_autonomy: propose
 ---
 
@@ -44,7 +44,7 @@ Take one approved `epic` plan and produce 3–8 individually-shippable feature s
 ## Steps
 
 ### 1. Load context
-Call `get_my_context`. Confirm phase is `requirements` or `design`.
+Call `get_my_context`. Confirm the project has an approved epic available to decompose.
 
 ### 2. Load the parent epic + calibration sample
 Call:
@@ -74,7 +74,7 @@ Server returns `{ features: [...], confidence, decompositionRationale, scopeFlag
 
 ### 5. Route based on confidence
 - `confidence >= 0.7` → present features to user.
-- `confidence < 0.7` → `submit_for_approval` with the set attached.
+- `confidence < 0.7` → file each feature as a draft (step 6) and `submit_plan_for_review` on each so a human signs off before they move forward.
 
 ### 6. File each feature as a draft
 For each returned feature, call `upsert_plan`:
@@ -105,4 +105,4 @@ upsert_plan {
 | Epic body is < 200 chars | Epic is a stub | Refuse; tell user to flesh out the epic first |
 | Server returns 9+ features | Epic is actually multiple epics | Present + flag `scopeFlags`; suggest splitting the epic via `epic-decomposer` |
 | `recentFeatureSizes` empty | First features on this project | Low confidence; ask user to sanity-check sizing |
-| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled input |
+| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | File the assembled input as a draft plan and `submit_plan_for_review` for human sign-off |

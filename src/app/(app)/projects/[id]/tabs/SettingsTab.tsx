@@ -6,14 +6,19 @@ import { Textarea } from "@/components/ui/textarea";
 import type { CockpitProjectClient } from "../serialize";
 import { saveProjectSettings } from "@/actions/project/settings";
 
+/**
+ * Project metadata form. Per spec §11.3 / §11.4, upstream tracker bindings
+ * (repo, jira, ado, confluence) now live as rows in `repositories` and are
+ * managed under Settings > Repositories — they are no longer columns on
+ * `projects`.
+ */
 export function SettingsTab({ project }: { project: CockpitProjectClient }) {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h2 className="text-base font-semibold">Project settings</h2>
+        <h2 className="text-base font-semibold">General</h2>
         <p className="text-xs text-muted-foreground">
-          Identity, upstream-tracker bindings, and risk-zone configuration. Phase, status, and the
-          merge-approval policy are managed elsewhere on the cockpit.
+          Identity and risk-zone configuration.
         </p>
       </header>
 
@@ -63,73 +68,6 @@ export function SettingsTab({ project }: { project: CockpitProjectClient }) {
 
         <section className="space-y-4">
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Upstream bindings
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Coznt reads from these systems and routes inbound webhooks through them. Org-level
-            credentials must already be configured in Adapters before per-project bindings take
-            effect.
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="settings-repo-url" className="text-xs">
-                Repo URL
-              </Label>
-              <Input
-                id="settings-repo-url"
-                name="repoUrl"
-                defaultValue={project.repoUrl ?? ""}
-                placeholder="https://github.com/acme/payments-api"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Used to route inbound PR / deploy webhooks. Changes here update the
-                <code className="mx-1 font-mono">adapter_bindings</code>
-                row on next save.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="settings-jira-key" className="text-xs">
-                Jira project key
-              </Label>
-              <Input
-                id="settings-jira-key"
-                name="jiraProjectKey"
-                defaultValue={project.jiraProjectKey ?? ""}
-                placeholder="PAY"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Short uppercase identifier (e.g. <code className="font-mono">PAY</code>).
-                Enables <code className="font-mono">get_assigned_work</code> to return real Jira
-                issues.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="settings-ado" className="text-xs">
-                Azure DevOps project ID
-              </Label>
-              <Input
-                id="settings-ado"
-                name="adoProjectId"
-                defaultValue={project.adoProjectId ?? ""}
-                placeholder="org/project-guid"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="settings-confluence" className="text-xs">
-                Confluence space key
-              </Label>
-              <Input
-                id="settings-confluence"
-                name="confluenceSpaceKey"
-                defaultValue={project.confluenceSpaceKey ?? ""}
-                placeholder="PAY"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Risk zones
           </h3>
           <p className="text-xs text-muted-foreground">
@@ -162,8 +100,7 @@ export function SettingsTab({ project }: { project: CockpitProjectClient }) {
               className="font-mono text-xs"
             />
             <p className="text-[11px] text-muted-foreground">
-              Stricter superset of critical paths — touched by production deploys. Used by the
-              go-live gate.
+              Stricter superset of critical paths — touched by production deploys.
             </p>
           </div>
         </section>

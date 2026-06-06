@@ -29,8 +29,6 @@ export const rules = cozntSchema.table(
 
     /** Free-form tag list (e.g. ["security", "pr-checklist"]). */
     tags: text().array(),
-    /** Project phase the rule applies to. null = all phases. */
-    phase: text(),
     severity: text().$type<RuleSeverity>().notNull().default("warn"),
     enabled: boolean().notNull().default(true),
 
@@ -41,7 +39,6 @@ export const rules = cozntSchema.table(
   (table) => [
     index("rules_org_idx").on(table.organizationId),
     index("rules_project_idx").on(table.projectId),
-    index("rules_phase_idx").on(table.phase),
     index("rules_fts_idx").using(
       "gin",
       sql`coznt.fts_vector(${table.title}, ${table.body})`,

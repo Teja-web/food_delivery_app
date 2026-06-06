@@ -27,14 +27,13 @@ import { toast } from "sonner";
 
 import { createAutonomyThresholdRule } from "@/actions/rules";
 
-type ActionKind = "merge_pr" | "advance_phase_gate" | "co_sign_promotion" | "deploy_production" | "*";
+type ActionKind = "merge_pr" | "co_sign_promotion" | "deploy_production" | "*";
 type ChangeRisk = "low" | "medium" | "high" | "critical" | "*";
 type Autonomy = "observe" | "propose" | "merge" | "lead";
 type Severity = "info" | "warn" | "error";
 
 const ACTION_LABEL: Record<ActionKind, string> = {
   merge_pr: "Merge PR",
-  advance_phase_gate: "Advance phase gate",
   co_sign_promotion: "Co-sign promotion",
   deploy_production: "Deploy to production",
   "*": "Any action (*)",

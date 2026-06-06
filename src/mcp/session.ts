@@ -15,8 +15,6 @@ export interface SessionProject {
   id: string;
   name: string;
   slug: string;
-  /** Lowercase coznt phase (`requirements` | `design` | …). */
-  phase: string;
 }
 
 export interface RequirementDraft {
@@ -85,11 +83,6 @@ export function setSessionProject(project: SessionProject): void {
 
 export function getSessionProject(): SessionProject | null {
   return current?.project ?? null;
-}
-
-/** Update just the cached phase — used after `advance_phase` succeeds. */
-export function updateSessionPhase(phase: string): void {
-  if (current?.project) current.project.phase = phase;
 }
 
 /** Lazily create the session so draft_* verbs can be the first call. */

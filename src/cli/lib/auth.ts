@@ -13,7 +13,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 
-import type { ApiKeyRef } from "./config.js";
+import type { ApiKeyRef } from "./config";
 
 export class AuthError extends Error {
   constructor(message: string) {

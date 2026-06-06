@@ -32,7 +32,6 @@ const promptLogSchema = z.object({
   role: z.enum(PROMPT_ROLES).default("USER"),
   source: z.enum(VIBE_CODING_TOOLS).default("OTHER"),
   content: z.string().min(1),
-  phase: z.string().nullable().optional(),
   authorName: z.string().nullable().optional(),
   authorUsername: z.string().nullable().optional(),
   authorEmail: z.string().nullable().optional(),
@@ -61,7 +60,6 @@ interface CapturePromptInput {
   role?: "USER" | "ASSISTANT" | "SYSTEM";
   source?: (typeof VIBE_CODING_TOOLS)[number];
   content: string;
-  phase?: string | null;
   authorName?: string | null;
   authorUsername?: string | null;
   authorEmail?: string | null;
@@ -80,21 +78,12 @@ interface CapturePromptInput {
  * (false = idempotent hit, existing row returned).
  */
 export async function capturePrompt(input: CapturePromptInput) {
-  // Resolve phase from project when missing.
-  let phase = input.phase ?? null;
-  if (!phase && input.projectId) {
-    const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, input.projectId), eq(projects.organizationId, input.organizationId)),
-      columns: { phase: true },
-    });
-    phase = project?.phase ?? null;
-  }
-
+  void projects;
   // Score now if the client didn't, or if rubric version drifted.
   const score: PromptScore =
     input.prescored && input.prescored.rubricVersion === RUBRIC_VERSION
       ? input.prescored
-      : scorePromptQuality({ content: input.content, phase: (phase ?? null) as never });
+      : scorePromptQuality({ content: input.content, phase: null as never });
 
   const values = {
     organizationId: input.organizationId,
@@ -103,7 +92,6 @@ export async function capturePrompt(input: CapturePromptInput) {
     role: input.role ?? "USER",
     source: input.source ?? "OTHER",
     content: input.content,
-    phase,
     authorName: input.authorName ?? null,
     authorUsername: input.authorUsername ?? null,
     authorEmail: input.authorEmail ?? null,

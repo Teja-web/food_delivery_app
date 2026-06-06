@@ -1,18 +1,67 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { projectLearnings } from "@/db/schema/plan/project-learning";
 import { projects, type Project } from "@/db/schema/project";
+import { repositories } from "@/db/schema/repository";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill/skill";
-import { PHASE_GUIDANCE } from "@/domain/phases";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill/skill-autonomy";
 
-import { getAllowedTools } from "./phase-enforcement";
-import type { McpResponse } from "./schemas";
-import { resolveRecommendedKickoff } from "./recommended-kickoff";
+import type {
+  McpProjectArtifacts,
+  McpResponse,
+  McpWelcome,
+} from "./schemas";
+import {
+  resolveRecommendedKickoff,
+  type RecommendedKickoff,
+} from "./recommended-kickoff";
 import { gatherProjectArtifacts } from "./project-artifacts";
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1).trimEnd() + "…";
+}
+
+/**
+ * Build the session-start welcome block from already-fetched data.
+ * Pure — no I/O — so the response builder can call it after its parallel
+ * fetches resolve. Caps `nextActions` at 3 to keep the agent's attention
+ * budget tight.
+ */
+function buildWelcome(args: {
+  project: Project;
+  recommendedKickoff: RecommendedKickoff | null;
+  projectArtifacts: McpProjectArtifacts;
+}): McpWelcome {
+  const { project, recommendedKickoff, projectArtifacts } = args;
+  const headline = project.description
+    ? `${project.name} — ${truncate(project.description, 140)}`
+    : `${project.name} — no project description set yet`;
+
+  const nextActions: string[] = [];
+  if (recommendedKickoff) {
+    nextActions.push(recommendedKickoff.action);
+  }
+  if (projectArtifacts.approvals.pendingTotal > 0) {
+    nextActions.push(
+      `Review ${projectArtifacts.approvals.pendingTotal} pending approval(s) before starting new work`,
+    );
+  }
+  if (!project.description) {
+    nextActions.push(
+      "Ask the user to describe what this project is so future sessions have context",
+    );
+  }
+
+  return {
+    headline,
+    summary: project.description ?? null,
+    nextActions: nextActions.slice(0, 3),
+  };
+}
 
 function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3029";
@@ -49,9 +98,23 @@ export class McpProjectNotFoundError extends Error {
 }
 
 /**
+ * Look up the primary GitHub repository URL for a project. Returns the
+ * first source=github row's `url` (or `identifier` when url is null).
+ */
+async function getPrimaryRepoUrlForProject(projectId: string): Promise<string | null> {
+  const rows = await db
+    .select({ url: repositories.url, identifier: repositories.identifier })
+    .from(repositories)
+    .where(and(eq(repositories.projectId, projectId), eq(repositories.source, "github")))
+    .limit(1);
+  if (rows.length === 0) return null;
+  return rows[0].url ?? rows[0].identifier ?? null;
+}
+
+/**
  * Resolve a project from a request. Prefer the API key's bound project; fall
- * back to `repoUrl` if the key is org-wide. Throws `McpProjectAmbiguousError`
- * when multiple projects match the repo.
+ * back to substring-matching `repoUrl` against any `repositories` row.
+ * Throws `McpProjectAmbiguousError` when multiple projects match the repo.
  */
 async function resolveProject(
   organizationId: string,
@@ -66,24 +129,45 @@ async function resolveProject(
     return row;
   }
   if (repoUrl) {
-    // Match on repoUrl substring (case-insensitive). v1 heuristic.
-    const allProjects = await db.query.projects.findMany({
-      where: eq(projects.organizationId, organizationId),
-    });
-    const matches = allProjects.filter((p) => {
-      if (!p.repoUrl) return false;
-      return p.repoUrl.toLowerCase().includes(repoUrl.toLowerCase()) ||
-        repoUrl.toLowerCase().includes(p.repoUrl.toLowerCase());
-    });
-    if (matches.length === 1) return matches[0];
-    if (matches.length > 1) throw new McpProjectAmbiguousError(matches);
+    // Resolve via `repositories` rows — repo url moved off `projects`.
+    const repoRows = await db
+      .select({
+        projectId: repositories.projectId,
+        url: repositories.url,
+        identifier: repositories.identifier,
+      })
+      .from(repositories)
+      .where(eq(repositories.organizationId, organizationId));
+    const matchedProjectIds = new Set<string>();
+    const target = repoUrl.toLowerCase();
+    for (const r of repoRows) {
+      const candidates = [r.url, r.identifier].filter((s): s is string => Boolean(s));
+      for (const c of candidates) {
+        const v = c.toLowerCase();
+        if (v.includes(target) || target.includes(v)) {
+          matchedProjectIds.add(r.projectId);
+          break;
+        }
+      }
+    }
+    if (matchedProjectIds.size === 1) {
+      const [pid] = Array.from(matchedProjectIds);
+      const proj = await db.query.projects.findFirst({
+        where: and(eq(projects.id, pid), eq(projects.organizationId, organizationId)),
+      });
+      if (proj) return proj;
+    }
+    if (matchedProjectIds.size > 1) {
+      const matches = await db.query.projects.findMany({
+        where: and(eq(projects.organizationId, organizationId)),
+      });
+      throw new McpProjectAmbiguousError(
+        matches.filter((p) => matchedProjectIds.has(p.id)),
+      );
+    }
   }
   throw new McpProjectNotFoundError();
 }
-
-// Phase is returned to MCP consumers as the schema enum value (lowercase,
-// matches PROJECT_PHASES in db/schema/project.ts). Display formatting is
-// the consumer's job — never overload the canonical identifier.
 
 export async function buildMcpContext(args: {
   organizationId: string;
@@ -95,7 +179,15 @@ export async function buildMcpContext(args: {
 
   const project = await resolveProject(args.organizationId, args.keyProjectId, args.repoUrl);
 
-  const [activeRules, projectSkills, adrPlans, learnings] = await Promise.all([
+  const [
+    activeRules,
+    projectSkills,
+    adrPlans,
+    learnings,
+    primaryRepoUrl,
+    recommendedKickoff,
+    projectArtifacts,
+  ] = await Promise.all([
     db.query.rules.findMany({
       where: and(
         eq(rules.organizationId, project.organizationId),
@@ -111,7 +203,7 @@ export async function buildMcpContext(args: {
       ),
       limit: 25,
     }),
-    db.query.plans.findMany({
+    db.query.planArtifacts.findMany({
       where: and(
         eq(plans.organizationId, project.organizationId),
         eq(plans.projectId, project.id),
@@ -129,6 +221,9 @@ export async function buildMcpContext(args: {
       orderBy: [asc(projectLearnings.pinOrder), desc(projectLearnings.createdAt)],
       limit: 20,
     }),
+    getPrimaryRepoUrlForProject(project.id),
+    resolveRecommendedKickoff(project.organizationId, project),
+    gatherProjectArtifacts(project.organizationId, project.id),
   ]);
 
   const skillsWithAutonomy = await Promise.all(
@@ -143,16 +238,18 @@ export async function buildMcpContext(args: {
     }),
   );
 
-  const guidance = PHASE_GUIDANCE[project.phase];
+  const welcome = buildWelcome({ project, recommendedKickoff, projectArtifacts });
 
   const response: McpResponse = {
     project: {
       id: project.id,
       name: project.name,
       slug: project.slug,
-      phase: project.phase,
+      description: project.description,
       url: appUrl(`/projects/${project.id}`),
+      repoUrl: primaryRepoUrl,
     },
+    welcome,
     workItem: args.workItemKey
       ? {
           key: args.workItemKey,
@@ -160,27 +257,12 @@ export async function buildMcpContext(args: {
           url: null,
         }
       : null,
-    phaseDiscipline: {
-      label: guidance.label,
-      description: guidance.description,
-      allowed: guidance.allowed,
-      forbidden: guidance.forbidden,
-      nextCondition: guidance.nextCondition,
-    },
-    recommendedKickoff: await resolveRecommendedKickoff(
-      project.organizationId,
-      project,
-    ),
-    projectArtifacts: await gatherProjectArtifacts(
-      project.organizationId,
-      project.id,
-    ),
-    allowedTools: getAllowedTools(project.phase),
+    recommendedKickoff,
+    projectArtifacts,
     rules: activeRules.map((r) => ({
       id: r.id,
       title: r.title,
       severity: r.severity ?? "warning",
-      phase: r.phase,
       url: appUrl(`/rules/${r.id}`),
     })),
     skills: skillsWithAutonomy,

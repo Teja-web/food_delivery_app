@@ -52,7 +52,6 @@ const LEVEL_TONE: Record<PolicyMatrixCell["minLevelDisplay"], string> = {
 
 const ACTION_LABEL: Record<PolicyMatrixCell["actionKind"], string> = {
   merge_pr: "Merge PR",
-  advance_phase_gate: "Advance phase gate",
   co_sign_promotion: "Co-sign promotion",
   deploy_production: "Deploy to production",
 };

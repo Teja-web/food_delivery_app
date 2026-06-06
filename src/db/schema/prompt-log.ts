@@ -57,13 +57,6 @@ export const promptLogs = cozntSchema.table(
     source: text().$type<VibeCodingTool>().notNull().default("OTHER"),
     content: text().notNull(),
 
-    /**
-     * Cached project phase at capture time. The hook reads this from
-     * `.coznt/project-phase.txt` for offline scoring; the server-side
-     * resolver fills it from `projects.phase` when missing.
-     */
-    phase: text(),
-
     /** Local git identity of the developer who typed the prompt. */
     authorName: text("author_name"),
     authorUsername: text("author_username"),

@@ -3,18 +3,13 @@ import type { Metadata } from "next";
 import {
   Activity,
   ArrowRight,
-  Code2,
-  Compass,
   FileText,
   GitBranch,
-  Milestone,
   Radio,
   ScrollText,
   Shield,
   Sparkles,
   Terminal,
-  TestTube,
-  Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +19,7 @@ import { PageMeta } from "@/components/marketing/PageMeta";
 export const metadata: Metadata = {
   title: "How it works · Coznt",
   description:
-    "The loop that turns SDLC activity into an autonomy ledger. Modes, phases, surfaces, sources of truth.",
+    "The loop that turns SDLC activity into an autonomy ledger. Govern, verify, trust — the three pillars and the tables behind them.",
 };
 
 const SIGN_IN = "/auth/sign-in";
@@ -73,7 +68,7 @@ export default function HowItWorksPage() {
               <LoopNode
                 n="02"
                 title="Recorded"
-                body="With full context — actor, project, phase, prior state, source-of-record link."
+                body="With full context — actor, project, plan-artifact state, prior state, source-of-record link."
                 table="audit_logs"
               />
               <LoopNode
@@ -92,7 +87,7 @@ export default function HowItWorksPage() {
                 n="05"
                 title="Next action"
                 body="Friction drops where evidence supports it. Auto-approve, or routed to a human."
-                table="rules + phase_gates"
+                table="rules + governance_records"
                 last
               />
             </div>
@@ -128,7 +123,7 @@ export default function HowItWorksPage() {
             points={[
               { label: "PR merged on time", value: "no rollback in 7d" },
               { label: "Deploy clean", value: "no incident in 24h" },
-              { label: "Phase gate passed", value: "criteria checked" },
+              { label: "Governance record passed", value: "criteria checked" },
               { label: "Work item closed", value: "no revert in window" },
             ]}
             tone="primary"
@@ -176,26 +171,42 @@ export default function HowItWorksPage() {
         </div>
       </Idea>
 
-      {/* ─────────── Idea 3: Six phases ─────────── */}
+      {/* ─────────── Idea 3: Govern · Verify · Trust ─────────── */}
       <Idea
         n="03"
         kicker="Idea three"
-        title="Six phases. Every project is in exactly one."
+        title="Govern. Verify. Trust."
         body={
           <>
-            A project advances by passing a gate on its current phase. Each phase has its
-            own characteristic plan kind, its own characteristic outcome assessors, and its
-            own characteristic autonomy events. The transitions are the loop.
+            Every plan-artifact movement passes through the same three pillars. Govern
+            decides if it can move. Verify watches whether it held up. Trust makes the
+            receipts queryable by an auditor. Anything that doesn&rsquo;t fit one of these
+            three doesn&rsquo;t ship.
           </>
         }
       >
-        <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3 lg:grid-cols-6">
-          <PhaseCell n="01" icon={FileText} title="Requirements" gate="Acceptance criteria signed" plan="story" />
-          <PhaseCell n="02" icon={Compass} title="Design" gate="ADR reviewed · linked" plan="adr" />
-          <PhaseCell n="03" icon={Code2} title="Development" gate="PR · tests · review" plan="feature" />
-          <PhaseCell n="04" icon={TestTube} title="Testing" gate="Coverage ≥ threshold" plan="test_plan" />
-          <PhaseCell n="05" icon={Zap} title="CI/CD" gate="Deploy clean · canary" plan="release_plan" />
-          <PhaseCell n="06" icon={Activity} title="Monitoring" gate="No incident in window" plan="incident" />
+        <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+          <PillarCell
+            n="01"
+            icon={Shield}
+            title="Govern"
+            body="Policies become records on plan-artifact transitions. Gate / approval / review / exception — one unified status machine."
+            schema="governance_policies + governance_records"
+          />
+          <PillarCell
+            n="02"
+            icon={Activity}
+            title="Verify"
+            body="Deterministic assessors verdict every outcome. Autonomy recomputes from a 30-day window of evidence, per (skill, project)."
+            schema="skill_outcomes + skill_autonomy"
+          />
+          <PillarCell
+            n="03"
+            icon={ScrollText}
+            title="Trust"
+            body="Hash-chained audit log. Evidence links from every plan to its proof artifact. Verification debt is the load-bearing primitive."
+            schema="audit_logs + evidence_links"
+          />
         </div>
       </Idea>
 
@@ -458,31 +469,30 @@ function AutonomyRow({
   );
 }
 
-function PhaseCell({
+function PillarCell({
   n,
   icon: Icon,
   title,
-  gate,
-  plan,
+  body,
+  schema,
 }: {
   n: string;
   icon: typeof FileText;
   title: string;
-  gate: string;
-  plan: string;
+  body: string;
+  schema: string;
 }) {
   return (
-    <div className="flex flex-col gap-3 bg-card p-4">
+    <div className="flex flex-col gap-3 bg-card p-5">
       <div className="flex items-center justify-between">
         <span className="font-mono text-[10px] text-muted-foreground">{n}</span>
         <Icon className="h-4 w-4 text-primary" strokeWidth={1.75} />
       </div>
-      <div className="text-[14px] font-semibold tracking-tight">{title}</div>
-      <div className="flex items-start gap-1.5 text-[11px] leading-[1.45] text-muted-foreground">
-        <Milestone className="mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--state-pending)]" />
-        <span>{gate}</span>
-      </div>
-      <div className="font-mono text-[10px] text-muted-foreground">plan.kind = {plan}</div>
+      <div className="text-[16px] font-semibold tracking-tight">{title}</div>
+      <p className="text-[12px] leading-[1.55] text-muted-foreground">{body}</p>
+      <code className="mt-auto inline-block font-mono text-[10px] text-muted-foreground">
+        {schema}
+      </code>
     </div>
   );
 }

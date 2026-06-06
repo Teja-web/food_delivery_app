@@ -15,8 +15,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
-import { phaseGates } from "@/db/schema/phase-gate";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { workItems } from "@/db/schema/work-item";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
 import { upsertWorkItem } from "@/operations/work/work-items";
@@ -65,7 +64,7 @@ const PLAN_KIND_TO_ADO_TYPE: Record<string, string> = {
  */
 export async function pushPlanToJira(planId: string): Promise<{ key: string; url: string } | null> {
   try {
-    const plan = await db.query.plans.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
     if (!plan) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "jira");
@@ -104,7 +103,7 @@ export async function pushPlanToJira(planId: string): Promise<{ key: string; url
     await upsertWorkItem({
       organizationId: plan.organizationId,
       projectId: plan.projectId,
-      planId: plan.id,
+      planArtifactId: plan.id,
       source: "jira",
       externalId: created.key,
       externalUrl: url,
@@ -132,7 +131,7 @@ export async function transitionJiraIssueForPlan(
   targetStatus: string,
 ): Promise<{ name: string } | null> {
   try {
-    const plan = await db.query.plans.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
     if (!plan || !plan.externalRef?.startsWith("jira:")) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "jira");
@@ -207,7 +206,7 @@ export async function syncWorkItemStatusToJira(
  */
 export async function pushPlanToConfluence(planId: string): Promise<{ pageId: string; url: string } | null> {
   try {
-    const plan = await db.query.plans.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
     if (!plan) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "confluence");
@@ -236,7 +235,7 @@ export async function pushPlanToConfluence(planId: string): Promise<{ pageId: st
     await upsertWorkItem({
       organizationId: plan.organizationId,
       projectId: plan.projectId,
-      planId: plan.id,
+      planArtifactId: plan.id,
       source: "confluence",
       externalId: created.id,
       externalUrl: created.url,
@@ -266,42 +265,15 @@ function markdownToConfluenceStorage(md: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Azure DevOps — trigger pipeline on gate pass, create work items
+// Azure DevOps — generic pipeline trigger + work item push
 // ---------------------------------------------------------------------------
 
-/**
- * When a CI/CD-phase gate passes, trigger the bound ADO pipeline. The gate
- * row carries no pipeline id; the binding's `config.pipelineId` is the
- * source of truth, and the optional `config.branch` selects the ref.
- */
-export async function triggerAdoPipelineForGate(gateId: string): Promise<{ runId: number | null } | null> {
-  try {
-    const gate = await db.query.phaseGates.findFirst({ where: eq(phaseGates.id, gateId) });
-    if (!gate || gate.status !== "passed") return null;
-    if (gate.phase !== "cicd") return null;
-
-    const binding = await getOutboundBinding(gate.organizationId, gate.projectId, "ado");
-    if (!binding) return null;
-
-    const config = (binding.config as { pipelineId?: number; branch?: string; project?: string } | null) ?? {};
-    if (!config.pipelineId) {
-      log.warn(`ADO binding for project ${gate.projectId} has no pipelineId`);
-      return null;
-    }
-
-    const [account, projectName] = binding.externalKey.split("/");
-    const adoProject = config.project ?? projectName ?? account;
-    const client = await getAdoClient(gate.organizationId);
-    const result = (await client.triggerPipeline(adoProject, config.pipelineId, config.branch)) as
-      | { id?: number }
-      | undefined;
-    log.info(`triggered ADO pipeline ${config.pipelineId} for gate ${gateId}`);
-    return { runId: result?.id ?? null };
-  } catch (err) {
-    log.error("triggerAdoPipelineForGate failed", { gateId, err: String(err) });
-    return null;
-  }
-}
+// NOTE: `triggerAdoPipelineForGate` was removed in the governance refactor.
+// It read `phase_gates` (now collapsed into `governance_records` with
+// kind=gate) and dispatched a pipeline run when a CI/CD-phase gate passed.
+// CI/CD orchestration on gate decision now belongs in the evaluator
+// dispatcher (`src/operations/governance/evaluator.ts`) when needed.
+// Callers should use `triggerPipelineForProject` directly.
 
 /**
  * Generic pipeline trigger by source — backs the `trigger_pipeline` MCP verb.
@@ -371,7 +343,7 @@ export async function triggerPipelineForProject(args: {
  */
 export async function pushPlanToAdo(planId: string): Promise<{ id: number; url: string } | null> {
   try {
-    const plan = await db.query.plans.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
     if (!plan) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "ado");
@@ -402,7 +374,7 @@ export async function pushPlanToAdo(planId: string): Promise<{ id: number; url: 
     await upsertWorkItem({
       organizationId: plan.organizationId,
       projectId: plan.projectId,
-      planId: plan.id,
+      planArtifactId: plan.id,
       source: "ado",
       externalId: String(created.id),
       externalUrl: created.url,

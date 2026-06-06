@@ -10,30 +10,18 @@ coznt:
     - get_my_context
     - invoke_skill
   routing:
-    - phase: requirements
-      state: empty
-      kickoff: "invoke_skill: feature-spec-generator"
-      rationale: "Empty project — start with a feature and its stories. If the work is multi-theme, ask the user before falling back to epic-decomposer."
-    - phase: requirements
-      state: has_epic_no_feature
+    - state: empty
+      kickoff: "invoke_skill: epic-decomposer"
+      rationale: "Empty project — author the first epic so feature decomposition has a parent to hang off."
+    - state: has_epic_no_feature
       kickoff: "invoke_skill: feature-spec-generator"
       rationale: "Epic exists with no feature breakdown — decompose under it."
-    - phase: requirements
-      state: has_leaves_no_parent
-      kickoff: "invoke_skill: feature-spec-generator"
-      rationale: "Stories or specs exist with no feature/epic parent — group them under a feature so the hierarchy supports traceability and review."
-    - phase: requirements
-      state: ready_for_advance
+    - state: has_leaves_no_parent
+      kickoff: "invoke_skill: epic-decomposer"
+      rationale: "Stories or specs exist with no epic/feature anchoring them — author the missing epic so the work nests under it."
+    - state: ready_for_advance
       kickoff: "invoke_skill: requirements-document"
-      rationale: "Approved requirements ready for end-of-phase consolidation."
-    - phase: design
-      state: empty
-      kickoff: "invoke_skill: adr-extractor"
-      rationale: "Design phase open — extract decisions from the conversation as ADRs."
-    - phase: development
-      state: empty
-      kickoff: "upsert_plan: story"
-      rationale: "Development phase open — author the next story directly."
+      rationale: "Approved plans ready for end-of-cycle consolidation."
 ---
 
 # Project Lifecycle Coach
@@ -42,14 +30,14 @@ This choreography is the server-side resolver behind the `recommendedKickoff` fi
 
 ## State enumeration
 
-The resolver computes a `state` name from observable project data and matches the first routing rule whose `phase` + `state` apply. State names are closed:
+The resolver computes a `state` name from observable project data and matches the first routing rule whose `state` applies. State names are closed:
 
 | State | Resolves when |
 |---|---|
-| `empty` | Project has zero plans for the current phase's relevant kinds |
-| `has_epic_no_feature` | At least one `epic` plan, zero `feature` plans, requirements phase |
-| `has_leaves_no_parent` | Plans exist but no `epic` or `feature` anchors them — the "flat stories" pattern. Routes to `feature-spec-generator` so the work gets nested. |
-| `ready_for_advance` | At least one approved plan; phase checklist green or near-green |
+| `empty` | Project has zero plans |
+| `has_epic_no_feature` | At least one `epic` plan, zero `feature` plans |
+| `has_leaves_no_parent` | Plans exist but no `epic` or `feature` anchors them — the "flat stories" pattern. Routes to `epic-decomposer` so the work gets nested. |
+| `ready_for_advance` | At least one approved plan |
 | `none` | No rule matches — `recommendedKickoff` returns `null` |
 
 ## Override path

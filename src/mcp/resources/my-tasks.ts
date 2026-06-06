@@ -7,7 +7,7 @@
  * Borrowed shape from `@ai-sdlc/mcp-advisor`'s `my-tasks` resource.
  */
 
-import { CozntClient } from "../client.js";
+import { CozntClient } from "../client";
 
 interface WorkItemListResponse {
   items: Array<{

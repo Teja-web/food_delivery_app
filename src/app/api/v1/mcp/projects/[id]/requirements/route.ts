@@ -12,13 +12,13 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
-  plans,
+  planArtifacts as plans,
   PLAN_KINDS,
   PLAN_PRIORITIES,
   PLAN_STATUSES,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan";
+} from "@/db/schema/plan/plan-artifact";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
@@ -33,7 +33,6 @@ const requirementInputSchema = z.object({
   body: z.string().optional().default(""),
   priority: z.enum(PLAN_PRIORITIES).optional(),
   effortEstimate: z.string().optional(),
-  parentPlanId: z.string().optional().nullable(),
   assigneeId: z.string().optional(),
   assigneeName: z.string().optional(),
 });
@@ -78,7 +77,7 @@ export async function GET(
           eq(plans.kind, kind),
         );
 
-    const rows = await db.query.plans.findMany({
+    const rows = await db.query.planArtifacts.findMany({
       where,
       orderBy: [desc(plans.updatedAt)],
       limit,
@@ -141,7 +140,6 @@ export async function POST(
         body: item.body ?? "",
         priority: item.priority,
         effortEstimate: item.effortEstimate,
-        parentPlanId: item.parentPlanId ?? null,
         assigneeId: item.assigneeId,
         assigneeName: item.assigneeName,
       });

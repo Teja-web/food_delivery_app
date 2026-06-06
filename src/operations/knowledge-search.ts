@@ -16,7 +16,7 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzl
 
 import { db } from "@/db/client";
 import { auditLogs, type AuditActorType } from "@/db/schema/audit/audit-log";
-import { plans, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan";
+import { planArtifacts as plans, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan-artifact";
 import { projectLearnings } from "@/db/schema/plan/project-learning";
 import { projects } from "@/db/schema/project";
 import {

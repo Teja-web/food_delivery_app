@@ -7,8 +7,8 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { endLocalSession, getCurrentSession } from "../../session.js";
+import { CozntClient } from "../../client";
+import { endLocalSession, getCurrentSession } from "../../session";
 
 export const sessionEndInput = z.object({
   outcome: z

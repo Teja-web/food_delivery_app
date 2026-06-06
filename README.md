@@ -72,6 +72,7 @@ To reset to a fresh build (after `pnpm prebuild` produces a new tarball at the s
 ```bash
 pnpm rm -g coznt-cli
 pnpm store prune
+rm -rf ~/.npm/_npx ~/.npx
 pnpm i -g http://localhost:3029/install/coznt-cli-0.1.0.tgz
 ```
 

@@ -1,20 +1,28 @@
 /**
  * Resolves the `recommendedKickoff` field on `get_my_context`.
  *
- * The platform owns the contract (this field is always computed); the
- * choreography owns the opinion (which kickoff matches which state).
- * Orgs override routing by installing a custom `project-lifecycle`
- * choreography — the existing custom-choreographies path delivers it,
- * no platform redeploy required.
+ * Project phase has been removed — SDLC progression is expressed via
+ * plan-artifact status. The kickoff state is now derived from the mix of
+ * plan kinds and statuses on the project:
  *
- * State enumeration is closed and matches the names declared in
- * src/automations/skills/project-lifecycle/SKILL.md.
+ *   - empty                 — no plans
+ *   - has_epic_no_feature   — has an epic but no feature
+ *   - has_leaves_no_parent  — flat plans (no epic, no feature)
+ *   - has_drafts            — lots of draft plans waiting for review
+ *   - ready_for_advance     — at least one approved plan, work can move
+ *   - none                  — no rule meaningfully matches
+ *
+ * The routing table lives in the active `project-lifecycle` choreography;
+ * this resolver just feeds it a state name. The rule matcher used to key
+ * on `(phase, state)`; we now match on `state` alone and treat the
+ * choreography rule's `phase` field (if present) as a no-op compatibility
+ * shim.
  */
 
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import type { Project } from "@/db/schema/project";
 import { getRoutingRulesForSlug } from "@/operations/choreography/choreographies";
 
@@ -22,6 +30,7 @@ export type KickoffState =
   | "empty"
   | "has_epic_no_feature"
   | "has_leaves_no_parent"
+  | "has_drafts"
   | "ready_for_advance"
   | "none";
 
@@ -32,35 +41,22 @@ export interface RecommendedKickoff {
 }
 
 /**
- * Compute the kickoff state name from observable project data. State
- * names are stable identifiers consumed by the routing rules in
- * `project-lifecycle/SKILL.md`.
- *
- * Returns `none` when no rule could meaningfully match — the resolver
- * then returns null rather than guessing.
+ * Compute the kickoff state name from observable plan data. Pure function
+ * so the routing logic stays table-testable.
  */
 export function resolveKickoffState(args: {
-  phase: Project["phase"];
   planCount: number;
   hasEpic: boolean;
   hasFeature: boolean;
   hasApprovedPlan: boolean;
+  draftCount: number;
 }): KickoffState {
-  const { phase, planCount, hasEpic, hasFeature, hasApprovedPlan } = args;
-  if (phase === "requirements") {
-    if (planCount === 0) return "empty";
-    if (hasEpic && !hasFeature) return "has_epic_no_feature";
-    if (hasApprovedPlan) return "ready_for_advance";
-    // Plans exist but no organizing parent — the "5 flat stories"
-    // scenario. Route to feature-spec-generator so the work gets
-    // nested for traceability.
-    if (!hasEpic && !hasFeature) return "has_leaves_no_parent";
-    return "none";
-  }
-  // For non-requirements phases the default choreography only ships an
-  // `empty` rule today. More states can be added without code changes
-  // here as long as resolveKickoffState learns to emit them.
+  const { planCount, hasEpic, hasFeature, hasApprovedPlan, draftCount } = args;
   if (planCount === 0) return "empty";
+  if (hasEpic && !hasFeature) return "has_epic_no_feature";
+  if (hasApprovedPlan) return "ready_for_advance";
+  if (draftCount >= 3) return "has_drafts";
+  if (!hasEpic && !hasFeature) return "has_leaves_no_parent";
   return "none";
 }
 
@@ -76,6 +72,7 @@ async function gatherProjectPlanState(
   hasEpic: boolean;
   hasFeature: boolean;
   hasApprovedPlan: boolean;
+  draftCount: number;
 }> {
   const rows = await db
     .select({
@@ -87,8 +84,6 @@ async function gatherProjectPlanState(
       and(
         eq(plans.organizationId, organizationId),
         eq(plans.projectId, projectId),
-        // Only count kinds the routing logic cares about. The full set
-        // of kinds may grow; the resolver should still be cheap.
         inArray(plans.kind, ["epic", "feature", "story", "spec", "release_plan"]),
       ),
     );
@@ -96,12 +91,14 @@ async function gatherProjectPlanState(
   let hasEpic = false;
   let hasFeature = false;
   let hasApprovedPlan = false;
+  let draftCount = 0;
   for (const r of rows) {
     if (r.kind === "epic") hasEpic = true;
     if (r.kind === "feature") hasFeature = true;
     if (r.status === "approved") hasApprovedPlan = true;
+    if (r.status === "draft") draftCount++;
   }
-  return { planCount: rows.length, hasEpic, hasFeature, hasApprovedPlan };
+  return { planCount: rows.length, hasEpic, hasFeature, hasApprovedPlan, draftCount };
 }
 
 /**
@@ -112,17 +109,14 @@ export async function resolveRecommendedKickoff(
   organizationId: string,
   project: Project,
 ): Promise<RecommendedKickoff | null> {
-  const state = (async () => {
-    const counts = await gatherProjectPlanState(organizationId, project.id);
-    return resolveKickoffState({
-      phase: project.phase,
-      planCount: counts.planCount,
-      hasEpic: counts.hasEpic,
-      hasFeature: counts.hasFeature,
-      hasApprovedPlan: counts.hasApprovedPlan,
-    });
+  const counts = await gatherProjectPlanState(organizationId, project.id);
+  const stateName = resolveKickoffState({
+    planCount: counts.planCount,
+    hasEpic: counts.hasEpic,
+    hasFeature: counts.hasFeature,
+    hasApprovedPlan: counts.hasApprovedPlan,
+    draftCount: counts.draftCount,
   });
-  const stateName = await state();
   if (stateName === "none") return null;
 
   const { rules, source } = await getRoutingRulesForSlug(
@@ -132,9 +126,8 @@ export async function resolveRecommendedKickoff(
   );
   if (source === "none" || rules.length === 0) return null;
 
-  const match = rules.find(
-    (r) => r.phase === project.phase && r.state === stateName,
-  );
+  // Phase is no longer a project attribute; match on state only.
+  const match = rules.find((r) => r.state === stateName);
   if (!match) return null;
 
   return {

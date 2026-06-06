@@ -5,16 +5,13 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
-  Code2,
-  Compass,
-  FileText,
   GitMerge,
   Milestone,
   Radio,
+  ScrollText,
   Shield,
   Sparkles,
   Terminal,
-  TestTube,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -116,22 +113,23 @@ export function MarketingLanding() {
         </div>
       </section>
 
-      {/* ─────────── Six phases ─────────── */}
-      <section id="phases" className="border-b border-border/60">
+      {/* ─────────── Govern · Verify · Trust ─────────── */}
+      <section id="pillars" className="border-b border-border/60">
         <div className="mx-auto max-w-7xl px-6 py-20 md:py-28">
           <div className="mb-12 max-w-2xl">
             <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              The six phases
+              The operating model
             </span>
             <h2 className="mt-3 font-display text-[34px] font-bold leading-[1.1] tracking-[-0.015em] md:text-[42px]">
-              One project. One loop. <span className="text-primary">Six phases.</span>
+              Govern. Verify. <span className="text-primary">Trust.</span>
             </h2>
             <p className="mt-4 text-[15px] text-muted-foreground">
-              The SDLC isn&rsquo;t a Kanban board. It&rsquo;s a sequence of gated transitions, each
-              with deterministic criteria and earned autonomy that compounds across them.
+              Causally ordered &mdash; govern action funds verify output funds trust. Every
+              governed change passes through the same three pillars; nothing about a plan
+              moves until they all clear.
             </p>
           </div>
-          <PhasesFlow />
+          <PillarsFlow />
         </div>
       </section>
 
@@ -189,17 +187,17 @@ export function MarketingLanding() {
               persona="Sam · Team Lead"
               trigger="Friday afternoon: 'Quick status across all your projects before Monday?'"
               title="The portfolio sweep, in 90 seconds."
-              body="Open /projects. Every project's phase, blocking gates, autonomy events this week, deploy count, change-failure trend &mdash; at a glance. Drop the link in Slack."
+              body="Open /projects. Every project's status, blocking governance records, autonomy events this week, deploy count, change-failure trend &mdash; at a glance. Drop the link in Slack."
               signal="Every claim is one click from its source of record. No coznt-only numbers."
               preview={<PortfolioPreview />}
             />
             <Moment
               n="02"
               persona="Sam · Team Lead"
-              trigger="The Design → Development gate fails."
+              trigger="A governance gate blocks an in-review plan from advancing."
               title="Named unmet criteria. With the next action."
               body="Not 'gate failed.' Instead: 'ADR-0014 review pending @rohan since Tuesday; test coverage at 67% (gate: 80%).' Each criterion has assignee, link, expected SLA."
-              signal="Gate state is deterministic and reproducible. If yesterday passed and today fails, the diff is shown."
+              signal="Governance records are deterministic and reproducible. If yesterday passed and today fails, the diff is shown."
               preview={<GatePreview />}
               flip
             />
@@ -260,7 +258,7 @@ export function MarketingLanding() {
               points={[
                 "PR merged within SLA · no rollback within 7d",
                 "Deploy clean · no incident within 24h",
-                "Phase gate passed · criteria checked",
+                "Governance record passed · criteria checked",
                 "Work item closed · no revert in window",
               ]}
               tone="primary"
@@ -574,84 +572,59 @@ function LedgerStat({
   );
 }
 
-function PhasesFlow() {
-  const phases = [
+function PillarsFlow() {
+  const pillars = [
     {
       n: "01",
-      key: "requirements",
-      icon: FileText,
-      title: "Requirements",
-      gate: "Acceptance criteria signed",
-      plan: "story",
+      key: "govern",
+      icon: Shield,
+      title: "Govern",
+      question: "Who is allowed to act, and how far?",
+      body: "Policies become governance records on plan-artifact transitions. Gate / approval / review / exception — one unified status machine. Trust levels computed per project from track record, not hand-granted.",
+      schema: "governance_policies + governance_records",
     },
     {
       n: "02",
-      key: "design",
-      icon: Compass,
-      title: "Design",
-      gate: "ADR reviewed · linked",
-      plan: "adr",
+      key: "verify",
+      icon: Activity,
+      title: "Verify",
+      question: "How do we know the output is correct?",
+      body: "Every governed action drops an evidence row; CI/CD drops more when it grades the merge and the deploy. The trailing 30-day window of those rows decides the next gate — no surveys, no proxies.",
+      schema: "skill_outcomes + skill_autonomy",
     },
     {
       n: "03",
-      key: "development",
-      icon: Code2,
-      title: "Development",
-      gate: "PR · tests · review",
-      plan: "feature",
-    },
-    {
-      n: "04",
-      key: "testing",
-      icon: TestTube,
-      title: "Testing",
-      gate: "Coverage ≥ threshold",
-      plan: "test_plan",
-    },
-    {
-      n: "05",
-      key: "cicd",
-      icon: Zap,
-      title: "CI/CD",
-      gate: "Deploy clean · canary",
-      plan: "release_plan",
-    },
-    {
-      n: "06",
-      key: "monitoring",
-      icon: Activity,
-      title: "Monitoring",
-      gate: "No incident in window",
-      plan: "incident",
+      key: "trust",
+      icon: ScrollText,
+      title: "Trust",
+      question: "Can we explain, audit, and stand behind it?",
+      body: "Every claim on every screen links back to the artifact that produced it. AI outputs travel with model, prompt, and autonomy snapshot. Verification debt makes the unpaid cost visible as one number.",
+      schema: "audit_logs + evidence_links",
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3 lg:grid-cols-6">
-        {phases.map((p) => (
-          <div key={p.key} className="relative flex flex-col gap-3 bg-card p-4">
+      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+        {pillars.map((p) => (
+          <div key={p.key} className="relative flex flex-col gap-3 bg-card p-6">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-muted-foreground">{p.n}</span>
               <p.icon className="h-4 w-4 text-primary" strokeWidth={1.75} />
             </div>
-            <div>
-              <div className="text-[14px] font-semibold tracking-tight text-foreground">{p.title}</div>
-              <div className="mt-2 flex items-start gap-1.5 text-[11px] leading-[1.45] text-muted-foreground">
-                <Milestone className="mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--state-pending)]" />
-                <span>{p.gate}</span>
-              </div>
-              <div className="mt-1.5 font-mono text-[10px] text-muted-foreground">
-                plan.kind = {p.plan}
-              </div>
-            </div>
+            <div className="text-[18px] font-semibold tracking-tight text-foreground">{p.title}</div>
+            <div className="text-[12px] italic leading-[1.5] text-muted-foreground/90">{p.question}</div>
+            <p className="text-[13px] leading-[1.55] text-muted-foreground">{p.body}</p>
+            <code className="mt-auto inline-block pt-2 font-mono text-[10px] text-muted-foreground">
+              {p.schema}
+            </code>
           </div>
         ))}
       </div>
       <p className="max-w-3xl text-[13px] leading-[1.6] text-muted-foreground">
-        A project advances by passing the gate on its current phase. Every advance is a row
-        in the audit log. Every skill that contributed earns or loses autonomy on this
-        project, not on the skill in the abstract.
+        Measured. Earned. Auditable. Every claim on screen links back to its source-of-record
+        row. Every skill that contributed earns or loses autonomy on this project, not on
+        the skill in the abstract.
       </p>
     </div>
   );
@@ -770,9 +743,9 @@ function Moment({
 
 function PortfolioPreview() {
   const rows = [
-    { id: "FinTrack", phase: "Develop", phaseTone: "bg-[var(--state-passed)]/15 text-[var(--state-passed)]", gates: "3/4", deploys: 12, cfr: "4.1%", trend: [3, 5, 4, 6, 5, 4, 5] },
-    { id: "Atlas", phase: "Design", phaseTone: "bg-[var(--state-pending)]/15 text-[var(--state-pending)]", gates: "1/3", deploys: 4, cfr: "9.2%", trend: [3, 4, 5, 6, 7, 8, 9] },
-    { id: "Polaris", phase: "Release", phaseTone: "bg-[var(--autonomy-merge)]/15 text-[var(--autonomy-merge)]", gates: "4/4", deploys: 27, cfr: "1.7%", trend: [5, 4, 3, 3, 2, 2, 2] },
+    { id: "FinTrack", debt: "2.1", debtTone: "bg-[var(--state-passed)]/15 text-[var(--state-passed)]", records: "3/4", deploys: 12, cfr: "4.1%", trend: [3, 5, 4, 6, 5, 4, 5] },
+    { id: "Atlas", debt: "7.8", debtTone: "bg-[var(--state-failed)]/15 text-[var(--state-failed)]", records: "1/3", deploys: 4, cfr: "9.2%", trend: [3, 4, 5, 6, 7, 8, 9] },
+    { id: "Polaris", debt: "0.4", debtTone: "bg-[var(--autonomy-merge)]/15 text-[var(--autonomy-merge)]", records: "4/4", deploys: 27, cfr: "1.7%", trend: [5, 4, 3, 3, 2, 2, 2] },
   ];
   return (
     <div className="overflow-hidden rounded-md">
@@ -781,13 +754,13 @@ function PortfolioPreview() {
         <span className="font-mono text-[10px] text-muted-foreground">3 projects · 9d avg</span>
       </div>
       <div className="grid grid-cols-[1.4fr_0.9fr_0.6fr_0.5fr_0.6fr_0.7fr] gap-2 border-b border-border/60 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        <span>Project</span><span>Phase</span><span>Gates</span><span>Deploys</span><span>CFR</span><span>Trend</span>
+        <span>Project</span><span>Debt</span><span>Records</span><span>Deploys</span><span>CFR</span><span>Trend</span>
       </div>
       {rows.map((r) => (
         <div key={r.id} className="grid grid-cols-[1.4fr_0.9fr_0.6fr_0.5fr_0.6fr_0.7fr] items-center gap-2 border-b border-border/30 px-3 py-2.5 text-[12px] last:border-b-0">
           <span className="font-medium text-foreground">{r.id}</span>
-          <span><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${r.phaseTone}`}>{r.phase}</span></span>
-          <span className="font-mono text-[11px] text-muted-foreground">{r.gates}</span>
+          <span><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium font-mono tabular-nums ${r.debtTone}`}>{r.debt}</span></span>
+          <span className="font-mono text-[11px] text-muted-foreground">{r.records}</span>
           <span className="font-mono text-[11px] tabular-nums text-foreground">{r.deploys}</span>
           <span className="font-mono text-[11px] tabular-nums text-foreground">{r.cfr}</span>
           <Sparkline values={r.trend} tone={r.id === "Atlas" ? "down" : r.id === "Polaris" ? "up" : "flat"} />
@@ -803,7 +776,7 @@ function GatePreview() {
       <div className="flex items-center justify-between border-b border-border/60 pb-2">
         <div className="flex items-center gap-2">
           <Milestone className="h-3.5 w-3.5 text-[var(--state-failed)]" />
-          <span className="text-[12px] font-medium">Design → Development</span>
+          <span className="text-[12px] font-medium">plan/FT-1024 · in_review → approved</span>
           <span className="rounded-full bg-[var(--state-failed)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--state-failed)]">
             blocked
           </span>
@@ -981,7 +954,7 @@ function McpPreview() {
         <div className="text-muted-foreground">→ get_my_context</div>
         <div className="rounded bg-background/40 p-3 text-[11.5px]">
           <div><span className="text-muted-foreground">project</span>: <span className="text-foreground">FinTrack</span> <span className="text-muted-foreground">[fintrack-9302]</span></div>
-          <div><span className="text-muted-foreground">phase</span>: <span className="text-foreground">Development</span> <span className="text-[var(--state-pending)]">(1 pending gate)</span></div>
+          <div><span className="text-muted-foreground">active plan</span>: <span className="text-foreground">feature/checkout-v2</span> <span className="text-[var(--state-pending)]">(1 pending governance record)</span></div>
           <div><span className="text-muted-foreground">ticket</span>: <span className="text-foreground">FT-1024 · Checkout v2</span></div>
           <div className="mt-1 text-muted-foreground">rules in force:</div>
           <div className="pl-3 text-foreground">· no DB schema change without ADR <span className="text-muted-foreground">[rule-A11]</span></div>

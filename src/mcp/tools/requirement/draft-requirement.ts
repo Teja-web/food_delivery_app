@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 
-import { addDraft, bumpToolCall } from "../../session.js";
+import { addDraft, bumpToolCall } from "../../session";
 
 export const draftRequirementInput = z.object({
   kind: z

@@ -8,7 +8,7 @@
  * Borrowed shape from `@ai-sdlc/mcp-advisor`'s `conventions` resource.
  */
 
-import { CozntClient } from "../client.js";
+import { CozntClient } from "../client";
 
 interface RuleListResponse {
   items: Array<{

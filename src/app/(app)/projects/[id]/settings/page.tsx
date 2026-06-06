@@ -1,53 +1,10 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { getProject } from "@/actions/project/projects";
-import type { ApiKey } from "@/db/schema/api-key";
-import type { Project } from "@/db/schema/project";
-import { listApiKeysForProject } from "@/operations/integration/api-keys";
-
-import { serializeCockpitProject } from "../serialize";
-import { SettingsTab } from "../tabs/SettingsTab";
-import {
-  ProjectApiKeysSection,
-  type ProjectApiKeyRow,
-} from "./ProjectApiKeysSection";
-
-function serializeApiKey(k: ApiKey): ProjectApiKeyRow {
-  const now = new Date();
-  let status: ProjectApiKeyRow["status"] = "active";
-  if (k.revokedAt) status = "revoked";
-  else if (k.expiresAt && k.expiresAt < now) status = "expired";
-
-  return {
-    id: k.id,
-    name: k.name,
-    prefix: k.prefix,
-    createdAt: k.createdAt.toISOString(),
-    lastUsedAt: k.lastUsedAt ? k.lastUsedAt.toISOString() : null,
-    expiresAt: k.expiresAt ? k.expiresAt.toISOString() : null,
-    revokedAt: k.revokedAt ? k.revokedAt.toISOString() : null,
-    status,
-  };
-}
-
-export default async function ProjectSettingsPage({
+export default async function SettingsIndex({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const project = (await getProject(id)) as Project | null;
-  if (!project) notFound();
-
-  const apiKeys = await listApiKeysForProject(id);
-
-  return (
-    <div className="space-y-10">
-      <SettingsTab project={serializeCockpitProject(project)} />
-      <ProjectApiKeysSection
-        projectId={id}
-        initialKeys={apiKeys.map(serializeApiKey)}
-      />
-    </div>
-  );
+  redirect(`/projects/${id}/settings/general`);
 }

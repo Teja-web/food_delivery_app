@@ -7,7 +7,7 @@ import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 
 const commentSchema = z.object({
-  planId: z.string().min(1),
+  planArtifactId: z.string().min(1),
   parentCommentId: z.string().optional().nullable(),
   authorId: z.string().min(1),
   authorName: z.string().optional(),
@@ -24,10 +24,13 @@ export const commentCrud = createEntityCrud({
   searchFields: ["body"],
 });
 
-export async function listCommentsForPlan(planId: string) {
+export async function listCommentsForPlan(planArtifactId: string) {
   const ctx = await getActionContext();
   return db.query.comments.findMany({
-    where: and(eq(comments.planId, planId), eq(comments.organizationId, ctx.organizationId)),
+    where: and(
+      eq(comments.planArtifactId, planArtifactId),
+      eq(comments.organizationId, ctx.organizationId),
+    ),
     orderBy: [asc(comments.createdAt)],
   });
 }

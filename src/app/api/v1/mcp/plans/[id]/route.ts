@@ -1,21 +1,21 @@
 /**
- * GET /api/v1/mcp/plans/:id — fetch one plan with body, revisions, and
- * approval state. The companion to the list view at `/api/v1/mcp/plans`.
+ * GET /api/v1/mcp/plans/:id — fetch one plan_artifact with body, revisions,
+ * and the governance records currently targeting it.
  */
 
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { planRevisions } from "@/db/schema/plan/plan-revision";
-import { approvals } from "@/db/schema/plan/approval";
+import { governanceRecords } from "@/db/schema/governance/records";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError } from "@/lib/auth/scope";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const plan = await db.query.plans.findFirst({
+    const plan = await db.query.planArtifacts.findFirst({
       where: and(eq(plans.id, id), eq(plans.organizationId, ctx.organizationId)),
     });
     if (!plan) throw httpError(404, "Plan not found");
@@ -23,10 +23,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       throw httpError(403, "API key scoped to a different project.");
     }
 
-    const [revisions, planApprovals] = await Promise.all([
+    const [revisions, records] = await Promise.all([
       db.query.planRevisions.findMany({
         where: and(
-          eq(planRevisions.planId, plan.id),
+          eq(planRevisions.planArtifactId, plan.id),
           eq(planRevisions.organizationId, ctx.organizationId),
         ),
         orderBy: [desc(planRevisions.revisionNumber)],
@@ -37,19 +37,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           createdByName: true,
         },
       }),
-      db.query.approvals.findMany({
+      db.query.governanceRecords.findMany({
         where: and(
-          eq(approvals.entityType, "plan"),
-          eq(approvals.entityId, plan.id),
-          eq(approvals.organizationId, ctx.organizationId),
+          eq(governanceRecords.planArtifactId, plan.id),
+          eq(governanceRecords.organizationId, ctx.organizationId),
         ),
-        orderBy: [desc(approvals.createdAt)],
+        orderBy: [desc(governanceRecords.createdAt)],
         columns: {
           id: true,
+          kind: true,
           status: true,
-          requestedByName: true,
           decidedByName: true,
           decidedAt: true,
+          transitionFrom: true,
+          transitionTo: true,
         },
       }),
     ]);
@@ -64,13 +65,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         body: plan.body,
         status: plan.status,
         priority: plan.priority,
-        parentPlanId: plan.parentPlanId,
         externalRef: plan.externalRef,
         assigneeName: plan.assigneeName,
         updatedAt: plan.updatedAt,
       },
       revisions,
-      approvals: planApprovals,
+      governanceRecords: records,
     };
   });
 }

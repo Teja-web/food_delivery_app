@@ -28,7 +28,7 @@ export const statement = {
   integration: ["connect", "disconnect", "manage-credentials"],
   "api-key": ["create", "revoke"],
   rule: ["create", "update", "delete"],
-  "phase-gate": ["create", "update", "delete"],
+  "governance-record": ["create", "update", "delete"],
   "skill-autonomy": ["update"],
   "member-profile": ["update"],
 } as const;
@@ -39,7 +39,7 @@ const adminCustom = {
   integration: ["connect", "disconnect", "manage-credentials"],
   "api-key": ["create", "revoke"],
   rule: ["create", "update", "delete"],
-  "phase-gate": ["create", "update", "delete"],
+  "governance-record": ["create", "update", "delete"],
   "skill-autonomy": ["update"],
   "member-profile": ["update"],
 } as const;

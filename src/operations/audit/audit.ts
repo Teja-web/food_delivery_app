@@ -50,7 +50,7 @@ const SCOPE_ENTITY_FILTER: Record<AuditScope, string[] | null> = {
   all: null,
   skills: ["skill", "skill_outcome", "skill_autonomy"],
   plans: ["plan", "plan_revision"],
-  projects: ["project", "phase_gate"],
+  projects: ["project", "governance_record"],
   approvals: ["approval"],
   deployments: ["deployment"],
 };

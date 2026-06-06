@@ -44,7 +44,6 @@ export interface ResolvedAutonomyThreshold {
 function defaultMinLevel(actionKind: ActionKind, changeRisk: ChangeRiskLabel): number {
   if (actionKind === "deploy_production") return Infinity;
   if (actionKind === "co_sign_promotion") return 3; // lead
-  if (actionKind === "advance_phase_gate") return 2; // merge
   // merge_pr
   if (changeRisk === "critical") return Infinity;
   if (changeRisk === "high") return 3; // lead

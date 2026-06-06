@@ -1,21 +1,24 @@
 /**
- * `projectArtifacts` — the rich state snapshot surfaced on
- * `get_my_context`. Lets the agent self-orient without firing N
- * follow-up queries.
+ * `projectArtifacts` — rich state snapshot surfaced on `get_my_context`.
+ * Lets the agent self-orient without firing N follow-up queries.
  *
- * Single function, one DB-roundtrip per artifact category, run in
- * parallel. None of the sub-queries is allowed to throw — this is an
- * observability surface, not a transaction. A failed sub-query
- * contributes null/zero to the result rather than wedging context
+ * One DB round-trip per artifact category, run in parallel. No sub-query
+ * is allowed to throw — this is an observability surface, not a transaction.
+ * A failed sub-query contributes null/zero rather than wedging context
  * assembly.
  */
 
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals } from "@/db/schema/plan/approval";
-import { phaseGates } from "@/db/schema/phase-gate";
-import { plans, PLAN_KINDS, PLAN_STATUSES, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan";
+import { governanceRecords } from "@/db/schema/governance/records";
+import {
+  planArtifacts as plans,
+  PLAN_KINDS,
+  PLAN_STATUSES,
+  type PlanKind,
+  type PlanStatus,
+} from "@/db/schema/plan/plan-artifact";
 import { computeProjectDebt } from "@/operations/verification-debt";
 
 export interface PlansArtifact {
@@ -30,7 +33,7 @@ export interface ApprovalsArtifact {
   oldestOpenAgeHours: number | null;
 }
 
-export interface PhaseGatesArtifact {
+export interface GovernanceGatesArtifact {
   total: number;
   pending: number;
   passed: number;
@@ -41,7 +44,7 @@ export interface PhaseGatesArtifact {
 export interface ProjectArtifacts {
   plans: PlansArtifact;
   approvals: ApprovalsArtifact;
-  phaseGates: PhaseGatesArtifact;
+  gates: GovernanceGatesArtifact;
   /**
    * Total verification debt score. Null when computation fails.
    * Caller can drill into the four-term breakdown via the
@@ -101,14 +104,15 @@ async function gatherApprovals(
     const [row] = await db
       .select({
         count: sql<number>`count(*)::int`,
-        oldestCreatedAt: sql<Date | null>`min(${approvals.createdAt})`,
+        oldestCreatedAt: sql<Date | null>`min(${governanceRecords.createdAt})`,
       })
-      .from(approvals)
+      .from(governanceRecords)
       .where(
         and(
-          eq(approvals.organizationId, organizationId),
-          eq(approvals.projectId, projectId),
-          eq(approvals.status, "pending"),
+          eq(governanceRecords.organizationId, organizationId),
+          eq(governanceRecords.projectId, projectId),
+          eq(governanceRecords.kind, "approval"),
+          eq(governanceRecords.status, "pending"),
         ),
       );
     const pendingTotal = row?.count ?? 0;
@@ -123,17 +127,23 @@ async function gatherApprovals(
   }
 }
 
-async function gatherPhaseGates(
-  _organizationId: string,
+async function gatherGates(
+  organizationId: string,
   projectId: string,
-): Promise<PhaseGatesArtifact> {
+): Promise<GovernanceGatesArtifact> {
   try {
     const rows = await db
-      .select({ status: phaseGates.status })
-      .from(phaseGates)
-      .where(eq(phaseGates.projectId, projectId))
-      .orderBy(asc(phaseGates.createdAt));
-    const out: PhaseGatesArtifact = {
+      .select({ status: governanceRecords.status })
+      .from(governanceRecords)
+      .where(
+        and(
+          eq(governanceRecords.organizationId, organizationId),
+          eq(governanceRecords.projectId, projectId),
+          eq(governanceRecords.kind, "gate"),
+        ),
+      )
+      .orderBy(asc(governanceRecords.createdAt));
+    const out: GovernanceGatesArtifact = {
       total: rows.length,
       pending: 0,
       passed: 0,
@@ -173,17 +183,17 @@ export async function gatherProjectArtifacts(
   organizationId: string,
   projectId: string,
 ): Promise<ProjectArtifacts> {
-  const [plansArtifact, approvalsArtifact, phaseGatesArtifact, verificationDebt] =
+  const [plansArtifact, approvalsArtifact, gatesArtifact, verificationDebt] =
     await Promise.all([
       gatherPlans(organizationId, projectId),
       gatherApprovals(organizationId, projectId),
-      gatherPhaseGates(organizationId, projectId),
+      gatherGates(organizationId, projectId),
       gatherVerificationDebt(organizationId, projectId),
     ]);
   return {
     plans: plansArtifact,
     approvals: approvalsArtifact,
-    phaseGates: phaseGatesArtifact,
+    gates: gatesArtifact,
     verificationDebt,
   };
 }

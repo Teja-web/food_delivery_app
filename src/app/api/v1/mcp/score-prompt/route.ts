@@ -10,8 +10,6 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { promptLogs } from "@/db/schema/prompt-log";
-import { projects } from "@/db/schema/project";
-import type { ProjectPhase } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
 import { scorePromptQuality } from "@/domain/prompt-quality/rubric";
 import { isPromptGovernanceEnabled } from "@/domain/prompt-quality/feature-flag";
@@ -43,7 +41,6 @@ export async function POST(req: Request) {
     }
 
     let content = parsed.data.content ?? "";
-    let phase: ProjectPhase | null = null;
 
     if (parsed.data.promptLogId) {
       const row = await db.query.promptLogs.findFirst({
@@ -58,18 +55,8 @@ export async function POST(req: Request) {
         throw err;
       }
       content = row.content;
-      phase = (row.phase as ProjectPhase | null) ?? null;
     }
 
-    if (!phase && (parsed.data.projectId || ctx.projectId)) {
-      const projectId = parsed.data.projectId ?? ctx.projectId!;
-      const project = await db.query.projects.findFirst({
-        where: and(eq(projects.id, projectId), eq(projects.organizationId, ctx.organizationId)),
-        columns: { phase: true },
-      });
-      phase = project?.phase ?? null;
-    }
-
-    return scorePromptQuality({ content, phase });
+    return scorePromptQuality({ content, phase: null });
   });
 }

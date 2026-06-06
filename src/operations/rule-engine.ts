@@ -27,12 +27,12 @@
  *   info  → returned as warnings (no audit emission)
  */
 
-import { and, eq, isNull, or, inArray } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { rules, type Rule, type RuleSeverity } from "@/db/schema/rule";
 import { auditLogs } from "@/db/schema/audit/audit-log";
 import { getActionContext } from "@/lib/auth/context";
-import type { Plan } from "@/db/schema/plan/plan";
+import type { PlanArtifact as Plan } from "@/db/schema/plan/plan-artifact";
 import {
   evaluateActionPolicy,
   type ActionPolicyAppliesTo,
@@ -152,7 +152,6 @@ export async function evaluatePlanAgainstRules(plan: Plan): Promise<RuleViolatio
       eq(rules.organizationId, ctx.organizationId),
       eq(rules.enabled, true),
       or(isNull(rules.projectId), eq(rules.projectId, plan.projectId)),
-      or(isNull(rules.phase), inArray(rules.phase, [plan.kind, "all"])),
     ),
   });
 

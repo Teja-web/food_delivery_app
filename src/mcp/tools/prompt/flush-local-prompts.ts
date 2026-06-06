@@ -7,9 +7,9 @@
 
 import { z } from "zod";
 
-import { CozntClient } from "../../client.js";
-import { bumpToolCall, getSessionProject } from "../../session.js";
-import { readLocalBuffer, writeLocalBuffer } from "../../lib/prompt-buffer.js";
+import { CozntClient } from "../../client";
+import { bumpToolCall, getSessionProject } from "../../session";
+import { readLocalBuffer, writeLocalBuffer } from "../../lib/prompt-buffer";
 
 export const flushLocalPromptsInput = z.object({
   projectId: z.string().optional().describe("Defaults to the session's bound project."),

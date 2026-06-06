@@ -8,6 +8,20 @@
       "when": 1780548834944,
       "tag": "0000_outstanding_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780554595880,
+      "tag": "0001_numerous_dragon_lord",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780555057870,
+      "tag": "0002_bright_carlie_cooper",
+      "breakpoints": true
     }
   ]
 }

@@ -2,9 +2,10 @@ import type { AdapterBinding } from "@/db/schema/adapter-binding";
 // AdapterBinding currently has no last-sync column; we surface externalKey
 // instead. Sync history will be added when integrations expose it.
 import type { Deployment, DeploymentStatus } from "@/db/schema/deployment";
-import type { GateType, PhaseGate } from "@/db/schema/phase-gate";
-import type { Plan } from "@/db/schema/plan/plan";
-import type { Project, ProjectPhase, ProjectStatus } from "@/db/schema/project";
+import type { Environment } from "@/db/schema/environment";
+import type { PlanArtifact } from "@/db/schema/plan/plan-artifact";
+import type { Project, ProjectStatus } from "@/db/schema/project";
+import type { Repository } from "@/db/schema/repository";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
 import type { Skill } from "@/db/schema/skill/skill";
 import type { WorkItem, WorkItemKind, WorkItemSource } from "@/db/schema/work-item";
@@ -14,38 +15,13 @@ export interface CockpitProjectClient {
   name: string;
   slug: string;
   description: string | null;
-  phase: ProjectPhase;
   status: ProjectStatus;
-  repoUrl: string | null;
-  jiraProjectKey: string | null;
-  adoProjectId: string | null;
-  confluenceSpaceKey: string | null;
   criticalPaths: string[];
   productionCriticalPaths: string[];
   /** When true, the execution gate refuses to clear PRs without an approval row. */
   requireHumanApprovalForMerge: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface CockpitGateClient {
-  id: string;
-  name: string;
-  description: string | null;
-  type: GateType;
-  threshold: number | null;
-  status: "pending" | "passed" | "failed" | "skipped";
-  unmetCriterion: string | null;
-  assigneeName: string | null;
-  ageLabel: string | null;
-  lastGreenAt: string | null;
-  /**
-   * Open approval rows targeting this gate. > 0 means a reviewer was asked
-   * but hasn't decided yet (typical after `submit_phase_for_review`). UI
-   * renders an "in review" badge so the gate's pending state is visible on
-   * the project cockpit, not buried only in the approvals inbox.
-   */
-  pendingApprovalCount: number;
 }
 
 export interface CockpitBindingClient {
@@ -69,8 +45,6 @@ export interface CockpitRuleClient {
   title: string;
   severity: RuleSeverity;
   scope: "project" | "org";
-  /** null = all phases */
-  phase: string | null;
   tags: string[];
 }
 
@@ -92,7 +66,7 @@ export interface CockpitWorkItemClient {
   title: string;
   status: string | null;
   assigneeEmail: string | null;
-  planId: string | null;
+  planArtifactId: string | null;
   lastSyncedAt: string | null;
   updatedAt: string;
 }
@@ -111,22 +85,19 @@ export interface CockpitDeploymentClient {
   rolledBackAt: string | null;
 }
 
-export interface CockpitGatesByPhase {
-  phase: ProjectPhase;
-  label: string;
-  gates: CockpitGateClient[];
+export interface CockpitRepositoryClient {
+  id: string;
+  source: string;
+  identifier: string;
+  url: string | null;
+  defaultBranch: string | null;
 }
 
-function formatAge(date: Date | null | undefined): string | null {
-  if (!date) return null;
-  const ms = Date.now() - date.getTime();
-  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
-  const hours = Math.floor(ms / (60 * 60 * 1000));
-  const minutes = Math.floor(ms / (60 * 1000));
-  if (days >= 1) return `${days}d`;
-  if (hours >= 1) return `${hours}h`;
-  if (minutes >= 1) return `${minutes}m`;
-  return "just now";
+export interface CockpitEnvironmentClient {
+  id: string;
+  name: string;
+  tier: string | null;
+  url: string | null;
 }
 
 export function serializeCockpitProject(p: Project): CockpitProjectClient {
@@ -135,36 +106,12 @@ export function serializeCockpitProject(p: Project): CockpitProjectClient {
     name: p.name,
     slug: p.slug,
     description: p.description,
-    phase: p.phase,
     status: p.status,
-    repoUrl: p.repoUrl,
-    jiraProjectKey: p.jiraProjectKey,
-    adoProjectId: p.adoProjectId,
-    confluenceSpaceKey: p.confluenceSpaceKey,
     criticalPaths: p.criticalPaths ?? [],
     productionCriticalPaths: p.productionCriticalPaths ?? [],
     requireHumanApprovalForMerge: p.requireHumanApprovalForMerge,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
-  };
-}
-
-export function serializeCockpitGate(
-  g: PhaseGate,
-  pendingApprovalCount = 0,
-): CockpitGateClient {
-  return {
-    id: g.id,
-    name: g.name,
-    description: g.description ?? null,
-    type: g.type,
-    threshold: g.threshold ?? null,
-    status: g.status,
-    unmetCriterion: g.unmetCriterion ?? null,
-    assigneeName: g.assigneeName ?? null,
-    ageLabel: formatAge(g.lastChangedAt),
-    lastGreenAt: g.lastGreenAt?.toISOString() ?? null,
-    pendingApprovalCount,
   };
 }
 
@@ -177,7 +124,7 @@ export function serializeCockpitBinding(b: AdapterBinding): CockpitBindingClient
   };
 }
 
-export function serializeCockpitPlan(p: Plan): CockpitPlanClient {
+export function serializeCockpitPlan(p: PlanArtifact): CockpitPlanClient {
   return {
     id: p.id,
     title: p.title,
@@ -194,7 +141,6 @@ export function serializeCockpitRule(r: Rule, currentProjectId: string): Cockpit
     title: r.title,
     severity: r.severity,
     scope: r.projectId === currentProjectId ? "project" : "org",
-    phase: r.phase ?? null,
     tags: r.tags ?? [],
   };
 }
@@ -220,7 +166,7 @@ export function serializeCockpitWorkItem(w: WorkItem): CockpitWorkItemClient {
     title: w.title,
     status: w.status,
     assigneeEmail: w.assigneeEmail,
-    planId: w.planId,
+    planArtifactId: w.planArtifactId,
     lastSyncedAt: w.lastSyncedAt?.toISOString() ?? null,
     updatedAt: w.updatedAt.toISOString(),
   };
@@ -239,5 +185,24 @@ export function serializeCockpitDeployment(d: Deployment): CockpitDeploymentClie
     startedAt: d.startedAt.toISOString(),
     completedAt: d.completedAt?.toISOString() ?? null,
     rolledBackAt: d.rolledBackAt?.toISOString() ?? null,
+  };
+}
+
+export function serializeCockpitRepository(r: Repository): CockpitRepositoryClient {
+  return {
+    id: r.id,
+    source: r.source,
+    identifier: r.identifier,
+    url: r.url ?? null,
+    defaultBranch: r.defaultBranch ?? null,
+  };
+}
+
+export function serializeCockpitEnvironment(e: Environment): CockpitEnvironmentClient {
+  return {
+    id: e.id,
+    name: e.name,
+    tier: e.tier ?? null,
+    url: e.url ?? null,
   };
 }

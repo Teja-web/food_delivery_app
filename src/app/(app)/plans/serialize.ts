@@ -1,4 +1,4 @@
-import type { Plan, PlanKind, PlanStatus } from "@/db/schema/plan/plan";
+import type { PlanArtifact, PlanKind, PlanStatus } from "@/db/schema/plan/plan-artifact";
 import type { Project } from "@/db/schema/project";
 
 export type PlanRowClient = {
@@ -18,7 +18,7 @@ export type PlanRowClient = {
   updatedAtIso: string;
   updatedAtLabel: string;
   assigneeName: string | null;
-  /** True when at least one pending Approval row targets this plan.
+  /** True when at least one pending governance approval record targets this plan.
    * Drives the "Needs approval" filter chip + per-row affordance. */
   needsApproval: boolean;
 };
@@ -41,12 +41,8 @@ const KIND_LABEL: Record<PlanKind, string> = {
   adr: "ADR",
   test_plan: "Test plan",
   release_plan: "Release",
-  incident: "Incident",
-  storyboard: "Storyboard",
-  dev_summary: "Dev summary",
-  go_live_report: "Go-live report",
-  cicd_pipeline: "CI/CD pipeline",
   risk_register: "Risk register",
+  incident: "Incident",
 };
 
 const STATUS_LABEL: Record<PlanStatus, string> = {
@@ -56,6 +52,7 @@ const STATUS_LABEL: Record<PlanStatus, string> = {
   in_progress: "In progress",
   completed: "Completed",
   rejected: "Rejected",
+  changes_requested: "Changes requested",
   cancelled: "Cancelled",
 };
 
@@ -66,6 +63,7 @@ const STATUS_TONE: Record<PlanStatus, PlanRowClient["statusTone"]> = {
   in_progress: "neutral",
   completed: "success",
   rejected: "danger",
+  changes_requested: "info",
   cancelled: "muted",
 };
 
@@ -83,7 +81,7 @@ function formatRelative(date: Date): string {
 }
 
 export function serializePlanRow(
-  plan: Plan & { project?: Project | null },
+  plan: PlanArtifact & { project?: Project | null },
   opts: { needsApproval?: boolean } = {},
 ): PlanRowClient {
   const proj = plan.project;

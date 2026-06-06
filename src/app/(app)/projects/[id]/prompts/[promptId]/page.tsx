@@ -186,7 +186,6 @@ export default async function PromptDetailPage({
         <CardContent className="space-y-1 pt-0 font-mono text-xs text-foreground/85">
           <div>author: {prompt.authorName ?? "—"} &lt;{prompt.authorEmail ?? "—"}&gt; ({prompt.authorUsername ?? "—"})</div>
           <div>source: {prompt.source}</div>
-          <div>phase at capture: {prompt.phase ?? "—"}</div>
           <div>
             session:{" "}
             {prompt.mcpSessionId ? (

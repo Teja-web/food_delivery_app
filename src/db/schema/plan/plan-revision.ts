@@ -1,22 +1,22 @@
 /**
- * Plan Revisions — immutable history of a plan's body + details.
+ * Plan Revisions — immutable history of a plan_artifact's body + details.
  *
- * Every save to `plans` writes a new row here with the prior content. The
- * live `plans` row reflects the current state for query efficiency; this
- * table is the audit trail.
+ * Every save to `plan_artifacts` writes a new row here with the prior content.
  */
 
 import { text, integer, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "../schema";
-import { plans } from "./plan";
+import { planArtifacts } from "./plan-artifact";
 
 export const planRevisions = cozntSchema.table(
   "plan_revisions",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
-    planId: text("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
+    planArtifactId: text("plan_artifact_id")
+      .notNull()
+      .references(() => planArtifacts.id, { onDelete: "cascade" }),
 
     revisionNumber: integer("revision_number").notNull(),
 
@@ -29,8 +29,11 @@ export const planRevisions = cozntSchema.table(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    index("plan_revisions_plan_idx").on(table.planId, table.revisionNumber),
-    unique("plan_revisions_plan_revision_unique").on(table.planId, table.revisionNumber),
+    index("plan_revisions_plan_artifact_idx").on(table.planArtifactId, table.revisionNumber),
+    unique("plan_revisions_plan_artifact_revision_unique").on(
+      table.planArtifactId,
+      table.revisionNumber,
+    ),
   ],
 );
 

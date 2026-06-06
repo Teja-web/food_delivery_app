@@ -2,11 +2,11 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "types": ["node"],
 
-    "outDir": "./dist",
+    "noEmit": true,
     "rootDir": "./src",
 
     "strict": true,
@@ -14,16 +14,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-
-    "declaration": false,
-    "sourceMap": true,
-    "isolatedModules": false,
-    "incremental": false
+    "allowImportingTsExtensions": false
   },
-  "include": [
-    "src/mcp/**/*.ts",
-    "src/db/schema/plan-kinds.ts",
-    "src/lib/pipelines/templates.ts",
-    "src/lib/agent-context/version.ts"
-  ]
+  "include": ["src/mcp/**/*.ts"]
 }

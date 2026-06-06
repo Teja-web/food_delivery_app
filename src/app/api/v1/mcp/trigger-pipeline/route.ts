@@ -1,16 +1,16 @@
 /**
  * POST /api/v1/mcp/trigger-pipeline — actively kick off a CI/CD run.
  *
- * Backs the `trigger_pipeline` MCP verb. Phase-gated to CICD only.
- * Thin wrapper over `triggerPipelineForProject` in outbound.ts.
+ * Backs the `trigger_pipeline` MCP verb. Thin wrapper over
+ * `triggerPipelineForProject` in outbound.ts. Phase discipline is gone;
+ * governance for pipeline runs is plan-bound.
  */
 
 import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { projects, type Project } from "@/db/schema/project";
-import { PHASE_GUIDANCE } from "@/domain/phases";
+import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
 import { triggerPipelineForProject } from "@/lib/integrations/outbound";
 
@@ -20,8 +20,6 @@ const bodySchema = z.object({
   workflowId: z.string().min(1),
   branch: z.string().optional(),
 });
-
-const ALLOWED_PHASES = new Set<Project["phase"]>(["cicd"]);
 
 function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3029";
@@ -52,24 +50,12 @@ export async function POST(req: Request) {
       throw err;
     }
 
-    const project = (await db.query.projects.findFirst({
+    const project = await db.query.projects.findFirst({
       where: and(eq(projects.id, projectId), eq(projects.organizationId, ctx.organizationId)),
-    })) as Project | undefined;
+    });
     if (!project) {
       const err = new Error("Project not found") as Error & { status?: number };
       err.status = 404;
-      throw err;
-    }
-
-    if (!ALLOWED_PHASES.has(project.phase)) {
-      const err = new Error(
-        `CI/CD triggering is allowed only in the cicd phase. Advance the project via submit_phase_for_review.`,
-      ) as Error & { status?: number; details?: unknown };
-      err.status = 403;
-      err.details = {
-        phase: project.phase,
-        phaseGuidance: PHASE_GUIDANCE[project.phase],
-      };
       throw err;
     }
 

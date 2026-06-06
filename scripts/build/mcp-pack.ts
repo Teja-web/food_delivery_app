@@ -3,15 +3,17 @@
  *
  * Pipeline:
  *   1. Read version from root package.json.
- *   2. Run `tsc -p tsconfig.mcp.json` to emit dist/{mcp,db,lib}/**.js.
- *   3. Stage dist/mcp + the two re-used schema/template subtrees into dist/pkg/,
- *      together with a slim package.json declaring only the runtime deps the
- *      bundle imports (@modelcontextprotocol/sdk, zod).
- *   4. `npm pack` inside dist/pkg/ to produce coznt-mcp-<version>.tgz.
- *   5. Move the tarball into public/install/, so Next serves it as a static asset
+ *   2. Type-check with `tsc --noEmit -p tsconfig.mcp.json`.
+ *   3. Bundle with tsup (esbuild) → dist/mcp/bin.js. Tree-shaking keeps
+ *      drizzle/nanoid out of the runtime; only @modelcontextprotocol/sdk and
+ *      zod stay external.
+ *   4. Stage dist/mcp/ into dist/pkg/ alongside a slim package.json declaring
+ *      only those runtime deps.
+ *   5. `npm pack` inside dist/pkg/ to produce coznt-mcp-<version>.tgz.
+ *   6. Move the tarball into public/install/, so Next serves it as a static asset
  *      and `npx -y https://<coznt>/install/coznt-mcp-<version>.tgz` resolves it.
- *   6. Update src/lib/agent-context/version.ts so the in-product config panels emit the
- *      same versioned URL.
+ *   7. Update src/lib/agent-context/version.ts so the in-product config panels emit
+ *      the same versioned URL.
  *
  * Why not publish to npm: coznt's MCP is private-distribution by design — each
  * coznt deployment hands out the client that talks to it. See
@@ -46,14 +48,15 @@ console.log(`[mcp:pack] version ${version}`);
 rmSync(distDir, { recursive: true, force: true });
 mkdirSync(distDir, { recursive: true });
 
-console.log("[mcp:pack] compiling TypeScript…");
-run("npx", ["tsc", "-p", "tsconfig.mcp.json"], repoRoot);
+console.log("[mcp:pack] type-checking…");
+run("npx", ["tsc", "--noEmit", "-p", "tsconfig.mcp.json"], repoRoot);
+
+console.log("[mcp:pack] bundling with tsup…");
+run("npx", ["tsup", "--config", "tsup.mcp.config.ts"], repoRoot);
 
 console.log("[mcp:pack] staging package contents…");
 mkdirSync(stageDir, { recursive: true });
 cpSync(join(distDir, "mcp"), join(stageDir, "mcp"), { recursive: true });
-cpSync(join(distDir, "db"), join(stageDir, "db"), { recursive: true });
-cpSync(join(distDir, "lib"), join(stageDir, "lib"), { recursive: true });
 
 // Slim package.json — only the deps the bundle actually imports at runtime.
 const runtimeDeps = ["@modelcontextprotocol/sdk", "zod"] as const;
@@ -63,7 +66,7 @@ const stagePkg = {
   description: "Coznt MCP server — bridges any MCP-compatible IDE agent to a coznt instance.",
   type: "module" as const,
   bin: { "coznt-mcp": "./mcp/bin.js" },
-  files: ["mcp/**/*.js", "db/**/*.js", "lib/**/*.js"],
+  files: ["mcp/bin.js", "mcp/bin.js.map"],
   dependencies: Object.fromEntries(
     runtimeDeps.map((name) => {
       const ver = rootPkg.dependencies[name];

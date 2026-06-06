@@ -1,5 +1,5 @@
 /**
- * /api/v1/mcp/context — fetch project context (rules, skills, ADRs, phase).
+ * /api/v1/mcp/context — fetch project context (rules, skills, ADRs, autonomy).
  *
  * Two methods, same payload:
  *  - POST: body `{ repoUrl?, branch?, workItemKey? }` (Cursor MCP server, Devin).

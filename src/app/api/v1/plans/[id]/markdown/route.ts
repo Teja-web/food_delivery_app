@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { projects } from "@/db/schema/project";
 import { authenticate, withApiContext, UnauthorizedError } from "@/lib/auth/api-key";
 import { serializePlanToMarkdown, planFilePath } from "@/domain/plan-markdown";
@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     throw err;
   }
   return withApiContext(apiCtx, async (ctx) => {
-    const plan = await db.query.plans.findFirst({
+    const plan = await db.query.planArtifacts.findFirst({
       where: and(eq(plans.id, id), eq(plans.organizationId, ctx.organizationId)),
     });
     if (!plan) return new Response("Plan not found", { status: 404 });

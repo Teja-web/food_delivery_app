@@ -31,7 +31,6 @@ interface ResolvedProject {
   id: string;
   name: string;
   slug: string;
-  phase: string;
 }
 
 async function resolve(
@@ -48,7 +47,7 @@ async function resolve(
         eq(projects.organizationId, ctx.organizationId),
         or(eq(projects.id, q), eq(projects.slug, qLower), eq(projects.name, q)),
       ),
-      columns: { id: true, name: true, slug: true, phase: true },
+      columns: { id: true, name: true, slug: true },
     });
     if (exact) return exact as ResolvedProject;
 
@@ -57,7 +56,7 @@ async function resolve(
         eq(projects.organizationId, ctx.organizationId),
         or(ilike(projects.slug, `%${qLower}%`), ilike(projects.name, `%${qLower}%`)),
       ),
-      columns: { id: true, name: true, slug: true, phase: true },
+      columns: { id: true, name: true, slug: true },
       limit: 6,
     });
 

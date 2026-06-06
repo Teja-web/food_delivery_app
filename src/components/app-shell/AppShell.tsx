@@ -5,11 +5,11 @@ import {
   Bell,
   FileCheck,
   FolderKanban,
+  Inbox,
   Key,
   LogOut,
   Plug,
   Plus,
-  Rocket,
   ScrollText,
   Search,
   Settings,
@@ -49,11 +49,16 @@ type NavGroup = {
 
 const GROUPS: NavGroup[] = [
   {
+    label: "Personal",
+    items: [
+      { href: "/me", label: "Inbox", Icon: Inbox, matchPrefix: "/me" },
+    ],
+  },
+  {
     label: "Plan",
     items: [
       { href: "/projects", label: "Projects", Icon: FolderKanban, matchPrefix: "/projects" },
       { href: "/plans", label: "Plans", Icon: ScrollText, matchPrefix: "/plans" },
-      { href: "/releases", label: "Releases", Icon: Rocket, matchPrefix: "/releases" },
     ],
   },
   {
@@ -73,6 +78,7 @@ const GROUPS: NavGroup[] = [
 ];
 
 const SECTION_LABELS: Record<string, string> = {
+  "/me": "Inbox",
   "/projects": "Portfolio",
   "/plans": "Plans",
   "/skills": "Skills",
@@ -84,7 +90,6 @@ const SECTION_LABELS: Record<string, string> = {
   "/settings": "Settings",
   "/api-keys": "API keys",
   "/playground": "Playground",
-  "/releases": "Releases",
   "/notifications": "Notifications",
 };
 

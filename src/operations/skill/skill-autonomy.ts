@@ -455,16 +455,10 @@ export async function recomputeSkillAutonomy(
       },
     });
 
-  // Demote-triggered re-evaluation: every open PR attributed to this skill
-  // on this project gets re-graded against the new (lower) autonomy level.
-  // PRs that were `success` at merge and would now be `failure` at propose
-  // flip immediately — the autonomy ledger gains physical teeth.
-  if (demoted && projectId) {
-    await reevaluateOpenPrsForSkill(skill.organizationId, skillId, projectId).catch((err) => {
-      // Demotion succeeded; re-eval is best-effort. Log and move on.
-      console.error("[recomputeSkillAutonomy] re-eval after demote failed:", err);
-    });
-  }
+  // NOTE: prior implementation re-evaluated open PRs via gate_evaluations
+  // here on demotion. gate_evaluations has been deleted in the governance
+  // refactor — autonomy demotion now affects only the ledger; downstream
+  // PR re-grading lives in the PreToolUse interceptor going forward.
 
   // Emit autonomy.promoted / autonomy.demoted on level change. The ledger
   // event lets SSE subscribers (UI, marketing activity feed) react in real
@@ -526,88 +520,6 @@ export async function recomputeSkillAutonomy(
     demoted,
     stats,
   };
-}
-
-/**
- * Find every PR with a currently-open verdict attributed to this skill on
- * this project, and write a fresh evaluation row that records the new
- * (post-demote) autonomy level. The new verdict is computed against the
- * stored prior risk + rule signal — we don't re-fetch GitHub. That's
- * faithful enough for the demote signal: the autonomy level is what
- * changed, not the diff.
- *
- * Imported lazily to avoid a cycle between `skill-autonomy.ts` and
- * `execution-gate.ts` (which imports `getSkillAutonomy` for its policy).
- */
-async function reevaluateOpenPrsForSkill(
-  organizationId: string,
-  skillId: string,
-  projectId: string,
-): Promise<void> {
-  const { db: cdb } = await import("@/db/client");
-  const { gateEvaluations } = await import("@/db/schema/gate-evaluation");
-  const { decideExecutionGate } = await import("@/operations/gate/execution-gate");
-  const { auditLogs } = await import("@/db/schema/audit/audit-log");
-  const { projects } = await import("@/db/schema/project");
-  const { desc, and: andOp, eq: eqOp } = await import("drizzle-orm");
-
-  const recent = await cdb
-    .select()
-    .from(gateEvaluations)
-    .where(andOp(eqOp(gateEvaluations.organizationId, organizationId), eqOp(gateEvaluations.skillId, skillId), eqOp(gateEvaluations.projectId, projectId)))
-    .orderBy(desc(gateEvaluations.evaluatedAt))
-    .limit(200);
-
-  // Latest verdict per prRef.
-  const latest = new Map<string, (typeof recent)[number]>();
-  for (const r of recent) if (!latest.has(r.prRef)) latest.set(r.prRef, r);
-
-  const project = await cdb.query.projects.findFirst({
-    where: andOp(eqOp(projects.id, projectId), eqOp(projects.organizationId, organizationId)),
-  });
-  if (!project) return;
-
-  const newLevel = (await getSkillAutonomy(skillId, projectId)).level;
-
-  for (const prior of latest.values()) {
-    const verdict = decideExecutionGate({
-      organizationId,
-      projectId,
-      prRef: prior.prRef,
-      skillId,
-      skillLevel: newLevel,
-      changeRisk: prior.changeRisk,
-      ruleViolations: [],
-      phase: project.phase,
-      hasHumanApproval: prior.humanOverride,
-    });
-    if (verdict.verdict === prior.verdict) continue; // no change; skip
-
-    await cdb.insert(gateEvaluations).values({
-      organizationId,
-      projectId,
-      prRef: prior.prRef,
-      prTitle: prior.prTitle,
-      prHeadSha: prior.prHeadSha,
-      skillId,
-      autonomyAtEval: String(newLevel),
-      verdict: verdict.verdict,
-      reason: `Re-evaluated after autonomy change — ${verdict.reason}`,
-      details: verdict.details,
-      changeRisk: prior.changeRisk,
-      humanOverride: prior.humanOverride,
-    });
-    await cdb.insert(auditLogs).values({
-      organizationId,
-      actorType: "system",
-      actorName: "execution-gate",
-      action: `execution_gate.reevaluated`,
-      entityType: "pull_request",
-      entityId: prior.prRef,
-      summary: `${prior.prRef}: ${prior.verdict} → ${verdict.verdict} (autonomy demote)`,
-      after: { newLevel, oldVerdict: prior.verdict, newVerdict: verdict.verdict } as Record<string, unknown>,
-    });
-  }
 }
 
 /**

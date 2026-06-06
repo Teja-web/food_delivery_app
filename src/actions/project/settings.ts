@@ -18,10 +18,6 @@ export async function saveProjectSettings(
 ): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim() || null;
-  const repoUrl = String(formData.get("repoUrl") ?? "").trim() || null;
-  const jiraProjectKey = String(formData.get("jiraProjectKey") ?? "").trim() || null;
-  const adoProjectId = String(formData.get("adoProjectId") ?? "").trim() || null;
-  const confluenceSpaceKey = String(formData.get("confluenceSpaceKey") ?? "").trim() || null;
   const criticalPaths = splitCsv(String(formData.get("criticalPaths") ?? "").trim());
   const productionCriticalPaths = splitCsv(
     String(formData.get("productionCriticalPaths") ?? "").trim(),
@@ -34,10 +30,6 @@ export async function saveProjectSettings(
   await updateProject(projectId, {
     name,
     description,
-    repoUrl,
-    jiraProjectKey,
-    adoProjectId,
-    confluenceSpaceKey,
     criticalPaths,
     productionCriticalPaths,
   });

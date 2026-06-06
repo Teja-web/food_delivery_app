@@ -19,21 +19,21 @@ import {
   detectEditors,
   type EditorName,
   ALL_EDITORS,
-} from "../lib/editor-detect.js";
-import { writeForEditor } from "../lib/mcp-config-writers/index.js";
-import { writeConfig, type ApiKeyRef } from "../lib/config.js";
-import { writeToKeychain } from "../lib/auth.js";
-import { ensureCozntLocalGitignored } from "../lib/gitignore.js";
-import { pickProject } from "../lib/project-picker.js";
-import { ask, askChoice, askSecret } from "../lib/prompt.js";
-import { runSync } from "./sync.js";
-import { tarballUrl } from "../../lib/agent-context/host-config.js";
-import { MCP_VERSION } from "../../lib/agent-context/version.js";
+} from "../lib/editor-detect";
+import { writeForEditor } from "../lib/mcp-config-writers/index";
+import { writeConfig, type ApiKeyRef } from "../lib/config";
+import { writeToKeychain } from "../lib/auth";
+import { ensureCozntLocalGitignored } from "../lib/gitignore";
+import { pickProject } from "../lib/project-picker";
+import { ask, askChoice, askSecret } from "../lib/prompt";
+import { runSync } from "./sync";
+import { tarballUrl } from "../../lib/agent-context/host-config";
+import { MCP_VERSION } from "../../lib/agent-context/version";
 import {
   installClaudePromptHook,
   fetchCurrentHookVersion,
-} from "../lib/prompt-hook-installer.js";
-import { writePostureFiles } from "../lib/posture-writer.js";
+} from "../lib/prompt-hook-installer";
+import { writePostureFiles } from "../lib/posture-writer";
 
 export interface ConnectOptions {
   editor?: string;

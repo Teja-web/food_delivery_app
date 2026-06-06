@@ -8,7 +8,7 @@ import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill/skill";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";

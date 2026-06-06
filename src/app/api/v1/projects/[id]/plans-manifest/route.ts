@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { projects } from "@/db/schema/project";
 import { handleApi } from "@/lib/auth/api-key";
 import { planFilePath } from "@/domain/plan-markdown";
@@ -32,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       throw err;
     }
 
-    const rows = await db.query.plans.findMany({
+    const rows = await db.query.planArtifacts.findMany({
       where: and(eq(plans.projectId, id), eq(plans.organizationId, ctx.organizationId)),
       columns: { id: true, kind: true, slug: true, status: true, updatedAt: true },
     });

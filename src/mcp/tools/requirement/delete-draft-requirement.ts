@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 
-import { bumpToolCall, deleteDraft } from "../../session.js";
+import { bumpToolCall, deleteDraft } from "../../session";
 
 export const deleteDraftRequirementInput = z.object({
   id: z.string().min(1).describe("Draft id from list_draft_requirements."),

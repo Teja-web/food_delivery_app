@@ -90,6 +90,7 @@
     "eslint-plugin-react": "^7.37.5",
     "tailwindcss": "^4.1.18",
     "tar": "^7.5.15",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.59.0",

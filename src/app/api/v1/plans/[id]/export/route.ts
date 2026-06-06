@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { marked } from "marked";
 
 import { db } from "@/db/client";
-import { plans } from "@/db/schema/plan/plan";
+import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
 import { projects } from "@/db/schema/project";
 import { authenticate, UnauthorizedError } from "@/lib/auth/api-key";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -54,7 +54,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const organizationId = await resolveOrganizationId(req);
   if (!organizationId) return new Response("Unauthorized", { status: 401 });
 
-  const plan = await db.query.plans.findFirst({
+  const plan = await db.query.planArtifacts.findFirst({
     where: and(eq(plans.id, id), eq(plans.organizationId, organizationId)),
   });
   if (!plan) return new Response("Plan not found", { status: 404 });

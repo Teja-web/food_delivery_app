@@ -94,7 +94,7 @@ export default function PricingPage() {
               features={[
                 "Direct line to the founding team",
                 "Co-designed outcome rubric for your stack",
-                "Custom phase gates wired to your CI/CD",
+                "Custom governance policies wired to your CI/CD",
                 "Hash-chained audit log from day one",
                 "Locked-in design-partner economics for 24 months",
                 "Roadmap input · vote on what ships next",

@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 
-import { bumpToolCall, listDrafts } from "../../session.js";
+import { bumpToolCall, listDrafts } from "../../session";
 
 export const listDraftRequirementsInput = z.object({});
 

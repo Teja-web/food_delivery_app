@@ -6,7 +6,7 @@
  *
  *   ---
  *   validator: autonomy-threshold
- *   actionKind: merge_pr        # one of MERGE_PR, ADVANCE_PHASE_GATE, CO_SIGN_PROMOTION, DEPLOY_PRODUCTION, "*"
+ *   actionKind: merge_pr        # one of MERGE_PR, CO_SIGN_PROMOTION, DEPLOY_PRODUCTION, "*"
  *   changeRisk: low             # one of low, medium, high, critical, "*"
  *   minAutonomy: merge          # one of observe, propose, merge, lead
  *   ---
@@ -29,7 +29,6 @@ import {
 
 export const ACTION_KINDS = [
   "merge_pr",
-  "advance_phase_gate",
   "co_sign_promotion",
   "deploy_production",
 ] as const;

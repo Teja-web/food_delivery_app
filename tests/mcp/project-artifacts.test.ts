@@ -22,7 +22,7 @@ describe("McpProjectArtifactsSchema", () => {
         pendingTotal: 2,
         oldestOpenAgeHours: 28,
       },
-      phaseGates: {
+      gates: {
         total: 3,
         pending: 2,
         passed: 1,
@@ -42,7 +42,7 @@ describe("McpProjectArtifactsSchema", () => {
     const parsed = McpProjectArtifactsSchema.parse({
       plans: { total: 0, byKind: {}, byStatus: {} },
       approvals: { pendingTotal: 0, oldestOpenAgeHours: null },
-      phaseGates: { total: 0, pending: 0, passed: 0, failed: 0, skipped: 0 },
+      gates: { total: 0, pending: 0, passed: 0, failed: 0, skipped: 0 },
       verificationDebt: null,
     });
     expect(parsed.approvals.oldestOpenAgeHours).toBeNull();
@@ -54,7 +54,7 @@ describe("McpProjectArtifactsSchema", () => {
       McpProjectArtifactsSchema.parse({
         plans: { total: -1, byKind: {}, byStatus: {} },
         approvals: { pendingTotal: 0, oldestOpenAgeHours: null },
-        phaseGates: { total: 0, pending: 0, passed: 0, failed: 0, skipped: 0 },
+        gates: { total: 0, pending: 0, passed: 0, failed: 0, skipped: 0 },
         verificationDebt: null,
       }),
     ).toThrow();
@@ -70,7 +70,7 @@ describe("McpProjectArtifactsSchema", () => {
       shape.projectArtifacts.parse({
         plans: { total: 0, byKind: {}, byStatus: {} },
         approvals: { pendingTotal: 0, oldestOpenAgeHours: null },
-        phaseGates: { total: 0, pending: 0, passed: 0, failed: 0, skipped: 0 },
+        gates: { total: 0, pending: 0, passed: 0, failed: 0, skipped: 0 },
         verificationDebt: null,
       }),
     ).not.toThrow();

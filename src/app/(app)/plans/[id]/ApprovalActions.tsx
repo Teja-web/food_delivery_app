@@ -5,16 +5,22 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { approveApproval, rejectApproval } from "@/actions/approvals";
+import { decideGovernanceRecord } from "@/actions/governance/records";
 import { RejectModal } from "@/components/feature/approvals/RejectModal";
 import { Button } from "@/components/ui/button";
 
 type Props = {
-  approvalId: string;
+  /** governance_record id (kind=approval). */
+  recordId: string;
   planTitle: string;
 };
 
-export function ApprovalActions({ approvalId, planTitle }: Props) {
+/**
+ * Inline approve / reject buttons for a pending governance record.
+ * Replaces the old approvals API — the underlying surface is now
+ * `governance_records` rows with kind=approval.
+ */
+export function ApprovalActions({ recordId, planTitle }: Props) {
   const router = useRouter();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -22,7 +28,7 @@ export function ApprovalActions({ approvalId, planTitle }: Props) {
   const handleApprove = () => {
     startTransition(async () => {
       try {
-        await approveApproval(approvalId);
+        await decideGovernanceRecord({ id: recordId, status: "passed" });
         toast.success("Approved");
         router.refresh();
       } catch (e) {
@@ -59,7 +65,11 @@ export function ApprovalActions({ approvalId, planTitle }: Props) {
         approvalTitle={planTitle}
         onConfirm={async (reason) => {
           try {
-            await rejectApproval(approvalId, reason);
+            await decideGovernanceRecord({
+              id: recordId,
+              status: "failed",
+              decisionNote: reason,
+            });
             toast.success("Rejected");
             router.refresh();
           } catch (e) {

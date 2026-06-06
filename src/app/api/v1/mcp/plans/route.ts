@@ -14,12 +14,12 @@ import { z } from "zod/v4";
 
 import { db } from "@/db/client";
 import {
-  plans,
+  planArtifacts as plans,
   PLAN_KINDS,
   PLAN_STATUSES,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan";
+} from "@/db/schema/plan/plan-artifact";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
@@ -95,7 +95,7 @@ export async function GET(req: Request) {
     if (status) conditions.push(eq(plans.status, status));
     if (rawSlug) conditions.push(eq(plans.slug, rawSlug));
 
-    const rows = await db.query.plans.findMany({
+    const rows = await db.query.planArtifacts.findMany({
       where: and(...conditions),
       orderBy: [desc(plans.updatedAt)],
       limit,

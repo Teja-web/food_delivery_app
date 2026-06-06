@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { getProject } from "@/actions/project/projects";
 import type { Project } from "@/db/schema/project";
-import { getOrCreateProjectKey } from "@/operations/integration/api-keys";
 import { getProjectCockpitCounts } from "@/operations/project/cockpit-counts";
 
 import { ProjectShell } from "./ProjectShell";
@@ -20,17 +19,10 @@ export default async function ProjectLayout({
   const project = (await getProject(id)) as Project | null;
   if (!project) notFound();
 
-  const [apiKey, counts] = await Promise.all([
-    getOrCreateProjectKey(id),
-    getProjectCockpitCounts(id),
-  ]);
+  const counts = await getProjectCockpitCounts(id);
 
   return (
-    <ProjectShell
-      project={serializeCockpitProject(project)}
-      apiKey={apiKey}
-      counts={counts}
-    >
+    <ProjectShell project={serializeCockpitProject(project)} counts={counts}>
       {children}
     </ProjectShell>
   );

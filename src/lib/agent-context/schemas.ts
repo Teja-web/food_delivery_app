@@ -11,8 +11,11 @@ export const McpProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  phase: z.string(),
+  /** Operator-authored "what is this project" description. Null when not set. */
+  description: z.string().nullable(),
   url: z.string(),
+  /** First-bound GitHub repository URL, when present. */
+  repoUrl: z.string().nullable(),
 });
 
 export const McpWorkItemSchema = z.object({
@@ -25,7 +28,6 @@ export const McpRuleSchema = z.object({
   id: z.string(),
   title: z.string(),
   severity: z.string(),
-  phase: z.string().nullable(),
   url: z.string(),
 });
 
@@ -40,19 +42,6 @@ export const McpAdrSchema = z.object({
   id: z.string(),
   title: z.string(),
   url: z.string(),
-});
-
-/**
- * Per-phase tool boundary surfaced to MCP consumers. Borrowed from the
- * ai-sdlc-framework `sdlc-governance.mdc` discipline model: the agent
- * uses these to self-police what it can and can't do in the current phase.
- */
-export const McpPhaseDisciplineSchema = z.object({
-  label: z.string(),
-  description: z.string(),
-  allowed: z.array(z.string()),
-  forbidden: z.array(z.string()),
-  nextCondition: z.string(),
 });
 
 export const McpMetaSchema = z.object({
@@ -93,7 +82,7 @@ export const McpRecommendedKickoffSchema = z.object({
 });
 
 /**
- * Project state snapshot — plans / approvals / phase-gate counts plus
+ * Project state snapshot — plans / approvals / governance-gate counts plus
  * verification-debt total. Surfaced on every `get_my_context` so the
  * agent can self-orient without firing N follow-up queries. byKind /
  * byStatus maps include every enum value (zero when absent) so consumers
@@ -109,7 +98,7 @@ export const McpProjectArtifactsSchema = z.object({
     pendingTotal: z.number().int().nonnegative(),
     oldestOpenAgeHours: z.number().int().nonnegative().nullable(),
   }),
-  phaseGates: z.object({
+  gates: z.object({
     total: z.number().int().nonnegative(),
     pending: z.number().int().nonnegative(),
     passed: z.number().int().nonnegative(),
@@ -118,19 +107,31 @@ export const McpProjectArtifactsSchema = z.object({
   }),
   verificationDebt: z.number().nullable(),
 });
+export type McpProjectArtifacts = z.infer<typeof McpProjectArtifactsSchema>;
+
+/**
+ * Session-start greeting payload. The posture file instructs the agent
+ * to surface `headline` + `nextActions[0]` on the first user message of
+ * a new session. Pure synthesis of `project.description` +
+ * `recommendedKickoff` + `projectArtifacts` already in this response —
+ * no additional server computation.
+ */
+export const McpWelcomeSchema = z.object({
+  /** One-line greeting the agent says to the user. Always populated. */
+  headline: z.string(),
+  /** Full project description, when set. */
+  summary: z.string().nullable(),
+  /** Suggested next actions in priority order. Empty when nothing pressing. */
+  nextActions: z.array(z.string()),
+});
+export type McpWelcome = z.infer<typeof McpWelcomeSchema>;
 
 export const McpResponseSchema = z.object({
   project: McpProjectSchema,
+  welcome: McpWelcomeSchema,
   workItem: McpWorkItemSchema.nullable(),
-  phaseDiscipline: McpPhaseDisciplineSchema,
   recommendedKickoff: McpRecommendedKickoffSchema.nullable(),
   projectArtifacts: McpProjectArtifactsSchema,
-  /**
-   * Names of MCP tools the agent may call in the current phase. Sourced
-   * from `src/lib/agent-context/phase-enforcement.ts`. The agent self-polices by
-   * checking proposed tool calls against this list before invoking.
-   */
-  allowedTools: z.array(z.string()),
   rules: z.array(McpRuleSchema),
   skills: z.array(McpSkillSchema),
   adrs: z.array(McpAdrSchema),

@@ -13,8 +13,8 @@
 
 import { z } from "zod";
 
-import { CozntClient, CozntApiError } from "../../client.js";
-import { bumpToolCall, getSessionProject } from "../../session.js";
+import { CozntClient, CozntApiError } from "../../client";
+import { bumpToolCall, getSessionProject } from "../../session";
 
 const TEST_AUTHOR_SLUG = "test-author";
 

@@ -13,8 +13,8 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { MCP_VERSION } from "../lib/agent-context/version.js";
-import { createCozntMcpServer } from "./server.js";
+import { MCP_VERSION } from "../lib/agent-context/version";
+import { createCozntMcpServer } from "./server";
 
 async function main() {
   // Smoke-test affordance: `npx -y <coznt-url>/install/coznt-mcp/latest --version`
