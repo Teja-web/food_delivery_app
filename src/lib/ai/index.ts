@@ -7,6 +7,9 @@ import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod/v4";
 
+import { promptCacheGet, promptCacheKey, promptCacheSet } from "./cache";
+export { promptCacheStats } from "./cache";
+
 // -- Model setup ------------------------------------------------------
 
 const groq = createGroq();
@@ -130,14 +133,36 @@ export async function generate<TSchema extends z.ZodType>(options: {
   output?: TSchema;
   /** Override seed for this call (useful for deterministic re-evaluation) */
   seed?: number;
+  /** When false, bypass the prompt cache for this call. Default: true. */
+  cache?: boolean;
 }): Promise<
   TSchema extends z.ZodType
     ? { text: string; object: z.infer<TSchema> }
     : { text: string }
 > {
-  const { agent, prompt, output, seed } = options;
+  const { agent, prompt, output, seed, cache = true } = options;
   const model = agent.model ?? DEFAULT_MODEL;
   const modelInstance = getModelInstance(model);
+
+  // Cache check — same agent + same model + same effective prompt
+  // returns the prior result without paying tokens. Only structured
+  // outputs are cached so the typed `object` is always present.
+  const cacheKey =
+    cache && output
+      ? promptCacheKey({
+          agentSlug: agent.slug,
+          model,
+          systemPrompt: agent.systemPrompt,
+          prompt,
+        })
+      : null;
+  if (cacheKey) {
+    const hit = promptCacheGet(cacheKey);
+    if (hit) {
+      // @ts-expect-error - conditional return
+      return { text: hit.text, object: hit.object };
+    }
+  }
 
   const maxAttempts = output ? 3 : 1;
   let lastError: unknown;
@@ -169,6 +194,7 @@ export async function generate<TSchema extends z.ZodType>(options: {
             `Agent "${agent.slug}" returned invalid output: ${parsed.error.message.slice(0, 200)}`,
           );
         }
+        if (cacheKey) promptCacheSet(cacheKey, { text: result.text, object: parsed.data });
         // @ts-expect-error - conditional return
         return { text: result.text, object: parsed.data };
       }
@@ -184,8 +210,10 @@ export async function generate<TSchema extends z.ZodType>(options: {
         if (repaired) {
           const parsed = output.safeParse(repaired);
           if (parsed.success) {
+            const text = JSON.stringify(repaired);
+            if (cacheKey) promptCacheSet(cacheKey, { text, object: parsed.data });
             // @ts-expect-error - conditional return
-            return { text: JSON.stringify(repaired), object: parsed.data };
+            return { text, object: parsed.data };
           }
         }
       }

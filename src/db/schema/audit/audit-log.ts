@@ -40,6 +40,15 @@ export const auditLogs = cozntSchema.table(
     after: jsonb(),
 
     /**
+     * Chain-of-custody marker: the skill or sub-skill that triggered this
+     * write. Conventional values are slug-qualified (`mcp:invoke_skill`,
+     * `autoplan→plan-eng-review`, `webhook:github`). Carried into the hash
+     * chain so the Trust UI can render the invocation chain alongside the
+     * row's signature.
+     */
+    invokedVia: text("invoked_via"),
+
+    /**
      * sha256 hex of `prev_hash || canonical_field_concat`. Populated by the
      * `coznt.audit_log_chain` BEFORE INSERT trigger; any value supplied by
      * the inserting code is overwritten.

@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod/v4";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
 import {
@@ -22,6 +22,7 @@ import { workItems } from "@/db/schema/work-item";
 import { metrics } from "@/db/schema/metric";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
 import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import type { PlanKind } from "@/db/schema/plan/plan-kinds";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 
@@ -76,6 +77,105 @@ export async function listEvidenceForProject(projectId: string) {
     ),
     orderBy: [desc(evidenceLinks.attachedAt)],
   });
+}
+
+/**
+ * Verification debt — plan artifacts that crossed into `completed` within
+ * the trailing window but carry no `evidence_links` row of any of the
+ * expected types for their kind. Load-bearing read for the Trust pillar:
+ * a non-zero count means promises made (plan completed) are not yet
+ * matched by proof attached.
+ *
+ * Expectations per kind are intentionally minimal — a plan is "in debt"
+ * only when ALL of its expected evidence types are missing. A plan can
+ * satisfy debt with one well-placed link; demanding several types each
+ * would generate noise and is left to per-policy gates.
+ */
+export const PLAN_EXPECTED_EVIDENCE: Partial<Record<PlanKind, EvidenceType[]>> = {
+  story: ["work_item", "deployment"],
+  feature: ["work_item", "deployment"],
+  release_plan: ["deployment"],
+  test_plan: ["test_run"],
+  spec: ["work_item"],
+  incident: ["incident", "external_link"],
+};
+
+export type StaleEvidenceRow = {
+  planArtifactId: string;
+  planKind: PlanKind;
+  planTitle: string;
+  completedAt: Date;
+  expectedTypes: EvidenceType[];
+};
+
+export async function getStaleEvidence(args: {
+  projectId?: string;
+  windowDays?: number;
+}): Promise<StaleEvidenceRow[]> {
+  const ctx = await getActionContext();
+  const windowDays = args.windowDays ?? 30;
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+  const conditions = [
+    eq(planArtifacts.organizationId, ctx.organizationId),
+    eq(planArtifacts.status, "completed"),
+    gte(planArtifacts.updatedAt, since),
+  ];
+  if (args.projectId) conditions.push(eq(planArtifacts.projectId, args.projectId));
+
+  const plans = await db
+    .select({
+      id: planArtifacts.id,
+      kind: planArtifacts.kind,
+      title: planArtifacts.title,
+      updatedAt: planArtifacts.updatedAt,
+    })
+    .from(planArtifacts)
+    .where(and(...conditions));
+
+  if (plans.length === 0) return [];
+
+  const planIds = plans.map((p) => p.id);
+  const attached = await db
+    .select({
+      planArtifactId: evidenceLinks.planArtifactId,
+      evidenceType: evidenceLinks.evidenceType,
+    })
+    .from(evidenceLinks)
+    .where(
+      and(
+        eq(evidenceLinks.organizationId, ctx.organizationId),
+        sql`${evidenceLinks.planArtifactId} = ANY(${planIds})`,
+      ),
+    );
+
+  const attachedByPlan = new Map<string, Set<EvidenceType>>();
+  for (const row of attached) {
+    let set = attachedByPlan.get(row.planArtifactId);
+    if (!set) {
+      set = new Set();
+      attachedByPlan.set(row.planArtifactId, set);
+    }
+    set.add(row.evidenceType);
+  }
+
+  const stale: StaleEvidenceRow[] = [];
+  for (const plan of plans) {
+    const expected = PLAN_EXPECTED_EVIDENCE[plan.kind];
+    if (!expected || expected.length === 0) continue;
+    const have = attachedByPlan.get(plan.id) ?? new Set();
+    const allMissing = expected.every((t) => !have.has(t));
+    if (!allMissing) continue;
+    stale.push({
+      planArtifactId: plan.id,
+      planKind: plan.kind,
+      planTitle: plan.title,
+      completedAt: plan.updatedAt,
+      expectedTypes: expected,
+    });
+  }
+  stale.sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime());
+  return stale;
 }
 
 type DereferenceResult =

@@ -35,6 +35,7 @@ export type UnifiedAuditRow = {
   summary: string | null;
   severity: SkillOutcomeSeverity | null;
   verdict: SkillOutcomeVerdict | null;
+  invokedVia: string | null;
   signature: string;
 };
 
@@ -147,6 +148,7 @@ export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[
       summary: a.summary,
       severity: null,
       verdict: null,
+      invokedVia: a.invokedVia,
       // Prefer the chain-computed row_hash (sha256) when present — that's
       // the value the verifier walks. Fall back to the stable short hash
       // for rows inserted before the trigger landed and not yet backfilled.
@@ -178,6 +180,7 @@ export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[
       summary: outcome.severity ? `severity: ${outcome.severity}` : null,
       severity: outcome.severity,
       verdict: outcome.verdict,
+      invokedVia: null,
       signature: hashSignature([
         outcome.organizationId,
         outcome.id,
@@ -208,6 +211,7 @@ export function rowsToCsv(rows: UnifiedAuditRow[]): string {
     "summary",
     "verdict",
     "severity",
+    "invoked_via",
     "signature",
   ].join(",");
   const escape = (v: string | null | undefined): string => {
@@ -233,6 +237,7 @@ export function rowsToCsv(rows: UnifiedAuditRow[]): string {
         r.summary,
         r.verdict,
         r.severity,
+        r.invokedVia,
         r.signature,
       ]
         .map(escape)

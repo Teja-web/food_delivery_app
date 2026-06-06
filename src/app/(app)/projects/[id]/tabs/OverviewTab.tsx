@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ScrollText, ShieldAlert, Sparkles } from "lucide-react";
+import { Activity, FileWarning, ScrollText, ShieldAlert, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ export interface ProjectPulse {
   governancePending: number;
   outcomes30d: number;
   incidents7d: number;
+  /** Plans completed within the trailing 30d that have no expected evidence attached. */
+  verificationDebt: number;
 }
 
 export interface OverviewTabProps {
@@ -95,7 +97,7 @@ export function OverviewTab({
         </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile
           label="Plans"
           value={pulse.plansTotal}
@@ -112,6 +114,13 @@ export function OverviewTab({
           value={pulse.governancePending}
           Icon={ShieldAlert}
           tone={pulse.governancePending > 0 ? "warn" : "default"}
+        />
+        <StatTile
+          label="Verification debt"
+          value={pulse.verificationDebt}
+          Icon={FileWarning}
+          hint="30d, no evidence"
+          tone={pulse.verificationDebt > 0 ? "warn" : "default"}
         />
         <StatTile
           label="Outcomes 30d"

@@ -158,6 +158,7 @@ BEGIN
     coalesce(NEW.summary, ''),
     coalesce((jsonb_strip_nulls(NEW.before))::text, ''),
     coalesce((jsonb_strip_nulls(NEW.after))::text, ''),
+    coalesce(NEW.invoked_via, ''),
     -- created_at goes last; the trigger fires BEFORE INSERT so NEW.created_at
     -- has already been populated by the column default.
     NEW.created_at::text

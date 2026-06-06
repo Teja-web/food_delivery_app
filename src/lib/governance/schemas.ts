@@ -97,7 +97,17 @@ export const exceptionRecordDetails = z.object({
   supersedesRecordId: z.string().optional(),
   expiresAt: z.string().datetime().optional(),
   allowedApproverRoles: z.array(z.string()).optional(),
+  /**
+   * `persistent` (default) — exception lives in the DB until `expiresAt`,
+   * applies to every future invocation that hits the superseded record.
+   * `session` — exception is consumed by a single MCP invocation; the
+   * autonomy gate at the boundary is responsible for honoring it once
+   * and then ignoring it on subsequent calls within the same plan
+   * artifact, regardless of `expiresAt`.
+   */
+  scope: z.enum(["session", "persistent"]).default("persistent"),
 });
+export type ExceptionRecordDetails = z.infer<typeof exceptionRecordDetails>;
 
 export const GOVERNANCE_RECORD_DETAILS = {
   gate: gateRecordDetails,

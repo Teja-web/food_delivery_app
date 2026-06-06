@@ -10,6 +10,7 @@ import type { Project } from "@/db/schema/project";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
 import { getActionContext } from "@/lib/auth/context";
 import { listBindingsForProject } from "@/operations/choreography/adapter-bindings";
+import { getStaleEvidence } from "@/operations/evidence";
 
 import { serializeCockpitBinding } from "../serialize";
 import { OverviewTab, type PendingGovernanceRow, type ProjectPulse } from "../tabs/OverviewTab";
@@ -28,7 +29,7 @@ export default async function ProjectOverviewPage({
   const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000);
   const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-  const [allPlans, pendingRows, outcomes30dRows, incidents7dRows, bindings] = await Promise.all([
+  const [allPlans, pendingRows, outcomes30dRows, incidents7dRows, bindings, staleEvidence] = await Promise.all([
     db
       .select({
         id: planArtifacts.id,
@@ -79,6 +80,7 @@ export default async function ProjectOverviewPage({
         ),
       ),
     listBindingsForProject(id),
+    getStaleEvidence({ projectId: id, windowDays: 30 }),
   ]);
 
   const plansTotal = allPlans.length;
@@ -93,6 +95,7 @@ export default async function ProjectOverviewPage({
     governancePending: pendingRows.length,
     outcomes30d: outcomes30dRows.length,
     incidents7d: incidents7dRows.length,
+    verificationDebt: staleEvidence.length,
   };
 
   const pendingGovernance: PendingGovernanceRow[] = pendingRows

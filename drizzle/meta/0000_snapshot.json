@@ -1,5 +1,5 @@
 {
-  "id": "f0da77d5-97fc-41cb-a572-6648646af044",
+  "id": "391da6bd-eec6-4e86-bd51-64aa7326fe83",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1360,13 +1360,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "phase": {
-          "name": "phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'requirements'"
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -1374,29 +1367,12 @@
           "notNull": true,
           "default": "'active'"
         },
-        "repo_url": {
-          "name": "repo_url",
-          "type": "text",
+        "default_approver_ids": {
+          "name": "default_approver_ids",
+          "type": "text[]",
           "primaryKey": false,
-          "notNull": false
-        },
-        "jira_project_key": {
-          "name": "jira_project_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ado_project_id": {
-          "name": "ado_project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confluence_space_key": {
-          "name": "confluence_space_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "ARRAY[]::text[]"
         },
         "critical_paths": {
           "name": "critical_paths",
@@ -1418,6 +1394,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "autonomy_config": {
+          "name": "autonomy_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         },
         "created_by_id": {
           "name": "created_by_id",
@@ -1494,8 +1477,269 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "coznt.plans": {
-      "name": "plans",
+    "coznt.repositories": {
+      "name": "repositories",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_branch": {
+          "name": "default_branch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch_policy": {
+          "name": "branch_policy",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "repositories_project_idx": {
+          "name": "repositories_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "repositories_org_idx": {
+          "name": "repositories_org_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "repositories_project_id_projects_id_fk": {
+          "name": "repositories_project_id_projects_id_fk",
+          "tableFrom": "repositories",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "repositories_project_source_identifier_unique": {
+          "name": "repositories_project_source_identifier_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "source",
+            "identifier"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.environments": {
+      "name": "environments",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "environments_project_idx": {
+          "name": "environments_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "environments_org_idx": {
+          "name": "environments_org_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "environments_project_id_projects_id_fk": {
+          "name": "environments_project_id_projects_id_fk",
+          "tableFrom": "environments",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "environments_project_name_unique": {
+          "name": "environments_project_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.plan_artifacts": {
+      "name": "plan_artifacts",
       "schema": "coznt",
       "columns": {
         "id": {
@@ -1527,12 +1771,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "parent_plan_id": {
-          "name": "parent_plan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "title": {
           "name": "title",
@@ -1581,6 +1819,12 @@
         "due_date": {
           "name": "due_date",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "classifications": {
+          "name": "classifications",
+          "type": "text[]",
           "primaryKey": false,
           "notNull": false
         },
@@ -1691,8 +1935,8 @@
         }
       },
       "indexes": {
-        "plans_org_idx": {
-          "name": "plans_org_idx",
+        "plan_artifacts_org_idx": {
+          "name": "plan_artifacts_org_idx",
           "columns": [
             {
               "expression": "organization_id",
@@ -1706,26 +1950,17 @@
           "method": "btree",
           "with": {}
         },
-        "plans_project_idx": {
-          "name": "plans_project_idx",
+        "plan_artifacts_project_status_idx": {
+          "name": "plan_artifacts_project_status_idx",
           "columns": [
             {
               "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "plans_parent_idx": {
-          "name": "plans_parent_idx",
-          "columns": [
+            },
             {
-              "expression": "parent_plan_id",
+              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1736,8 +1971,8 @@
           "method": "btree",
           "with": {}
         },
-        "plans_kind_status_idx": {
-          "name": "plans_kind_status_idx",
+        "plan_artifacts_kind_status_idx": {
+          "name": "plan_artifacts_kind_status_idx",
           "columns": [
             {
               "expression": "kind",
@@ -1757,8 +1992,8 @@
           "method": "btree",
           "with": {}
         },
-        "plans_generated_by_skill_idx": {
-          "name": "plans_generated_by_skill_idx",
+        "plan_artifacts_generated_by_skill_idx": {
+          "name": "plan_artifacts_generated_by_skill_idx",
           "columns": [
             {
               "expression": "generated_by_skill_id",
@@ -1772,8 +2007,8 @@
           "method": "btree",
           "with": {}
         },
-        "plans_project_kind_slug_idx": {
-          "name": "plans_project_kind_slug_idx",
+        "plan_artifacts_project_kind_slug_idx": {
+          "name": "plan_artifacts_project_kind_slug_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -1799,8 +2034,8 @@
           "method": "btree",
           "with": {}
         },
-        "plans_fts_idx": {
-          "name": "plans_fts_idx",
+        "plan_artifacts_fts_idx": {
+          "name": "plan_artifacts_fts_idx",
           "columns": [
             {
               "expression": "coznt.fts_vector(\"title\", \"summary\", \"body\")",
@@ -1816,9 +2051,9 @@
         }
       },
       "foreignKeys": {
-        "plans_project_id_projects_id_fk": {
-          "name": "plans_project_id_projects_id_fk",
-          "tableFrom": "plans",
+        "plan_artifacts_project_id_projects_id_fk": {
+          "name": "plan_artifacts_project_id_projects_id_fk",
+          "tableFrom": "plan_artifacts",
           "tableTo": "projects",
           "schemaTo": "coznt",
           "columnsFrom": [
@@ -1830,9 +2065,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "plans_generated_by_skill_id_skills_id_fk": {
-          "name": "plans_generated_by_skill_id_skills_id_fk",
-          "tableFrom": "plans",
+        "plan_artifacts_generated_by_skill_id_skills_id_fk": {
+          "name": "plan_artifacts_generated_by_skill_id_skills_id_fk",
+          "tableFrom": "plan_artifacts",
           "tableTo": "skills",
           "schemaTo": "coznt",
           "columnsFrom": [
@@ -1842,6 +2077,167 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.plan_relationships": {
+      "name": "plan_relationships",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_plan_artifact_id": {
+          "name": "from_plan_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_plan_artifact_id": {
+          "name": "to_plan_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "plan_rel_from_idx": {
+          "name": "plan_rel_from_idx",
+          "columns": [
+            {
+              "expression": "from_plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plan_rel_to_idx": {
+          "name": "plan_rel_to_idx",
+          "columns": [
+            {
+              "expression": "to_plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plan_rel_unique": {
+          "name": "plan_rel_unique",
+          "columns": [
+            {
+              "expression": "from_plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "to_plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plan_relationships_from_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "plan_relationships_from_plan_artifact_id_plan_artifacts_id_fk",
+          "tableFrom": "plan_relationships",
+          "tableTo": "plan_artifacts",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "from_plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plan_relationships_to_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "plan_relationships_to_plan_artifact_id_plan_artifacts_id_fk",
+          "tableFrom": "plan_relationships",
+          "tableTo": "plan_artifacts",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "to_plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1867,8 +2263,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "plan_id": {
-          "name": "plan_id",
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1918,11 +2314,11 @@
         }
       },
       "indexes": {
-        "plan_revisions_plan_idx": {
-          "name": "plan_revisions_plan_idx",
+        "plan_revisions_plan_artifact_idx": {
+          "name": "plan_revisions_plan_artifact_idx",
           "columns": [
             {
-              "expression": "plan_id",
+              "expression": "plan_artifact_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1941,13 +2337,13 @@
         }
       },
       "foreignKeys": {
-        "plan_revisions_plan_id_plans_id_fk": {
-          "name": "plan_revisions_plan_id_plans_id_fk",
+        "plan_revisions_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "plan_revisions_plan_artifact_id_plan_artifacts_id_fk",
           "tableFrom": "plan_revisions",
-          "tableTo": "plans",
+          "tableTo": "plan_artifacts",
           "schemaTo": "coznt",
           "columnsFrom": [
-            "plan_id"
+            "plan_artifact_id"
           ],
           "columnsTo": [
             "id"
@@ -1958,15 +2354,158 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "plan_revisions_plan_revision_unique": {
-          "name": "plan_revisions_plan_revision_unique",
+        "plan_revisions_plan_artifact_revision_unique": {
+          "name": "plan_revisions_plan_artifact_revision_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "plan_id",
+            "plan_artifact_id",
             "revision_number"
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.comments": {
+      "name": "comments",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_comment_id": {
+          "name": "parent_comment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author_id": {
+          "name": "author_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_name": {
+          "name": "author_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolved": {
+          "name": "resolved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "comments_plan_artifact_idx": {
+          "name": "comments_plan_artifact_idx",
+          "columns": [
+            {
+              "expression": "plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "comments_org_idx": {
+          "name": "comments_org_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "comments_fts_idx": {
+          "name": "comments_fts_idx",
+          "columns": [
+            {
+              "expression": "coznt.fts_vector(\"body\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "comments_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "comments_plan_artifact_id_plan_artifacts_id_fk",
+          "tableFrom": "comments",
+          "tableTo": "plan_artifacts",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2014,12 +2553,6 @@
         "tags": {
           "name": "tags",
           "type": "text[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phase": {
-          "name": "phase",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -2079,21 +2612,6 @@
           "columns": [
             {
               "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "rules_phase_idx": {
-          "name": "rules_phase_idx",
-          "columns": [
-            {
-              "expression": "phase",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2856,346 +3374,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "coznt.approvals": {
-      "name": "approvals",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phase": {
-          "name": "phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by_id": {
-          "name": "requested_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "requested_by_name": {
-          "name": "requested_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requester_note": {
-          "name": "requester_note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approver_ids": {
-          "name": "approver_ids",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "decided_by_id": {
-          "name": "decided_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_by_name": {
-          "name": "decided_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decision_note": {
-          "name": "decision_note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "approvals_entity_idx": {
-          "name": "approvals_entity_idx",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "approvals_org_idx": {
-          "name": "approvals_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "approvals_project_status_idx": {
-          "name": "approvals_project_status_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "approvals_project_id_projects_id_fk": {
-          "name": "approvals_project_id_projects_id_fk",
-          "tableFrom": "approvals",
-          "tableTo": "projects",
-          "schemaTo": "coznt",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "coznt.comments": {
-      "name": "comments",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "plan_id": {
-          "name": "plan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "parent_comment_id": {
-          "name": "parent_comment_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "author_id": {
-          "name": "author_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "author_name": {
-          "name": "author_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resolved": {
-          "name": "resolved",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "comments_plan_idx": {
-          "name": "comments_plan_idx",
-          "columns": [
-            {
-              "expression": "plan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "comments_org_idx": {
-          "name": "comments_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "comments_fts_idx": {
-          "name": "comments_fts_idx",
-          "columns": [
-            {
-              "expression": "coznt.fts_vector(\"body\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "comments_plan_id_plans_id_fk": {
-          "name": "comments_plan_id_plans_id_fk",
-          "tableFrom": "comments",
-          "tableTo": "plans",
-          "schemaTo": "coznt",
-          "columnsFrom": [
-            "plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "coznt.work_items": {
       "name": "work_items",
       "schema": "coznt",
@@ -3218,8 +3396,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "plan_id": {
-          "name": "plan_id",
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "repository_id": {
+          "name": "repository_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -3367,11 +3551,26 @@
           "method": "btree",
           "with": {}
         },
-        "work_items_plan_idx": {
-          "name": "work_items_plan_idx",
+        "work_items_plan_artifact_idx": {
+          "name": "work_items_plan_artifact_idx",
           "columns": [
             {
-              "expression": "plan_id",
+              "expression": "plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_items_repository_idx": {
+          "name": "work_items_repository_idx",
+          "columns": [
+            {
+              "expression": "repository_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3428,13 +3627,27 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "work_items_plan_id_plans_id_fk": {
-          "name": "work_items_plan_id_plans_id_fk",
+        "work_items_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "work_items_plan_artifact_id_plan_artifacts_id_fk",
           "tableFrom": "work_items",
-          "tableTo": "plans",
+          "tableTo": "plan_artifacts",
           "schemaTo": "coznt",
           "columnsFrom": [
-            "plan_id"
+            "plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "work_items_repository_id_repositories_id_fk": {
+          "name": "work_items_repository_id_repositories_id_fk",
+          "tableFrom": "work_items",
+          "tableTo": "repositories",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "repository_id"
           ],
           "columnsTo": [
             "id"
@@ -3638,6 +3851,12 @@
         "after": {
           "name": "after",
           "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoked_via": {
+          "name": "invoked_via",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -4296,8 +4515,190 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "coznt.phase_gates": {
-      "name": "phase_gates",
+    "coznt.governance_policies": {
+      "name": "governance_policies",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_type": {
+          "name": "scope_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_id": {
+          "name": "scope_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applies_to_plan_kind": {
+          "name": "applies_to_plan_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transition_from": {
+          "name": "transition_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transition_to": {
+          "name": "transition_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "gov_policies_org_idx": {
+          "name": "gov_policies_org_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "gov_policies_scope_idx": {
+          "name": "gov_policies_scope_idx",
+          "columns": [
+            {
+              "expression": "scope_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scope_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "enabled",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "gov_policies_kind_applies_idx": {
+          "name": "gov_policies_kind_applies_idx",
+          "columns": [
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "applies_to_plan_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "transition_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "transition_to",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.governance_records": {
+      "name": "governance_records",
       "schema": "coznt",
       "columns": {
         "id": {
@@ -4318,33 +4719,33 @@
           "primaryKey": false,
           "notNull": true
         },
-        "phase": {
-          "name": "phase",
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
+        "policy_id": {
+          "name": "policy_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "type": {
-          "name": "type",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "threshold": {
-          "name": "threshold",
-          "type": "double precision",
+        "transition_from": {
+          "name": "transition_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transition_to": {
+          "name": "transition_to",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -4355,81 +4756,39 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "approved_by_id": {
-          "name": "approved_by_id",
+        "decided_by_id": {
+          "name": "decided_by_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "comment": {
-          "name": "comment",
+        "decided_by_name": {
+          "name": "decided_by_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "evaluated_at": {
-          "name": "evaluated_at",
+        "decision_note": {
+          "name": "decision_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
-        "unmet_criterion": {
-          "name": "unmet_criterion",
-          "type": "text",
+        "details": {
+          "name": "details",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "assignee_id": {
-          "name": "assignee_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "assignee_name": {
-          "name": "assignee_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_changed_at": {
-          "name": "last_changed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_green_at": {
-          "name": "last_green_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "overridden_at": {
-          "name": "overridden_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "overridden_by_id": {
-          "name": "overridden_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "override_reason": {
-          "name": "override_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "override_authorizing_plan_id": {
-          "name": "override_authorizing_plan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "override_autonomy_at_time": {
-          "name": "override_autonomy_at_time",
-          "type": "integer",
+        "policy_snapshot": {
+          "name": "policy_snapshot",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -4449,17 +4808,32 @@
         }
       },
       "indexes": {
-        "phase_gates_project_phase_idx": {
-          "name": "phase_gates_project_phase_idx",
+        "gov_records_org_idx": {
+          "name": "gov_records_org_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "gov_records_plan_idx": {
+          "name": "gov_records_plan_idx",
+          "columns": [
+            {
+              "expression": "plan_artifact_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "phase",
+              "expression": "kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4475,12 +4849,54 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "gov_records_project_status_idx": {
+          "name": "gov_records_project_status_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "gov_records_policy_idx": {
+          "name": "gov_records_policy_idx",
+          "columns": [
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "phase_gates_project_id_projects_id_fk": {
-          "name": "phase_gates_project_id_projects_id_fk",
-          "tableFrom": "phase_gates",
+        "governance_records_project_id_projects_id_fk": {
+          "name": "governance_records_project_id_projects_id_fk",
+          "tableFrom": "governance_records",
           "tableTo": "projects",
           "schemaTo": "coznt",
           "columnsFrom": [
@@ -4492,13 +4908,27 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "phase_gates_override_authorizing_plan_id_plans_id_fk": {
-          "name": "phase_gates_override_authorizing_plan_id_plans_id_fk",
-          "tableFrom": "phase_gates",
-          "tableTo": "plans",
+        "governance_records_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "governance_records_plan_artifact_id_plan_artifacts_id_fk",
+          "tableFrom": "governance_records",
+          "tableTo": "plan_artifacts",
           "schemaTo": "coznt",
           "columnsFrom": [
-            "override_authorizing_plan_id"
+            "plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "governance_records_policy_id_governance_policies_id_fk": {
+          "name": "governance_records_policy_id_governance_policies_id_fk",
+          "tableFrom": "governance_records",
+          "tableTo": "governance_policies",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "policy_id"
           ],
           "columnsTo": [
             "id"
@@ -4508,17 +4938,186 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "phase_gates_project_phase_name_unique": {
-          "name": "phase_gates_project_phase_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "phase",
-            "name"
-          ]
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "coznt.evidence_links": {
+      "name": "evidence_links",
+      "schema": "coznt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_type": {
+          "name": "evidence_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_id": {
+          "name": "evidence_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_url": {
+          "name": "external_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attached_by_id": {
+          "name": "attached_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attached_by_name": {
+          "name": "attached_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attached_at": {
+          "name": "attached_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
+      "indexes": {
+        "evidence_plan_idx": {
+          "name": "evidence_plan_idx",
+          "columns": [
+            {
+              "expression": "plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "evidence_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evidence_target_idx": {
+          "name": "evidence_target_idx",
+          "columns": [
+            {
+              "expression": "evidence_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "evidence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evidence_project_idx": {
+          "name": "evidence_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "evidence_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evidence_links_project_id_projects_id_fk": {
+          "name": "evidence_links_project_id_projects_id_fk",
+          "tableFrom": "evidence_links",
+          "tableTo": "projects",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "evidence_links_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "evidence_links_plan_artifact_id_plan_artifacts_id_fk",
+          "tableFrom": "evidence_links",
+          "tableTo": "plan_artifacts",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -4671,8 +5270,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "plan_id": {
-          "name": "plan_id",
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "environment_id": {
+          "name": "environment_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -4813,11 +5418,26 @@
           "method": "btree",
           "with": {}
         },
-        "deployments_plan_idx": {
-          "name": "deployments_plan_idx",
+        "deployments_plan_artifact_idx": {
+          "name": "deployments_plan_artifact_idx",
           "columns": [
             {
-              "expression": "plan_id",
+              "expression": "plan_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deployments_environment_idx": {
+          "name": "deployments_environment_idx",
+          "columns": [
+            {
+              "expression": "environment_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4844,13 +5464,27 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "deployments_plan_id_plans_id_fk": {
-          "name": "deployments_plan_id_plans_id_fk",
+        "deployments_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "deployments_plan_artifact_id_plan_artifacts_id_fk",
           "tableFrom": "deployments",
-          "tableTo": "plans",
+          "tableTo": "plan_artifacts",
           "schemaTo": "coznt",
           "columnsFrom": [
-            "plan_id"
+            "plan_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deployments_environment_id_environments_id_fk": {
+          "name": "deployments_environment_id_environments_id_fk",
+          "tableFrom": "deployments",
+          "tableTo": "environments",
+          "schemaTo": "coznt",
+          "columnsFrom": [
+            "environment_id"
           ],
           "columnsTo": [
             "id"
@@ -4887,8 +5521,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "plan_id": {
-          "name": "plan_id",
+        "plan_artifact_id": {
+          "name": "plan_artifact_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -5026,11 +5660,11 @@
           "method": "btree",
           "with": {}
         },
-        "test_runs_plan_idx": {
-          "name": "test_runs_plan_idx",
+        "test_runs_plan_artifact_idx": {
+          "name": "test_runs_plan_artifact_idx",
           "columns": [
             {
-              "expression": "plan_id",
+              "expression": "plan_artifact_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5057,13 +5691,13 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "test_runs_plan_id_plans_id_fk": {
-          "name": "test_runs_plan_id_plans_id_fk",
+        "test_runs_plan_artifact_id_plan_artifacts_id_fk": {
+          "name": "test_runs_plan_artifact_id_plan_artifacts_id_fk",
           "tableFrom": "test_runs",
-          "tableTo": "plans",
+          "tableTo": "plan_artifacts",
           "schemaTo": "coznt",
           "columnsFrom": [
-            "plan_id"
+            "plan_artifact_id"
           ],
           "columnsTo": [
             "id"
@@ -5197,222 +5831,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "coznt.gate_evaluations": {
-      "name": "gate_evaluations",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pr_ref": {
-          "name": "pr_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pr_title": {
-          "name": "pr_title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pr_head_sha": {
-          "name": "pr_head_sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "skill_id": {
-          "name": "skill_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "autonomy_at_eval": {
-          "name": "autonomy_at_eval",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "verdict": {
-          "name": "verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "details": {
-          "name": "details",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "change_risk": {
-          "name": "change_risk",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "human_override": {
-          "name": "human_override",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "check_run_id": {
-          "name": "check_run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "check_run_error": {
-          "name": "check_run_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_at": {
-          "name": "evaluated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "gate_evaluations_project_pr_idx": {
-          "name": "gate_evaluations_project_pr_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "pr_ref",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "evaluated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "gate_evaluations_skill_idx": {
-          "name": "gate_evaluations_skill_idx",
-          "columns": [
-            {
-              "expression": "skill_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "verdict",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "evaluated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "gate_evaluations_org_idx": {
-          "name": "gate_evaluations_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "evaluated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "gate_evaluations_project_id_projects_id_fk": {
-          "name": "gate_evaluations_project_id_projects_id_fk",
-          "tableFrom": "gate_evaluations",
-          "tableTo": "projects",
-          "schemaTo": "coznt",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "gate_evaluations_skill_id_skills_id_fk": {
-          "name": "gate_evaluations_skill_id_skills_id_fk",
-          "tableFrom": "gate_evaluations",
-          "tableTo": "skills",
-          "schemaTo": "coznt",
-          "columnsFrom": [
-            "skill_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "coznt.project_learnings": {
       "name": "project_learnings",
       "schema": "coznt",
@@ -5537,140 +5955,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "coznt.repo_policies": {
-      "name": "repo_policies",
-      "schema": "coznt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "remote_canonical": {
-          "name": "remote_canonical",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "policy": {
-          "name": "policy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'read-write'"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by_id": {
-          "name": "created_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_name": {
-          "name": "created_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_id": {
-          "name": "updated_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_name": {
-          "name": "updated_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "repo_policies_org_remote_uniq": {
-          "name": "repo_policies_org_remote_uniq",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "remote_canonical",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "repo_policies_org_idx": {
-          "name": "repo_policies_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "repo_policies_project_id_projects_id_fk": {
-          "name": "repo_policies_project_id_projects_id_fk",
-          "tableFrom": "repo_policies",
-          "tableTo": "projects",
-          "schemaTo": "coznt",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -5901,12 +6185,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "phase": {
-          "name": "phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "author_name": {
           "name": "author_name",

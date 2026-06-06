@@ -6,6 +6,7 @@
  * Status is unified: pending → passed | failed | skipped | expired.
  */
 
+import { createHash } from "node:crypto";
 import { z } from "zod/v4";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -28,6 +29,15 @@ import { getActionContext } from "@/lib/auth/context";
 import { approvalPolicyDetails } from "@/lib/governance/schemas";
 import { listPoliciesForTransition } from "./policies";
 
+const policySnapshotSchema = z.object({
+  policyId: z.string(),
+  kind: z.enum(GOVERNANCE_KINDS),
+  name: z.string(),
+  details: z.record(z.string(), z.unknown()).nullable(),
+  hash: z.string(),
+  capturedAt: z.string(),
+});
+
 const recordSchema = z.object({
   projectId: z.string().min(1),
   planArtifactId: z.string().min(1),
@@ -41,7 +51,36 @@ const recordSchema = z.object({
   decisionNote: z.string().nullable().optional(),
   decidedAt: z.date().nullable().optional(),
   details: z.record(z.string(), z.unknown()).optional(),
+  policySnapshot: policySnapshotSchema.optional(),
 });
+
+/**
+ * Stable canonical JSON of an object — keys sorted recursively. Identical
+ * inputs produce identical strings regardless of key insertion order, which
+ * is what makes the resulting sha256 a usable policy fingerprint.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+}
+
+/** Frozen attestation of a policy at materialization time. */
+function snapshotPolicy(policy: GovernancePolicy): z.infer<typeof policySnapshotSchema> {
+  const details = (policy.details ?? null) as Record<string, unknown> | null;
+  const body = canonicalJson({ kind: policy.kind, name: policy.name, details });
+  return {
+    policyId: policy.id,
+    kind: policy.kind,
+    name: policy.name,
+    details,
+    hash: createHash("sha256").update(body).digest("hex"),
+    capturedAt: new Date().toISOString(),
+  };
+}
 
 export const governanceRecordCrud = createEntityCrud({
   db,
@@ -159,6 +198,7 @@ export async function materializeGovernanceRecords(args: {
       transitionTo: args.transitionTo,
       status: "pending",
       details: recordDetails,
+      policySnapshot: snapshotPolicy(policy),
     });
     inserted.push(row);
   }

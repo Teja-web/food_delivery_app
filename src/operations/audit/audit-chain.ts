@@ -82,6 +82,7 @@ export async function verifyAuditChain(opts: {
               coalesce(summary, ''),
               coalesce((jsonb_strip_nulls(before))::text, ''),
               coalesce((jsonb_strip_nulls(after))::text, ''),
+              coalesce(invoked_via, ''),
               created_at::text
             ),
             'sha256'

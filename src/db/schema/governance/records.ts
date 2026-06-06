@@ -59,9 +59,28 @@ export const governanceRecords = cozntSchema.table(
      *   gate:      { type, threshold, evaluatedValue, unmetCriterion, validator }
      *   approval:  { requestedById, approverIds[], requiredCount, decision }
      *   review:    { findings[], summary, score, round, supersedesRecordId, reviewerRole }
-     *   exception: { reason, supersedesRecordId, expiresAt, allowedApproverRoles[] }
+     *   exception: { reason, supersedesRecordId, expiresAt, allowedApproverRoles[], scope }
      */
     details: jsonb().$type<Record<string, unknown>>(),
+
+    /**
+     * Frozen copy of the policy as it existed at materialization time:
+     *   { policyId, kind, name, details, hash, capturedAt }
+     *
+     * The evaluator and audit replay read from this snapshot — never from
+     * the live `governance_policies` row — so a policy edit cannot
+     * retroactively change how an old record evaluates. `hash` is sha256
+     * of the canonical JSON of `{kind, name, details}` and is what the
+     * Trust UI surfaces alongside the audit row signature.
+     */
+    policySnapshot: jsonb("policy_snapshot").$type<{
+      policyId: string;
+      kind: GovernanceKind;
+      name: string;
+      details: Record<string, unknown> | null;
+      hash: string;
+      capturedAt: string;
+    }>(),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
