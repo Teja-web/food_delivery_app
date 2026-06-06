@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod/v4";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
 import {
@@ -44,6 +44,29 @@ export async function listRelationshipsForPlan(
     or(
       eq(planRelationships.fromPlanArtifactId, planArtifactId),
       eq(planRelationships.toPlanArtifactId, planArtifactId),
+    ),
+  ];
+  if (opts.kind) conditions.push(eq(planRelationships.kind, opts.kind));
+  return db.query.planRelationships.findMany({
+    where: and(...conditions),
+  });
+}
+
+/**
+ * Bulk-load relationships touching any of the given plan ids. Used by the
+ * plans list pages to render Tree view without per-row queries.
+ */
+export async function listRelationshipsForPlans(
+  planIds: string[],
+  opts: { kind?: PlanRelationshipKind } = {},
+) {
+  if (planIds.length === 0) return [];
+  const ctx = await getActionContext();
+  const conditions = [
+    eq(planRelationships.organizationId, ctx.organizationId),
+    or(
+      inArray(planRelationships.fromPlanArtifactId, planIds),
+      inArray(planRelationships.toPlanArtifactId, planIds),
     ),
   ];
   if (opts.kind) conditions.push(eq(planRelationships.kind, opts.kind));

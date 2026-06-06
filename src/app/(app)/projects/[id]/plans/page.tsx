@@ -12,10 +12,12 @@ import {
 import type { Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { planCrud } from "@/operations/plan/plans";
+import { listRelationshipsForPlans } from "@/operations/plan/relationships";
 
 import { PlansClient } from "@/app/(app)/plans/PlansClient";
 import {
   serializePlanRow,
+  type PlanRelationshipRowClient,
   type PlanRowClient,
   type PlansPageClient,
 } from "@/app/(app)/plans/serialize";
@@ -73,8 +75,20 @@ export default async function ProjectPlansPage({
     if (r.needsApproval) needsApprovalCount += 1;
   }
 
+  const relationshipRows = await listRelationshipsForPlans(
+    planItems.map((p) => p.id),
+    { kind: "parent_of" },
+  );
+  const relationships: PlanRelationshipRowClient[] = relationshipRows.map((r) => ({
+    fromPlanArtifactId: r.fromPlanArtifactId,
+    toPlanArtifactId: r.toPlanArtifactId,
+    kind: r.kind,
+  }));
+
   const data: PlansPageClient = {
     rows,
+    relationships,
+    projectId: id,
     counts: { total: rows.length, byStatus, byKind, needsApproval: needsApprovalCount },
   };
 

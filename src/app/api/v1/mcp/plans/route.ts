@@ -50,7 +50,11 @@ export async function POST(req: Request) {
 
     const project = await requireProjectScope(ctx, input.projectId);
 
-    const result = await upsertPlanByKindAndSlug(input);
+    const { parentPlanId, ...rest } = input;
+    const result = await upsertPlanByKindAndSlug({
+      ...rest,
+      parentPlanArtifactId: parentPlanId ?? null,
+    });
     const nextAction = await computeNextAction(ctx.organizationId, project.id);
     return {
       plan: {

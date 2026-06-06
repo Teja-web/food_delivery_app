@@ -1,5 +1,12 @@
 import type { PlanArtifact, PlanKind, PlanStatus } from "@/db/schema/plan/plan-artifact";
+import type { PlanRelationshipKind } from "@/db/schema/plan/plan-relationship";
 import type { Project } from "@/db/schema/project";
+
+export type PlanRelationshipRowClient = {
+  fromPlanArtifactId: string;
+  toPlanArtifactId: string;
+  kind: PlanRelationshipKind;
+};
 
 export type PlanRowClient = {
   id: string;
@@ -25,6 +32,12 @@ export type PlanRowClient = {
 
 export type PlansPageClient = {
   rows: PlanRowClient[];
+  /** All relationships (any kind) touching any plan in `rows`. Tree view uses
+   * `parent_of`; future Graph view will use the rest. */
+  relationships: PlanRelationshipRowClient[];
+  /** When the page is project-scoped, the project id. Used by ViewToggle to
+   * pick Tree as the default view. */
+  projectId: string | null;
   counts: {
     total: number;
     byStatus: Record<PlanStatus, number>;
