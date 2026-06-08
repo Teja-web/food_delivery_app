@@ -80,4 +80,4 @@ The same install URL pattern works for the MCP server (`coznt-mcp-0.1.0.tgz`) an
 
 ## Architecture
 
-See [CLAUDE.md](./CLAUDE.md) for patterns and conventions. For the file-organization layout (layer-first top level, domain-family subfolders), see [docs/dev/file-organization-strategy.md](./docs/dev/file-organization-strategy.md).
+See [CLAUDE.md](./CLAUDE.md) for patterns and conventions, and [docs/dev/chokepoints.md](./docs/dev/chokepoints.md) for the architectural invariants guarded by CI.

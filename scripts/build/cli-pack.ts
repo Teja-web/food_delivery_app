@@ -7,8 +7,7 @@
  * so the slim package.json declares an empty `dependencies` object.
  *
  * Output: public/install/coznt-cli-<version>.tgz, served statically by
- * Next.js and referenced by docs/user-guide.md and the in-product
- * /api-keys → Host Config panel.
+ * Next.js and referenced by the in-product /api-keys → Host Config panel.
  */
 
 import { spawnSync } from "node:child_process";

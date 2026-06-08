@@ -2,14 +2,16 @@
 
 This is coznt's flagship walkthrough. By the end, you will have:
 
-1. **Shipped TaskList v1** end to end by talking to your editor in plain English — across all six SDLC phases, with GitHub holding your code and Jira holding your sprint board, and coznt acting as the governance layer over both.
+1. **Shipped TaskList v1** end to end by talking to your editor in plain English — climbing the plan-artifact ladder (epic → feature → story → spec/ADR → test_plan → release_plan), with GitHub holding your code and Jira holding your sprint board, and coznt acting as the governance layer over both.
 2. **Watched an AI skill earn promotion** from `observe` to `propose` because real deterministic outcomes accumulated in its favor.
-3. **Survived a production incident** that demoted a skill and triggered a postmortem — and watched coznt re-establish trust the same way it earned it the first time.
+3. **Survived a production incident** that demoted a skill, opened an `incident` plan, and triggered a `risk_register` postmortem — and watched coznt re-establish trust the same way it earned it the first time.
 4. **Read the portfolio view** that surfaces verification debt across projects, and used the `/me` ledger to see your personal slice of the same audit substrate.
 
-Coznt's tagline is **AI-DLC Governed**, and the operating spine is **Govern → Verify → Trust**: *govern* what AI can do (phases, rules, autonomy thresholds), *verify* what it produces (a deterministic outcome ledger that grades every action), *trust* what can be proven (a hash-chained audit log where every claim on screen links to a source-of-record row). "Trust observable" is the UX thesis under the Trust pillar.
+Coznt's tagline is **AI-DLC Governed**, and the operating spine is **Govern → Verify → Trust**: *govern* what AI can do (governance records, rules, autonomy thresholds), *verify* what it produces (a deterministic outcome ledger that grades every action), *trust* what can be proven (a hash-chained audit log where every claim on screen links to a source-of-record row). "Trust observable" is the UX thesis under the Trust pillar.
 
 The why-now: generating plausible code is cheap; **establishing trust in it is the scarce resource.** Organizations that don't operationalize Govern–Verify–Trust accumulate *verification debt* — unverified AI output that compounds risk until something fails in production. Coznt's job is to keep that debt addressable. The four acts walk you through what that looks like.
+
+> **A note on phases.** Earlier drafts of this tutorial described a six-phase SDLC progression (requirements → design → development → testing → CI/CD → monitoring). That model is gone. Coznt now expresses SDLC progression through **plan-artifact status** — every artifact moves through `draft → in_review → approved → in_progress → completed`, and governance attaches to those transitions, not to a project-level phase column. The lifecycle coach still drives you up the same hill; it just uses the artifact ladder as its handhold.
 
 **Time:** ~90 min for Act 1 (active work). Acts 2–4 are presented as "two weeks later", "week four", and "steady state" — together they're another ~45 min of reading and clicking through.
 
@@ -17,17 +19,17 @@ The why-now: generating plausible code is cheap; **establishing trust in it is t
 
 | Act | What it shows | You can stop after this and still be done… |
 |---|---|---|
-| Act 1 | Ship v1 across six phases with Jira and GitHub both bound | …if you only need to know "can coznt govern a real SDLC loop without imposing vocabulary on the human." |
-| Act 2 | A skill earns its first promotion. A second human joins. Rule engine fires. | …if you only need to see autonomy compound from evidence. |
-| Act 3 | Production incident → demotion → postmortem → recovery. | …if you need to see what happens when trust breaks. |
+| Act 1 | Ship v1 by climbing the plan-artifact ladder with Jira and GitHub both bound | …if you only need to know "can coznt govern a real SDLC loop without imposing vocabulary on the human." |
+| Act 2 | A skill earns its first promotion. A second human joins. Rule engine fires as a gate record. | …if you only need to see autonomy compound from evidence. |
+| Act 3 | Production incident → demotion → `risk_register` postmortem → recovery. | …if you need to see what happens when trust breaks. |
 | Act 4 | `/me`, portfolio, verification debt, audit log as unified ledger. | …if you want the "view from above" — the platform's analytical surface. |
 
 **Prerequisites:**
-- Coznt running locally per [user-guide §B2](../user-guide.md#b2-first-time-install).
+- Coznt running locally per [`operate/install.md`](../operate/install.md).
 - An empty GitHub repo (`gh repo create acme/tasklist --public --clone`).
 - A fresh Jira project — create it in Jira UI (**Project → Create → Scrum**, key `TASK`). Coznt binds to existing Jira projects; it doesn't provision them.
-- GitHub and Jira tokens connected to coznt per [user-guide §B5](../user-guide.md#b5-connect-github-once-per-org) (one-time per org).
-- Your editor connected to coznt per [user-guide §A2](../user-guide.md#a2-connect-your-editor-or-cli).
+- GitHub and Jira tokens connected to coznt per [`operate/github-app.md`](../operate/github-app.md) (one-time per org).
+- Your editor connected to coznt per [`operate/cli.md`](../operate/cli.md).
 
 **What you won't do:** type a coznt verb name. Coznt ships a master choreography — **Project Lifecycle Coach** — that wraps every governed action behind plain conversation. The **Under the hood** callouts show what got called, for the curious. They are not what an end user reads.
 
@@ -41,21 +43,44 @@ You'll bind both a fresh GitHub repo (for code) and a fresh Jira project (for sp
 
 ---
 
-## Step 1 — Create the project in coznt (3 min)
+## Step 1 — Create the project in coznt (4 min)
 
 This is the **only** non-chat step in Act 1. The agent can't create projects for you — that's an operator action.
 
-Open `<your-coznt-url>/projects/new` and fill:
+Open `<your-coznt-url>/projects/new`. The wizard has three steps:
+
+**Step 1 of 3 — Basics.**
 
 | Field | Value |
 |---|---|
 | Name | `TaskList` |
-| Slug | `tasklist` |
+| Slug | `tasklist` (auto-derived from name) |
 | Description | `Personal TODO manager — single-user v1` |
-| Repo URL | `https://github.com/acme/tasklist` |
-| Jira project key | `TASK` |
 
-Submit. You land at the cockpit, phase = **requirements**. Both bindings are now live: any PR you open against the repo will fire `pr_merge`/`pr_revert` assessors, and any issue you create in the `TASK` Jira project will mirror into coznt's `work_items` table within a second.
+**Step 2 of 3 — Governance.** Pick a policy template:
+
+- **Lightweight** — author self-approves; full audit trail still captured.
+- **Standard** *(recommended)* — every plan needs 1 approver from your designated approvers.
+- **Strict** — every plan needs 2 approvers.
+- **Risk-scoped** — only ADRs, release plans, and risk registers gate on approval; features/stories flow free.
+- **Custom** — no defaults; you wire policies up later in **Settings → Governance policies**.
+
+Pick **Standard** and tick yourself as the default approver. (Act 2 will add Alice; for now you're soloing.) Templates simply seed rows into `governance_policies` — kind=`approval`, scope=`project`, watching the `draft → in_review` transition. Admins can edit/delete/extend them later; templates are opinionated starting points, not locked-in policy.
+
+**Step 3 of 3 — Sources & environments.** Bind one repository and pick environments:
+
+| Field | Value |
+|---|---|
+| Source | `github` |
+| Identifier | `acme/tasklist` |
+| URL | `https://github.com/acme/tasklist` (auto-filled) |
+| Environments | `production` (enabled), `development` (enabled), `preproduction` (skip for now) |
+
+A project can have **multiple repositories** of mixed sources — coznt today supports `github`, `jira`, `ado`, and `confluence`. You're starting with the GitHub repo; you'll add the Jira binding from the project's **Settings → Repositories** tab in a minute.
+
+Submit. You land at the cockpit's **Overview** tab. The tab strip shows five tabs: **Overview · Plans · Work items · Governance · Settings**. There is no phase strip and no phase badge — the project header just shows status `active` and the slug.
+
+Now hop to **Settings → Repositories** and add the Jira binding (`source: jira`, `identifier: TASK`). Any issue you create in the `TASK` Jira project will mirror into coznt's `work_items` table within a second; any PR you open against `acme/tasklist` will fire the `pr_merge` / `pr_revert` assessors.
 
 ---
 
@@ -71,7 +96,7 @@ coznt sync          # pulls choreographies including "Project Lifecycle Coach"
 `coznt connect` does three things in one pass:
 
 1. Writes your editor's MCP config (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor, `.zed/settings.json` for Zed, etc.) so the editor can talk to coznt's verb surface.
-2. **Installs the prompt-quality hook** (default-on for Claude Code, opt-in elsewhere). Every prompt you submit will be scored locally against the 6-dimension rubric — *clarity, scope, acceptance, prior context, constraints, verifiability* — and prompts below `COZNT_PROMPT_MIN_SCORE` are gated *before* they reach the model. This is Milestone B's pre-flight gate for the agent-loop side of governance. See `docs/operate/prompt-hook.md` for the rubric and threshold knobs.
+2. **Installs the prompt-quality hook** (default-on for Claude Code, opt-in elsewhere). Every prompt you submit will be scored locally against the 6-dimension rubric — *clarity, scope, acceptance, prior context, constraints, verifiability* — and prompts below `COZNT_PROMPT_MIN_SCORE` are gated *before* they reach the model. See `docs/operate/prompt-hook.md` for the rubric and threshold knobs.
 3. Adds `.coznt/.local/` and `.mcp.json` to your `.gitignore` so the API key never lands in a commit.
 
 `coznt sync` writes `.coznt/skills/project-lifecycle/SKILL.md` into your repo. That file is what your editor's agent now knows about coznt — don't edit it; `coznt sync` will overwrite local changes. If you want to read what your agent knows, open it.
@@ -88,148 +113,152 @@ Open your editor. Type:
 
 > **You:** I want to build a small TODO app called TaskList. Single user, v1 should support a task with a title, status (todo / in-progress / done), and a due date. REST API, simple Next.js UI.
 
-> **Coznt:** Got it. Quick lay-of-the-land — your Jira project `TASK` is empty (no assigned issues yet), and your repo is fresh. So I'll keep requirements as coznt plans for now; once we get to stories, I'll prompt you to create matching Jira issues so your sprint board reflects the build.
+> **Coznt:** Got it. Quick lay-of-the-land — your Jira project `TASK` is empty (no assigned issues yet), and your repo is fresh. So I'll keep the early plans as coznt-native artifacts for now; once we get to stories, I'll prompt you to create matching Jira issues so your sprint board reflects the build.
 >
-> One check before I draft this — should v1 support task priorities, or hold that for v2?
+> Your project's empty — the lifecycle coach is routing me to draft the first **epic** so subsequent features have something to hang off. One check before I draft this: should v1 support task priorities, or hold that for v2?
 
 > **You:** v2.
 
 > **Coznt:** Drafting now…
 >
-> **Drafted: TaskList — v1 spec**
-> • Single-user TODO app with title, status (todo / in_progress / done), due date
-> • REST API: create, list (filterable by status), patch (partial), delete
-> • Next.js UI: list view with inline status toggle, "new task" form
-> • Acceptance: every endpoint returns RFC 7807 problem+json on error; list is paginated to 100; PATCH is idempotent
-> • Out of scope for v1: priorities, multi-user, auth
+> **Drafted: TaskList v1 — single-user TODO**  *(plan kind: `epic`)*
+> • Single-user TODO app with title, status (todo / in_progress / done), due date.
+> • REST API + Next.js UI.
+> • Out of scope for v1: priorities, multi-user, auth.
+> • Acceptance signal: production deploy clean, two work items closed (`TASK-1`, `TASK-2`).
 >
-> Filed as plan kind `spec` — the spec-driven kind coznt's schema added for GitHub Workspace / Anthropic / OpenAI parity. Does that match what you wanted? Want me to send it to the tech lead for sign-off, or are you reviewing it yourself?
+> I'll send it for review — the Standard policy you picked requires 1 approver, and you're the only approver right now, so it'll route to you. You should see it in the bell.
 
-> **You:** I'll review it. Send it to me.
+> **You:** sounds right.
 
-> **Coznt:** Sent. You'll see it in the top-right bell on your coznt tab.
+> **Coznt:** Sent. Status is now `in_review`. Open your bell and decide.
 
 <details>
 <summary><strong>Under the hood</strong> — what just got called</summary>
 
 The coach choreography ran this sequence without naming any of it to you:
 
-1. `get_my_context` → confirmed phase=`requirements`, `invoke_skill` allowed.
+1. `get_my_context` → returned `recommendedKickoff: epic-decomposer` because the project is in the `empty` state (zero plans).
 2. `get_assigned_work` → returned empty (no Jira issues assigned, no in-progress plans). The coach used this to phrase its opening line correctly.
-3. `session_start` with intent `"coaching tasklist requirements"`.
-4. `invoke_skill('requirements-document')` → server-side LLM call, Zod-validated output.
-5. `draft_requirement` to stage the structured spec.
-6. After your "yes", `push_requirements` to land it as a real plan.
-7. `submit_for_approval` with you as the reviewer.
-8. `session_end` with a one-line summary.
+3. `session_start` with intent `"coaching tasklist epic"`.
+4. `invoke_skill('epic-decomposer')` → server-side LLM call, Zod-validated output.
+5. `upsert_plan` with `kind: 'epic'`, `slug: 'tasklist-v1'`, `status: 'draft'`.
+6. `submit_plan_for_review` — this transitions the plan `draft → in_review` and materializes any policies that watch that transition. The Standard template's approval policy fires, so a `governance_records` row is created (`kind: 'approval'`, `details: { requiredCount: 1, approverIds: [you] }`).
+7. `session_end` with a one-line summary.
 
-You would have had to know eight verb names, two skill slugs, and one phase enum. You typed two sentences instead.
+You would have had to know seven verb names and one skill slug. You typed two sentences instead.
 
-The spec plan is **coznt-native** — it lives in `plans` with kind=`spec`, not in Jira. Stories (Step 6) are where Jira earns its keep, because stories are what your sprint board actually tracks.
+The epic plan is **coznt-native** — it lives in `plan_artifacts` with `kind='epic'`, not in Jira. Stories (Step 6) are where Jira earns its keep, because stories are what your sprint board actually tracks.
 </details>
 
 ---
 
-## Step 4 — Approve and advance (3 min)
+## Step 4 — Decide the approval (3 min)
 
-Open your coznt tab. The bell shows `1`. Click it → approve the requirements plan.
+Open your coznt tab. The cockpit's **Overview** tab shows "Governance pending: 1" in red. Hop to **Governance → Inbox** — you see the pending `approval` record with a "for you" badge. Decide.
+
+The `InboxDecideButton` opens a small dialog: pick `passed` (approve) or `failed` (reject), add an optional note. Pick `passed`. The record flips to `passed`, the plan transitions `in_review → approved`, and a row lands in the audit log.
 
 Back in your editor:
 
 > **You:** what's next?
 
-> **Coznt:** Requirements is done — one approved plan, gate is green. Ready to move into design, or want to add anything first?
-
-> **You:** let's go.
-
-> **Coznt:** Sent for advancement. The tech lead (you, on this project) needs to sign off — check your bell.
-
-Approve. Phase flips to **design**.
+> **Coznt:** Epic is approved. The lifecycle coach is now routing me to `feature-spec-generator` — we've got an epic with no features, which is the `has_epic_no_feature` state. What feature do you want to decompose first?
 
 <details>
 <summary><strong>Under the hood</strong></summary>
 
-`get_phase_checklist` → all green. `submit_phase_for_review` opens an approval. On approval, the project row updates to `phase='design'`. Your next agent turn sees the new `allowedTools` from `get_my_context`.
+`decide_governance_record` with `decision: 'passed'`. The evaluator dispatcher sees the approval passed, aggregates over the policy's `requiredCount`, marks all required approvals satisfied, and transitions the plan to `approved`. Your next agent turn sees `recommendedKickoff: feature-spec-generator` from `get_my_context` because the state changed from `empty` to `has_epic_no_feature`.
 </details>
 
 ---
 
-## Step 5 — Design (15 min)
+## Step 5 — Features, ADRs, and a spec (15 min)
 
-The coach pulls design decisions out of you one at a time, in conversation. These all become coznt-native plans — Jira doesn't track ADRs.
+The coach now pulls the design decisions out of you, but it organizes them as plan artifacts of distinct kinds — not as a "design phase". Each kind has its own role:
 
-> **Coznt:** We're in design now. First question — what's the storage plan?
+- **`feature`** — a coherent slice of the epic that ships as one user-visible capability.
+- **`spec`** — a structured contract (API surface, UI surface, data shape) that a feature derives from.
+- **`adr`** — an architecture decision record (Postgres+Drizzle, error format, etc.) that one or more features depend on.
+
+> **Coznt:** First feature — what's the storage shape? I'll draft it as a `feature` with an `adr` underneath if a decision needs locking down.
 
 > **You:** Postgres + Drizzle. Single `tasks` table, indexed on status and due_date.
 
-> **Coznt:** Drafting that as a decision record…
+> **Coznt:** That's a decision — I'll file it as `adr` so it's discoverable later.
 >
-> **Drafted: Storage decision (ADR-001)**
-> • Postgres + Drizzle, single `tasks` table, composite index on `(status, due_date)`
-> • Alternatives considered: SQLite (no concurrency), MongoDB (overkill for v1)
-> • Implication: schema changes go through `pnpm db:generate`
+> **Drafted: ADR-001 — Postgres + Drizzle for TaskList**  *(plan kind: `adr`)*
+> • Postgres + Drizzle, single `tasks` table, composite index on `(status, due_date)`.
+> • Alternatives considered: SQLite (no concurrency), MongoDB (overkill for v1).
+> • Implication: schema changes go through `pnpm db:generate`.
 >
-> Want me to send it for sign-off?
+> Sent for review (your bell).
+
+> **You:** ok next, the UI.
+
+> **Coznt:** Drafting the UI as a `feature` with a `spec` derived from it.
+>
+> **Drafted: List-view UI**  *(plan kind: `feature`, parent_of `tasklist-v1`)*
+> • One screen: filterable list, inline status toggle, "new task" button → modal.
+> • Empty state: "No tasks yet. Add your first." with a single CTA.
+>
+> **Drafted: API + UI contract**  *(plan kind: `spec`, derived_from `List-view UI`)*
+> • REST endpoints: POST/GET/PATCH/DELETE on `/tasks`.
+> • Error format: RFC 7807 problem+json on every error path.
+> • PATCH semantics: RFC 7396 merge-patch, idempotent.
+> • Pagination: list capped at 100 items per page.
+>
+> Both sent for review.
+
+Approve all three in **Governance → Inbox**. The plan-artifact graph now looks like:
+
+```
+TaskList v1 (epic, approved)
+├── parent_of → List-view UI (feature, approved)
+│   └── derived_from ← API + UI contract (spec, approved)
+└── relates_to → ADR-001 (adr, approved)
+```
+
+Every "approve" you just clicked produced a `governance_records` row with `status='passed'` and a state transition on the plan. No plan moved without a record; no record moved without a decision in the audit log.
+
+> **You:** anything else for the design layer?
+
+> **Coznt:** One more — any non-functional constraints worth recording as ADRs? Rate limits, auth posture, etc.?
+
+> **You:** No rate limits in v1. Single-user, no auth. PATCH is merge-patch as already noted.
+
+> **Coznt:** Nothing new to file then. Ready to author stories under the feature?
 
 > **You:** yes.
-
-> **Coznt:** Sent. Next question — how do you want the UI flow to work? Just the list view, or a separate detail page per task?
-
-> **You:** just a list view with an inline edit modal.
-
-> **Coznt:** Drafting the storyboard…
->
-> **Drafted: TaskList UI storyboard**
-> • One screen: filterable list, inline status toggle, "new task" button → modal
-> • Empty state: "No tasks yet. Add your first." with a single CTA
-> • Mermaid flow diagram included
->
-> Send for sign-off?
-
-> **You:** yes.
-
-Approve both in `/approvals`. Then:
-
-> **You:** anything else for design?
-
-> **Coznt:** One more: any non-functional requirements I should record? Error format, idempotency, rate limits?
-
-> **You:** Errors use RFC 7807 problem+json. PATCH is merge-patch (RFC 7396). No rate limits in v1.
-
-> **Coznt:** Drafting the API conventions ADR-002… Sent. With this approved, design is done — ready for development?
-
-> **You:** yes.
-
-Approve in `/approvals`. Phase is now **development**.
 
 <details>
 <summary><strong>Under the hood</strong></summary>
 
-Three `invoke_skill` calls — twice to `adr-extractor`, once to `storyboard-generator`. Three `submit_for_approval`. One `submit_phase_for_review`. Each invocation appended a row to `skill_outcomes` with `verdict='success'`. These rows are now part of `adr-extractor`'s and `storyboard-generator`'s ledger on this project — they don't promote yet (the autonomy formula needs a thicker window), but they're banked.
+Three `upsert_plan` calls (one ADR, one feature, one spec). Three `submit_plan_for_review`. Three `governance_records` (approval kind) materialized by the policy engine, all of which you decided `passed`. Two `plan_relationships` rows — `parent_of` from epic to feature, `derived_from` from feature to spec — created automatically because the agent passed `parentPlanId` on `upsert_plan` (the operation translates parent→relationship; there's no privileged column).
+
+Each `invoke_skill` call appended a row to `skill_outcomes` with `verdict='success'`. These rows are now part of `epic-decomposer`'s, `feature-spec-generator`'s, `adr-extractor`'s, and `spec-generator`'s ledgers on this project — they don't promote yet (the autonomy formula needs a thicker window), but they're banked.
 </details>
 
 ---
 
-## Step 6 — Development (30 min)
+## Step 6 — Stories + implementation (30 min)
 
 This is where Jira earns its keep.
 
-> **Coznt:** You're in development now. Which slice first — API endpoints, or the UI?
+> **Coznt:** Story under the feature — which slice first, API or UI?
 
 > **You:** API first.
 
 > **Coznt:** I'll draft the story. Heads-up — when you approve it, I'll prompt you to create the matching Jira issue in `TASK` so your sprint board picks it up. From there, status flows both ways automatically.
 >
-> **Drafted: Implement /tasks API**
-> • POST, GET, PATCH, DELETE — full CRUD
-> • Backed by `tasks` table per ADR-001
-> • Acceptance: each endpoint returns correct status codes per RFC 7807; PATCH is idempotent; tests cover happy + error paths
+> **Drafted: Implement /tasks API**  *(plan kind: `story`, parent_of `List-view UI`)*
+> • POST, GET, PATCH, DELETE — full CRUD on `tasks`.
+> • Backed by `tasks` table per ADR-001.
+> • Acceptance: each endpoint returns correct status codes per RFC 7807; PATCH is idempotent; tests cover happy + error paths.
 >
-> Send for sign-off? I can draft the tests while you write the handlers.
+> Sent for review. Once it's approved, I can draft the tests while you write the handlers.
 
-> **You:** yes, both.
-
-Approve in `/approvals`. The coach now writes a test scaffold:
+Approve in the inbox. The coach now writes a test scaffold:
 
 > **Coznt:** Test scaffold is in `tests/tasks.test.ts`. Skeletons for each endpoint, with fixtures. Now go create the matching Jira issue:
 >
@@ -239,7 +268,9 @@ Approve in `/approvals`. The coach now writes a test scaffold:
 >
 > The webhook will pull it into coznt as `TASK-1`, mirrored into `work_items`. From then on you can reference `TASK-1` in commits and PR titles, and the link reads cleanly in both directions.
 
-You create `TASK-1` in Jira. Within ~1 second the work_items table has a new row (`source='jira'`, `externalId='TASK-1'`, `status='to_do'`). Drag the Jira card to **In Progress**. Coznt sees the inbound webhook and updates `work_items.status='in_progress'`.
+You create `TASK-1` in Jira. Within ~1 second the `work_items` table has a new row (`source='jira'`, `externalId='TASK-1'`, `status='to_do'`). Drag the Jira card to **In Progress**. Coznt sees the inbound webhook and updates `work_items.status='in_progress'`.
+
+The story plan itself moves `approved → in_progress` the moment you transition `TASK-1` in Jira. That's a plan-artifact status transition driven by an external evidence event — not a phase advance, not a manual click. The audit log records it as such.
 
 Write the handlers in your editor (use the agent normally — coding help isn't governed). Commit and push:
 
@@ -255,95 +286,106 @@ Merge the PR (assume green CI). The GitHub-Jira workflow integration auto-transi
 
 > **You:** did it land?
 
-> **Coznt:** Yes — clean PR merge (no revert, checks green), and `TASK-1` transitioned to Done in Jira. Two outcome rows just landed in the Trust tab:
-> • `change-risk-classifier` — `pr_merge` assessor, verdict `success`
-> • `work_item` `TASK-1` — closed, lead time 2h 14m
+> **Coznt:** Yes — clean PR merge (no revert, checks green), and `TASK-1` transitioned to Done in Jira. The story plan flipped to `completed` automatically. Two outcome rows just landed:
+> • `change-risk-classifier` — `pr_merge` assessor, verdict `success`.
+> • `work_item` `TASK-1` — closed, lead time 2h 14m.
+>
+> An `evidence_links` row was also attached to the story plan pointing at the PR (evidenceType `external_link`) and the work item (evidenceType `work_item`). That's how the plan answers "did this actually ship" with rows rather than vibes — and how verification debt for this plan now stays at zero.
 >
 > That's your first success row on this project.
 
-Repeat the loop once more for the UI slice (`TASK-2`). When both slices are merged:
+Repeat the loop once more for the UI slice (`TASK-2`).
 
-> **You:** development done?
+When both slices are merged:
 
-> **Coznt:** Almost — I'll roll up everything merged so far. *(drafts dev_summary plan, sends for sign-off)* Once that's approved, we're ready for testing.
+> **You:** that's it for stories?
+
+> **Coznt:** For v1, yes. Want me to draft the test plan now so we close the loop on acceptance?
+
+> **You:** yes.
 
 <details>
 <summary><strong>Under the hood</strong></summary>
 
-`upsert_plan` for the story, `invoke_skill('test-author')` for the scaffold, `submit_for_approval`. Two webhook paths fed coznt:
+`upsert_plan` for the story (kind=`story`, parent_of the feature). `invoke_skill('test-author')` for the scaffold. `submit_plan_for_review`. Two webhook paths fed coznt:
 
-1. **GitHub** → `process-webhook-event` → `pr_merge` assessor → `skill_outcomes` row, `verdict='success'`, `sourceKind='pr_merge'`.
-2. **Jira** → same task, `handleJira()` branch → upserts `work_items` (source=`jira`, externalId=`TASK-1`). Status transitions on the Jira side reflect into `work_items.status`; closing `TASK-1` triggers `compute-work-item-lead-time` task.
+1. **GitHub** → `process-webhook-event` → `pr_merge` assessor → `skill_outcomes` row, `verdict='success'`, `sourceKind='pr_merge'`. The webhook handler also called `attach_evidence` with `evidenceType: 'external_link'` for the PR URL.
+2. **Jira** → same task, `handleJira()` branch → upserts `work_items` (source=`jira`, externalId=`TASK-1`). Status transitions on the Jira side reflect into `work_items.status`; closing `TASK-1` triggers `compute-work-item-lead-time` task and updates the story plan to `completed`.
 
-Coach watches both streams by calling `search_outcomes` when you ask "did it land?". On phase wrap, `invoke_skill('dev-summary-generator')` — its outcome row goes into the ledger too.
+Coach watches both streams by calling `search_outcomes` when you ask "did it land?". On the close-out, `invoke_skill('test-plan-generator')` gets dispatched next — its outcome row goes into the ledger too.
 </details>
 
 ---
 
-## Step 7 — Testing (10 min)
+## Step 7 — Test plan (10 min)
 
-> **You:** what's next?
+> **Coznt:** Drafting `test_plan` covering API endpoints + UI flows…
+>
+> **Drafted: TaskList v1 — Test plan**  *(plan kind: `test_plan`, derived_from `List-view UI`)*
+> • API: 4 happy-path tests, 6 error-path tests (404 / 400 / 422 + auth-scope sanity).
+> • UI: 3 interaction tests (toggle status, create via modal, filter by status).
+> • Coverage target: 80% on src/app/api/tasks/* + the list view.
+>
+> Sent for review. Once approved I'll prompt you to run the suite; I roll up the execution report when you point me at the results.
 
-> **Coznt:** Want me to draft the test plan, or do you have one?
-
-> **You:** draft it.
-
-> **Coznt:** *(drafts test_plan covering API endpoints + UI flows, sends for sign-off)* When you've run the suite, point me at the results and I'll roll up the execution report.
-
-Run your tests:
+Approve. Run your tests:
 
 ```bash
 pnpm test
 ```
 
-> **Note.** On `main` today, `pnpm test` reports 11 pre-existing vitest failures unrelated to the tutorial flow (`set_project` Tier-1 verb registry, MCP config writer fixtures, chokepoint invariant). If you see exactly those failures, you haven't broken anything — those are tracked separately. Your own `tests/tasks.test.ts` should be green.
+> **Note.** On `main` today, `pnpm test` reports 11 pre-existing vitest failures unrelated to the tutorial flow (legacy fixture noise). If you see exactly those failures, you haven't broken anything — those are tracked separately. Your own `tests/tasks.test.ts` should be green.
 
 > **You:** all green. Report it.
 
-> **Coznt:** *(drafts test_execution_report from the test_plan + your results, sends for sign-off)* Once that's approved, ready for CI/CD.
+> **Coznt:** Attaching the run as a `test_run` evidence link on the test plan… done. Coverage came in at 84%, above target. The test plan is now `completed` and has a hard link to the run that proved it.
 
-Approve both. Advance.
+The `test_plan` plan's verification debt drops to zero the moment the `evidence_links` row of type `test_run` lands. Plans in `completed` with missing expected evidence are exactly what builds debt; plans in `completed` with the right evidence row are debt-free.
 
 ---
 
-## Step 8 — CI/CD (10 min)
+## Step 8 — Release plan + CI/CD (10 min)
 
 > **You:** let's wire up CI.
 
-> **Coznt:** GitHub Actions or Azure DevOps?
+> **Coznt:** I'll roll this into the release plan rather than a separate "cicd_pipeline" kind — coznt's nine plan kinds are `epic / feature / story / spec / adr / test_plan / release_plan / risk_register / incident`, and CI/CD wiring lives in the release plan's body. Want GitHub Actions or Azure DevOps?
 
 > **You:** GitHub Actions. Deploy to Vercel on merge to main.
 
-> **Coznt:** *(drafts cicd_pipeline plan with the YAML body)* Here's the pipeline. I can't push to your repo, so copy the YAML into `.github/workflows/ci.yml` and commit it yourself. Want me to send the plan for sign-off in parallel?
-
-> **You:** yes.
+> **Coznt:** *(drafts `release_plan` with the YAML body in a fenced block and the deploy target spelled out)*
+>
+> **Drafted: TaskList v1 — Release plan**  *(plan kind: `release_plan`, parent_of `tasklist-v1`)*
+> • CI: GitHub Actions, runs `pnpm test` + lint on every PR.
+> • Deploy target: Vercel `production` environment (bound on the project in Step 1).
+> • Rollback: revert PR + re-deploy; documented in body.
+> • Acceptance evidence (expected): `deployment` row + `test_run` row on the release plan once v1 ships.
+>
+> I can't push to your repo, so copy the YAML into `.github/workflows/ci.yml` and commit it yourself. Sent the release plan for review in parallel.
 
 Copy the YAML, commit it, push to main. The pipeline runs, deploys to Vercel, and fires a `deployment_status` webhook back to coznt.
 
 > **You:** did the deploy land?
 
-> **Coznt:** Yes — clean deploy, no incident in the 24-hour window yet. Your deploy outcome row is in the Trust tab. Ready to cut the v1 release?
+> **Coznt:** Yes — clean deploy, no incident in the 24-hour window yet. A `deployment` evidence row landed on the release plan, and a `deploy_clean` outcome row went to `skill_outcomes`. The release plan is now `in_progress` (in production, waiting on the 24-hour incident window to settle). Want to mark v1 shipped?
 
 > **You:** yes.
 
-> **Coznt:** *(drafts release_plan rolling up everything merged in this project, sends for sign-off)* Approve and you're shipped.
-
-Approve. v1 is live.
+> **Coznt:** Release plan transitions to `completed`. v1 is live.
 
 ---
 
-## Step 9 — Monitoring (2 min)
+## Step 9 — Steady state (2 min)
 
 > **You:** what's the state of the world?
 
-> **Coznt:** TaskList v1 is in production. Lead time on this project so far is about three hours; one deploy, zero incidents, zero rollbacks. Two work items closed (`TASK-1`, `TASK-2`). I'll surface anything that drifts — and if a bug ticket lands in `TASK`, I'll mirror it in and flag it for you.
+> **Coznt:** TaskList v1 is in production. Lead time on this project so far is about three hours; one clean deploy, zero incidents, zero rollbacks. Two work items closed (`TASK-1`, `TASK-2`). I'll surface anything that drifts — and if a bug ticket lands in `TASK`, I'll mirror it in and flag it for you.
 
-That's the steady state for Act 1. Look at your cockpit and you'll see:
+Look at the cockpit:
 
-- **Phase:** monitoring
-- **Plans approved:** ~10
-- **Outcome rows banked:** 5+ (PR merges, deploy, work item closes)
-- **Skill autonomy:** every skill on this project still at `observe` (0). They have outcomes — they haven't crossed the promotion threshold yet. **That's the setup for Act 2.**
+- **Overview** — Plans: 7, In progress: 0, Governance pending: 0, Outcomes 30d: 5.
+- **Plans** — 7 rows, all `completed` or `approved`. Filter chips show counts per kind (no kind has its own route — kind is a filter chip, not a tab, per the design discipline rules in spec §10).
+- **Work items** — 2 rows, both Done, source=jira.
+- **Governance → Skills** — every skill on this project still at `observe` (0). They have outcomes — they haven't crossed the promotion threshold yet. **That's the setup for Act 2.**
 
 ---
 
@@ -351,15 +393,15 @@ That's the steady state for Act 1. Look at your cockpit and you'll see:
 
 You spoke to your editor in plain English. Behind the scenes, coznt landed:
 
-- **~10 plans** — requirements, three ADRs, storyboard, two stories, dev_summary, test_plan, test_execution_report, cicd_pipeline, release_plan — every one authored, reviewed, approved.
+- **7 plan artifacts** — 1 epic, 1 feature, 1 spec, 1 ADR, 2 stories, 1 test_plan, 1 release_plan — every one authored, reviewed via a `governance_records` row, approved. No phase column was touched because there isn't one.
 - **Provenance** on every agent-authored plan — which skill produced it, which model, and the skill's autonomy level *at the moment of generation*. The plan detail's Summary panel shows the counts; reviewers triage AI-authored sections from the row, not from guessing.
-- **~10 audit rows** for the approvals, plus rows for every governed agent action.
-- **5 outcome rows** in the Trust tab — three PR merges, one deploy, one work-item lead-time computation. Each one fed the `recomputeSkillAutonomy` job. No promotions yet (the trailing window is too thin and uniform), but the evidence is banked.
-- **2 Jira issues** (`TASK-1`, `TASK-2`) mirrored as work_items with full status sync. The Trust tab and the Jira board agree.
-- **All six phases** passed.
+- **~7 `governance_records` rows** — all kind=`approval`, all `status='passed'`, each carrying a decided-by + decided-at audit footprint. Every approval is bound to a specific `draft → in_review` transition on a specific plan.
+- **5 outcome rows** in the Skills view (Governance → Skills) — three PR merges, one deploy, one work-item lead-time computation. Each one fed the `recomputeSkillAutonomy` job. No promotions yet (the trailing window is too thin and uniform), but the evidence is banked.
+- **2 Jira issues** (`TASK-1`, `TASK-2`) mirrored as work_items with full status sync. The cockpit and the Jira board agree.
+- **Multiple `evidence_links` rows** — every plan that closed pointed at the proof artifact (PR, deployment, test run, work item). That's the surface that lets verification debt stay at zero.
 - **DORA dashboard** populated with one full cycle.
 
-Open the **Audit log** in coznt and filter by your user. Every line of dialog above is in there as a governed action with a timestamp and a row hash. *This is what "trust observable" means* — your conversation became the audit trail without you ever thinking about audit.
+Open the **Audit** sub-tab under Governance (or the org-wide `/audit` route) and filter by your user. Every line of dialog above is in there as a governed action with a timestamp and a row hash. *This is what "trust observable" means* — your conversation became the audit trail without you ever thinking about audit.
 
 ---
 
@@ -371,25 +413,25 @@ Open your editor. Your session has no project bound yet — there's no `.coznt/.
 
 > **You:** set project tasklist
 
-> **Coznt:** Bound to "TaskList" (slug: `tasklist`, phase: monitoring). Subsequent verbs read from this project until you call `switch_project` or end the session.
+> **Coznt:** Bound to "TaskList" (slug: `tasklist`). Subsequent verbs read from this project until you call `switch_project` or end the session.
 
-That's the `set_project` MCP verb (Tier-1 ALWAYS_ALLOWED — works without a phase). Fuzzy-matches by id, slug, or name within your org. If you had two coznt-bound projects open in different terminals you'd call `switch_project` instead, with the same matcher.
+That's the `set_project` MCP verb (Tier-1 ALWAYS_ALLOWED). Fuzzy-matches by id, slug, or name within your org. If you had two coznt-bound projects open in different terminals you'd call `switch_project` instead, with the same matcher.
 
-Open the cockpit. You'll notice something different than Act 1.
+Open the cockpit. The **Governance → Skills** sub-tab looks different than Act 1.
 
 ## Step 10 — The cockpit looks different (3 min)
 
-The **Trust** tab now shows:
+The Skills sub-tab now shows:
 
-| Skill | Autonomy | Outcomes (30d) | Last change |
+| Skill | Autonomy | Outcomes (30d) | Last reason |
 |---|---|---|---|
-| `change-risk-classifier` | **propose** (1) | 11 success, 0 rolled_back | **Promoted** 4d ago |
+| `change-risk-classifier` | **propose** (1) | 11 success, 0 rolled_back | `trailing_window_clean` — promoted 4d ago |
+| `epic-decomposer` | observe (0) | 1 success | — |
+| `feature-spec-generator` | observe (0) | 3 success | — |
 | `adr-extractor` | observe (0) | 3 success | — |
 | `test-author` | observe (0) | 4 success | — |
-| `requirements-document` | observe (0) | 1 success | — |
-| `storyboard-generator` | observe (0) | 1 success | — |
-| `dev-summary-generator` | observe (0) | 1 success | — |
-| `cicd-pipeline-authoring` | observe (0) | 1 success | — |
+| `test-plan-generator` | observe (0) | 1 success | — |
+| `spec-generator` | observe (0) | 1 success | — |
 
 `change-risk-classifier` crossed the promotion threshold first because it runs on *every* inbound PR webhook — over two weeks it accumulated more invocations than the lifecycle drafting skills, which only fire when you ask the coach for a plan. Coznt's autonomy formula looks at the trailing 30-day window: 10+ successes, no `rolled_back` or `incident` rows, and successes spread across at least 3 distinct work items. All 11 PRs landed clean, so it qualified.
 
@@ -407,7 +449,7 @@ What this means in practice: starting now, `change-risk-classifier`'s output get
 
 ## Step 11 — A second human joins (5 min)
 
-Alice (your reviewer on this project) gets added to the project — operator action, `/projects/tasklist/people`, role `reviewer`. From now on, story-level approvals can route to her, and her sign-offs feed the audit ledger with her user id.
+Alice (your reviewer on this project) gets added to the project — operator action, **Settings → Members**, role `reviewer`. While you're there, edit the approval policy in **Settings → Governance policies** to set `requiredCount: 2` for story plans (so two humans sign off when work is real, not just you accepting your own drafts). From now on, story-level approvals route to both you and Alice, and her sign-offs feed the audit ledger with her user id.
 
 Open your editor. The coach now knows there's a second persona on this project:
 
@@ -417,22 +459,18 @@ Open your editor. The coach now knows there's a second persona on this project:
 
 > **You:** default medium.
 
-> **Coznt:** Drafting the feature plan…
+> **Coznt:** Drafting under epic `tasklist-v1`…
 >
-> **Drafted: TaskList v1.1 — task priorities**
-> • Add `priority` enum to `tasks` (low / medium / high), default `medium`
-> • Backfill existing rows with `medium`
-> • UI: priority chip on the list, filter by priority in the list view
-> • API: PATCH accepts priority; list query supports `?priority=high`
+> **Drafted: Task priorities**  *(plan kind: `feature`, parent_of `tasklist-v1`)*
+> • Add `priority` enum to `tasks` (low / medium / high), default `medium`.
+> • Backfill existing rows with `medium`.
+> • UI: priority chip on the list, filter by priority in the list view.
+> • API: PATCH accepts priority; list query supports `?priority=high`.
 >
 > Risk classification (`change-risk-classifier`, propose, model claude-opus-4-7):
 > • **Low risk.** Schema change is additive with a safe default. No API breakage. No auth surface touched.
 >
-> Want me to route this for sign-off? You're the author — Alice is a natural reviewer.
-
-> **You:** route to Alice.
-
-> **Coznt:** Sent. She'll see it in her bell.
+> Sent for review. With the updated policy, this needs 2 approvers — you and Alice are both on the approver list.
 
 Notice what just happened: the coach included a risk classification *inline*, with provenance (skill name, autonomy level, model). At observe, it would have been a separate "needs review" section. At propose, it's load-bearing on the plan body. Alice still reviews — but she reviews *with* the AI's classification, not *against* it.
 
@@ -452,6 +490,9 @@ Provenance (AI sections)
     autonomyAtGeneration: 1
     [view skill outcome row →]
 
+Governance records on this plan
+  approval (pending)   2 of 2 approvers needed   [Decide →]
+
 Verification badges
   ✓ rule:no-direct-db        passed
   ✓ rule:idempotency         n/a (no write surface)
@@ -460,9 +501,9 @@ Verification badges
 
 This is the **provenance** surface: every AI-authored section identifies its skill, its model, its autonomy level *at the moment of generation*, and links to the `skill_outcomes` row that recorded the call. If the skill gets demoted tomorrow, Alice can find every plan it touched while at propose and re-triage by row, not by guessing. The "AI made this" question stops being a vibe-check.
 
-Alice approves. The coach moves on:
+Alice approves; you approve. Two `governance_records` rows for the same plan, both flip to `passed`, the policy engine sees `requiredCount: 2` is met, and the plan transitions `in_review → approved`.
 
-> **Coznt:** Approved by Alice. Story is ready — `TASK-3` should be your sprint card. Create it in Jira and tell me when you're starting.
+> **Coznt:** Both approvals in. Story under this feature is `TASK-3` — create it in Jira and tell me when you're starting.
 
 You create `TASK-3`. Coznt mirrors it.
 
@@ -477,16 +518,19 @@ You start coding. A few minutes in, you realize the priority filter query touche
 > **Coznt:** Updating… hmm — your edit triggered a rule.
 >
 > **Rule:** `plan-touching-auth-scope` (`keyword-presence` validator)
+> **Materialized as:** a `governance_records` row, kind=`gate`, status=`failed`, attached to this plan.
 > **Failed because:** plan body mentions `user_id` scope but has no security-implications section.
 > **Suggested fix:** add a short "Security implications" subsection covering the scope check and the test that proves it.
 
-The rule engine is doing exactly what it's supposed to — catching a plan that touches a sensitive surface without acknowledging the surface. You add the section:
+The rule engine is doing exactly what it's supposed to — catching a plan that touches a sensitive surface without acknowledging the surface. The gate record blocks the next status transition until it's resolved. You add the section:
 
 > **You:** add this — "Security implications: list query is already scoped by user_id via the auth context. Test added in tests/tasks-scope.test.ts to assert cross-user isolation."
 
-> **Coznt:** Rule re-validated — passes. Pushing the update. Alice needs to re-approve since the body changed.
+> **Coznt:** Rule re-validated — the gate record flipped `failed → passed`. Pushing the update. Alice and you both need to re-approve since the body changed materially.
 
-Alice re-approves. You build it, push, merge `TASK-3`, watch it close.
+Two new `approval` records get created on the new transition; both you and Alice decide them; the plan moves on.
+
+You build it, push, merge `TASK-3`, watch it close. The story plan flips to `completed`, an `evidence_links` row of type `external_link` (PR) and `work_item` (Jira ticket) attach automatically.
 
 > **You:** how's v1.1 looking?
 
@@ -496,20 +540,19 @@ Alice re-approves. You build it, push, merge `TASK-3`, watch it close.
 
 ## Step 13 — Verification debt becomes visible (3 min)
 
-Open the cockpit. The portfolio strip at the top now shows a **Verification debt** column. TaskList: 8. (You don't have a sibling project yet — Act 4 will introduce one.)
+Open **Governance → Verification debt**. The four-tile breakdown:
 
-Click the score. The breakdown:
-
-| Component | Contribution |
-|---|---|
-| Autonomy distance × invocations | 4 |
-| Open-approval age | 2 (one approval 28h old) |
-| Gate trip rate | 1 (one rule trip in 30d) |
-| Unreviewed AI-authored sections | 1 |
+| Tile | Value | Means |
+|---|---|---|
+| Autonomy | 4 | Distance from each (skill, project) to `merge` (level 2), weighted by 30-day invocations. |
+| Open approvals | 2 | Weighted age — one approval 28h old. |
+| Gate trips | 1 | The auth-scope gate fired and held the plan for ~20 min before you resolved it. |
+| Unreviewed AI | 1 | Hours since an AI-authored section was authored but not yet reviewed. |
+| **Total** | **8** | Sum of the four. Lower is better. |
 
 This is the analytical surface coznt's been pushing toward since day one — every governed action is row-addressable, and the platform derives a single number from them so a leader doesn't need to read 200 audit rows to know whether the project is healthy.
 
-> **The vision claim, made concrete.** "Verification debt: 8" is not a dashboard guess. Each of the four numbers above traces to specific rows: the gate trip is `skill_outcomes` row #4711, the open approval is `approvals` row #883, etc. If you ask "why is this 8 and not 4?", the answer is four queryable rows. See [docs/product/verification-debt-thesis.md](../product/verification-debt-thesis.md) for the formula.
+> **The vision claim, made concrete.** "Verification debt: 8" is not a dashboard guess. Each of the four numbers above traces to specific rows: the gate trip is `skill_outcomes` row #4711, the open approval is `governance_records` row #883, etc. If you ask "why is this 8 and not 4?", the answer is four queryable rows. See [docs/product/verification-debt-thesis.md](../product/verification-debt-thesis.md) for the formula.
 
 You ship v1.1. Lead time: 3h 20m. No incidents.
 
@@ -517,7 +560,7 @@ You ship v1.1. Lead time: 3h 20m. No incidents.
 
 # Act 3 — Stress: When trust breaks (week 4)
 
-Week 4. v1.2 added bulk actions — select multiple tasks, change priority on all of them at once. Plan was drafted by the coach (with `change-risk-classifier` clearing it as **medium risk** — bulk operations widen blast radius), approved by Alice, built, merged, deployed.
+Week 4. v1.2 added bulk actions — select multiple tasks, change priority on all of them at once. The feature was drafted by the coach (with `change-risk-classifier` clearing it as **medium risk** — bulk operations widen blast radius), approved by you and Alice, built, merged, deployed.
 
 Then your phone buzzes at 9:47pm. PagerDuty.
 
@@ -547,9 +590,10 @@ Merge. Vercel redeploys. Error rate drops.
 
 > **You:** is prod back?
 
-> **Coznt:** Yes — error rate back to baseline within 90 seconds of the redeploy. Two outcome rows just landed:
+> **Coznt:** Yes — error rate back to baseline within 90 seconds of the redeploy. Three things just happened:
 >
-> • **`pr_revert`** assessor → `skill_outcomes`, `verdict='rolled_back'`, attributed to `change-risk-classifier` (the skill that authored the medium-risk classification on `TASK-12`).
+> • An **`incident` plan** was opened automatically: `INC-019 — TaskList v1.2 cross-user write`. Status `in_progress`. Linked to `TASK-12` via a `causes` relationship.
+> • **`pr_revert`** assessor → `skill_outcomes`, `verdict='rolled_back'`, attributed to `change-risk-classifier`.
 > • **`deploy_incident`** assessor → `skill_outcomes`, `verdict='incident'`, attributed to the same skill.
 >
 > The autonomy recompute job just ran. **`change-risk-classifier` was demoted: propose (1) → observe (0).** A row landed in `skill_autonomy_events`:
@@ -557,30 +601,27 @@ Merge. Vercel redeploys. Error rate drops.
 > • `priorLevel: 1`, `newLevel: 0`
 > • `triggeringOutcomes: [#5012, #5013]`
 >
-> Effective immediately: any plan section authored by `change-risk-classifier` will be marked "needs review" until it re-earns propose. And — *this is the Milestone-D gate* — its next tool call on this project will hard-fail at the PreToolUse interceptor and route into your approvals inbox instead of executing.
+> Effective immediately: any plan section authored by `change-risk-classifier` will be marked "needs review" until it re-earns propose. And — *this is the autonomy gate at runtime* — its next tool call on this project will hard-fail at the PreToolUse interceptor and route into your Governance → Inbox instead of executing.
 
 > **The vision claim, made concrete.** Coznt didn't demote the skill on vibes. It demoted because deterministic assessors fired, those assessors wrote rows, the recompute job read the trailing window and re-applied the formula. The demotion is a single row with a reason. If Alice asks tomorrow "why is the risk classifier observe again?", the answer is row #2071 in `skill_autonomy_events`, with two clickable outcome rows attached.
 
 ### The gate fires (the next morning)
 
-Next morning you open your editor and the agent reflexively reaches for `change-risk-classifier` to triage an unrelated PR you opened overnight. You don't even type anything — the editor's MCP client posts to `POST /api/v1/agents/pre-tool-use` with `{ skillSlug: "change-risk-classifier", tool: "classify", changeRisk: "medium" }`. Coznt's `handlePreToolUse` resolves the autonomy threshold (`resolveAutonomyThreshold` says medium-risk classification needs level 2; the skill is at 0), denies the call, and opens a `skill_invocation` approval. The editor returns:
+Next morning you open your editor and the agent reflexively reaches for `change-risk-classifier` to triage an unrelated PR you opened overnight. You don't even type anything — the editor's MCP client posts to `POST /api/v1/agents/pre-tool-use` with `{ skillSlug: "change-risk-classifier", tool: "classify", changeRisk: "medium" }`. Coznt's `handlePreToolUse` resolves the autonomy threshold (`resolveAutonomyThreshold` says medium-risk classification needs level 2; the skill is at 0), denies the call, and logs the block as an `automation_log` row with `taskId='pre-tool-use:change-risk-classifier'` and `status='blocked'`. The editor returns:
 
 ```
 {
   "allowed": false,
   "reason": "autonomy_gate: skill at level 0 but 2 required",
-  "autonomy": { "level": 0, "levelName": "observe", "requiredLevel": 2 },
-  "approvalId": "appr_4f1a..."
+  "autonomy": { "level": 0, "levelName": "observe", "requiredLevel": 2 }
 }
 ```
 
-Open your coznt tab. The bell shows 1. Click it — it's an **agent-initiated approval** in the H3 inbox:
+Open the **Governance → Skills** sub-tab. The skill row shows the demotion + a "blocked invocations today: 1" pill. Click it to see the `automation_log` entry — that's where autonomy overrides land (per spec §11.5 J10, autonomy overrides are deliberately *not* governance records; they're a distinct mechanism).
 
-> **`change-risk-classifier` wants to classify PR #156 (medium risk).** Currently at observe (0); medium-risk classification needs merge (2). [Let it run once] [Hold and review the PR myself]
+This is what the autonomy gate *feels like* in the daily loop. The gate isn't a wall — it's a router. The skill doesn't earn back autonomy from any one-time human releases (only `pr_merge` / `deploy_clean` assessors do that), but the gate keeps you in the loop until evidence accumulates again.
 
-This is what M-D *feels like* in the daily loop. The gate isn't a wall — it's a router. You can release the single call, the skill runs, and the outcome row is attributed normally. The skill doesn't earn back autonomy from your one-time releases (only `pr_merge` / `deploy_clean` assessors do that), but the gate keeps you in the loop until evidence accumulates again.
-
-> **The Govern pillar, made concrete.** The autonomy threshold check is the M-D contract. It runs *before* the LLM call, on every tool the agent reaches for. The IDE pays for tokens; coznt decides whether tokens get spent.
+> **The Govern pillar, made concrete.** The autonomy threshold check is the runtime contract. It runs *before* the LLM call, on every tool the agent reaches for. The IDE pays for tokens; coznt decides whether tokens get spent.
 
 ---
 
@@ -588,29 +629,29 @@ This is what M-D *feels like* in the daily loop. The gate isn't a wall — it's 
 
 > **You:** let's do a postmortem.
 
-> **Coznt:** Drafting `incident-019-postmortem` as a `risk_register` plan — that's the postmortem slot in coznt's schema…
+> **Coznt:** Drafting `incident-019-postmortem` as a `risk_register` plan — that's the postmortem slot in coznt's nine-kind plan vocabulary…
 >
-> **Drafted: Incident 019 — bulk-priority cross-user write**
+> **Drafted: Incident 019 — bulk-priority cross-user write**  *(plan kind: `risk_register`, relates_to `INC-019`, causes `Task priorities` feature)*
 > • **Timeline:** deploy 21:24, first 500 21:38, page 21:47, revert merged 22:03, error rate normal 22:05.
 > • **Root cause:** `TASK-12` bulk-update query missing `WHERE user_id = $auth_user_id`.
 > • **Why the risk classifier missed it:** the diff was small (one new function), and the file diff didn't include the auth context import. The classifier flagged it as medium for "indexed column write" but missed the scope risk.
-> • **Why review missed it:** Alice reviewed the plan body, not the code diff. Plan body said "bulk update with auth scope respected" — but the implementation diverged.
+> • **Why review missed it:** Alice and you reviewed the plan body, not the code diff. Plan body said "bulk update with auth scope respected" — but the implementation diverged.
 > • **Corrective actions:**
->   1. Add a `rule-engine` policy: any plan referencing `bulk write` requires a code-diff link before approval.
+>   1. Add a new `gate` policy: any plan referencing `bulk write` requires a `code_diff_url` field in `details` before the `in_review → approved` transition is allowed.
 >   2. Add an integration test: `tests/auth-scope.test.ts` — assert every write query is scoped.
 >   3. `change-risk-classifier` stays at observe until 10 clean outcomes accumulate. Manual review of every classification in the meantime.
 >
-> Route to Alice for sign-off?
+> Sent for review. With the policy update, `risk_register` plans now need 2 approvers.
 
-> **You:** yes.
+You and Alice both approve. The corrective actions become real:
 
-Alice approves. The corrective actions become real:
-
-- **Action 1** — the new rule lands in the rule engine. From now on, any plan with "bulk write" in the body fails validation without a `code_diff_url` field.
+- **Action 1** — the new gate policy lands in `governance_policies` (kind=`gate`, scope=`organization`, watches `in_review → approved` on any plan body matching `/bulk write/i`). From now on, any plan with "bulk write" in the body fails the gate without a `code_diff_url` field.
 - **Action 2** — you add the integration test, push it as `hotfix/auth-scope-tests`, merge it. Clean PR → `pr_merge` outcome → `change-risk-classifier` gets its first re-earning success row.
 - **Action 3** — the `change-risk-classifier` skill detail page now shows a "demotion record" — a permanent link from the level-0 segment back to incident 019. Trust is restoring, but the receipt of its breach stays in the ledger.
 
-The portfolio's verification debt for TaskList jumped from 8 to **31** the moment the demotion landed — autonomy distance now contributes more, and the open postmortem ADR adds an open-approval point until it's signed.
+The incident plan transitions to `completed`. An `evidence_links` row of type `incident` attaches the on-call timeline to the risk_register plan; another of type `external_link` points at the revert PR.
+
+The portfolio's verification debt for TaskList jumped from 8 to **31** the moment the demotion landed — autonomy distance now contributes more, and the open postmortem plan adds an open-approval point until it's signed.
 
 ---
 
@@ -622,7 +663,7 @@ Over the next week, you and Alice ship five more small PRs. Each one is a clean 
 
 > **Coznt:** `change-risk-classifier` has 6 clean outcomes since the demotion. The autonomy formula needs 10 in a 30-day window, no `rolled_back` or `incident` rows, distinct work items. You're 4 away. At your current cadence (~5 PRs/week), that's about a week.
 
-Verification debt has come back down to 18 as the postmortem ADR got signed and one of the older open approvals cleared.
+Verification debt has come back down to 18 as the postmortem plan got signed and one of the older open approvals cleared.
 
 ---
 
@@ -637,16 +678,16 @@ Visit `/me`. This is not a todo list. It's the audit ledger filtered to *your* u
 ```
 Hi, you.
 
-Open approvals waiting on you ............ 2
-   • adr-007 (BillingSvc) — 6h old
+Open governance records waiting on you ... 2
+   • adr (BillingSvc) — 6h old
    • release_plan v1.3 (TaskList) — 18m old
 
-Approvals you're blocking by not reviewing  1
+Records you're blocking by not deciding ... 1
    • feature plan (BillingSvc) — assigned to you 28h ago
 
 Per-project autonomy contributions
-   TaskList    — 14 reviews, 3 author actions
-   BillingSvc  — 3 reviews
+   TaskList    — 14 decisions, 3 author actions
+   BillingSvc  — 3 decisions
 
 Recent outcomes attributable to your work (last 14d)
    • 6 pr_merge (clean)
@@ -654,7 +695,7 @@ Recent outcomes attributable to your work (last 14d)
    • 4 work_items closed
 ```
 
-The "approvals you're blocking" line is the polite version of a nudge — every governed item that names you and hasn't moved adds to the team's verification debt, and the platform tells you which row it is and how long it's been there.
+The "records you're blocking" line is the polite version of a nudge — every pending governance record that names you and hasn't moved adds to the team's verification debt, and the platform tells you which row it is and how long it's been there.
 
 ---
 
@@ -662,18 +703,18 @@ The "approvals you're blocking" line is the polite version of a nudge — every 
 
 Open `/portfolio`. Two project rows:
 
-| Project | Phase | Open approvals | Skill autonomy | Verification debt | Trust trend (30d) |
+| Project | Status | Pending records | Skill autonomy | Verification debt | Trust trend (30d) |
 |---|---|---|---|---|---|
-| TaskList | monitoring | 1 | 4 propose, 2 observe | **18** | ↘ (recovering) |
-| BillingSvc | development | 7 | 0 propose, 6 observe | **47** | ↗ (accumulating) |
+| TaskList | active | 1 | 4 propose, 2 observe | **18** | ↘ (recovering) |
+| BillingSvc | active | 7 | 0 propose, 6 observe | **47** | ↗ (accumulating) |
 
 `BillingSvc` is heavier. Click the **47** to see why:
 
 | Component | Contribution |
 |---|---|
 | Autonomy distance × invocations | 22 (six skills at observe, all actively invoked) |
-| Open-approval age | 14 (three approvals older than 48h) |
-| Gate trip rate | 4 (three rule trips in 30d) |
+| Open-record age | 14 (three records older than 48h) |
+| Gate trip rate | 4 (three gate records `failed` in 30d) |
 | Unreviewed AI-authored sections | 7 (four plans with AI sections pending reviewer attention) |
 
 This is the *raison d'être* of the analytical layer: a leader can sweep across 5, 50, or 500 projects and see verification debt as a single number, then drill from the number to the rows that built it. No project is a black box, and no number is mysterious.
@@ -684,21 +725,21 @@ This is the *raison d'être* of the analytical layer: a leader can sweep across 
 
 ## Step 19 — The audit log as unified ledger (5 min)
 
-Open `/audit`. Filter by **last 24 hours**. The stream:
+Open `/audit` (or **Governance → Audit** scoped to a project). Filter by **last 24 hours**. The stream:
 
 ```
-2026-05-31 09:14:02  approval.granted    Alice → release_plan v1.3            TaskList
-2026-05-31 09:13:21  webhook.github      pr_merge #142 (clean)                TaskList
-2026-05-31 09:13:20  webhook.jira        TASK-31 transitioned to Done         TaskList
-2026-05-31 09:12:18  skill.invocation    change-risk-classifier (propose)      TaskList
-2026-05-31 09:10:55  plan.created        story TASK-31                        TaskList
-2026-05-31 09:09:30  agent.session_start coach: dev — bulk filter fix         TaskList
-2026-05-31 08:47:14  webhook.jira        TASK-30 → In Progress                TaskList
-2026-05-31 08:32:01  approval.granted    you → feature plan                   BillingSvc
+2026-05-31 09:14:02  governance.decided   Alice → approval on release_plan v1.3  TaskList
+2026-05-31 09:13:21  webhook.github       pr_merge #142 (clean)                  TaskList
+2026-05-31 09:13:20  webhook.jira         TASK-31 transitioned to Done           TaskList
+2026-05-31 09:12:18  skill.invocation     change-risk-classifier (propose)        TaskList
+2026-05-31 09:10:55  plan.created         story TASK-31                          TaskList
+2026-05-31 09:09:30  agent.session_start  coach: feature — bulk filter fix       TaskList
+2026-05-31 08:47:14  webhook.jira         TASK-30 → In Progress                  TaskList
+2026-05-31 08:32:01  governance.decided   you → approval on feature plan         BillingSvc
 ... 47 more rows ...
 ```
 
-Every row has a `row_hash`. Every row links to its underlying entity (plan, work item, skill outcome, approval). Filter by user, by project, by skill, by phase. This single stream is *the* coznt source-of-record — every other surface in the product is a view over it.
+Every row has a `row_hash`. Every row links to its underlying entity (plan, work item, skill outcome, governance record). Filter by user, by project, by skill, by plan kind. This single stream is *the* coznt source-of-record — every other surface in the product is a view over it.
 
 ### The chain is a chain
 
@@ -715,7 +756,7 @@ Then for a chosen row, click **Receipt** — coznt emits a signed evidence packe
 
 Two more things to notice:
 
-1. **GitHub + Jira + coznt events live in the same stream.** PR merges, Jira transitions, and human approvals interleave by timestamp. This is the unification thesis: SDLC happens across tools, but the audit substrate is one ledger.
+1. **GitHub + Jira + coznt events live in the same stream.** PR merges, Jira transitions, and human governance decisions interleave by timestamp. This is the unification thesis: SDLC happens across tools, but the audit substrate is one ledger.
 2. **The dialog from Act 1 is in here.** Scroll back to two weeks ago. Every "You: I want to build…" → "Coznt: drafting…" exchange is a row pair. The human conversation became the audit trail without anyone framing it as one.
 
 ---
@@ -728,7 +769,7 @@ Click `change-risk-classifier` from the cockpit. Scroll to the bottom:
 
 > **Senior unlocks:** `change-risk-classifier` can author "low" risk classifications without provenance badge gating reviewer attention.
 
-> **Lead (3) unlocks the M-D autonomy gate at full effect:** the PreToolUse interceptor (`POST /api/v1/agents/pre-tool-use`) auto-allows the skill's tool calls without a `skill_invocation` approval, *for the action/risk combinations its level covers*. The dispatch gate is **already live today** — the difference at lead is that more action × risk combinations pass without routing, per `resolveAutonomyThreshold`. The default thresholds: `deploy_production` never auto (∞), `merge_pr` low/medium ≥ level 2, high ≥ level 3, critical never auto.
+> **Lead (3) unlocks the autonomy gate at full effect:** the PreToolUse interceptor (`POST /api/v1/agents/pre-tool-use`) auto-allows the skill's tool calls without routing through Governance → Inbox, *for the action/risk combinations its level covers*. The gate is **already live today** — the difference at lead is that more action × risk combinations pass without routing, per `resolveAutonomyThreshold`. The default thresholds: `deploy_production` never auto (∞), `merge_pr` low/medium ≥ level 2, high ≥ level 3, critical never auto.
 
 This is coznt's roadmap surfaced *in the product itself*: a skill that earns trust through evidence eventually unlocks autonomous action, gated by the same ledger that produced the trust. The vision is not "AI agents do work" — it's "AI agents do work in proportion to the evidence they've banked, observable to humans every step of the way."
 
@@ -740,34 +781,36 @@ Across four acts, you walked through one project's lifecycle from blank repo to 
 
 | Pillar | Where you saw it |
 |---|---|
-| **Govern (M-D autonomy gate)** | The PreToolUse interceptor blocked the demoted `change-risk-classifier` before any LLM tokens were spent, opened a `skill_invocation` approval, and let you release the call once with full audit. The gate fires on every tool call. |
-| **Govern (rule engine)** | Act 2's `plan-touching-auth-scope` keyword-presence rule caught a plan touching a sensitive surface without naming it. Act 3's postmortem added a new `action-policy` rule to the engine. |
-| **Govern (phase gates)** | Every phase advance was gated on its checklist. You never overrode a gate. |
+| **Govern (autonomy gate)** | The PreToolUse interceptor blocked the demoted `change-risk-classifier` before any LLM tokens were spent, and logged the block as an `automation_log` row. The gate fires on every tool call. Autonomy overrides are deliberately *not* governance records — they're a distinct mechanism per spec §11.5 J10. |
+| **Govern (governance records)** | Every plan transition from `draft → in_review → approved → in_progress → completed` was gated by a `governance_records` row — kind=`approval` (sign-off) or kind=`gate` (rule). The rule engine emits `gate` records that block transitions until they reach `passed` (or are superseded by an `exception` record). Four kinds, one status state machine, one evaluator dispatcher — per spec §10. |
+| **Govern (policies vs records)** | The Standard template seeded `governance_policies` rows at project creation; those policies materialized `governance_records` whenever a plan crossed the watched transition. Policies are rules; records are applications of rules. |
 | **Verify (deterministic ledger)** | `pr_merge`, `pr_revert`, `deploy_clean`, `deploy_incident` assessors wrote every `skill_outcomes` row. Promotion and demotion both flowed from those rows via `recomputeSkillAutonomy`. |
 | **Verify (prompt-quality rubric)** | The capture hook scored every prompt against the 6-dim rubric before it reached the model; sub-threshold prompts were gated locally, scored ones fed `prompt_logs` as a leading indicator. |
 | **Trust (audit log + hash chain)** | Step 19 — clicking *Verify chain* recomputed `row_hash = sha256(prev_hash ‖ canonical_fields)` for the visible window, confirmed the head, and let you emit a receipt for any row. The audit log is the unified source-of-record. |
 | **Trust (verification debt)** | One number per project, four components, every component a clickable queue of rows. Watched it climb on demotion and recover on re-earning. |
+| **Trust (evidence links)** | Every `completed` plan pointed at the proof artifact via `evidence_links` (deployment, test_run, work_item, external_link). Verification debt is "plans in `completed` with missing expected evidence" — every row you saw drove that number toward zero. |
 | **Trust (provenance)** | The Summary panel showed which sections were AI-authored, which skill produced each, the model + autonomy at generation, and a link to the originating `skill_outcomes` row. Triage AI-authored content from a row, not a vibe. |
-| **AI-DLC Governed (the tagline)** | Schema stayed vendor-neutral (plan kinds `epic / feature / story / spec / adr / test_plan / release_plan / incident / storyboard / dev_summary / go_live_report / cicd_pipeline / risk_register`). AI-DLC's Inception/Construction/Operations grouping renders as a methodology overlay; nothing AWS-specific lives in the schema. |
-| **Two sources of truth** | Drizzle schemas owned the DB shape; Zod schemas owned the AI output shape. You never saw a manual TypeScript interface. |
-| **Conversational ergonomics** | You typed sentences. The coach translated to ~50 verb invocations across the four acts. The verbs are there if you want them — they aren't required. |
-| **Two-tool unification** | GitHub holds code, Jira holds the board, coznt is the governance + audit layer over both. The Trust tab and the Jira board agree because the same webhook task wrote both. |
+| **AI-DLC Governed (the tagline)** | Schema stayed vendor-neutral — nine plan kinds (`epic / feature / story / spec / adr / test_plan / release_plan / risk_register / incident`), seven relationship kinds, four governance kinds. No phase column, no per-vendor primitives. AI-DLC's Inception/Construction/Operations grouping renders as a methodology overlay on the same data. |
+| **Two sources of truth** | Drizzle schemas owned the DB shape; Zod schemas owned the AI output shape and per-kind `details` JSONB validation (`src/lib/plan/schemas.ts`, `src/lib/governance/schemas.ts`). You never saw a manual TypeScript interface. |
+| **Conversational ergonomics** | You typed sentences. The coach translated to ~40 verb invocations across the four acts. The verbs are there if you want them — they aren't required. |
+| **Two-tool unification** | GitHub holds code, Jira holds the board, coznt is the governance + audit layer over both. The cockpit and the Jira board agree because the same webhook task wrote both. |
 
-The audit log proves all of the above. Filter by your user, scroll back to the start of Act 1, and read every line of dialog as a governed action — including the prompt-quality scores, the M-D gate decisions, and the chain-verification calls. That is the product.
+The audit log proves all of the above. Filter by your user, scroll back to the start of Act 1, and read every line of dialog as a governed action — including the prompt-quality scores, the autonomy gate decisions, and the chain-verification calls. That is the product.
 
 ---
 
 # Where to go next
 
-- **Run the brownfield variant.** Re-do this on a project where Jira already has a backlog of tickets and the repo has months of history. Step 3 changes — the coach opens with `get_assigned_work`, reads what's assigned to you, and drafts requirements *referencing* those tickets. The conversation feels almost identical; the trust arc starts from a non-zero base because some skills already have outcome history on neighboring projects.
-- **Run the tracker-less variant.** Skip the Jira prerequisite, leave the project key blank. Coznt becomes both the planning surface and the audit ledger. Good for tiny side projects, hackathons, or pre-formalization evaluation.
+- **Run the brownfield variant.** Re-do this on a project where Jira already has a backlog of tickets and the repo has months of history. Step 3 changes — the coach opens with `get_assigned_work`, reads what's assigned to you, and drafts the first epic *referencing* those tickets. The conversation feels almost identical; the trust arc starts from a non-zero base because some skills already have outcome history on neighboring projects.
+- **Run the tracker-less variant.** Skip the Jira prerequisite, leave the repository binding to GitHub only. Coznt becomes both the planning surface (plan artifacts) and the audit ledger. Good for tiny side projects, hackathons, or pre-formalization evaluation.
 - **Try short-syntax quick-add.** Press <kbd>Cmd+K</kbd> and type `fix payment edge case #spec +tasklist 2h @alice` — the palette parses the sigils, shows a preview, and opens `/plans/new` prefilled. Same grammar works from the CLI: `coznt call upsert_plan --shortSyntax "fix #spec +tasklist 2h"`.
 - **Drive the verb surface from a terminal.** `coznt call <verb>` dispatches any registered MCP tool from your shell. `coznt call` (no args) lists every verb. Useful for scripting, smoke testing, or driving coznt from an agent that doesn't speak MCP yet.
-- **Read the verb surface.** [`docs/spec/mcp-verbs.md`](../spec/mcp-verbs.md) — 44 verbs across 5 tiers. M-B added `get_autonomy`, `get_verification_debt`, `get_provenance` as read-only foundation reads. M-C added the agent-loop governance verbs (`log_prompt`, `rate_prompt`, `flush_local_prompts`). M-D added `set_project` and `switch_project` for explicit session binding. Useful for writing your own choreographies.
+- **Read the verb surface.** [`docs/spec/mcp-verbs.md`](../spec/mcp-verbs.md) — the live verb inventory. Key reads: `get_my_context`, `get_assigned_work`, `get_autonomy`, `get_verification_debt`, `get_provenance`. Key writes: `upsert_plan`, `submit_plan_for_review`, `create_governance_record`, `decide_governance_record`, `request_exception`, `attach_evidence`. Session: `set_project`, `switch_project`. The phase-era verbs (`submit_phase_for_review`, `get_phase_checklist`, `advance_phase`, `mark_gate_passed`) are deleted — governance is plan-bound, not phase-bound.
 - **Write your own coach.** The lifecycle coach is just a SKILL.md. Fork it for your team's conventions — e.g. "every story needs a security ADR" — and push it via `coznt sync`.
 - **Read the verification debt thesis.** [docs/product/verification-debt-thesis.md](../product/verification-debt-thesis.md) — the formula, the rationale, and why "trust-establishment cost" is the analytical primitive coznt is built around.
-- **Read the positioning.** [docs/positioning.md](../positioning.md) — the canonical doc: AI-DLC Governed tagline, Govern–Verify–Trust spine, daemon + choreography architecture, what coznt deliberately is *not*.
+- **Read the governance spec.** [docs/spec/governance-schema-simplified.md](../spec/governance-schema-simplified.md) — the canonical schema doc: five primitives, four governance kinds, nine plan kinds, seven relationship kinds, the §10 design discipline rules, and the litmus tests for "is this a policy or a record?".
+- **Read the positioning.** [docs/positioning.md](../positioning.md) — AI-DLC Governed tagline, Govern–Verify–Trust spine, daemon + choreography architecture, what coznt deliberately is *not*.
 
 # If the coach goes off-script
 
-The coach is a choreography, not a constraint. If it ever leaks a verb name at you, or asks three questions when it should ask one, the fix is in `src/automations/skills/project-lifecycle/SKILL.md`. File a PR. Jump to [user-guide §C2 Troubleshooting](../user-guide.md#c2-troubleshooting) for the usual webhook / binding / autonomy issues.
+The coach is a choreography, not a constraint. If it ever leaks a verb name at you, or asks three questions when it should ask one, the fix is in `src/automations/skills/project-lifecycle/SKILL.md`. File a PR. For the usual webhook / binding / autonomy issues, see [`operate/install.md`](../operate/install.md) and [`operate/webhook-auth.md`](../operate/webhook-auth.md).
