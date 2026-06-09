@@ -82,6 +82,17 @@ function printUsage(): void {
       "        coznt call get_verification_debt",
       "        coznt call upsert_plan --input '{\"kind\":\"spec\",\"slug\":\"x\",\"body\":\"...\"}'",
       "",
+      "  coznt check [--slug <slug>] [--rules [--rule <slug>]] [--plans]",
+      "      Validate .agents/ authoring artifacts on the current branch.",
+      "      Surfaces frontmatter errors, skill/rule/plan files discovered, and",
+      "      previews what would change on PR merge. Exit code 1 on errors.",
+      "",
+      "  coznt walkthrough [--raw]",
+      "      Print the bootstrap prompt for paste into a coding agent. The",
+      "      agent reads this project's autonomy ledger + 30d of outcomes and",
+      "      proposes .agents/skills/, .agents/rules/, and .agents/plans/ files",
+      "      via the propose_artifact MCP verb. --raw omits the banner.",
+      "",
       "  coznt --version",
       "  coznt --help",
       "",
@@ -139,6 +150,24 @@ async function main(): Promise<void> {
       case "prompt-hook": {
         const code = await runPromptHook({
           subcommand: args.positional[0] ?? null,
+        });
+        process.exit(code);
+        break;
+      }
+      case "check": {
+        const { runCheck } = await import("./commands/check.js");
+        const code = await runCheck({
+          slug: (args.flags.get("slug") as string | undefined) ?? (args.flags.get("rule") as string | undefined),
+          rules: Boolean(args.flags.get("rules")),
+          plans: Boolean(args.flags.get("plans")),
+        });
+        process.exit(code);
+        break;
+      }
+      case "walkthrough": {
+        const { runWalkthrough } = await import("./commands/walkthrough.js");
+        const code = await runWalkthrough({
+          raw: Boolean(args.flags.get("raw")),
         });
         process.exit(code);
         break;

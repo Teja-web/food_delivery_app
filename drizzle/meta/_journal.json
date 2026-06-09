@@ -8,6 +8,13 @@
       "when": 1780724944381,
       "tag": "0000_sudden_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780906398311,
+      "tag": "0001_young_blizzard",
+      "breakpoints": true
     }
   ]
 }

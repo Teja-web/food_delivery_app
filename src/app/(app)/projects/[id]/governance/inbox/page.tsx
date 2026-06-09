@@ -52,14 +52,11 @@ export default async function GovernanceInboxPage({
   const mineSet = new Set(records.map((r) => r.id));
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pending governance records for this project.{" "}
-          {records.length > 0 ? `${records.length} need your decision.` : ""}
-        </p>
-      </header>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Pending governance records for this project.{" "}
+        {records.length > 0 ? `${records.length} need your decision.` : ""}
+      </p>
 
       {allPending.length === 0 ? (
         <div className="rounded border bg-muted/20 p-6 text-sm text-muted-foreground">

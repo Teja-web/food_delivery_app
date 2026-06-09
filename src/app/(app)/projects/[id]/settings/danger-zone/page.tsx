@@ -15,7 +15,7 @@ export default async function DangerZoneSettings({
   if (!project) notFound();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <header className="space-y-1">
         <h2 className="text-base font-semibold text-red-500">Danger zone</h2>
         <p className="text-xs text-muted-foreground">

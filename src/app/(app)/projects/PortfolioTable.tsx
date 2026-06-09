@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FolderPlus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -397,14 +397,40 @@ export function PortfolioTable({ data }: { data: PortfolioClient }) {
       <RollupStrip rollup={data.rollup} />
 
       {noProjects ? (
-        <div className="flex items-center justify-between rounded-lg border bg-card/30 px-6 py-12 text-sm text-muted-foreground">
-          <span>No projects yet.</span>
-          <Link
-            href="/projects/new"
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            + New project
-          </Link>
+        <div className="rounded-lg border bg-card/30">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-6 py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border/60 bg-background/50">
+              <FolderPlus
+                className="h-5 w-5 text-muted-foreground"
+                strokeWidth={1.5}
+                aria-hidden
+              />
+            </div>
+            <div className="space-y-2">
+              <h2 className="font-display text-lg font-semibold text-foreground">
+                No projects yet
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                A project is the delivery container coznt governs. Create one
+                to start gating AI changes, verifying outcomes, and building
+                trust.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
+              <span>Govern</span>
+              <span className="h-px w-3 bg-border" aria-hidden />
+              <span>Verify</span>
+              <span className="h-px w-3 bg-border" aria-hidden />
+              <span>Trust</span>
+            </div>
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              New project
+            </Link>
+          </div>
         </div>
       ) : (
         <>
@@ -442,9 +468,11 @@ export function PortfolioTable({ data }: { data: PortfolioClient }) {
         </>
       )}
 
-      <p className="text-[11px] text-muted-foreground/70">
-        Sources: GitHub deployments, Jira approvals, coznt audit log · last sync just now
-      </p>
+      {noProjects ? null : (
+        <p className="text-[11px] text-muted-foreground/70">
+          Sources: GitHub deployments, Jira approvals, coznt audit log · last sync just now
+        </p>
+      )}
     </div>
   );
 }

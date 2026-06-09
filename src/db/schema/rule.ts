@@ -32,6 +32,16 @@ export const rules = cozntSchema.table(
     severity: text().$type<RuleSeverity>().notNull().default("warn"),
     enabled: boolean().notNull().default(true),
 
+    /**
+     * Authoring fields per docs/spec/dev-authoring-surface.md §19. When
+     * `claimed_path` is non-null the rule is file-managed: validator,
+     * appliesTo, config can only be changed via PR + merge webhook.
+     * `severity_override` lets ops downgrade `error` → `warn` at runtime
+     * without a PR (e.g. during a content migration).
+     */
+    claimedPath: text("claimed_path"),
+    severityOverride: text("severity_override").$type<RuleSeverity>(),
+
     createdById: text("created_by_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -39,6 +49,7 @@ export const rules = cozntSchema.table(
   (table) => [
     index("rules_org_idx").on(table.organizationId),
     index("rules_project_idx").on(table.projectId),
+    index("rules_claimed_path_idx").on(table.organizationId, table.claimedPath),
     index("rules_fts_idx").using(
       "gin",
       sql`coznt.fts_vector(${table.title}, ${table.body})`,

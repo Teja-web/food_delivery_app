@@ -10,14 +10,11 @@ export default async function EnvironmentsSettingsPage({
   const envs = await listEnvironmentsForProject(id);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h2 className="text-base font-semibold">Environments</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Deploy targets for this project. Replaces the free-text{" "}
-          <code className="font-mono">deployments.environment</code> column.
-        </p>
-      </header>
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Deploy targets for this project. Replaces the free-text{" "}
+        <code className="font-mono">deployments.environment</code> column.
+      </p>
 
       {envs.length === 0 ? (
         <div className="rounded border bg-muted/20 p-6 text-sm text-muted-foreground">

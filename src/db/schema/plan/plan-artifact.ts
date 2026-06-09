@@ -89,6 +89,15 @@ export const planArtifacts = cozntSchema.table(
     promptHash: text("prompt_hash"),
     generatedAt: timestamp("generated_at"),
 
+    /**
+     * File-canonical authoring path per docs/spec/dev-authoring-surface.md §19.
+     * Non-null = the artifact is the import of a .agents/plans/<kind>/*.md (or
+     * well-known path) file; definition fields (title, summary, body, details,
+     * relationships) are only writable by the merge webhook. Runtime state
+     * (status, assigneeId, governance_records) stays editable.
+     */
+    claimedPath: text("claimed_path"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -97,6 +106,7 @@ export const planArtifacts = cozntSchema.table(
     index("plan_artifacts_project_status_idx").on(table.projectId, table.status),
     index("plan_artifacts_kind_status_idx").on(table.kind, table.status),
     index("plan_artifacts_generated_by_skill_idx").on(table.generatedBySkillId),
+    index("plan_artifacts_claimed_path_idx").on(table.projectId, table.claimedPath),
     uniqueIndex("plan_artifacts_project_kind_slug_idx").on(table.projectId, table.kind, table.slug),
     index("plan_artifacts_fts_idx").using(
       "gin",

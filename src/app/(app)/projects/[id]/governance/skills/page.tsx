@@ -43,13 +43,10 @@ export default async function GovernanceSkillsPage({
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold">Skills</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Per-skill autonomy on this project. Levels: observe → propose → merge → lead.
-        </p>
-      </header>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Per-skill autonomy on this project. Levels: observe → propose → merge → lead.
+      </p>
 
       {autonomyRows.length === 0 ? (
         <div className="rounded border bg-muted/20 p-6 text-sm text-muted-foreground">

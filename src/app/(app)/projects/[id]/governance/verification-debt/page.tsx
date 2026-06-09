@@ -47,14 +47,11 @@ export default async function VerificationDebtPage({
   const breakdown = await computeProjectDebt(id, ctx.organizationId);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold">Verification debt</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          A composite score of skills below merge-level, aging governance, gate trips, and
-          AI-authored changes without evidence. Lower is better.
-        </p>
-      </header>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        A composite score of skills below merge-level, aging governance, gate trips, and
+        AI-authored changes without evidence. Lower is better.
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Tile label="Total" value={breakdown.total} hint="sum of below" />

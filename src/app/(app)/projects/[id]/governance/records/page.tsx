@@ -37,13 +37,10 @@ export default async function GovernanceRecordsPage({
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold">Records</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Full audit list of governance records for this project.
-        </p>
-      </header>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Full audit list of governance records for this project.
+      </p>
 
       {records.length === 0 ? (
         <div className="rounded border bg-muted/20 p-6 text-sm text-muted-foreground">

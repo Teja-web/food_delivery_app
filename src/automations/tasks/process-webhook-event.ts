@@ -24,6 +24,7 @@ import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
 import { projects } from "@/db/schema/project";
 import { skills } from "@/db/schema/skill/skill";
+import { planArtifacts } from "@/db/schema/plan/plan-artifact";
 import { webhookEvents, type WebhookEvent } from "@/db/schema/audit/webhook-event";
 import { assessDeployIncident } from "@/domain/outcomes";
 import { resolveProjectForWebhook } from "@/lib/integrations/resolve";
@@ -138,6 +139,14 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
     return markProcessed(evt.id, `no project binding for ${externalKey}`);
   }
 
+  // Default-branch push: re-sync .agents/* files into DB per
+  // docs/spec/dev-authoring-surface.md §10. We run sync regardless of
+  // commit author — merges to default branch are the apply event.
+  if (evt.event === "push") {
+    await runMergeSyncForPush(evt, payload, externalKey, projectId);
+    return markProcessed(evt.id);
+  }
+
   if (evt.event === "deployment_status") {
     const deployStatus = asObject(payload.deployment_status);
     const state = asString(deployStatus?.state);
@@ -196,6 +205,22 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
     await upsertGithubPrWorkItem(evt, payload, externalKey, projectId);
 
     const action = asString(payload.action);
+
+    // PR-lifecycle status derivation for file-claimed plan artifacts per
+    // docs/spec/dev-authoring-surface.md §9. open/synchronize/labeled trigger
+    // status transitions on plans touched by the PR; closed-unmerged → cancelled
+    // (or rejected per repo config); merged is handled by the push path.
+    await runPrLifecycleForPlans(evt, payload, externalKey, projectId).catch(() => {
+      /* lifecycle is observability-grade; swallow */
+    });
+
+    // Preview-mode sync: emit check-run summary of what would change on merge.
+    if (action === "opened" || action === "synchronize" || action === "reopened" || action === "ready_for_review") {
+      await runMergeSyncPreviewForPr(evt, payload, externalKey, projectId).catch(() => {
+        /* preview is best-effort */
+      });
+    }
+
     const triggers = new Set(["opened", "synchronize", "reopened", "edited", "ready_for_review"]);
     if (!action || !triggers.has(action)) {
       return markProcessed(evt.id);
@@ -204,6 +229,372 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
   }
 
   return markProcessed(evt.id);
+}
+
+// ---------------------------------------------------------------------------
+// .agents/* merge-webhook sync — wires the three sync tasks into push events
+// and PR-preview check-runs per docs/spec/dev-authoring-surface.md §10, §13.
+// ---------------------------------------------------------------------------
+
+async function runMergeSyncForPush(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  if (!evt.organizationId) return;
+  const repo = asObject(payload.repository);
+  const defaultBranch = asString(repo?.default_branch) ?? "main";
+  const ref = asString(payload.ref);
+  if (!ref || ref !== `refs/heads/${defaultBranch}`) return;
+
+  const headSha = asString(payload.after);
+  if (!headSha) return;
+
+  const installation = asObject(payload.installation);
+  const installationId =
+    asString(installation?.id) ??
+    (installation?.id != null ? String(installation.id) : null);
+  if (!installationId) return;
+
+  const ownerRepo = externalKey.replace(/^[^/]+\//, "");
+
+  // The push payload's head_commit message often carries the merged PR number
+  // via "(#1234)" appended by GitHub's merge button. Use it to fetch the PR
+  // and surface its pre-approval comments for §13 short-circuit routing.
+  const headCommit = asObject(payload.head_commit);
+  const headMessage = asString(headCommit?.message) ?? "";
+  const prNumberMatch = headMessage.match(/\(#(\d+)\)/);
+  const mergedPrNumber = prNumberMatch ? Number(prNumberMatch[1]) : null;
+  const preApprovedSlugs = new Set<string>();
+  if (mergedPrNumber) {
+    try {
+      const { listPullRequestComments } = await import("@/lib/integrations/github-app");
+      const comments = await listPullRequestComments({
+        installationId,
+        ownerRepo,
+        pullNumber: mergedPrNumber,
+      });
+      const { parseApprovalComments } = await import("./lib/preapprove-comments");
+      for (const approval of parseApprovalComments(comments)) {
+        preApprovedSlugs.add(approval.slug);
+      }
+    } catch {
+      /* pre-approvals are best-effort */
+    }
+  }
+
+  // Late-import so test/CI builds without GitHub App config don't pull in
+  // the full sync chain on cold worker start.
+  const [
+    { syncSkillsFromMerge },
+    { syncRulesFromMerge },
+    { syncPlansFromMerge },
+  ] = await Promise.all([
+    import("./sync-skills-from-merge"),
+    import("./sync-rules-from-merge"),
+    import("./sync-plans-from-merge"),
+  ]);
+
+  const ctx = {
+    organizationId: evt.organizationId,
+    projectId,
+    installationId,
+    ownerRepo,
+    ref: headSha,
+    prNumber: mergedPrNumber,
+    preview: false,
+    preApprovedSlugs,
+  };
+
+  // Apply per artifact. Errors per-artifact don't roll back others — each
+  // produces its own audit_logs rows via the sync helpers.
+  const [skillResult, ruleResult, planResult] = await Promise.all([
+    syncSkillsFromMerge(ctx).catch((err) => ({ applied: [], parseErrors: [{ path: "<sync-skills>", message: String(err) }] })),
+    syncRulesFromMerge(ctx).catch((err) => ({ applied: [], parseErrors: [{ path: "<sync-rules>", message: String(err) }] })),
+    syncPlansFromMerge(ctx).catch((err) => ({ applied: [], parseErrors: [{ path: "<sync-plans>", message: String(err) }], unresolvedRelationships: [] })),
+  ]);
+
+  // Mark PR-derived plan transitions if the push came from a merge commit.
+  // The push payload carries `head_commit.message`; we extract any PR refs
+  // via PR-lifecycle handler (handled via the pull_request event already,
+  // but we'd see the merge there as `closed` + merged=true). No-op here.
+
+  // Post a check-run summarizing what changed (when GitHub App is configured).
+  try {
+    const { postCheckRun } = await import("@/lib/integrations/github-app");
+    const summary = formatMergeSummary({ skillResult, ruleResult, planResult });
+    if (summary) {
+      await postCheckRun({
+        installationId,
+        ownerRepo,
+        headSha,
+        name: "coznt / merge sync",
+        conclusion: hasErrors(skillResult, ruleResult, planResult) ? "neutral" : "success",
+        title: "Coznt — applied",
+        summary,
+      });
+    }
+  } catch {
+    /* check-run is best-effort */
+  }
+}
+
+async function runMergeSyncPreviewForPr(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  if (!evt.organizationId) return;
+  const pr = asObject(payload.pull_request);
+  const headSha = asString(asObject(pr?.head)?.sha);
+  if (!headSha) return;
+
+  const installation = asObject(payload.installation);
+  const installationId =
+    asString(installation?.id) ??
+    (installation?.id != null ? String(installation.id) : null);
+  if (!installationId) return;
+
+  const ownerRepo = externalKey.replace(/^[^/]+\//, "");
+  const prNumber = typeof pr?.number === "number" ? pr.number : Number(pr?.number);
+
+  const [
+    { syncSkillsFromMerge },
+    { syncRulesFromMerge },
+    { syncPlansFromMerge },
+  ] = await Promise.all([
+    import("./sync-skills-from-merge"),
+    import("./sync-rules-from-merge"),
+    import("./sync-plans-from-merge"),
+  ]);
+
+  const ctx = {
+    organizationId: evt.organizationId,
+    projectId,
+    installationId,
+    ownerRepo,
+    ref: headSha,
+    prNumber: Number.isFinite(prNumber) ? prNumber : null,
+    preview: true,
+  };
+
+  const [skillResult, ruleResult, planResult] = await Promise.all([
+    syncSkillsFromMerge(ctx),
+    syncRulesFromMerge(ctx),
+    syncPlansFromMerge(ctx),
+  ]);
+
+  try {
+    const { postCheckRun } = await import("@/lib/integrations/github-app");
+    const summary = formatMergeSummary({ skillResult, ruleResult, planResult, preview: true });
+    if (summary) {
+      await postCheckRun({
+        installationId,
+        ownerRepo,
+        headSha,
+        name: "coznt / authoring preview",
+        conclusion: hasErrors(skillResult, ruleResult, planResult) ? "failure" : "success",
+        title: "Coznt — preview",
+        summary,
+      });
+    }
+  } catch {
+    /* observability path */
+  }
+}
+
+interface MergeSummaryInputs {
+  skillResult: Awaited<ReturnType<typeof import("./sync-skills-from-merge").syncSkillsFromMerge>>;
+  ruleResult: Awaited<ReturnType<typeof import("./sync-rules-from-merge").syncRulesFromMerge>>;
+  planResult: Awaited<ReturnType<typeof import("./sync-plans-from-merge").syncPlansFromMerge>>;
+  preview?: boolean;
+}
+
+function hasErrors(
+  skillResult: MergeSummaryInputs["skillResult"],
+  ruleResult: MergeSummaryInputs["ruleResult"],
+  planResult: MergeSummaryInputs["planResult"],
+): boolean {
+  return (
+    skillResult.parseErrors.length > 0 ||
+    ruleResult.parseErrors.length > 0 ||
+    planResult.parseErrors.length > 0
+  );
+}
+
+function formatMergeSummary(inputs: MergeSummaryInputs): string {
+  const { skillResult, ruleResult, planResult, preview } = inputs;
+  const lines: string[] = [];
+  if (skillResult.applied.length > 0) {
+    lines.push("**Skills changing on merge:**");
+    for (const d of skillResult.applied) {
+      const marker = d.op === "added" ? "+" : d.op === "removed" ? "-" : "~";
+      const route =
+        d.routedTo === "direct" ? "auto-apply" : `requires ${d.routedTo}`;
+      lines.push(`  ${marker} ${d.slug} (${d.op}, ${d.reason}) → ${route}`);
+    }
+  }
+  if (ruleResult.applied.length > 0) {
+    lines.push("");
+    lines.push("**Rules changing on merge:**");
+    for (const d of ruleResult.applied) {
+      const marker = d.op === "added" ? "+" : d.op === "removed" ? "-" : "~";
+      const route =
+        d.routedTo === "direct" ? "auto-apply" : `requires ${d.routedTo}`;
+      lines.push(`  ${marker} ${d.slug} (${d.op}, ${d.reason}) → ${route}`);
+    }
+  }
+  if (planResult.applied.length > 0) {
+    lines.push("");
+    lines.push("**Plans changing on merge:**");
+    for (const d of planResult.applied) {
+      const marker = d.op === "added" ? "+" : d.op === "removed" ? "-" : "~";
+      lines.push(`  ${marker} ${d.kind}/${d.slug} (${d.op})`);
+    }
+  }
+  if (
+    skillResult.parseErrors.length +
+      ruleResult.parseErrors.length +
+      planResult.parseErrors.length >
+    0
+  ) {
+    lines.push("");
+    lines.push("**Frontmatter errors:**");
+    for (const e of [
+      ...skillResult.parseErrors,
+      ...ruleResult.parseErrors,
+      ...planResult.parseErrors,
+    ]) {
+      lines.push(`  - ${e.path}: ${e.message}`);
+    }
+  }
+  if (planResult.unresolvedRelationships.length > 0) {
+    lines.push("");
+    lines.push("**Unresolved relationship targets:**");
+    for (const r of planResult.unresolvedRelationships) {
+      lines.push(`  - ${r.kind} → ${r.to} (target not found)`);
+    }
+  }
+  if (lines.length === 0) {
+    return preview ? "_No `.agents/` changes in this PR._" : "";
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Map PR events to plan status transitions for file-claimed plans per §9.
+ *   PR opened/synchronize on a branch touching a `.agents/plans/<kind>/*.md`
+ *     file → that plan moves to `in_review` if currently `draft`.
+ *   PR closed-unmerged → `cancelled` (or `rejected` per coznt.yaml).
+ *   PR merged is handled by the push path (status → `approved` when the
+ *     spec body is now on default branch).
+ * MVP: we only re-evaluate on every relevant PR event; we don't track
+ * which PR owns which plan (since multiple PRs can touch the same file
+ * concurrently, and the spec leaves this as v1.1 work — see §21).
+ */
+async function runPrLifecycleForPlans(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  if (!evt.organizationId) return;
+  const pr = asObject(payload.pull_request);
+  const action = asString(payload.action);
+  const merged = pr?.merged === true;
+  const state = asString(pr?.state);
+  if (!action) return;
+
+  const installation = asObject(payload.installation);
+  const installationId =
+    asString(installation?.id) ??
+    (installation?.id != null ? String(installation.id) : null);
+  if (!installationId) return;
+
+  const headSha = asString(asObject(pr?.head)?.sha);
+  if (!headSha) return;
+
+  const ownerRepo = externalKey.replace(/^[^/]+\//, "");
+  const prNumber = typeof pr?.number === "number" ? pr.number : Number(pr?.number);
+  if (!Number.isFinite(prNumber)) return;
+
+  // Determine target status from PR event.
+  let target: "in_review" | "changes_requested" | "cancelled" | "rejected" | null = null;
+  if (action === "opened" || action === "synchronize" || action === "reopened") {
+    target = "in_review";
+  } else if (
+    action === "labeled" &&
+    asString(asObject(payload.label)?.name) === "coznt:changes-requested"
+  ) {
+    target = "changes_requested";
+  } else if (action === "closed" && state === "closed" && !merged) {
+    // Default cancelled; loader can override to rejected.
+    target = "cancelled";
+  }
+  if (!target) return;
+
+  // Find file-claimed plans matching paths in this PR.
+  const { listFilesForPr } = await import("@/lib/integrations/github-app");
+  const candidates = await db.query.planArtifacts.findMany({
+    where: and(
+      eq(planArtifacts.organizationId, evt.organizationId),
+      eq(planArtifacts.projectId, projectId),
+    ),
+    columns: { id: true, status: true, claimedPath: true, kind: true, slug: true },
+  });
+  const claimed = candidates.filter((p) => p.claimedPath);
+  if (claimed.length === 0) return;
+
+  let paths: Set<string> | null = null;
+  try {
+    const filePaths = await listFilesForPr({
+      installationId,
+      ownerRepo,
+      pullNumber: prNumber,
+    });
+    paths = new Set(filePaths);
+  } catch {
+    /* fall through to scanning all file-claimed plans (cheap for typical projects) */
+  }
+
+  for (const plan of claimed) {
+    if (!plan.claimedPath) continue;
+    if (paths && !paths.has(plan.claimedPath)) continue;
+
+    const allowed = nextStatusAllowed(plan.status, target);
+    if (!allowed) continue;
+    await db
+      .update(planArtifacts)
+      .set({ status: target, updatedAt: new Date() })
+      .where(eq(planArtifacts.id, plan.id));
+    // Materialize governance_records on the transition.
+    try {
+      const { materializeGovernanceRecords } = await import(
+        "@/operations/governance/records"
+      );
+      await materializeGovernanceRecords({
+        planArtifactId: plan.id,
+        transitionFrom: plan.status,
+        transitionTo: target,
+      });
+    } catch {
+      /* materialize is best-effort here; the web app retry handles re-attempts */
+    }
+  }
+}
+
+function nextStatusAllowed(
+  from: string,
+  to: "in_review" | "changes_requested" | "cancelled" | "rejected",
+): boolean {
+  // Conservative: only allow the transitions §9 lists. Other paths flow
+  // through the web app's planCrud, which performs its own validation.
+  if (to === "in_review") return from === "draft" || from === "changes_requested";
+  if (to === "changes_requested") return from === "in_review";
+  if (to === "cancelled" || to === "rejected") return from !== "approved" && from !== "completed";
+  return false;
 }
 
 /**

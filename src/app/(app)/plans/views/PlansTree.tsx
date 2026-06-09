@@ -85,8 +85,8 @@ export function PlansTree({
   if (rows.length === 0) {
     return (
       <Card>
-        <CardContent className="py-12 text-center">
-          <Network className="mx-auto mb-3 h-6 w-6 text-muted-foreground/60" aria-hidden />
+        <CardContent className="py-8 text-center">
+          <Network className="mx-auto mb-2 h-6 w-6 text-muted-foreground/60" aria-hidden />
           <div className="text-sm font-medium">
             {filtered ? "No plans match this filter" : "No plans yet"}
           </div>

@@ -39,6 +39,11 @@ import {
   type ActionPolicyConfig,
   type ProposedAction,
 } from "@/domain/rule-validators/action-policy";
+import {
+  evaluateKeywordPresence,
+  keywordPresenceMessage,
+  type KeywordPresenceConfig,
+} from "@/domain/rule-validators/keyword-presence";
 
 export interface RuleViolation {
   ruleId: string;
@@ -124,26 +129,6 @@ function parseRuleFrontmatter(body: string): { config: ParsedRuleConfig; markdow
   return { config, markdown: match[2] };
 }
 
-interface KeywordEvalResult {
-  ok: boolean;
-  missing: string[];
-  forbidden: string[];
-}
-
-function evaluateKeywordPresence(plan: Pick<Plan, "title" | "summary" | "body">, cfg: ParsedRuleConfig): KeywordEvalResult {
-  const haystack = `${plan.title}\n${plan.summary ?? ""}\n${plan.body}`.toLowerCase();
-  const missing = (cfg.requires ?? []).filter((kw) => !haystack.includes(kw.toLowerCase()));
-  const forbidden = (cfg.forbids ?? []).filter((kw) => haystack.includes(kw.toLowerCase()));
-  return { ok: missing.length === 0 && forbidden.length === 0, missing, forbidden };
-}
-
-function violationMessage(rule: Pick<Rule, "title">, eval_: KeywordEvalResult): string {
-  const parts: string[] = [];
-  if (eval_.missing.length) parts.push(`missing required: ${eval_.missing.join(", ")}`);
-  if (eval_.forbidden.length) parts.push(`contains forbidden: ${eval_.forbidden.join(", ")}`);
-  return `${rule.title} — ${parts.join("; ")}`;
-}
-
 export async function evaluatePlanAgainstRules(plan: Plan): Promise<RuleViolation[]> {
   const ctx = await getActionContext();
 
@@ -162,13 +147,19 @@ export async function evaluatePlanAgainstRules(plan: Plan): Promise<RuleViolatio
     // validators (e.g. action-policy) have their own evaluation entry points
     // (see `applyActionPolicyRules`).
     if (config.validator && config.validator !== "keyword-presence") continue;
-    const result = evaluateKeywordPresence(plan, config);
+    const kpConfig: KeywordPresenceConfig = {
+      validator: "keyword-presence",
+      requires: config.requires,
+      forbids: config.forbids,
+    };
+    const haystack = `${plan.title}\n${plan.summary ?? ""}\n${plan.body}`;
+    const result = evaluateKeywordPresence({ haystack }, kpConfig);
     if (result.ok) continue;
     violations.push({
       ruleId: rule.id,
       ruleTitle: rule.title,
       severity: rule.severity,
-      message: violationMessage(rule, result),
+      message: keywordPresenceMessage(rule.title, result),
     });
   }
 

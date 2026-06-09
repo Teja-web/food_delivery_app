@@ -136,15 +136,8 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
   const isFiltered = filter.kind !== "all" || query.length > 0;
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-semibold">Plans</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Unified work artifact across epics, features, stories, ADRs, test plans, releases, and incidents.
-        </p>
-      </header>
-
-      <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             Status

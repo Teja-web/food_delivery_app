@@ -31,19 +31,16 @@ export function WorkItemsTab({ items }: { items: CockpitWorkItemClient[] }) {
   return (
     <Card>
       <CardContent className="p-0">
-        <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
-          <div>
-            <div className="font-display text-base font-semibold">Work items</div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              {items.length} {items.length === 1 ? "item" : "items"} synced
-            </div>
-          </div>
+        <div className="flex items-center justify-between border-b border-border/60 px-4 py-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            {items.length} {items.length === 1 ? "item" : "items"} synced
+          </span>
           <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70">
             from connected adapters
           </span>
         </div>
         {items.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
             No work items yet. Connect a GitHub, Jira, or Azure DevOps adapter on the{" "}
             <a className="text-primary hover:underline" href="/integrations">
               Integrations

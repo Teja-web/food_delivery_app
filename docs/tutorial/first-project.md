@@ -90,16 +90,18 @@ From inside your `tasklist` repo:
 
 ```bash
 coznt connect       # pick "tasklist" when prompted
-coznt sync          # pulls choreographies including "Project Lifecycle Coach"
 ```
 
-`coznt connect` does three things in one pass:
+That's the only setup command. `coznt connect` does four things in one pass:
 
 1. Writes your editor's MCP config (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor, `.zed/settings.json` for Zed, etc.) so the editor can talk to coznt's verb surface.
 2. **Installs the prompt-quality hook** (default-on for Claude Code, opt-in elsewhere). Every prompt you submit will be scored locally against the 6-dimension rubric — *clarity, scope, acceptance, prior context, constraints, verifiability* — and prompts below `COZNT_PROMPT_MIN_SCORE` are gated *before* they reach the model. See `docs/operate/prompt-hook.md` for the rubric and threshold knobs.
-3. Adds `.coznt/.local/` and `.mcp.json` to your `.gitignore` so the API key never lands in a commit.
+3. **Initializes the coznt-claimed section in your `CLAUDE.md`** (or `AGENTS.md`) — a marker-wrapped block carrying the kind→skill map, the autonomy reframe, and the routing rules your editor's agent reads at session start. The block auto-refreshes via content-hash detection (`rulesVersion`) on every MCP response — you never run a sync command.
+4. Adds editor cache paths and `.mcp.json` to your `.gitignore`.
 
-`coznt sync` writes `.coznt/skills/project-lifecycle/SKILL.md` into your repo. That file is what your editor's agent now knows about coznt — don't edit it; `coznt sync` will overwrite local changes. If you want to read what your agent knows, open it.
+**There is no "lifecycle coach" file.** Your editor's agent IS the coach; coznt configures it through three runtime surfaces: the CLAUDE.md/AGENTS.md claim (always loaded), MCP tool descriptions (read when the agent considers each verb), and `get_my_context` responses (loaded on demand for current-state routing). Nothing is pushed to your repo by coznt — the merge webhook reads `.agents/`, it doesn't write.
+
+What your team authors *back* lives in `.agents/skills/`, `.agents/rules/`, and `.agents/plans/<kind>/` — markdown files imported into coznt's DB on every PR merge to the default branch, with full audit trail. Full contract in [`docs/spec/dev-authoring-surface.md`](../spec/dev-authoring-surface.md). You'll see this in Step 5.
 
 Restart your editor.
 
@@ -230,6 +232,8 @@ Every "approve" you just clicked produced a `governance_records` row with `statu
 > **Coznt:** Nothing new to file then. Ready to author stories under the feature?
 
 > **You:** yes.
+
+> **The file path, too.** If you'd rather author the ADR, feature, and spec as markdown files in your repo, drop them at `.agents/plans/adrs/postgres-drizzle.md`, `.agents/plans/specs/api-ui-contract.md`, etc. The merge webhook imports them on PR merge; the PR check-run materializes the same `governance_records` *before* merge so you see what governance will require. The conversational path above and the file path produce identical DB rows — pick whichever fits your team. See [`docs/spec/dev-authoring-examples.md`](../spec/dev-authoring-examples.md) Example 5 for a full worked spec-as-file flow.
 
 <details>
 <summary><strong>Under the hood</strong></summary>
@@ -400,6 +404,7 @@ You spoke to your editor in plain English. Behind the scenes, coznt landed:
 - **2 Jira issues** (`TASK-1`, `TASK-2`) mirrored as work_items with full status sync. The cockpit and the Jira board agree.
 - **Multiple `evidence_links` rows** — every plan that closed pointed at the proof artifact (PR, deployment, test run, work item). That's the surface that lets verification debt stay at zero.
 - **DORA dashboard** populated with one full cycle.
+- **Same flow, different surface.** Every plan artifact, skill outcome, governance_record, and audit_log row above could have been produced by authoring `.agents/plans/<kind>/*.md` files in PRs instead of conversing with the coach. The DB rows are identical; only the authoring surface differs. The file path — including PR-lifecycle → status transitions, frontmatter-declared relationships, and merge-webhook import — is documented in [`docs/spec/dev-authoring-surface.md`](../spec/dev-authoring-surface.md).
 
 Open the **Audit** sub-tab under Governance (or the org-wide `/audit` route) and filter by your user. Every line of dialog above is in there as a governed action with a timestamp and a row hash. *This is what "trust observable" means* — your conversation became the audit trail without you ever thinking about audit.
 
@@ -409,7 +414,7 @@ Open the **Audit** sub-tab under Governance (or the org-wide `/audit` route) and
 
 Two weeks have passed. You've been using TaskList, building small features, and the coach has been quietly accumulating outcome rows every time a PR landed. Today you log back in to build v1.1 — task priorities (the thing we cut from v1).
 
-Open your editor. Your session has no project bound yet — there's no `.coznt/.local/` cache because you closed it cleanly last time:
+Open your editor. Your session has no project bound yet — the local session state cleared when you closed cleanly last time:
 
 > **You:** set project tasklist
 
@@ -801,16 +806,24 @@ The audit log proves all of the above. Filter by your user, scroll back to the s
 
 # Where to go next
 
-- **Run the brownfield variant.** Re-do this on a project where Jira already has a backlog of tickets and the repo has months of history. Step 3 changes — the coach opens with `get_assigned_work`, reads what's assigned to you, and drafts the first epic *referencing* those tickets. The conversation feels almost identical; the trust arc starts from a non-zero base because some skills already have outcome history on neighboring projects.
+- **Run the brownfield variant.** Re-do this on a project where Jira already has a backlog of tickets and the repo has months of history. Step 3 changes — the coach opens with `get_assigned_work`, reads what's assigned to you, and drafts the first epic *referencing* those tickets. The conversation feels almost identical; the trust arc starts from a non-zero base because some skills already have outcome history on neighboring projects. **Tip:** start with `coznt walkthrough` (or paste `https://coznt.dev/walkthrough` into your agent) — it reads 30d of outcomes and proposes incident-specific skills + rules tailored to what already broke on the project.
 - **Run the tracker-less variant.** Skip the Jira prerequisite, leave the repository binding to GitHub only. Coznt becomes both the planning surface (plan artifacts) and the audit ledger. Good for tiny side projects, hackathons, or pre-formalization evaluation.
 - **Try short-syntax quick-add.** Press <kbd>Cmd+K</kbd> and type `fix payment edge case #spec +tasklist 2h @alice` — the palette parses the sigils, shows a preview, and opens `/plans/new` prefilled. Same grammar works from the CLI: `coznt call upsert_plan --shortSyntax "fix #spec +tasklist 2h"`.
 - **Drive the verb surface from a terminal.** `coznt call <verb>` dispatches any registered MCP tool from your shell. `coznt call` (no args) lists every verb. Useful for scripting, smoke testing, or driving coznt from an agent that doesn't speak MCP yet.
 - **Read the verb surface.** [`docs/spec/mcp-verbs.md`](../spec/mcp-verbs.md) — the live verb inventory. Key reads: `get_my_context`, `get_assigned_work`, `get_autonomy`, `get_verification_debt`, `get_provenance`. Key writes: `upsert_plan`, `submit_plan_for_review`, `create_governance_record`, `decide_governance_record`, `request_exception`, `attach_evidence`. Session: `set_project`, `switch_project`. The phase-era verbs (`submit_phase_for_review`, `get_phase_checklist`, `advance_phase`, `mark_gate_passed`) are deleted — governance is plan-bound, not phase-bound.
-- **Write your own coach.** The lifecycle coach is just a SKILL.md. Fork it for your team's conventions — e.g. "every story needs a security ADR" — and push it via `coznt sync`.
+- **Author your own skills, rules, and plans as files.** [`docs/spec/dev-authoring-surface.md`](../spec/dev-authoring-surface.md) — the canonical contract for `.agents/skills/`, `.agents/rules/`, and `.agents/plans/<kind>/` file-based authoring. PR merge is the apply event; there is no sync command. Worked examples in [`docs/spec/dev-authoring-examples.md`](../spec/dev-authoring-examples.md): six end-to-end flows showing how a single `.md` file becomes governed behavior, evidence, and earned autonomy. **Quick start:** paste `https://coznt.dev/walkthrough` into your agent for a generated starter set of `.agents/` files based on this project's actual debt — the agent reads `get_verification_debt` + `get_outcomes`, maps real incidents to code, and opens a PR via `propose_artifact` for you to review.
+- **Tune the routing.** The agent's session-start context comes from the coznt-claimed section in your `CLAUDE.md`/`AGENTS.md`. The block auto-refreshes via content-hash on every MCP response, but if you want to override coznt's default routing rules for this project (e.g. "every story needs a security ADR"), author a project-tier rule at `.agents/rules/` — it's picked up on PR merge and added to the routing surface the agent reads.
 - **Read the verification debt thesis.** [docs/product/verification-debt-thesis.md](../product/verification-debt-thesis.md) — the formula, the rationale, and why "trust-establishment cost" is the analytical primitive coznt is built around.
 - **Read the governance spec.** [docs/spec/governance-schema-simplified.md](../spec/governance-schema-simplified.md) — the canonical schema doc: five primitives, four governance kinds, nine plan kinds, seven relationship kinds, the §10 design discipline rules, and the litmus tests for "is this a policy or a record?".
 - **Read the positioning.** [docs/positioning.md](../positioning.md) — AI-DLC Governed tagline, Govern–Verify–Trust spine, daemon + choreography architecture, what coznt deliberately is *not*.
 
-# If the coach goes off-script
+# If the editor goes off-script
 
-The coach is a choreography, not a constraint. If it ever leaks a verb name at you, or asks three questions when it should ask one, the fix is in `src/automations/skills/project-lifecycle/SKILL.md`. File a PR. For the usual webhook / binding / autonomy issues, see [`operate/install.md`](../operate/install.md) and [`operate/webhook-auth.md`](../operate/webhook-auth.md).
+There is no separate coach to debug — your editor's agent IS the coach, configured by three surfaces. If it leaks a verb name at you, asks three questions when it should ask one, or routes to the wrong skill, the fix is in one of:
+
+- **CLAUDE.md/AGENTS.md claim block** — the always-on routing rules. Run any MCP verb to trigger content-hash refresh if it looks stale.
+- **MCP tool descriptions** — per-verb guidance lives in `src/mcp/server.ts`. PRs welcome.
+- **`get_my_context` response** — the state-aware routing recommendation. Logic in `src/mcp/tools/get-my-context.ts`.
+- **Server-side skill bodies** — `src/automations/skills/<slug>/` for the actual choreographies invoked via `invoke_skill`.
+
+For the usual webhook / binding / autonomy issues, see [`operate/install.md`](../operate/install.md) and [`operate/webhook-auth.md`](../operate/webhook-auth.md).

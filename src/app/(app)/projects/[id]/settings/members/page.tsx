@@ -5,13 +5,10 @@ export default async function MembersSettings() {
 
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
-        <h2 className="text-base font-semibold">Members</h2>
-        <p className="text-xs text-muted-foreground">
-          Org members can be granted project roles via /settings (org level).
-          This view lists who currently has access.
-        </p>
-      </header>
+      <p className="text-xs text-muted-foreground">
+        Org members can be granted project roles via /settings (org level).
+        This view lists who currently has access.
+      </p>
       {members.length === 0 ? (
         <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">
           No members loaded.

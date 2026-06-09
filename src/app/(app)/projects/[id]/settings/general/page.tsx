@@ -20,7 +20,7 @@ export default async function GeneralPage({
   const projectKey = await getActiveProjectKey(id);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <SettingsTab project={serializeCockpitProject(project)} />
       <ConnectAgentSection
         projectId={id}

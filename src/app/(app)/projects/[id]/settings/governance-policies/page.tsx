@@ -10,14 +10,11 @@ export default async function ProjectGovernancePoliciesSettingsPage({
   const policies = await listPoliciesForProject(id);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h2 className="text-base font-semibold">Governance policies</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Project-scoped policies plus inherited org-wide ones. To inspect outcomes,
-          open the Governance tab.
-        </p>
-      </header>
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Project-scoped policies plus inherited org-wide ones. To inspect outcomes,
+        open the Governance tab.
+      </p>
 
       {policies.length === 0 ? (
         <div className="rounded border bg-muted/20 p-6 text-sm text-muted-foreground">
