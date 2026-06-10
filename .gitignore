@@ -12,6 +12,7 @@ out/
 
 # production
 build/
+!scripts/build/
 dist/
 data/
 
