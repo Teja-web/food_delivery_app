@@ -27,9 +27,23 @@ const publicInstallDir = join(repoRoot, "public", "install");
 
 function run(cmd: string, args: string[], cwd: string): void {
   const result = spawnSync(cmd, args, { cwd, stdio: "inherit" });
+  if (result.error) {
+    throw new Error(
+      `${cmd} ${args.join(" ")} failed to start: ${result.error.message}`,
+    );
+  }
   if (result.status !== 0) {
     throw new Error(`${cmd} ${args.join(" ")} failed with status ${result.status ?? "null"}`);
   }
+}
+
+function runPackageTool(tool: string, args: string[], cwd: string): void {
+  const pmExecPath = process.env.npm_execpath;
+  if (pmExecPath) {
+    run(process.execPath, [pmExecPath, "exec", tool, ...args], cwd);
+    return;
+  }
+  run("npx", [tool, ...args], cwd);
 }
 
 console.log(`[cli:pack] version ${version}`);
@@ -39,10 +53,10 @@ console.log(`[cli:pack] version ${version}`);
 rmSync(stageDir, { recursive: true, force: true });
 
 console.log("[cli:pack] type-checking…");
-run("npx", ["tsc", "--noEmit", "-p", "tsconfig.cli.json"], repoRoot);
+runPackageTool("tsc", ["--noEmit", "-p", "tsconfig.cli.json"], repoRoot);
 
 console.log("[cli:pack] bundling with tsup…");
-run("npx", ["tsup", "--config", "tsup.cli.config.ts"], repoRoot);
+runPackageTool("tsup", ["--config", "tsup.cli.config.ts"], repoRoot);
 
 console.log("[cli:pack] staging package contents…");
 mkdirSync(stageDir, { recursive: true });

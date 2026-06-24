@@ -38,9 +38,23 @@ const publicInstallDir = join(repoRoot, "public", "install");
 
 function run(cmd: string, args: string[], cwd: string): void {
   const result = spawnSync(cmd, args, { cwd, stdio: "inherit" });
+  if (result.error) {
+    throw new Error(
+      `${cmd} ${args.join(" ")} failed to start: ${result.error.message}`,
+    );
+  }
   if (result.status !== 0) {
     throw new Error(`${cmd} ${args.join(" ")} failed with status ${result.status ?? "null"}`);
   }
+}
+
+function runPackageTool(tool: string, args: string[], cwd: string): void {
+  const pmExecPath = process.env.npm_execpath;
+  if (pmExecPath) {
+    run(process.execPath, [pmExecPath, "exec", tool, ...args], cwd);
+    return;
+  }
+  run("npx", [tool, ...args], cwd);
 }
 
 console.log(`[mcp:pack] version ${version}`);
@@ -49,10 +63,10 @@ rmSync(distDir, { recursive: true, force: true });
 mkdirSync(distDir, { recursive: true });
 
 console.log("[mcp:pack] type-checking…");
-run("npx", ["tsc", "--noEmit", "-p", "tsconfig.mcp.json"], repoRoot);
+runPackageTool("tsc", ["--noEmit", "-p", "tsconfig.mcp.json"], repoRoot);
 
 console.log("[mcp:pack] bundling with tsup…");
-run("npx", ["tsup", "--config", "tsup.mcp.config.ts"], repoRoot);
+runPackageTool("tsup", ["--config", "tsup.mcp.config.ts"], repoRoot);
 
 console.log("[mcp:pack] staging package contents…");
 mkdirSync(stageDir, { recursive: true });
