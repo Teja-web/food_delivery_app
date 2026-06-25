@@ -11,6 +11,10 @@ import { assertElevatedRole, getActionContext } from "@/lib/auth/context";
 import { getPolicyTemplate } from "@/lib/governance/policy-templates";
 import { projectCrud } from "@/operations/project/projects";
 import { safeRevalidate } from "@/lib/safe-revalidate";
+import {
+  ensureAdapterBinding,
+  normalizeRepositoryInput,
+} from "@/operations/project/source-binding-sync";
 
 export async function listProjects(opts: { offset?: number; limit?: number } = {}) {
   return projectCrud.list({ offset: opts.offset ?? 0, limit: opts.limit ?? 25, sortBy: "createdAt", sortOrder: "desc" });
@@ -92,6 +96,20 @@ export async function createProjectAction(
   if (!input.skipGovernance && !template) {
     return { ok: false, error: `Unknown governance template: ${input.templateId}.` };
   }
+  let normalizedRepo:
+    | ReturnType<typeof normalizeRepositoryInput>
+    | null = null;
+  if (input.repository) {
+    try {
+      normalizedRepo = normalizeRepositoryInput({
+        source: input.repository.source,
+        identifier: input.repository.identifier,
+        url: input.repository.url,
+      });
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Invalid repository binding." };
+    }
+  }
 
   try {
     const projectRow = await projectCrud.create({
@@ -139,12 +157,21 @@ export async function createProjectAction(
         ? db.insert(repositories).values({
             organizationId: ctx.organizationId,
             projectId: projectRow.id,
-            source: input.repository.source,
-            identifier: input.repository.identifier,
-            url: input.repository.url,
+            source: normalizedRepo!.source,
+            identifier: normalizedRepo!.identifier,
+            url: normalizedRepo!.url,
           })
         : Promise.resolve(),
     ]);
+
+    if (normalizedRepo) {
+      await ensureAdapterBinding({
+        organizationId: ctx.organizationId,
+        projectId: projectRow.id,
+        source: normalizedRepo.source,
+        externalKey: normalizedRepo.externalKey,
+      });
+    }
 
     safeRevalidate("/projects");
     return { ok: true, id: projectRow.id };

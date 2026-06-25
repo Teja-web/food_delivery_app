@@ -170,7 +170,7 @@ function RepoTableRow({
       </td>
       <td className="px-3 py-2 text-xs">
         {adapterConnected ? (
-          <span className="text-muted-foreground">Connected</span>
+          <span className="text-muted-foreground">Credentials configured</span>
         ) : (
           <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-500">
             <AlertTriangle className="h-3 w-3" aria-hidden />
