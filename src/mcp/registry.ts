@@ -105,6 +105,14 @@ import {
   decideGovernanceRecordInput,
   runDecideGovernanceRecord,
 } from "./tools/governance/decide-governance-record";
+import {
+  pushPlanToJiraInput,
+  runPushPlanToJira,
+} from "./tools/integration/push-plan-to-jira";
+import {
+  syncJiraWorkItemsInput,
+  runSyncJiraWorkItems,
+} from "./tools/integration/sync-jira-work-items";
 
 export interface ToolDef<T extends ZodTypeAny> {
   name: string;
@@ -324,12 +332,31 @@ export const tools = [
   tool({
     name: "update_work_item_status",
     description: [
-      "Update a coznt work_item's status and/or assignee. Does NOT sync",
-      "the change upstream (GitHub / Jira / ADO) — that's push_to_external's",
-      "job.",
+      "Update a coznt work_item's status and/or assignee. For Jira-sourced",
+      "work_items, the platform also attempts to transition the linked Jira",
+      "issue to the matching workflow status.",
     ].join(" "),
     schema: updateWorkItemStatusInput,
     run: runUpdateWorkItemStatus,
+  }),
+  tool({
+    name: "push_plan_to_jira",
+    description: [
+      "Manually push one Coznt plan into the project's bound Jira project.",
+      "Creates a Jira issue on first push and updates the existing issue when",
+      "the plan already has a jira externalRef.",
+    ].join(" "),
+    schema: pushPlanToJiraInput,
+    run: runPushPlanToJira,
+  }),
+  tool({
+    name: "sync_jira_work_items",
+    description: [
+      "Manually pull the bound Jira project's current issues into Coznt",
+      "work_items. Use this when Jira webhooks are not configured yet.",
+    ].join(" "),
+    schema: syncJiraWorkItemsInput,
+    run: runSyncJiraWorkItems,
   }),
   tool({
     name: "update_test_result",

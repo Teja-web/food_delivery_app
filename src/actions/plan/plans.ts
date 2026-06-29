@@ -1,9 +1,21 @@
 "use server";
 
-import { planCrud, createPlan as createPlanOp, listPlansByProject, appendPlanRevision, listPlanRevisions } from "@/operations/plan/plans";
+import { pushPlanToJira } from "@/lib/integrations/outbound";
+import {
+  appendPlanRevision,
+  createPlan as createPlanOp,
+  listPlanRevisions,
+  listPlansByProject,
+  planCrud,
+} from "@/operations/plan/plans";
 
 export async function listPlans(opts: { offset?: number; limit?: number } = {}) {
-  return planCrud.list({ offset: opts.offset ?? 0, limit: opts.limit ?? 25, sortBy: "updatedAt", sortOrder: "desc" });
+  return planCrud.list({
+    offset: opts.offset ?? 0,
+    limit: opts.limit ?? 25,
+    sortBy: "updatedAt",
+    sortOrder: "desc",
+  });
 }
 
 export async function getPlan(id: string) {
@@ -39,16 +51,21 @@ export async function savePlanRevision(args: {
 
   const titleChanged = existing.title !== args.title;
   const summaryChanged = (existing.summary ?? null) !== args.summary;
+  const bodyChanged = (existing.body ?? "") !== args.body;
   if (titleChanged || summaryChanged) {
     await planCrud.update(args.planId, { title: args.title, summary: args.summary });
   }
 
-  if ((existing.body ?? "") !== args.body) {
+  if (bodyChanged) {
     await appendPlanRevision({
       planArtifactId: args.planId,
       body: args.body,
       changeNote: args.changeNote,
     });
+  }
+
+  if ((titleChanged || summaryChanged || bodyChanged) && existing.externalRef?.startsWith("jira:")) {
+    await pushPlanToJira(args.planId);
   }
 }
 

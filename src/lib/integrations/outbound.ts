@@ -62,13 +62,16 @@ const PLAN_KIND_TO_ADO_TYPE: Record<string, string> = {
  *
  * Re-running on an already-pushed plan updates summary + description in place.
  */
-export async function pushPlanToJira(planId: string): Promise<{ key: string; url: string } | null> {
+export async function pushPlanToJira(
+  planId: string,
+  options: { throwOnError?: boolean } = {},
+): Promise<{ key: string; url: string } | null> {
   try {
     const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
-    if (!plan) return null;
+    if (!plan) throw new Error("Plan not found");
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "jira");
-    if (!binding) return null;
+    if (!binding) throw new Error("No Jira binding configured for this project");
 
     const issueType = PLAN_KIND_TO_JIRA_TYPE[plan.kind] ?? "Task";
     const client = await getJiraClient(plan.organizationId);
@@ -81,7 +84,18 @@ export async function pushPlanToJira(planId: string): Promise<{ key: string; url
         summary: plan.title,
         description,
       });
-      const url = `${binding.config && (binding.config as { baseUrl?: string }).baseUrl ? (binding.config as { baseUrl: string }).baseUrl.replace(/\/$/, "") : ""}/browse/${issueKey}`;
+      const url = client.issueBrowseUrl(issueKey);
+      await upsertWorkItem({
+        organizationId: plan.organizationId,
+        projectId: plan.projectId,
+        planArtifactId: plan.id,
+        source: "jira",
+        externalId: issueKey,
+        externalUrl: url,
+        kind: jiraIssueTypeToWorkItemKind(issueType),
+        title: plan.title,
+        description,
+      });
       return { key: issueKey, url };
     }
 
@@ -92,8 +106,7 @@ export async function pushPlanToJira(planId: string): Promise<{ key: string; url
       issueType,
       labels: [`coznt-${plan.kind}`],
     });
-    const baseUrl = (binding.config as { baseUrl?: string } | null)?.baseUrl ?? "";
-    const url = `${baseUrl.replace(/\/$/, "")}/browse/${created.key}`;
+    const url = client.issueBrowseUrl(created.key);
 
     await db
       .update(plans)
@@ -107,7 +120,7 @@ export async function pushPlanToJira(planId: string): Promise<{ key: string; url
       source: "jira",
       externalId: created.key,
       externalUrl: url,
-      kind: issueType.toLowerCase() === "epic" ? "epic" : "story",
+      kind: jiraIssueTypeToWorkItemKind(issueType),
       title: plan.title,
       description,
       status: "Open",
@@ -117,8 +130,16 @@ export async function pushPlanToJira(planId: string): Promise<{ key: string; url
     return { key: created.key, url };
   } catch (err) {
     log.error("pushPlanToJira failed", { planId, err: String(err) });
+    if (options.throwOnError) throw err;
     return null;
   }
+}
+
+function jiraIssueTypeToWorkItemKind(issueType: string): "epic" | "story" | "task" {
+  const normalized = issueType.toLowerCase();
+  if (normalized === "epic") return "epic";
+  if (normalized === "story") return "story";
+  return "task";
 }
 
 /**
@@ -160,10 +181,10 @@ export async function transitionJiraIssueForPlan(
  */
 function mapCozntStatusToJira(status: string): string {
   const s = status.toLowerCase();
-  if (s === "draft" || s === "in_review") return "To Do";
+  if (s === "draft" || s === "in_review" || s === "changes_requested") return "To Do";
   if (s === "approved" || s === "in_progress") return "In Progress";
   if (s === "completed" || s === "done") return "Done";
-  if (s === "rejected") return "Won't Do";
+  if (s === "rejected" || s === "cancelled") return "Won't Do";
   return status;
 }
 

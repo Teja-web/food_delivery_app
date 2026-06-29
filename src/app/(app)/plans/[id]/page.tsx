@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
+import { and, eq } from "drizzle-orm";
 
+import { db } from "@/db/client";
+import { workItems } from "@/db/schema/work-item";
 import { listCommentsForPlan, createComment } from "@/actions/plan/comments";
 import { getPlan } from "@/actions/plan/plans";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +16,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { listEvidenceForPlan } from "@/operations/evidence";
 import { listRecordsForPlan } from "@/operations/governance/records";
+import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
 import {
   getPlanAncestry,
   listChildPlans,
@@ -22,6 +26,7 @@ import { listRelationshipsForPlan } from "@/operations/plan/relationships";
 
 import { ApprovalActions } from "./ApprovalActions";
 import { PlanEditor } from "./PlanEditor";
+import { PushPlanToJiraButton } from "./PushPlanToJiraButton";
 
 async function addComment(planId: string, formData: FormData) {
   "use server";
@@ -44,7 +49,18 @@ export default async function PlanDetailPage({
   const plan = await getPlan(id);
   if (!plan) notFound();
 
-  const [comments, records, evidence, relationships, revisions, children, ancestry, bodyHtml] =
+  const [
+    comments,
+    records,
+    evidence,
+    relationships,
+    revisions,
+    children,
+    ancestry,
+    bodyHtml,
+    jiraBinding,
+    jiraWorkItem,
+  ] =
     await Promise.all([
       listCommentsForPlan(id),
       listRecordsForPlan(id),
@@ -56,6 +72,11 @@ export default async function PlanDetailPage({
       plan.body
         ? (marked.parse(plan.body, { gfm: true, breaks: false }) as Promise<string>)
         : Promise.resolve(""),
+      getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
+      db.query.workItems.findFirst({
+        where: and(eq(workItems.planArtifactId, id), eq(workItems.source, "jira")),
+        columns: { externalUrl: true, externalId: true },
+      }),
     ]);
 
   const pendingApprovals = records.filter(
@@ -111,15 +132,17 @@ export default async function PlanDetailPage({
               <Badge variant="outline" className="font-mono text-[10px] uppercase">
                 {plan.status.replace("_", " ")}
               </Badge>
-              {plan.externalRef ? (
+              {plan.externalRef && jiraWorkItem?.externalUrl ? (
                 <a
-                  href={plan.externalRef}
+                  href={jiraWorkItem.externalUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {plan.externalRef}
+                  {jiraWorkItem.externalId}
                 </a>
+              ) : plan.externalRef ? (
+                <span className="text-xs text-muted-foreground">{plan.externalRef}</span>
               ) : null}
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">{plan.title}</h1>
@@ -128,6 +151,7 @@ export default async function PlanDetailPage({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {jiraBinding ? <PushPlanToJiraButton planId={id} /> : null}
             <Button asChild variant="outline" size="sm">
               <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
             </Button>

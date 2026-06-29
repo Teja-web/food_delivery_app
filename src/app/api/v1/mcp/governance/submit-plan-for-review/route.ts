@@ -13,6 +13,7 @@ import { db } from "@/db/client";
 import { planArtifacts } from "@/db/schema/plan/plan-artifact";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError } from "@/lib/auth/scope";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { planCrud } from "@/operations/plan/plans";
 import { materializeGovernanceRecords } from "@/operations/governance/records";
 
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       await planCrud.update(plan.id, {
         status: "approved",
       });
+      await transitionJiraIssueForPlan(plan.id, "approved");
       autoApproved = true;
     }
 

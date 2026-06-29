@@ -27,6 +27,7 @@ import { projects, type Project } from "@/db/schema/project";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 import { approvalPolicyDetails } from "@/lib/governance/schemas";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { listPoliciesForTransition } from "./policies";
 
 const policySnapshotSchema = z.object({
@@ -306,6 +307,7 @@ export async function decideGovernanceRecord(args: {
               eq(planArtifacts.organizationId, ctx.organizationId),
             ),
           );
+        await transitionJiraIssueForPlan(existing.planArtifactId, "changes_requested");
       } else if (allPassed) {
         await db
           .update(planArtifacts)
@@ -321,6 +323,7 @@ export async function decideGovernanceRecord(args: {
               eq(planArtifacts.organizationId, ctx.organizationId),
             ),
           );
+        await transitionJiraIssueForPlan(existing.planArtifactId, "approved");
       }
     }
   }

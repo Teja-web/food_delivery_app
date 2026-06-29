@@ -5,6 +5,7 @@
  */
 
 import { handleApi } from "@/lib/auth/api-key";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { planCrud } from "@/operations/plan/plans";
 import { materializeGovernanceRecords } from "@/operations/governance/records";
 
@@ -34,6 +35,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     let autoApproved = false;
     if (records.length === 0) {
       await planCrud.update(id, { status: "approved" });
+      await transitionJiraIssueForPlan(id, "approved");
       autoApproved = true;
     }
 

@@ -23,6 +23,7 @@ import {
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
+import { pushPlanToJira } from "@/lib/integrations/outbound";
 import { upsertPlanByKindAndSlug } from "@/operations/plan/plans";
 
 const upsertBodySchema = z.object({
@@ -55,6 +56,9 @@ export async function POST(req: Request) {
       ...rest,
       parentPlanArtifactId: parentPlanId ?? null,
     });
+    if (!result.created && result.plan.externalRef?.startsWith("jira:")) {
+      await pushPlanToJira(result.plan.id);
+    }
     const nextAction = await computeNextAction(ctx.organizationId, project.id);
     return {
       plan: {

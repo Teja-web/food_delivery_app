@@ -15,6 +15,7 @@ import {
 import {
   checkProjectSlugAvailability,
   createProjectAction,
+  previewJiraProjectConnectionAction,
   type CreateProjectWizardInput,
 } from "@/actions/project/projects";
 import { REPOSITORY_SOURCES, type RepositorySource } from "@/db/schema/repository";
@@ -105,6 +106,7 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState<StepId>(1);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [jiraCreatePrompt, setJiraCreatePrompt] = useState<{ key: string } | null>(null);
   const [slugState, setSlugState] = useState<SlugState>({ kind: "idle" });
 
   const [form, setForm] = useState<FormState>({
@@ -173,8 +175,9 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
     });
   }
 
-  function handleSubmit() {
+  function handleSubmit(createMissingJiraProject = false) {
     setSubmitError(null);
+    setJiraCreatePrompt(null);
     if (!canAdvanceFromStep1) {
       setStep(1);
       return;
@@ -197,6 +200,7 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
               source: form.repoSource,
               identifier: form.repoIdentifier.trim(),
               url: form.repoUrl.trim() || undefined,
+              createMissingJiraProject,
             }
           : undefined,
       environmentsToCreate: form.environments
@@ -207,6 +211,22 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
     };
 
     startTransition(async () => {
+      if (
+        payload.repository?.source === "jira" &&
+        createMissingJiraProject !== true
+      ) {
+        try {
+          const preview = await previewJiraProjectConnectionAction(payload.repository.identifier);
+          if (!preview.exists) {
+            setJiraCreatePrompt({ key: preview.key });
+            return;
+          }
+        } catch (err) {
+          setSubmitError(err instanceof Error ? err.message : "Jira project check failed.");
+          return;
+        }
+      }
+
       const result = await createProjectAction(payload);
       if (result.ok) {
         router.push(`/projects/${result.id}/overview`);
@@ -255,6 +275,38 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{submitError}</span>
+          </div>
+        ) : null}
+
+        {jiraCreatePrompt ? (
+          <div className="mt-5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+            <div className="font-medium text-foreground">
+              Create Jira project {jiraCreatePrompt.key}?
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Coznt could not find an existing Jira project or board for this key.
+              Approving will create a Jira Software project named {form.name.trim()},
+              then bind and sync it during project creation.
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending}
+                onClick={() => handleSubmit(true)}
+              >
+                Approve creation
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setJiraCreatePrompt(null)}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         ) : null}
 
@@ -307,7 +359,7 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button type="button" onClick={handleSubmit} disabled={pending}>
+              <Button type="button" onClick={() => handleSubmit()} disabled={pending}>
                 {pending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -500,7 +552,7 @@ function GovernanceStep({
             {approverCandidates.map((m) => {
               const checked = form.approverIds.has(m.userId);
               return (
-                <label
+                <Label
                   key={m.userId}
                   className={cn(
                     "flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/40",
@@ -521,7 +573,7 @@ function GovernanceStep({
                   <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {m.role}
                   </span>
-                </label>
+                </Label>
               );
             })}
           </div>
@@ -550,7 +602,7 @@ function GovernanceStep({
           disabled={form.skipGovernance}
         >
           {POLICY_TEMPLATES.map((t) => (
-            <label
+            <Label
               key={t.id}
               htmlFor={`tpl-${t.id}`}
               className={cn(
@@ -576,7 +628,7 @@ function GovernanceStep({
                   Recommended
                 </span>
               ) : null}
-            </label>
+            </Label>
           ))}
         </RadioGroup>
       </section>
@@ -689,10 +741,11 @@ function SourcesStep({
       </section>
 
       <section className="space-y-3">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => setForm((f) => ({ ...f, showAdvanced: !f.showAdvanced }))}
-          className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          className="h-auto gap-1.5 p-0 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:bg-transparent hover:text-foreground"
         >
           {form.showAdvanced ? (
             <ChevronDown className="h-3.5 w-3.5" />
@@ -700,7 +753,7 @@ function SourcesStep({
             <ChevronRight className="h-3.5 w-3.5" />
           )}
           Advanced — critical paths
-        </button>
+        </Button>
 
         {form.showAdvanced ? (
           <div className="space-y-4">
