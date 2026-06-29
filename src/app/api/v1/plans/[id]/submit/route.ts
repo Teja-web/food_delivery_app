@@ -30,6 +30,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       transitionFrom: "draft",
       transitionTo: "in_review",
     });
-    return { plan: await planCrud.get(id), governanceRecords: records };
+
+    let autoApproved = false;
+    if (records.length === 0) {
+      await planCrud.update(id, { status: "approved" });
+      autoApproved = true;
+    }
+
+    return {
+      plan: await planCrud.get(id),
+      governanceRecords: records,
+      autoApproved,
+      note: autoApproved
+        ? "No governance policy applied to this transition; plan auto-approved."
+        : undefined,
+    };
   });
 }
