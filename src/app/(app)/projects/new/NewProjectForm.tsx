@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   checkProjectSlugAvailability,
@@ -63,6 +64,12 @@ interface FormState {
   repoSource: RepositorySource | "none";
   repoIdentifier: string;
   repoUrl: string;
+  githubRepositoryId: number | null;
+  githubOwner: string;
+  githubRepoName: string;
+  githubCloneUrl: string;
+  githubCreateNew: boolean;
+  githubNewRepositoryName: string;
   environments: EnvironmentDraft[];
   criticalPathsText: string;
   productionCriticalPathsText: string;
@@ -101,10 +108,25 @@ export interface NewProjectFormProps {
   approverCandidates: OrgMemberRow[];
 }
 
+interface GitHubRepoOption {
+  id: number;
+  owner: string;
+  repoName: string;
+  fullName: string;
+  cloneUrl: string;
+}
+
+interface GitHubProfile {
+  login: string;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
 export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState<StepId>(1);
+  const [stepHydrated, setStepHydrated] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [jiraCreatePrompt, setJiraCreatePrompt] = useState<{ key: string } | null>(null);
   const [slugState, setSlugState] = useState<SlugState>({ kind: "idle" });
@@ -120,11 +142,30 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
     repoSource: "none",
     repoIdentifier: "",
     repoUrl: "",
+    githubRepositoryId: null,
+    githubOwner: "",
+    githubRepoName: "",
+    githubCloneUrl: "",
+    githubCreateNew: false,
+    githubNewRepositoryName: "",
     environments: INITIAL_ENVIRONMENTS,
     criticalPathsText: "",
     productionCriticalPathsText: "",
     showAdvanced: false,
   });
+
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem("new-project-step");
+    if (saved === "1" || saved === "2" || saved === "3") {
+      setStep(Number(saved) as StepId);
+    }
+    setStepHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!stepHydrated) return;
+    window.sessionStorage.setItem("new-project-step", String(step));
+  }, [step, stepHydrated]);
 
   useEffect(() => {
     if (!form.slugTouched) {
@@ -195,14 +236,31 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
       templateId: form.templateId,
       skipGovernance: form.skipGovernance,
       repository:
-        form.repoSource !== "none" && form.repoIdentifier.trim().length > 0
-          ? {
-              source: form.repoSource,
-              identifier: form.repoIdentifier.trim(),
-              url: form.repoUrl.trim() || undefined,
-              createMissingJiraProject,
-            }
-          : undefined,
+        form.repoSource === "github"
+          ? form.githubCreateNew && form.githubNewRepositoryName.trim().length > 0
+            ? {
+                source: "github",
+                createNewRepositoryName: form.githubNewRepositoryName.trim(),
+              }
+            : form.githubOwner.trim().length > 0 && form.githubRepoName.trim().length > 0
+              ? {
+                  source: "github",
+                  githubRepositoryId: form.githubRepositoryId ?? undefined,
+                  owner: form.githubOwner.trim(),
+                  repoName: form.githubRepoName.trim(),
+                  cloneUrl: form.githubCloneUrl.trim() || undefined,
+                  identifier: form.repoIdentifier.trim() || undefined,
+                  url: form.repoUrl.trim() || undefined,
+                }
+              : undefined
+          : form.repoSource !== "none" && form.repoIdentifier.trim().length > 0
+            ? {
+                source: form.repoSource,
+                identifier: form.repoIdentifier.trim(),
+                url: form.repoUrl.trim() || undefined,
+                createMissingJiraProject,
+              }
+            : undefined,
       environmentsToCreate: form.environments
         .filter((e) => e.enabled && e.name.trim().length > 0)
         .map((e) => ({ name: e.name.trim(), tier: e.tier })),
@@ -264,6 +322,7 @@ export function NewProjectForm({ approverCandidates }: NewProjectFormProps) {
               setForm={setForm}
               setEnvironmentEnabled={setEnvironmentEnabled}
               setEnvironmentName={setEnvironmentName}
+              ensureStepThree={() => setStep(3)}
             />
           )}
         </div>
@@ -644,6 +703,7 @@ interface SourcesStepProps {
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
   setEnvironmentEnabled: (idx: number, enabled: boolean) => void;
   setEnvironmentName: (idx: number, name: string) => void;
+  ensureStepThree: () => void;
 }
 
 function SourcesStep({
@@ -651,7 +711,245 @@ function SourcesStep({
   setForm,
   setEnvironmentEnabled,
   setEnvironmentName,
+  ensureStepThree,
 }: SourcesStepProps) {
+  const [githubRepos, setGithubRepos] = useState<GitHubRepoOption[]>([]);
+  const [githubProfile, setGithubProfile] = useState<GitHubProfile | null>(null);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubLoadedOnce, setGithubLoadedOnce] = useState(false);
+
+  async function fetchGitHubConnectionSnapshot(): Promise<
+    | { connected: false; error?: string }
+    | { connected: true; profile: GitHubProfile; repositories: GitHubRepoOption[] }
+  > {
+    const [profileResponse, reposResponse] = await Promise.all([
+      fetch("/api/github/profile", { method: "GET" }),
+      fetch("/api/github/repos", { method: "GET" }),
+    ]);
+
+    if (profileResponse.status === 401 || reposResponse.status === 401) {
+      return { connected: false };
+    }
+
+    const profilePayload = (await profileResponse.json()) as {
+      profile?: GitHubProfile;
+      error?: string;
+    };
+    const reposPayload = (await reposResponse.json()) as {
+      repositories?: GitHubRepoOption[];
+      error?: string;
+    };
+
+    if (!profileResponse.ok) {
+      return { connected: false, error: profilePayload.error || "Could not fetch GitHub profile." };
+    }
+    if (!reposResponse.ok) {
+      return { connected: false, error: reposPayload.error || "Could not fetch GitHub repositories." };
+    }
+    if (!profilePayload.profile) {
+      return { connected: false, error: "Could not fetch GitHub profile." };
+    }
+
+    return {
+      connected: true,
+      profile: profilePayload.profile,
+      repositories: reposPayload.repositories ?? [],
+    };
+  }
+
+  async function loadGitHubConnectionData(force = false) {
+    if (!force && (githubLoadedOnce || githubLoading)) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const snapshot = await fetchGitHubConnectionSnapshot();
+      if (!snapshot.connected) {
+        setGithubConnected(false);
+        setGithubProfile(null);
+        setGithubLoadedOnce(true);
+        setGithubRepos([]);
+        setGithubError(snapshot.error ?? null);
+        return;
+      }
+      setGithubProfile(snapshot.profile);
+      setGithubRepos(snapshot.repositories);
+      setGithubConnected(true);
+      setGithubLoadedOnce(true);
+    } catch (err) {
+      setGithubConnected(false);
+      setGithubProfile(null);
+      setGithubLoadedOnce(true);
+      setGithubError(err instanceof Error ? err.message : "Could not fetch GitHub data.");
+    } finally {
+      setGithubLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (form.repoSource === "github" && !githubLoadedOnce && !githubLoading) {
+      void loadGitHubConnectionData();
+    }
+  }, [form.repoSource, githubLoadedOnce, githubLoading]);
+
+  async function connectGitHub(opts: { switchAccount?: boolean } = {}) {
+    setGithubError(null);
+    setGithubLoading(true);
+    try {
+      const response = await fetch(
+        opts.switchAccount ? "/api/github/auth/url?switch=1" : "/api/github/auth/url",
+        { method: "GET" },
+      );
+      const payload = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || "Could not start GitHub OAuth.");
+      }
+
+      const popup = window.open(
+        payload.url,
+        "github-oauth",
+        "width=600,height=700,menubar=no,toolbar=no,status=no",
+      );
+      if (!popup) {
+        throw new Error("Popup blocked. Please allow popups and try again.");
+      }
+
+      const result = await new Promise<{ status: "success" | "error"; error?: string }>((resolve) => {
+        let settled = false;
+        let closeCheckRunning = false;
+        let messageArrived = false;
+        const finish = (value: { status: "success" | "error"; error?: string }) => {
+          if (settled) return;
+          settled = true;
+          window.clearInterval(timer);
+          window.removeEventListener("message", onMessage);
+          resolve(value);
+        };
+
+        const timer = window.setInterval(async () => {
+          if (!popup.closed || settled || closeCheckRunning) return;
+          closeCheckRunning = true;
+          if (messageArrived) {
+            finish({ status: "success" });
+            return;
+          }
+          try {
+            for (let i = 0; i < 5; i += 1) {
+              const snapshot = await fetchGitHubConnectionSnapshot();
+              if (snapshot.connected) {
+                finish({ status: "success" });
+                return;
+              }
+              await new Promise((r) => window.setTimeout(r, 250));
+            }
+            finish({ status: "error", error: "OAuth was cancelled." });
+          } catch {
+            finish({ status: "error", error: "OAuth was cancelled." });
+          }
+        }, 400);
+
+        function onMessage(event: MessageEvent) {
+          if (event.origin !== window.location.origin) return;
+          const data = event.data as { type?: string; status?: "success" | "error"; error?: string };
+          const success =
+            data?.type === "github-oauth-success" ||
+            (data?.type === "github-oauth" && data?.status === "success");
+          const error =
+            data?.type === "github-oauth-error" ||
+            (data?.type === "github-oauth" && data?.status === "error");
+          if (!success && !error) return;
+          messageArrived = true;
+          finish({ status: success ? "success" : "error", error: data.error });
+        }
+
+        window.addEventListener("message", onMessage);
+      });
+
+      if (result.status !== "success") {
+        throw new Error(result.error || "GitHub authorization failed.");
+      }
+
+      ensureStepThree();
+      setGithubError(null);
+      setGithubLoadedOnce(false);
+      await loadGitHubConnectionData(true);
+      toast.success("GitHub account connected.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not connect GitHub.";
+      setGithubError(message);
+      toast.error(message);
+    } finally {
+      setGithubLoading(false);
+    }
+  }
+
+  function clearGitHubSelection() {
+    setForm((f) => ({
+      ...f,
+      repoIdentifier: "",
+      repoUrl: "",
+      githubRepositoryId: null,
+      githubOwner: "",
+      githubRepoName: "",
+      githubCloneUrl: "",
+      githubCreateNew: false,
+      githubNewRepositoryName: "",
+    }));
+  }
+
+  async function switchGitHubAccount() {
+    setGithubError(null);
+    setGithubLoading(true);
+    try {
+      // Clear local selection/cache first; OAuth callback upsert replaces server token.
+      clearGitHubSelection();
+      setGithubRepos([]);
+      setGithubProfile(null);
+      setGithubConnected(false);
+      setGithubLoadedOnce(false);
+
+      await connectGitHub({ switchAccount: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not switch GitHub account.";
+      setGithubError(message);
+      toast.error(message);
+      setGithubLoadedOnce(false);
+      void loadGitHubConnectionData(true);
+      setGithubLoading(false);
+    }
+  }
+
+  function applyGitHubRepoSelection(value: string) {
+    if (value === "__create_new__") {
+      setForm((f) => ({
+        ...f,
+        repoIdentifier: "",
+        repoUrl: "",
+        githubRepositoryId: null,
+        githubOwner: "",
+        githubRepoName: "",
+        githubCloneUrl: "",
+        githubCreateNew: true,
+      }));
+      return;
+    }
+
+    const selected = githubRepos.find((repo) => String(repo.id) === value);
+    if (!selected) return;
+    setForm((f) => ({
+      ...f,
+      repoIdentifier: `${selected.owner}/${selected.repoName}`,
+      repoUrl: selected.cloneUrl,
+      githubRepositoryId: selected.id,
+      githubOwner: selected.owner,
+      githubRepoName: selected.repoName,
+      githubCloneUrl: selected.cloneUrl,
+      githubCreateNew: false,
+      githubNewRepositoryName: "",
+    }));
+  }
+
   return (
     <div className="space-y-6">
       <section className="space-y-3">
@@ -666,9 +964,13 @@ function SourcesStep({
         <div className="grid gap-3 sm:grid-cols-[160px,1fr]">
           <Select
             value={form.repoSource}
-            onValueChange={(v) =>
-              setForm((f) => ({ ...f, repoSource: v as RepositorySource | "none" }))
-            }
+            onValueChange={(v) => {
+              const nextSource = v as RepositorySource | "none";
+              if (nextSource !== "github" && form.repoSource === "github") {
+                clearGitHubSelection();
+              }
+              setForm((f) => ({ ...f, repoSource: nextSource }));
+            }}
           >
             <SelectTrigger>
               <SelectValue />
@@ -682,32 +984,134 @@ function SourcesStep({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            placeholder={
-              form.repoSource === "github"
-                ? "owner/repo"
-                : form.repoSource === "jira"
+          {form.repoSource === "github" ? (
+            !githubConnected ? (
+              <Button type="button" variant="outline" onClick={() => void connectGitHub()} disabled={githubLoading}>
+                {githubLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  "Connect GitHub"
+                )}
+              </Button>
+            ) : (
+              <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  {githubProfile?.avatarUrl ? (
+                    <img
+                      src={githubProfile.avatarUrl}
+                      alt={`${githubProfile.login} avatar`}
+                      className="h-7 w-7 rounded-full border"
+                    />
+                  ) : (
+                    <div className="h-7 w-7 rounded-full border bg-muted" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {githubProfile?.login ?? "Connected GitHub"}
+                    </div>
+                    {githubProfile?.name ? (
+                      <div className="truncate text-xs text-muted-foreground">{githubProfile.name}</div>
+                    ) : null}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={switchGitHubAccount}
+                  disabled={githubLoading}
+                >
+                  {githubLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Switching...
+                    </>
+                  ) : (
+                    "Switch account"
+                  )}
+                </Button>
+              </div>
+            )
+          ) : (
+            <Input
+              placeholder={
+                form.repoSource === "jira"
                   ? "Jira project key (e.g. INGEST)"
                   : form.repoSource === "ado"
                     ? "ADO project id"
                     : form.repoSource === "confluence"
                       ? "Confluence space key"
                       : "Pick a source first"
-            }
-            value={form.repoIdentifier}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, repoIdentifier: e.target.value }))
-            }
-            disabled={form.repoSource === "none"}
-          />
+              }
+              value={form.repoIdentifier}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, repoIdentifier: e.target.value }))
+              }
+              disabled={form.repoSource === "none"}
+            />
+          )}
         </div>
-        {form.repoSource === "github" ? (
+        {form.repoSource === "github" && githubConnected ? (
+          githubLoading && githubRepos.length === 0 ? (
+            <div className="flex h-10 items-center rounded-md border px-3 text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading repositories...
+            </div>
+          ) : (
+            <>
+              <Select
+                value={
+                  form.githubCreateNew
+                    ? "__create_new__"
+                    : form.githubRepositoryId !== null
+                      ? String(form.githubRepositoryId)
+                      : ""
+                }
+                onValueChange={applyGitHubRepoSelection}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select repository" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__create_new__">+ Create New Repository</SelectItem>
+                  {githubRepos.map((repo) => (
+                    <SelectItem key={repo.id} value={String(repo.id)}>
+                      {repo.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                If GitHub keeps authorizing the same account, sign out of github.com in this browser
+                and click <span className="font-medium">Switch account</span> again.
+              </p>
+            </>
+          )
+        ) : null}
+        {githubError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+            {githubError}
+          </div>
+        ) : null}
+        {form.repoSource === "github" && form.githubCreateNew ? (
           <Input
-            placeholder="Optional canonical URL (https://github.com/owner/repo)"
+            placeholder="Repository Name"
+            value={form.githubNewRepositoryName}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, githubNewRepositoryName: e.target.value }))
+            }
+          />
+        ) : null}
+        {form.repoSource === "github" ? null : (
+          <Input
+            placeholder="Optional canonical URL"
             value={form.repoUrl}
             onChange={(e) => setForm((f) => ({ ...f, repoUrl: e.target.value }))}
           />
-        ) : null}
+        )}
       </section>
 
       <section className="space-y-3">
@@ -797,3 +1201,4 @@ function SourcesStep({
     </div>
   );
 }
+

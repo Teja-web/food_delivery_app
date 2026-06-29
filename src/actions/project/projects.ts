@@ -15,6 +15,7 @@ import {
   ensureAdapterBinding,
   normalizeRepositoryInput,
 } from "@/operations/project/source-binding-sync";
+import { createGitHubRepository } from "@/operations/integration/github-oauth";
 import {
   ensureJiraProjectExists,
   JiraProjectMissingError,
@@ -69,12 +70,23 @@ export interface CreateProjectWizardInput {
   templateId: string;
   skipGovernance?: boolean;
   /** Step 3 — sources & environments. All optional. */
-  repository?: {
-    source: RepositorySource;
-    identifier: string;
-    url?: string;
-    createMissingJiraProject?: boolean;
-  };
+  repository?:
+    | {
+        source: "github";
+        identifier?: string;
+        url?: string;
+        githubRepositoryId?: number;
+        owner?: string;
+        repoName?: string;
+        cloneUrl?: string;
+        createNewRepositoryName?: string;
+      }
+    | {
+        source: Exclude<RepositorySource, "github">;
+        identifier: string;
+        url?: string;
+        createMissingJiraProject?: boolean;
+      };
   environmentsToCreate?: Array<{ name: string; tier: EnvironmentTier }>;
   criticalPaths?: string[];
   productionCriticalPaths?: string[];
@@ -114,10 +126,52 @@ export async function createProjectAction(
   let repositoryUrl: string | null = null;
   if (input.repository) {
     try {
+      let repositoryInput = input.repository;
+      if (repositoryInput.source === "github") {
+        const createdRepoName = repositoryInput.createNewRepositoryName?.trim() || "";
+        if (createdRepoName) {
+          const created = await createGitHubRepository({
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            name: createdRepoName,
+            isPrivate: true,
+          });
+          repositoryInput = {
+            source: "github",
+            identifier: `${created.owner}/${created.repoName}`,
+            url: created.cloneUrl,
+            owner: created.owner,
+            repoName: created.repoName,
+            cloneUrl: created.cloneUrl,
+            githubRepositoryId: created.id,
+          };
+        } else if (repositoryInput.owner && repositoryInput.repoName) {
+          repositoryInput = {
+            source: "github",
+            identifier: `${repositoryInput.owner}/${repositoryInput.repoName}`,
+            url: repositoryInput.cloneUrl ?? repositoryInput.url,
+            owner: repositoryInput.owner,
+            repoName: repositoryInput.repoName,
+            cloneUrl: repositoryInput.cloneUrl ?? repositoryInput.url,
+            githubRepositoryId: repositoryInput.githubRepositoryId,
+          };
+        }
+      }
+
+      if (!("identifier" in repositoryInput) || !repositoryInput.identifier?.trim()) {
+        return {
+          ok: false,
+          error:
+            repositoryInput.source === "github"
+              ? "Select a GitHub repository or enter a new repository name."
+              : "Repository identifier is required.",
+        };
+      }
+
       normalizedRepo = normalizeRepositoryInput({
-        source: input.repository.source,
-        identifier: input.repository.identifier,
-        url: input.repository.url,
+        source: repositoryInput.source,
+        identifier: repositoryInput.identifier,
+        url: repositoryInput.url,
       });
       repositoryUrl = normalizedRepo.url;
     } catch (e) {
@@ -131,7 +185,9 @@ export async function createProjectAction(
         organizationId: ctx.organizationId,
         projectKey: normalizedRepo.externalKey,
         projectName: name,
-        createIfMissing: input.repository?.createMissingJiraProject === true,
+        createIfMissing:
+          input.repository?.source === "jira" &&
+          input.repository.createMissingJiraProject === true,
       });
     } catch (err) {
       if (err instanceof JiraProjectMissingError) {
