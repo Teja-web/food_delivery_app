@@ -26,7 +26,7 @@ import { listRelationshipsForPlan } from "@/operations/plan/relationships";
 
 import { ApprovalActions } from "./ApprovalActions";
 import { PlanEditor } from "./PlanEditor";
-import { PushPlanToJiraButton } from "./PushPlanToJiraButton";
+import { PushPlansToJiraButton } from "../PushPlansToJiraButton";
 
 async function addComment(planId: string, formData: FormData) {
   "use server";
@@ -151,7 +151,7 @@ export default async function PlanDetailPage({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {jiraBinding ? <PushPlanToJiraButton planId={id} /> : null}
+            {jiraBinding ? <PushPlansToJiraButton mode="single" planId={id} /> : null}
             <Button asChild variant="outline" size="sm">
               <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
             </Button>

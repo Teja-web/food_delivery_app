@@ -25,6 +25,97 @@ export async function pushPlanToJiraAction(planId: string) {
   return result;
 }
 
+export async function pushApprovedPlansToJiraAction(projectId?: string | null) {
+  const ctx = await getActionContext();
+  const where = projectId
+    ? and(
+        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(planArtifacts.projectId, projectId),
+        eq(planArtifacts.status, "approved"),
+      )
+    : and(eq(planArtifacts.organizationId, ctx.organizationId), eq(planArtifacts.status, "approved"));
+
+  const plans = await db.query.planArtifacts.findMany({
+    where,
+    columns: { id: true, projectId: true, title: true },
+  });
+
+  const results = await Promise.allSettled(
+    plans.map(async (plan) => ({
+      planId: plan.id,
+      title: plan.title,
+      result: await pushPlanToJira(plan.id, { throwOnError: true }),
+    })),
+  );
+
+  const failures = results.flatMap((result, index) => {
+    if (result.status === "fulfilled") return [];
+    return [
+      {
+        planId: plans[index]?.id,
+        title: plans[index]?.title ?? "Unknown plan",
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      },
+    ];
+  });
+
+  safeRevalidate("/plans");
+  if (projectId) safeRevalidate(`/projects/${projectId}/plans`);
+
+  return {
+    total: plans.length,
+    pushed: results.filter((result) => result.status === "fulfilled").length,
+    failed: failures.length,
+    failures,
+  };
+}
+
+export async function pushAllPlansToJiraAction(projectId?: string | null) {
+  const ctx = await getActionContext();
+  const where = projectId
+    ? and(
+        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(planArtifacts.projectId, projectId),
+      )
+    : eq(planArtifacts.organizationId, ctx.organizationId);
+
+  const plans = await db.query.planArtifacts.findMany({
+    where,
+    columns: { id: true, projectId: true, title: true, status: true },
+  });
+
+  const results = await Promise.allSettled(
+    plans.map(async (plan) => ({
+      planId: plan.id,
+      title: plan.title,
+      status: plan.status,
+      result: await pushPlanToJira(plan.id, { throwOnError: true }),
+    })),
+  );
+
+  const failures = results.flatMap((result, index) => {
+    if (result.status === "fulfilled") return [];
+    return [
+      {
+        planId: plans[index]?.id,
+        title: plans[index]?.title ?? "Unknown plan",
+        status: plans[index]?.status ?? "unknown",
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      },
+    ];
+  });
+
+  safeRevalidate("/plans");
+  if (projectId) safeRevalidate(`/projects/${projectId}/plans`);
+
+  return {
+    total: plans.length,
+    pushed: results.filter((result) => result.status === "fulfilled").length,
+    failed: failures.length,
+    failures,
+  };
+}
+
 export async function syncJiraWorkItemsAction(projectId: string) {
   const ctx = await getActionContext();
   const binding = await getOutboundBinding(ctx.organizationId, projectId, "jira");

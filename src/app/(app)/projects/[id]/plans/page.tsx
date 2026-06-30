@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { governanceRecords } from "@/db/schema/governance/records";
+import { Toaster } from "@/components/ui/sonner";
 import {
   PLAN_KINDS,
   PLAN_STATUSES,
@@ -92,5 +93,10 @@ export default async function ProjectPlansPage({
     counts: { total: rows.length, byStatus, byKind, needsApproval: needsApprovalCount },
   };
 
-  return <PlansClient data={data} />;
+  return (
+    <>
+      <PlansClient data={data} />
+      <Toaster />
+    </>
+  );
 }
