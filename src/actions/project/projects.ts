@@ -15,6 +15,13 @@ import {
   ensureAdapterBinding,
   normalizeRepositoryInput,
 } from "@/operations/project/source-binding-sync";
+import {
+  ensureJiraProjectExists,
+  JiraProjectMissingError,
+  previewJiraProject,
+  resolveJiraProjectUrl,
+  syncJiraProjectWorkItems,
+} from "@/operations/integration/jira-projects";
 
 export async function listProjects(opts: { offset?: number; limit?: number } = {}) {
   return projectCrud.list({ offset: opts.offset ?? 0, limit: opts.limit ?? 25, sortBy: "createdAt", sortOrder: "desc" });
@@ -62,7 +69,12 @@ export interface CreateProjectWizardInput {
   templateId: string;
   skipGovernance?: boolean;
   /** Step 3 — sources & environments. All optional. */
-  repository?: { source: RepositorySource; identifier: string; url?: string };
+  repository?: {
+    source: RepositorySource;
+    identifier: string;
+    url?: string;
+    createMissingJiraProject?: boolean;
+  };
   environmentsToCreate?: Array<{ name: string; tier: EnvironmentTier }>;
   criticalPaths?: string[];
   productionCriticalPaths?: string[];
@@ -99,6 +111,7 @@ export async function createProjectAction(
   let normalizedRepo:
     | ReturnType<typeof normalizeRepositoryInput>
     | null = null;
+  let repositoryUrl: string | null = null;
   if (input.repository) {
     try {
       normalizedRepo = normalizeRepositoryInput({
@@ -106,9 +119,30 @@ export async function createProjectAction(
         identifier: input.repository.identifier,
         url: input.repository.url,
       });
+      repositoryUrl = normalizedRepo.url;
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Invalid repository binding." };
     }
+  }
+
+  if (normalizedRepo?.source === "jira") {
+    try {
+      await ensureJiraProjectExists({
+        organizationId: ctx.organizationId,
+        projectKey: normalizedRepo.externalKey,
+        projectName: name,
+        createIfMissing: input.repository?.createMissingJiraProject === true,
+      });
+    } catch (err) {
+      if (err instanceof JiraProjectMissingError) {
+        return {
+          ok: false,
+          error: `Jira project ${err.projectKey} does not exist. Confirm creation before creating this Coznt project.`,
+        };
+      }
+      return { ok: false, error: err instanceof Error ? err.message : "Jira project check failed." };
+    }
+    repositoryUrl = await resolveJiraProjectUrl(ctx.organizationId, normalizedRepo.externalKey);
   }
 
   try {
@@ -159,7 +193,7 @@ export async function createProjectAction(
             projectId: projectRow.id,
             source: normalizedRepo!.source,
             identifier: normalizedRepo!.identifier,
-            url: normalizedRepo!.url,
+            url: repositoryUrl,
           })
         : Promise.resolve(),
     ]);
@@ -171,6 +205,13 @@ export async function createProjectAction(
         source: normalizedRepo.source,
         externalKey: normalizedRepo.externalKey,
       });
+      if (normalizedRepo.source === "jira") {
+        await syncJiraProjectWorkItems({
+          organizationId: ctx.organizationId,
+          projectId: projectRow.id,
+          projectKey: normalizedRepo.externalKey,
+        });
+      }
     }
 
     safeRevalidate("/projects");
@@ -179,6 +220,11 @@ export async function createProjectAction(
     const msg = e instanceof Error ? e.message : "Could not create project.";
     return { ok: false, error: msg };
   }
+}
+
+export async function previewJiraProjectConnectionAction(projectKey: string) {
+  const ctx = await getActionContext();
+  return previewJiraProject(ctx.organizationId, projectKey);
 }
 
 export async function updateProject(id: string, input: Parameters<typeof projectCrud.update>[1]) {

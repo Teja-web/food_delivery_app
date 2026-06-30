@@ -1,4 +1,5 @@
 import { listOrgIntegrationCredentials } from "@/operations/integration/integrations";
+import { projectCrud } from "@/operations/project/projects";
 import { listRepositoriesForProject } from "@/operations/project/repositories";
 import { Toaster } from "@/components/ui/sonner";
 import type { RepositorySource } from "@/db/schema/repository";
@@ -11,7 +12,8 @@ export default async function RepositoriesSettingsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [repos, creds] = await Promise.all([
+  const [project, repos, creds] = await Promise.all([
+    projectCrud.get(id),
     listRepositoriesForProject(id),
     listOrgIntegrationCredentials(),
   ]);
@@ -20,6 +22,7 @@ export default async function RepositoriesSettingsPage({
     <>
       <RepositoriesClient
         projectId={id}
+        projectName={project?.name ?? "this project"}
         repos={repos.map((r) => ({
           id: r.id,
           source: r.source,

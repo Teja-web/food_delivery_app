@@ -27,6 +27,7 @@ import { projects, type Project } from "@/db/schema/project";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 import { approvalPolicyDetails } from "@/lib/governance/schemas";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { listPoliciesForTransition } from "./policies";
 
 const policySnapshotSchema = z.object({
@@ -264,8 +265,72 @@ export async function decideGovernanceRecord(args: {
       and(eq(governanceRecords.id, args.id), eq(governanceRecords.organizationId, ctx.organizationId)),
     );
 
+  // Plan status progression is governed by the transition-bound records.
+  // When all in_review guards pass, promote plan -> approved. Any failed
+  // guard during in_review sends it back to changes_requested.
+  if (existing.transitionTo === "in_review") {
+    const plan = await db.query.planArtifacts.findFirst({
+      where: and(
+        eq(planArtifacts.id, existing.planArtifactId),
+        eq(planArtifacts.organizationId, ctx.organizationId),
+      ),
+      columns: { id: true, status: true },
+    });
+
+    if (plan) {
+      const siblings = await db.query.governanceRecords.findMany({
+        where: and(
+          eq(governanceRecords.organizationId, ctx.organizationId),
+          eq(governanceRecords.planArtifactId, existing.planArtifactId),
+          eq(governanceRecords.transitionTo, "in_review"),
+        ),
+        columns: { status: true },
+      });
+
+      const hasFailed = siblings.some((r) => r.status === "failed");
+      const allPassed = siblings.length > 0
+        && siblings.every((r) =>
+          r.status === "passed" || r.status === "skipped" || r.status === "expired");
+
+      if (hasFailed && plan.status === "in_review") {
+        await db
+          .update(planArtifacts)
+          .set({
+            status: "changes_requested",
+            approvedById: null,
+            approvedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(planArtifacts.id, existing.planArtifactId),
+              eq(planArtifacts.organizationId, ctx.organizationId),
+            ),
+          );
+        await transitionJiraIssueForPlan(existing.planArtifactId, "changes_requested");
+      } else if (allPassed) {
+        await db
+          .update(planArtifacts)
+          .set({
+            status: "approved",
+            approvedById: ctx.userId,
+            approvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(planArtifacts.id, existing.planArtifactId),
+              eq(planArtifacts.organizationId, ctx.organizationId),
+            ),
+          );
+        await transitionJiraIssueForPlan(existing.planArtifactId, "approved");
+      }
+    }
+  }
+
   safeRevalidate(`/governance`);
   safeRevalidate(`/plans/${existing.planArtifactId}`);
+  safeRevalidate("/plans");
 }
 
 /** Returns all records the given user is listed as approver/reviewer for. */

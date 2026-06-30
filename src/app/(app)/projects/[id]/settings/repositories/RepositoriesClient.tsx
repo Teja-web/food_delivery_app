@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { syncJiraWorkItemsAction } from "@/actions/integration/jira-sync";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +29,7 @@ import {
 
 import {
   addRepositoryToProject,
+  previewJiraProjectBinding,
   removeRepository,
 } from "@/actions/project/repositories";
 import {
@@ -44,6 +47,7 @@ interface RepoRow {
 
 interface Props {
   projectId: string;
+  projectName: string;
   repos: RepoRow[];
   connectedProviders: RepositorySource[];
 }
@@ -74,7 +78,7 @@ const SOURCE_META: Record<
   },
 };
 
-export function RepositoriesClient({ projectId, repos, connectedProviders }: Props) {
+export function RepositoriesClient({ projectId, projectName, repos, connectedProviders }: Props) {
   const [open, setOpen] = useState(false);
   const connected = new Set(connectedProviders);
 
@@ -114,7 +118,12 @@ export function RepositoriesClient({ projectId, repos, connectedProviders }: Pro
           </thead>
           <tbody>
             {repos.map((r) => (
-              <RepoTableRow key={r.id} repo={r} adapterConnected={connected.has(r.source)} />
+              <RepoTableRow
+                key={r.id}
+                projectId={projectId}
+                repo={r}
+                adapterConnected={connected.has(r.source)}
+              />
             ))}
           </tbody>
         </table>
@@ -124,6 +133,7 @@ export function RepositoriesClient({ projectId, repos, connectedProviders }: Pro
         open={open}
         onOpenChange={setOpen}
         projectId={projectId}
+        projectName={projectName}
         connectedProviders={connected}
       />
     </div>
@@ -131,13 +141,17 @@ export function RepositoriesClient({ projectId, repos, connectedProviders }: Pro
 }
 
 function RepoTableRow({
+  projectId,
   repo,
   adapterConnected,
 }: {
+  projectId: string;
   repo: RepoRow;
   adapterConnected: boolean;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isSyncing, startSync] = useTransition();
 
   function onRemove() {
     if (!confirm(`Unbind ${repo.source} ${repo.identifier} from this project?`)) return;
@@ -147,6 +161,18 @@ function RepoTableRow({
         toast.success("Source unbound");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Remove failed");
+      }
+    });
+  }
+
+  function onSyncJira() {
+    startSync(async () => {
+      try {
+        const result = await syncJiraWorkItemsAction(projectId);
+        toast.success(`Synced ${result.syncedIssues} Jira issues from ${result.projectKey}`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Jira sync failed");
       }
     });
   }
@@ -179,15 +205,32 @@ function RepoTableRow({
         )}
       </td>
       <td className="px-3 py-2 text-right">
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled={isPending}
-          onClick={onRemove}
-          aria-label="Remove source"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex justify-end gap-1">
+          {repo.source === "jira" && adapterConnected ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={isSyncing}
+              onClick={onSyncJira}
+              aria-label="Sync Jira work items"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={isPending}
+            onClick={onRemove}
+            aria-label="Remove source"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </td>
     </tr>
   );
@@ -197,16 +240,19 @@ function AddDialog({
   open,
   onOpenChange,
   projectId,
+  projectName,
   connectedProviders,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   projectId: string;
+  projectName: string;
   connectedProviders: Set<RepositorySource>;
 }) {
   const [source, setSource] = useState<RepositorySource>("github");
   const [identifier, setIdentifier] = useState("");
   const [url, setUrl] = useState("");
+  const [jiraCreatePrompt, setJiraCreatePrompt] = useState<{ key: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const meta = SOURCE_META[source];
@@ -216,10 +262,10 @@ function AddDialog({
     setSource("github");
     setIdentifier("");
     setUrl("");
+    setJiraCreatePrompt(null);
   }
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function addSource(createMissingJiraProject: boolean) {
     startTransition(async () => {
       try {
         await addRepositoryToProject({
@@ -227,6 +273,7 @@ function AddDialog({
           source,
           identifier,
           url: url.trim() || null,
+          createMissingJiraProject,
         });
         toast.success(`Bound ${source} ${identifier}`);
         onOpenChange(false);
@@ -235,6 +282,29 @@ function AddDialog({
         toast.error(err instanceof Error ? err.message : "Add failed");
       }
     });
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setJiraCreatePrompt(null);
+
+    if (source === "jira") {
+      startTransition(async () => {
+        try {
+          const preview = await previewJiraProjectBinding(identifier);
+          if (!preview.exists) {
+            setJiraCreatePrompt({ key: preview.key });
+            return;
+          }
+          addSource(false);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Jira project check failed");
+        }
+      });
+      return;
+    }
+
+    addSource(false);
   }
 
   return (
@@ -306,16 +376,52 @@ function AddDialog({
                 <Link href="/integrations" className="underline">
                   Adapters
                 </Link>
+                {source === "jira" ? " before continuing" : ""}
                 .
               </span>
             </p>
+          ) : null}
+
+          {jiraCreatePrompt ? (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+              <div className="font-medium text-foreground">
+                Create Jira project {jiraCreatePrompt.key}?
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Coznt could not find an existing Jira project or board for this key.
+                Approving will create a Jira Software project named {projectName},
+                then bind and sync it to this Coznt project.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => addSource(true)}
+                >
+                  Approve creation
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={isPending}
+                  onClick={() => setJiraCreatePrompt(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           ) : null}
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!identifier.trim() || isPending}>
+            <Button
+              type="submit"
+              disabled={!identifier.trim() || isPending || (source === "jira" && adapterMissing)}
+            >
               {isPending ? "Adding…" : "Add source"}
             </Button>
           </DialogFooter>

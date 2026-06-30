@@ -14,8 +14,9 @@
  * loads the same `tools` array the stdio server registers.
  */
 
-import { CozntClient, readConfig } from "../../mcp/client";
+import { CozntApiError, CozntClient, readConfig } from "../../mcp/client";
 import { tools } from "../../mcp/registry";
+import { getSessionProject, setSessionProject, type SessionProject } from "../../mcp/session";
 
 export interface CallOptions {
   /** First positional arg: the verb name. */
@@ -72,6 +73,7 @@ export async function runCall(opts: CallOptions): Promise<number> {
   const client = new CozntClient(cfg);
 
   try {
+    await bindProjectForDirectCall(client, tool.name);
     const result = await (tool.run as (c: CozntClient, i: unknown) => Promise<unknown>)(
       client,
       parsed.data,
@@ -86,6 +88,35 @@ export async function runCall(opts: CallOptions): Promise<number> {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`call ${tool.name} failed: ${msg}`);
     return 1;
+  }
+}
+
+const PROJECT_OPTIONAL_VERBS = new Set([
+  "set_project",
+  "switch_project",
+  "get_my_context",
+  "draft_requirement",
+  "list_draft_requirements",
+  "update_draft_requirement",
+  "delete_draft_requirement",
+]);
+
+async function bindProjectForDirectCall(client: CozntClient, verb: string): Promise<void> {
+  if (getSessionProject() || PROJECT_OPTIONAL_VERBS.has(verb)) return;
+
+  try {
+    const { project } = await client.get<{ project: SessionProject }>("/api/v1/mcp/me");
+    setSessionProject(project);
+  } catch (err) {
+    const msg =
+      err instanceof CozntApiError
+        ? `${err.message} (status ${err.status})`
+        : err instanceof Error
+          ? err.message
+          : "unknown error";
+    throw new Error(
+      `Failed to resolve project from API key: ${msg}. Check that COZNT_API_KEY is valid and bound to a live project, or pass \`projectId\` explicitly.`,
+    );
   }
 }
 
