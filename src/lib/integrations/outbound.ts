@@ -15,7 +15,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { planArtifacts as plans, type PlanArtifact } from "@/db/schema/plan/plan-artifact";
 import { workItems } from "@/db/schema/work-item";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
 import { upsertWorkItem } from "@/operations/work/work-items";
@@ -28,19 +28,11 @@ import {
 } from "@/lib/integrations/clients";
 
 const log = createLogger("integrations:outbound");
+const JIRA_DESCRIPTION_LIMIT = 30000;
 
 // ---------------------------------------------------------------------------
 // Plan kind → external issue type mapping
 // ---------------------------------------------------------------------------
-
-const PLAN_KIND_TO_JIRA_TYPE: Record<string, string> = {
-  epic: "Epic",
-  feature: "Story",
-  story: "Story",
-  test_plan: "Task",
-  release_plan: "Task",
-  adr: "Task",
-};
 
 const PLAN_KIND_TO_ADO_TYPE: Record<string, string> = {
   epic: "Epic",
@@ -50,6 +42,125 @@ const PLAN_KIND_TO_ADO_TYPE: Record<string, string> = {
   release_plan: "Task",
   adr: "Task",
 };
+
+const PLAN_KIND_TO_JIRA_TYPE: Record<string, string> = {
+  epic: "Epic",
+  feature: "Story",
+  story: "Story",
+  spec: "Task",
+  adr: "Task",
+  test_plan: "Task",
+  release_plan: "Task",
+  risk_register: "Task",
+  incident: "Bug",
+};
+
+export function planKindToJiraType(kind: string): string {
+  return PLAN_KIND_TO_JIRA_TYPE[kind] ?? "Task";
+}
+
+function planKindToLabel(kind: string): string {
+  return `coznt-kind-${kind.replace(/_/g, "-").toLowerCase()}`;
+}
+
+function formatLabel(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function appendLine(lines: string[], label: string, value: unknown): void {
+  if (value == null || value === "") return;
+  if (value instanceof Date) {
+    lines.push(`- ${label}: ${value.toISOString().slice(0, 10)}`);
+    return;
+  }
+  lines.push(`- ${label}: ${String(value)}`);
+}
+
+function formatPlanDetailsForJira(value: unknown, indent = 0): string[] {
+  const pad = "  ".repeat(indent);
+
+  if (value == null || value === "") return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (item && typeof item === "object") {
+        return [`${pad}-`, ...formatPlanDetailsForJira(item, indent + 1)];
+      }
+      return [`${pad}- ${String(item)}`];
+    });
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => {
+      if (child == null || child === "") return [];
+      const label = formatLabel(key);
+      if (Array.isArray(child) || typeof child === "object") {
+        return [`${pad}${label}:`, ...formatPlanDetailsForJira(child, indent + 1)];
+      }
+      return [`${pad}${label}: ${String(child)}`];
+    });
+  }
+
+  return [`${pad}${String(value)}`];
+}
+
+export function buildJiraPlanDescription(
+  plan: Pick<
+    PlanArtifact,
+    | "id"
+    | "kind"
+    | "slug"
+    | "summary"
+    | "body"
+    | "details"
+    | "status"
+    | "priority"
+    | "effortEstimate"
+    | "dueDate"
+    | "assigneeName"
+    | "assigneeId"
+  >,
+): string {
+  const lines: string[] = [
+    "Coznt plan artifact",
+    "",
+    "Metadata",
+    `- Plan ID: ${plan.id}`,
+    `- Kind: ${formatLabel(plan.kind)}`,
+    `- Slug: ${plan.slug}`,
+    `- Status: ${formatLabel(plan.status)}`,
+  ];
+
+  appendLine(lines, "Priority", plan.priority);
+  appendLine(lines, "Effort estimate", plan.effortEstimate);
+  appendLine(lines, "Due date", plan.dueDate);
+  appendLine(lines, "Assignee", plan.assigneeName ?? plan.assigneeId);
+
+  if (plan.summary) {
+    lines.push("", "Summary", plan.summary);
+  }
+
+  const detailLines = formatPlanDetailsForJira(plan.details);
+  if (detailLines.length > 0) {
+    lines.push("", "Plan details", ...detailLines);
+  }
+
+  if (plan.body) {
+    lines.push("", "Body", plan.body);
+  }
+
+  const description = lines.join("\n").trim();
+  return description.length > JIRA_DESCRIPTION_LIMIT
+    ? `${description.slice(0, JIRA_DESCRIPTION_LIMIT - 40)}\n\n[Truncated by Coznt during Jira sync]`
+    : description;
+}
+
+function jiraPlanLabels(kind: string): string[] {
+  return ["coznt-plan", planKindToLabel(kind)];
+}
 
 // ---------------------------------------------------------------------------
 // Jira
@@ -73,9 +184,11 @@ export async function pushPlanToJira(
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "jira");
     if (!binding) throw new Error("No Jira binding configured for this project");
 
-    const issueType = PLAN_KIND_TO_JIRA_TYPE[plan.kind] ?? "Task";
+    const issueType = planKindToJiraType(plan.kind);
     const client = await getJiraClient(plan.organizationId);
-    const description = plan.summary ?? plan.body?.slice(0, 1000) ?? "";
+    const description = buildJiraPlanDescription(plan);
+    const labels = jiraPlanLabels(plan.kind);
+    const targetStatus = mapCozntStatusToJira(plan.status);
 
     // Already pushed → update.
     if (plan.externalRef && plan.externalRef.startsWith("jira:")) {
@@ -83,7 +196,9 @@ export async function pushPlanToJira(
       await client.updateIssue(issueKey, {
         summary: plan.title,
         description,
+        labels,
       });
+      await transitionJiraIssueToTarget(client, issueKey, targetStatus);
       const url = client.issueBrowseUrl(issueKey);
       await upsertWorkItem({
         organizationId: plan.organizationId,
@@ -95,16 +210,17 @@ export async function pushPlanToJira(
         kind: jiraIssueTypeToWorkItemKind(issueType),
         title: plan.title,
         description,
+        status: targetStatus,
       });
       return { key: issueKey, url };
     }
 
     // First push → create.
-    const created = await client.createIssue(binding.externalKey, {
+    const created = await createJiraIssueWithFallback(client, binding.externalKey, {
       summary: plan.title,
       description,
       issueType,
-      labels: [`coznt-${plan.kind}`],
+      labels,
     });
     const url = client.issueBrowseUrl(created.key);
 
@@ -112,6 +228,8 @@ export async function pushPlanToJira(
       .update(plans)
       .set({ externalRef: `jira:${created.key}`, updatedAt: new Date() })
       .where(eq(plans.id, plan.id));
+
+    await transitionJiraIssueToTarget(client, created.key, targetStatus);
 
     await upsertWorkItem({
       organizationId: plan.organizationId,
@@ -123,7 +241,7 @@ export async function pushPlanToJira(
       kind: jiraIssueTypeToWorkItemKind(issueType),
       title: plan.title,
       description,
-      status: "Open",
+      status: targetStatus,
     });
 
     log.info(`pushed plan ${plan.id} to Jira ${created.key}`);
@@ -135,11 +253,39 @@ export async function pushPlanToJira(
   }
 }
 
+async function createJiraIssueWithFallback(
+  client: Awaited<ReturnType<typeof getJiraClient>>,
+  projectKey: string,
+  options: { summary: string; description: string; issueType: string; labels: string[] },
+): Promise<{ id: string; key: string; self: string }> {
+  try {
+    return await client.createIssue(projectKey, options);
+  } catch (err) {
+    if (options.issueType === "Task") throw err;
+    log.warn(`Jira rejected issue type "${options.issueType}"; retrying as Task`, {
+      projectKey,
+      err: String(err),
+    });
+    return client.createIssue(projectKey, { ...options, issueType: "Task" });
+  }
+}
+
 function jiraIssueTypeToWorkItemKind(issueType: string): "epic" | "story" | "task" {
   const normalized = issueType.toLowerCase();
   if (normalized === "epic") return "epic";
   if (normalized === "story") return "story";
   return "task";
+}
+
+async function transitionJiraIssueToTarget(
+  client: Awaited<ReturnType<typeof getJiraClient>>,
+  issueKey: string,
+  targetStatus: string,
+): Promise<void> {
+  const result = await client.transitionIssueByName(issueKey, targetStatus);
+  if (!result) {
+    log.warn(`no Jira transition matched "${targetStatus}" for ${issueKey}`);
+  }
 }
 
 /**
@@ -181,8 +327,9 @@ export async function transitionJiraIssueForPlan(
  */
 function mapCozntStatusToJira(status: string): string {
   const s = status.toLowerCase();
-  if (s === "draft" || s === "in_review" || s === "changes_requested") return "To Do";
-  if (s === "approved" || s === "in_progress") return "In Progress";
+  if (s === "draft" || s === "in_review" || s === "changes_requested") return "Backlog";
+  if (s === "approved") return "Selected for Development";
+  if (s === "in_progress") return "In Progress";
   if (s === "completed" || s === "done") return "Done";
   if (s === "rejected" || s === "cancelled") return "Won't Do";
   return status;

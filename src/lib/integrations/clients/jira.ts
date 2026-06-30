@@ -31,6 +31,19 @@ export interface JiraIssue {
   resolvedAt: string | null;
 }
 
+export interface JiraComment {
+  id: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+  cozntCommentId?: string | null;
+}
+
+interface JiraCommentProperty {
+  key?: string;
+  value?: unknown;
+}
+
 export interface JiraSprint {
   id: number;
   name: string;
@@ -250,6 +263,70 @@ export class JiraClient {
     return this.toJiraIssue(issue);
   }
 
+  async getIssueComments(issueKey: string): Promise<JiraComment[]> {
+    const comments: any[] = [];
+    let startAt = 0;
+    const maxResults = 100;
+
+    for (let page = 0; page < 20; page += 1) {
+      const data = await this.request<{
+        comments?: any[];
+        total?: number;
+        startAt?: number;
+        maxResults?: number;
+      }>(
+        `/issue/${encodeURIComponent(issueKey)}/comment?orderBy=created&expand=properties&startAt=${startAt}&maxResults=${maxResults}`,
+      );
+      comments.push(...(data.comments ?? []));
+      const nextStart = (data.startAt ?? startAt) + (data.maxResults ?? maxResults);
+      if (nextStart >= (data.total ?? comments.length)) break;
+      startAt = nextStart;
+    }
+
+    return comments.map((comment: any) => {
+      const parsedBody = stripLegacyCozntCommentId(
+        comment.body ? this.extractText(comment.body) : "",
+      );
+      return {
+        id: comment.id,
+        authorName: comment.author?.displayName ?? "Jira user",
+        body: parsedBody.body,
+        createdAt: comment.created,
+        cozntCommentId: cozntCommentIdFromProperties(comment.properties) ?? parsedBody.commentId,
+      };
+    });
+  }
+
+  async createIssueComment(
+    issueKey: string,
+    options: { body: string; cozntCommentId?: string },
+  ): Promise<JiraComment> {
+    const data = await this.request<any>(`/issue/${encodeURIComponent(issueKey)}/comment`, {
+      method: "POST",
+      body: JSON.stringify({
+        body: textToAdf(options.body),
+        ...(options.cozntCommentId
+          ? {
+              properties: [
+                {
+                  key: COZNT_COMMENT_ID_PROPERTY,
+                  value: { commentId: options.cozntCommentId },
+                },
+              ],
+            }
+          : {}),
+      }),
+    });
+    const parsedBody = stripLegacyCozntCommentId(data.body ? this.extractText(data.body) : "");
+    return {
+      id: data.id,
+      authorName: data.author?.displayName ?? "Jira user",
+      body: parsedBody.body,
+      createdAt: data.created,
+      cozntCommentId: cozntCommentIdFromProperties(data.properties) ?? parsedBody.commentId,
+    };
+  }
+
   async createIssue(
     projectKey: string,
     options: { summary: string; description: string; issueType: string; labels?: string[] }
@@ -354,18 +431,62 @@ export class JiraClient {
   }
 
   private extractText(adfContent: any): string {
-    if (!adfContent || !adfContent.content) return "";
+    if (!adfContent) return "";
+    if (typeof adfContent.text === "string") return adfContent.text;
+    if (adfContent.type === "hardBreak") return "\n";
+    if (!Array.isArray(adfContent.content)) return "";
+
     return adfContent.content
-      .map((block: any) => {
-        if (block.content) {
-          return block.content
-            .map((inline: any) => inline.text || "")
-            .join("");
-        }
-        return "";
-      })
-      .join("\n");
+      .map((node: any) => this.extractText(node))
+      .filter((text: string) => text.length > 0 || adfContent.type === "paragraph")
+      .join(adfContent.type === "doc" ? "\n" : "");
   }
+}
+
+const COZNT_COMMENT_ID_PROPERTY = "coznt.commentId";
+
+function textToAdf(text: string) {
+  const lines = text.trim().split(/\r?\n/);
+  const content = lines.flatMap((line, index) => [
+    ...(index > 0 ? [{ type: "hardBreak" }] : []),
+    ...(line ? [{ type: "text", text: line }] : []),
+  ]);
+  return {
+    type: "doc",
+    version: 1,
+    content: [
+      {
+        type: "paragraph",
+        content,
+      },
+    ],
+  };
+}
+
+function stripLegacyCozntCommentId(body: string): { body: string; commentId: string | null } {
+  const markerStart = body.lastIndexOf("[coznt-comment-id:");
+  if (markerStart === -1) return { body, commentId: null };
+  const markerEnd = body.indexOf("]", markerStart);
+  if (markerEnd === -1 || markerEnd !== body.trimEnd().length - 1) {
+    return { body, commentId: null };
+  }
+  const commentId = body.slice(markerStart + "[coznt-comment-id:".length, markerEnd).trim();
+  if (!commentId) return { body, commentId: null };
+  return {
+    body: body.slice(0, markerStart).trimEnd(),
+    commentId,
+  };
+}
+
+function cozntCommentIdFromProperties(properties: unknown): string | null {
+  if (!Array.isArray(properties)) return null;
+  const property = (properties as JiraCommentProperty[]).find(
+    (item) => item?.key === COZNT_COMMENT_ID_PROPERTY,
+  );
+  const value = property?.value;
+  if (!value || typeof value !== "object") return null;
+  const commentId = (value as { commentId?: unknown }).commentId;
+  return typeof commentId === "string" ? commentId : null;
 }
 
 async function readDetail(response: Response): Promise<string> {

@@ -214,6 +214,35 @@ export class GitHubClient {
     return data;
   }
 
+  async getBranchSha(owner: string, repo: string, branch: string): Promise<string | null> {
+    try {
+      const { data } = await this.octokit.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+      });
+      return data.object?.sha ?? null;
+    } catch (error: any) {
+      if (error?.status === 404) return null;
+      throw error;
+    }
+  }
+
+  async createBranchRef(owner: string, repo: string, branch: string, sha: string): Promise<boolean> {
+    try {
+      await this.octokit.git.createRef({
+        owner,
+        repo,
+        ref: `refs/heads/${branch}`,
+        sha,
+      });
+      return true;
+    } catch (error: any) {
+      if (error?.status === 422) return false;
+      throw error;
+    }
+  }
+
   async createIssue(
     owner: string,
     repo: string,

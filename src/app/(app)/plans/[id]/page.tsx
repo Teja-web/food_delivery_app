@@ -14,6 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { DEFAULT_AUTHORING_PATHS } from "@/lib/authoring/coznt-config";
+import { getJiraClient } from "@/lib/integrations/clients";
+import type { JiraComment } from "@/lib/integrations/clients/jira";
 import { listEvidenceForPlan } from "@/operations/evidence";
 import { listRecordsForPlan } from "@/operations/governance/records";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
@@ -22,22 +25,99 @@ import {
   listChildPlans,
   listPlanRevisions,
 } from "@/operations/plan/plans";
+import {
+  deleteExternalCommentsForPlan,
+  upsertExternalCommentsForPlan,
+} from "@/operations/plan/comments";
 import { listRelationshipsForPlan } from "@/operations/plan/relationships";
+import { listRepositoriesForProject } from "@/operations/project/repositories";
 
 import { ApprovalActions } from "./ApprovalActions";
 import { PlanEditor } from "./PlanEditor";
-import { PushPlanToJiraButton } from "./PushPlanToJiraButton";
+import { PushPlansToJiraButton } from "../PushPlansToJiraButton";
+import { PushPlanButton } from "./PushPlanButton";
 
 async function addComment(planId: string, formData: FormData) {
   "use server";
   const { currentUser } = await getCurrentUser();
   if (!currentUser) return;
-  await createComment({
-    planId,
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return;
+
+  const comment = await createComment({
+    planArtifactId: planId,
     authorId: currentUser.id,
     authorName: currentUser.name,
-    body: String(formData.get("body") ?? "").trim(),
+    body,
   });
+
+  const plan = await getPlan(planId);
+  if (!plan) return;
+
+  const [jiraBinding, jiraWorkItem] = await Promise.all([
+    getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
+    db.query.workItems.findFirst({
+      where: and(
+        eq(workItems.organizationId, plan.organizationId),
+        eq(workItems.projectId, plan.projectId),
+        eq(workItems.planArtifactId, planId),
+        eq(workItems.source, "jira"),
+      ),
+      columns: { externalId: true },
+    }),
+  ]);
+
+  const issueKey = jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef);
+  if (!jiraIssueBelongsToSource(issueKey, jiraBinding?.externalKey)) return;
+
+  try {
+    const client = await getJiraClient(plan.organizationId);
+    const author = currentUser.name ?? "Coznt user";
+    await client.createIssueComment(issueKey, {
+      body: `${author} via Coznt:\n${body}`,
+      cozntCommentId: comment.id,
+    });
+  } catch {
+    /* Keep the Coznt comment even when Jira sync is temporarily unavailable. */
+  }
+}
+
+async function listJiraCommentsForIssue(input: {
+  organizationId: string;
+  jiraProjectKey?: string | null;
+  issueKey?: string | null;
+}): Promise<JiraComment[]> {
+  if (!input.issueKey || !input.jiraProjectKey) return [];
+  if (!jiraIssueBelongsToSource(input.issueKey, input.jiraProjectKey)) {
+    return [];
+  }
+  try {
+    const client = await getJiraClient(input.organizationId);
+    return await client.getIssueComments(input.issueKey);
+  } catch {
+    return [];
+  }
+}
+
+function jiraIssueBelongsToSource(
+  issueKey: string | null | undefined,
+  jiraProjectKey: string | null | undefined,
+): issueKey is string {
+  if (!issueKey || !jiraProjectKey) return false;
+  const projectKey = jiraProjectKey.trim().toUpperCase();
+  return projectKey.length > 0 && issueKey.toUpperCase().startsWith(`${projectKey}-`);
+}
+
+function jiraIssueKeyFromExternalRef(externalRef: string | null | undefined): string | null {
+  return externalRef?.startsWith("jira:") ? externalRef.slice("jira:".length) : null;
+}
+
+function jiraCommentDbId(planId: string, jiraCommentId: string): string {
+  return `jira:${planId}:${jiraCommentId}`;
+}
+
+function isJiraStoredComment(commentId: string, authorId: string): boolean {
+  return commentId.startsWith("jira:") || authorId.startsWith("jira:");
 }
 
 export default async function PlanDetailPage({
@@ -50,7 +130,6 @@ export default async function PlanDetailPage({
   if (!plan) notFound();
 
   const [
-    comments,
     records,
     evidence,
     relationships,
@@ -62,7 +141,6 @@ export default async function PlanDetailPage({
     jiraWorkItem,
   ] =
     await Promise.all([
-      listCommentsForPlan(id),
       listRecordsForPlan(id),
       listEvidenceForPlan(id),
       listRelationshipsForPlan(id),
@@ -74,15 +152,64 @@ export default async function PlanDetailPage({
         : Promise.resolve(""),
       getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
       db.query.workItems.findFirst({
-        where: and(eq(workItems.planArtifactId, id), eq(workItems.source, "jira")),
+        where: and(
+          eq(workItems.organizationId, plan.organizationId),
+          eq(workItems.projectId, plan.projectId),
+          eq(workItems.planArtifactId, id),
+          eq(workItems.source, "jira"),
+        ),
         columns: { externalUrl: true, externalId: true },
       }),
     ]);
+  const jiraComments = await listJiraCommentsForIssue({
+    organizationId: plan.organizationId,
+    jiraProjectKey: jiraBinding?.externalKey,
+    issueKey: jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef),
+  });
+  let comments = await listCommentsForPlan(id);
+  const existingCommentIds = new Set(comments.map((comment) => comment.id));
+  const cozntOriginComments = jiraComments.filter(
+    (comment) => comment.cozntCommentId && existingCommentIds.has(comment.cozntCommentId),
+  );
+  const jiraCommentsToMirror = jiraComments.filter(
+    (comment) => !comment.cozntCommentId || !existingCommentIds.has(comment.cozntCommentId),
+  );
+  const jiraCommentMirrorIdsToDelete = cozntOriginComments.map((comment) =>
+    jiraCommentDbId(id, comment.id),
+  );
+  await deleteExternalCommentsForPlan(id, jiraCommentMirrorIdsToDelete);
+  await upsertExternalCommentsForPlan(
+    id,
+    jiraCommentsToMirror.map((comment) => ({
+      id: jiraCommentDbId(id, comment.id),
+      authorId: `jira:${comment.id}`,
+      authorName: comment.authorName,
+      body: comment.body,
+      createdAt: new Date(comment.createdAt),
+      updatedAt: new Date(comment.createdAt),
+    })),
+  );
+  if (jiraCommentMirrorIdsToDelete.length > 0 || jiraCommentsToMirror.length > 0) {
+    comments = await listCommentsForPlan(id);
+  }
+  const projectRepos = await listRepositoriesForProject(plan.projectId);
 
   const pendingApprovals = records.filter(
     (r) => r.kind === "approval" && r.status === "pending",
   );
   const editable = plan.status === "draft" || plan.status === "in_review";
+  const allComments = comments.map((comment) => ({
+    id: comment.id,
+    source: isJiraStoredComment(comment.id, comment.authorId) ? "Jira" : "Coznt",
+    author: comment.authorName ?? comment.authorId,
+    body: comment.body,
+    createdAt: comment.createdAt,
+  }));
+  const githubRepos = projectRepos.filter((r) => r.source === "github");
+  const planKind = plan.kind as keyof typeof DEFAULT_AUTHORING_PATHS.plans;
+  const defaultPlanDir = DEFAULT_AUTHORING_PATHS.plans[planKind]?.[0] ?? ".agents/plans/";
+  const planFileName = `${(plan.slug || plan.id).trim()}.md`;
+  const pushBranchName = `coznt/plan-push/${plan.kind}-${(plan.slug || plan.id).slice(0, 24)}`;
 
   return (
     <>
@@ -151,7 +278,20 @@ export default async function PlanDetailPage({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {jiraBinding ? <PushPlanToJiraButton planId={id} /> : null}
+            {jiraBinding ? <PushPlansToJiraButton mode="single" planId={id} /> : null}
+            {githubRepos.length > 0 ? (
+              <PushPlanButton
+                planId={id}
+                repositories={githubRepos.map((repo) => ({
+                  identifier: repo.identifier,
+                  defaultBranch: repo.defaultBranch,
+                }))}
+                initialDirectoryName={defaultPlanDir}
+                initialFileName={planFileName}
+                initialBranchName={pushBranchName}
+                initialRepositoryIdentifier={githubRepos[0].identifier}
+              />
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
             </Button>
@@ -168,7 +308,7 @@ export default async function PlanDetailPage({
               Revisions{revisions.length ? ` · ${revisions.length}` : ""}
             </TabsTrigger>
             <TabsTrigger value="comments">
-              Comments{comments.length ? ` · ${comments.length}` : ""}
+              Comments{allComments.length ? ` · ${allComments.length}` : ""}
             </TabsTrigger>
             <TabsTrigger value="governance">
               Governance{records.length ? ` · ${records.length}` : ""}
@@ -253,14 +393,21 @@ export default async function PlanDetailPage({
                 Comment
               </Button>
             </form>
-            {comments.length > 0 ? (
+            {allComments.length > 0 ? (
               <ul className="space-y-2 text-sm">
-                {comments.map((c) => (
+                {allComments.map((c) => (
                   <li key={c.id} className="rounded border bg-muted/20 p-3">
-                    <div className="text-xs text-muted-foreground">
-                      {c.authorName ?? c.authorId} · {new Date(c.createdAt).toLocaleString()}
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{c.author}</span>
+                      <span>·</span>
+                      <span>{c.createdAt.toLocaleString()}</span>
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                        Source: {c.source}
+                      </Badge>
                     </div>
-                    <div className="whitespace-pre-wrap">{c.body}</div>
+                    <div className="whitespace-pre-wrap">
+                      {c.body || <em className="text-muted-foreground">No comment body.</em>}
+                    </div>
                   </li>
                 ))}
               </ul>
