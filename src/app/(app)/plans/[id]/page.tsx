@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { DEFAULT_AUTHORING_PATHS } from "@/lib/authoring/coznt-config";
 import { getJiraClient } from "@/lib/integrations/clients";
 import type { JiraComment } from "@/lib/integrations/clients/jira";
 import { listEvidenceForPlan } from "@/operations/evidence";
@@ -29,10 +30,12 @@ import {
   upsertExternalCommentsForPlan,
 } from "@/operations/plan/comments";
 import { listRelationshipsForPlan } from "@/operations/plan/relationships";
+import { listRepositoriesForProject } from "@/operations/project/repositories";
 
 import { ApprovalActions } from "./ApprovalActions";
 import { PlanEditor } from "./PlanEditor";
 import { PushPlansToJiraButton } from "../PushPlansToJiraButton";
+import { PushPlanButton } from "./PushPlanButton";
 
 async function addComment(planId: string, formData: FormData) {
   "use server";
@@ -189,6 +192,7 @@ export default async function PlanDetailPage({
   if (jiraCommentMirrorIdsToDelete.length > 0 || jiraCommentsToMirror.length > 0) {
     comments = await listCommentsForPlan(id);
   }
+  const projectRepos = await listRepositoriesForProject(plan.projectId);
 
   const pendingApprovals = records.filter(
     (r) => r.kind === "approval" && r.status === "pending",
@@ -201,6 +205,11 @@ export default async function PlanDetailPage({
     body: comment.body,
     createdAt: comment.createdAt,
   }));
+  const githubRepos = projectRepos.filter((r) => r.source === "github");
+  const planKind = plan.kind as keyof typeof DEFAULT_AUTHORING_PATHS.plans;
+  const defaultPlanDir = DEFAULT_AUTHORING_PATHS.plans[planKind]?.[0] ?? ".agents/plans/";
+  const planFileName = `${(plan.slug || plan.id).trim()}.md`;
+  const pushBranchName = `coznt/plan-push/${plan.kind}-${(plan.slug || plan.id).slice(0, 24)}`;
 
   return (
     <>
@@ -270,6 +279,19 @@ export default async function PlanDetailPage({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {jiraBinding ? <PushPlansToJiraButton mode="single" planId={id} /> : null}
+            {githubRepos.length > 0 ? (
+              <PushPlanButton
+                planId={id}
+                repositories={githubRepos.map((repo) => ({
+                  identifier: repo.identifier,
+                  defaultBranch: repo.defaultBranch,
+                }))}
+                initialDirectoryName={defaultPlanDir}
+                initialFileName={planFileName}
+                initialBranchName={pushBranchName}
+                initialRepositoryIdentifier={githubRepos[0].identifier}
+              />
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
             </Button>
