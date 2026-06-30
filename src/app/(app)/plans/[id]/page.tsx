@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { getJiraClient } from "@/lib/integrations/clients";
+import type { JiraComment } from "@/lib/integrations/clients/jira";
 import { listEvidenceForPlan } from "@/operations/evidence";
 import { listRecordsForPlan } from "@/operations/governance/records";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
@@ -22,6 +24,7 @@ import {
   listChildPlans,
   listPlanRevisions,
 } from "@/operations/plan/plans";
+import { upsertExternalCommentsForPlan } from "@/operations/plan/comments";
 import { listRelationshipsForPlan } from "@/operations/plan/relationships";
 
 import { ApprovalActions } from "./ApprovalActions";
@@ -33,11 +36,40 @@ async function addComment(planId: string, formData: FormData) {
   const { currentUser } = await getCurrentUser();
   if (!currentUser) return;
   await createComment({
-    planId,
+    planArtifactId: planId,
     authorId: currentUser.id,
     authorName: currentUser.name,
     body: String(formData.get("body") ?? "").trim(),
   });
+}
+
+async function listJiraCommentsForIssue(input: {
+  organizationId: string;
+  jiraProjectKey?: string | null;
+  issueKey?: string | null;
+}): Promise<JiraComment[]> {
+  if (!input.issueKey || !input.jiraProjectKey) return [];
+  if (!jiraIssueBelongsToSource(input.issueKey, input.jiraProjectKey)) {
+    return [];
+  }
+  try {
+    const client = await getJiraClient(input.organizationId);
+    return await client.getIssueComments(input.issueKey);
+  } catch {
+    return [];
+  }
+}
+
+function jiraIssueBelongsToSource(issueKey: string, jiraProjectKey: string): boolean {
+  return issueKey.toUpperCase().startsWith(`${jiraProjectKey.trim().toUpperCase()}-`);
+}
+
+function jiraCommentDbId(planId: string, jiraCommentId: string): string {
+  return `jira:${planId}:${jiraCommentId}`;
+}
+
+function isJiraStoredComment(commentId: string, authorId: string): boolean {
+  return commentId.startsWith("jira:") || authorId.startsWith("jira:");
 }
 
 export default async function PlanDetailPage({
@@ -50,7 +82,6 @@ export default async function PlanDetailPage({
   if (!plan) notFound();
 
   const [
-    comments,
     records,
     evidence,
     relationships,
@@ -62,7 +93,6 @@ export default async function PlanDetailPage({
     jiraWorkItem,
   ] =
     await Promise.all([
-      listCommentsForPlan(id),
       listRecordsForPlan(id),
       listEvidenceForPlan(id),
       listRelationshipsForPlan(id),
@@ -74,15 +104,44 @@ export default async function PlanDetailPage({
         : Promise.resolve(""),
       getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
       db.query.workItems.findFirst({
-        where: and(eq(workItems.planArtifactId, id), eq(workItems.source, "jira")),
+        where: and(
+          eq(workItems.organizationId, plan.organizationId),
+          eq(workItems.projectId, plan.projectId),
+          eq(workItems.planArtifactId, id),
+          eq(workItems.source, "jira"),
+        ),
         columns: { externalUrl: true, externalId: true },
       }),
     ]);
+  const jiraComments = await listJiraCommentsForIssue({
+    organizationId: plan.organizationId,
+    jiraProjectKey: jiraBinding?.externalKey,
+    issueKey: jiraWorkItem?.externalId,
+  });
+  await upsertExternalCommentsForPlan(
+    id,
+    jiraComments.map((comment) => ({
+      id: jiraCommentDbId(id, comment.id),
+      authorId: `jira:${comment.id}`,
+      authorName: comment.authorName,
+      body: comment.body,
+      createdAt: new Date(comment.createdAt),
+      updatedAt: new Date(comment.createdAt),
+    })),
+  );
+  const comments = await listCommentsForPlan(id);
 
   const pendingApprovals = records.filter(
     (r) => r.kind === "approval" && r.status === "pending",
   );
   const editable = plan.status === "draft" || plan.status === "in_review";
+  const allComments = comments.map((comment) => ({
+    id: comment.id,
+    source: isJiraStoredComment(comment.id, comment.authorId) ? "Jira" : "Coznt",
+    author: comment.authorName ?? comment.authorId,
+    body: comment.body,
+    createdAt: comment.createdAt,
+  }));
 
   return (
     <>
@@ -168,7 +227,7 @@ export default async function PlanDetailPage({
               Revisions{revisions.length ? ` · ${revisions.length}` : ""}
             </TabsTrigger>
             <TabsTrigger value="comments">
-              Comments{comments.length ? ` · ${comments.length}` : ""}
+              Comments{allComments.length ? ` · ${allComments.length}` : ""}
             </TabsTrigger>
             <TabsTrigger value="governance">
               Governance{records.length ? ` · ${records.length}` : ""}
@@ -253,14 +312,21 @@ export default async function PlanDetailPage({
                 Comment
               </Button>
             </form>
-            {comments.length > 0 ? (
+            {allComments.length > 0 ? (
               <ul className="space-y-2 text-sm">
-                {comments.map((c) => (
+                {allComments.map((c) => (
                   <li key={c.id} className="rounded border bg-muted/20 p-3">
-                    <div className="text-xs text-muted-foreground">
-                      {c.authorName ?? c.authorId} · {new Date(c.createdAt).toLocaleString()}
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{c.author}</span>
+                      <span>·</span>
+                      <span>{c.createdAt.toLocaleString()}</span>
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                        Source: {c.source}
+                      </Badge>
                     </div>
-                    <div className="whitespace-pre-wrap">{c.body}</div>
+                    <div className="whitespace-pre-wrap">
+                      {c.body || <em className="text-muted-foreground">No comment body.</em>}
+                    </div>
                   </li>
                 ))}
               </ul>

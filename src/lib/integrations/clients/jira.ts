@@ -31,6 +31,13 @@ export interface JiraIssue {
   resolvedAt: string | null;
 }
 
+export interface JiraComment {
+  id: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface JiraSprint {
   id: number;
   name: string;
@@ -250,6 +257,34 @@ export class JiraClient {
     return this.toJiraIssue(issue);
   }
 
+  async getIssueComments(issueKey: string): Promise<JiraComment[]> {
+    const comments: any[] = [];
+    let startAt = 0;
+    const maxResults = 100;
+
+    for (let page = 0; page < 20; page += 1) {
+      const data = await this.request<{
+        comments?: any[];
+        total?: number;
+        startAt?: number;
+        maxResults?: number;
+      }>(
+        `/issue/${encodeURIComponent(issueKey)}/comment?orderBy=created&startAt=${startAt}&maxResults=${maxResults}`,
+      );
+      comments.push(...(data.comments ?? []));
+      const nextStart = (data.startAt ?? startAt) + (data.maxResults ?? maxResults);
+      if (nextStart >= (data.total ?? comments.length)) break;
+      startAt = nextStart;
+    }
+
+    return comments.map((comment: any) => ({
+      id: comment.id,
+      authorName: comment.author?.displayName ?? "Jira user",
+      body: comment.body ? this.extractText(comment.body) : "",
+      createdAt: comment.created,
+    }));
+  }
+
   async createIssue(
     projectKey: string,
     options: { summary: string; description: string; issueType: string; labels?: string[] }
@@ -354,17 +389,14 @@ export class JiraClient {
   }
 
   private extractText(adfContent: any): string {
-    if (!adfContent || !adfContent.content) return "";
+    if (!adfContent) return "";
+    if (typeof adfContent.text === "string") return adfContent.text;
+    if (!Array.isArray(adfContent.content)) return "";
+
     return adfContent.content
-      .map((block: any) => {
-        if (block.content) {
-          return block.content
-            .map((inline: any) => inline.text || "")
-            .join("");
-        }
-        return "";
-      })
-      .join("\n");
+      .map((node: any) => this.extractText(node))
+      .filter((text: string) => text.length > 0)
+      .join(adfContent.type === "doc" ? "\n" : "");
   }
 }
 
