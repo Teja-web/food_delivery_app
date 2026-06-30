@@ -25,6 +25,36 @@ export async function pushPlanToJiraAction(planId: string) {
   return result;
 }
 
+export async function listJiraPushTargetsAction(input: {
+  mode: "approved" | "all";
+  projectId?: string | null;
+}) {
+  const ctx = await getActionContext();
+  const where =
+    input.mode === "approved"
+      ? input.projectId
+        ? and(
+            eq(planArtifacts.organizationId, ctx.organizationId),
+            eq(planArtifacts.projectId, input.projectId),
+            eq(planArtifacts.status, "approved"),
+          )
+        : and(
+            eq(planArtifacts.organizationId, ctx.organizationId),
+            eq(planArtifacts.status, "approved"),
+          )
+      : input.projectId
+        ? and(
+            eq(planArtifacts.organizationId, ctx.organizationId),
+            eq(planArtifacts.projectId, input.projectId),
+          )
+        : eq(planArtifacts.organizationId, ctx.organizationId);
+
+  return db.query.planArtifacts.findMany({
+    where,
+    columns: { id: true, title: true, status: true },
+  });
+}
+
 export async function pushApprovedPlansToJiraAction(projectId?: string | null) {
   const ctx = await getActionContext();
   const where = projectId

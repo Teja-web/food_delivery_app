@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
 import { comments } from "@/db/schema/plan/comment";
@@ -73,6 +73,24 @@ export async function upsertExternalCommentsForPlan(
         updatedAt: sql`excluded.updated_at`,
       },
     });
+}
+
+export async function deleteExternalCommentsForPlan(
+  planArtifactId: string,
+  commentIds: string[],
+) {
+  const ctx = await getActionContext();
+  if (commentIds.length === 0) return;
+
+  await db
+    .delete(comments)
+    .where(
+      and(
+        eq(comments.organizationId, ctx.organizationId),
+        eq(comments.planArtifactId, planArtifactId),
+        inArray(comments.id, commentIds),
+      ),
+    );
 }
 
 export async function setCommentResolved(commentId: string, resolved: boolean) {

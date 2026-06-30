@@ -24,7 +24,10 @@ import {
   listChildPlans,
   listPlanRevisions,
 } from "@/operations/plan/plans";
-import { upsertExternalCommentsForPlan } from "@/operations/plan/comments";
+import {
+  deleteExternalCommentsForPlan,
+  upsertExternalCommentsForPlan,
+} from "@/operations/plan/comments";
 import { listRelationshipsForPlan } from "@/operations/plan/relationships";
 
 import { ApprovalActions } from "./ApprovalActions";
@@ -35,12 +38,45 @@ async function addComment(planId: string, formData: FormData) {
   "use server";
   const { currentUser } = await getCurrentUser();
   if (!currentUser) return;
-  await createComment({
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return;
+
+  const comment = await createComment({
     planArtifactId: planId,
     authorId: currentUser.id,
     authorName: currentUser.name,
-    body: String(formData.get("body") ?? "").trim(),
+    body,
   });
+
+  const plan = await getPlan(planId);
+  if (!plan) return;
+
+  const [jiraBinding, jiraWorkItem] = await Promise.all([
+    getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
+    db.query.workItems.findFirst({
+      where: and(
+        eq(workItems.organizationId, plan.organizationId),
+        eq(workItems.projectId, plan.projectId),
+        eq(workItems.planArtifactId, planId),
+        eq(workItems.source, "jira"),
+      ),
+      columns: { externalId: true },
+    }),
+  ]);
+
+  const issueKey = jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef);
+  if (!jiraIssueBelongsToSource(issueKey, jiraBinding?.externalKey)) return;
+
+  try {
+    const client = await getJiraClient(plan.organizationId);
+    const author = currentUser.name ?? "Coznt user";
+    await client.createIssueComment(issueKey, {
+      body: `${author} via Coznt:\n${body}`,
+      cozntCommentId: comment.id,
+    });
+  } catch {
+    /* Keep the Coznt comment even when Jira sync is temporarily unavailable. */
+  }
 }
 
 async function listJiraCommentsForIssue(input: {
@@ -60,8 +96,17 @@ async function listJiraCommentsForIssue(input: {
   }
 }
 
-function jiraIssueBelongsToSource(issueKey: string, jiraProjectKey: string): boolean {
-  return issueKey.toUpperCase().startsWith(`${jiraProjectKey.trim().toUpperCase()}-`);
+function jiraIssueBelongsToSource(
+  issueKey: string | null | undefined,
+  jiraProjectKey: string | null | undefined,
+): issueKey is string {
+  if (!issueKey || !jiraProjectKey) return false;
+  const projectKey = jiraProjectKey.trim().toUpperCase();
+  return projectKey.length > 0 && issueKey.toUpperCase().startsWith(`${projectKey}-`);
+}
+
+function jiraIssueKeyFromExternalRef(externalRef: string | null | undefined): string | null {
+  return externalRef?.startsWith("jira:") ? externalRef.slice("jira:".length) : null;
 }
 
 function jiraCommentDbId(planId: string, jiraCommentId: string): string {
@@ -116,11 +161,23 @@ export default async function PlanDetailPage({
   const jiraComments = await listJiraCommentsForIssue({
     organizationId: plan.organizationId,
     jiraProjectKey: jiraBinding?.externalKey,
-    issueKey: jiraWorkItem?.externalId,
+    issueKey: jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef),
   });
+  let comments = await listCommentsForPlan(id);
+  const existingCommentIds = new Set(comments.map((comment) => comment.id));
+  const cozntOriginComments = jiraComments.filter(
+    (comment) => comment.cozntCommentId && existingCommentIds.has(comment.cozntCommentId),
+  );
+  const jiraCommentsToMirror = jiraComments.filter(
+    (comment) => !comment.cozntCommentId || !existingCommentIds.has(comment.cozntCommentId),
+  );
+  const jiraCommentMirrorIdsToDelete = cozntOriginComments.map((comment) =>
+    jiraCommentDbId(id, comment.id),
+  );
+  await deleteExternalCommentsForPlan(id, jiraCommentMirrorIdsToDelete);
   await upsertExternalCommentsForPlan(
     id,
-    jiraComments.map((comment) => ({
+    jiraCommentsToMirror.map((comment) => ({
       id: jiraCommentDbId(id, comment.id),
       authorId: `jira:${comment.id}`,
       authorName: comment.authorName,
@@ -129,7 +186,9 @@ export default async function PlanDetailPage({
       updatedAt: new Date(comment.createdAt),
     })),
   );
-  const comments = await listCommentsForPlan(id);
+  if (jiraCommentMirrorIdsToDelete.length > 0 || jiraCommentsToMirror.length > 0) {
+    comments = await listCommentsForPlan(id);
+  }
 
   const pendingApprovals = records.filter(
     (r) => r.kind === "approval" && r.status === "pending",
