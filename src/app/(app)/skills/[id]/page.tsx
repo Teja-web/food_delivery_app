@@ -358,10 +358,10 @@ export default async function SkillDetailPage({
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                    Choreography · pushed to dev repos
+                    Choreography · claimed via CLAUDE.md / AGENTS.md
                   </CardTitle>
                   <span className="font-mono text-[10px] text-muted-foreground/80">
-                    .coznt/skills/{skill.slug}/SKILL.md
+                    invoke_skill · {skill.slug}
                   </span>
                 </div>
               </CardHeader>
@@ -385,8 +385,8 @@ export default async function SkillDetailPage({
               <CardContent className="pt-0 text-xs text-muted-foreground">
                 No <span className="font-mono">SKILL.md</span> exists for this skill yet —
                 it&apos;s server-only. Authoring a SKILL.md lets developers&apos; AI editors
-                discover and invoke this skill natively via{" "}
-                <span className="font-mono">coznt sync</span>.
+                discover and invoke this skill via the CLAUDE.md / AGENTS.md claim and MCP
+                tool descriptions.
               </CardContent>
             </Card>
           )}

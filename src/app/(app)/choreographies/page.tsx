@@ -51,9 +51,9 @@ export default async function ChoreographiesPage() {
         <div>
           <h1 className="font-display text-2xl font-semibold">Custom choreographies</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Workflow guides your team authored — pushed to <code>.coznt/skills/custom/</code> in
-            every connected repo via <code>coznt sync</code>. Platform-shipped choreographies live
-            with their skill in the catalog.
+            Workflow guides your team authored — checked in to <code>.agents/skills/custom/</code> in
+            your repo and applied on PR merge. Platform-shipped choreographies surface through the
+            CLAUDE.md / AGENTS.md claim + MCP tool descriptions; no files are pushed to your repo.
           </p>
         </div>
         <Button asChild>
