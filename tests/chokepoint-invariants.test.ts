@@ -160,6 +160,10 @@ const AUDIT_LOGS_ALLOWED: { path: string; reason: string }[] = [
     reason: "rule violations recorded at write time",
   },
   {
+    path: "src/operations/standards.ts",
+    reason: "standards create/update/delete/inheritance events are governance-domain mutations",
+  },
+  {
     path: "src/app/api/v1/mcp/sessions/route.ts",
     reason: "mcp.session_start — first audit row of every MCP session",
   },

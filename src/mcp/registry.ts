@@ -13,6 +13,7 @@ import { CozntClient } from "./client";
 import { readConventions } from "./resources/conventions";
 import { readHistory } from "./resources/history";
 import { readMyTasks } from "./resources/my-tasks";
+import { readStandards } from "./resources/standards";
 import { checkStandardsInput, runCheckStandards } from "./tools/system/check-standards";
 import { createRequirementInput, runCreateRequirement } from "./tools/requirement/create-requirement";
 import {
@@ -25,6 +26,10 @@ import { generateTestsInput, runGenerateTests } from "./tools/pipeline/generate-
 import { getAssignedWorkInput, runGetAssignedWork } from "./tools/context/get-assigned-work";
 import { getDesignContextInput, runGetDesignContext } from "./tools/context/get-design-context";
 import { getMyContextInput, runGetMyContext } from "./tools/context/get-my-context";
+import {
+  getProjectStandardsInput,
+  runGetProjectStandards,
+} from "./tools/context/get-project-standards";
 import { setProjectInput, runSetProject } from "./tools/session/set-project";
 import { switchProjectInput, runSwitchProject } from "./tools/session/switch-project";
 import { getOutcomesInput, runGetOutcomes } from "./tools/skill/get-outcomes";
@@ -155,7 +160,7 @@ export const tools = [
       "Orient at session start. Returns the active project (id, name,",
       "description), a `welcome` block (headline, summary, nextActions) for",
       "first-message greeting, active rules, available skills with their",
-      "per-project autonomy levels, recent ADRs, pinned learnings, and a",
+      "per-project autonomy levels, standards metadata, recent ADRs, pinned learnings, and a",
       "recommendedKickoff when one applies. Call this FIRST in any session —",
       "every other tool's behavior depends on what's in the response.",
     ].join(" "),
@@ -328,6 +333,17 @@ export const tools = [
     ].join(" "),
     schema: getDesignContextInput,
     run: runGetDesignContext,
+  }),
+  tool({
+    name: "get_project_standards",
+    description: [
+      "Return exact effective organization/project standards for the bound",
+      "project. Use before coding, UI design, architecture decisions, or",
+      "brand-sensitive work. `get_my_context` returns only compact metadata;",
+      "this returns the full bodies verbatim.",
+    ].join(" "),
+    schema: getProjectStandardsInput,
+    run: runGetProjectStandards,
   }),
   tool({
     name: "update_work_item_status",
@@ -664,6 +680,13 @@ export const RESOURCES = [
     description: "The rules coznt enforces for this project (severity, scope, body).",
     mimeType: "application/json",
     read: readConventions,
+  },
+  {
+    uri: "coznt://standards",
+    name: "Effective organization standards",
+    description: "Exact org/project coding, brand, architecture, and custom standards.",
+    mimeType: "application/json",
+    read: readStandards,
   },
   {
     uri: "coznt://my-tasks",

@@ -20,7 +20,12 @@
  */
 
 import { readConfig, writeConfig } from "../lib/config";
-import { fetchManifest, fetchBundle } from "../lib/api";
+import {
+  fetchManifest,
+  fetchBundle,
+  fetchStandardsManifest,
+  fetchStandardsBundle,
+} from "../lib/api";
 import { sha256 } from "../lib/hashing";
 import {
   writeLock,
@@ -28,6 +33,16 @@ import {
   readLocalSkill,
 } from "../lib/lock-file";
 import { classify, summarize, type Classification } from "../lib/diff";
+import {
+  classifyStandards,
+  summarizeStandards,
+  type StandardClassification,
+} from "../lib/standard-diff";
+import {
+  readLocalStandard,
+  writeLocalStandard,
+  writeStandardLock,
+} from "../lib/standard-lock-file";
 import { askChoice } from "../lib/prompt";
 import {
   fetchCurrentArtifactVersion,
@@ -159,10 +174,21 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     }
   }
 
-  const manifest = await fetchManifest(cfg);
+  const [manifest, standardsManifest] = await Promise.all([
+    fetchManifest(cfg),
+    fetchStandardsManifest(cfg),
+  ]);
   console.log(
     `Manifest: ${manifest.choreographies.length} choreographies, manifestHash=${manifest.manifestHash.slice(0, 12)}…`,
   );
+  console.log(
+    `Standards: ${standardsManifest.standards.length} effective, required=${standardsManifest.requiredComplete ? "complete" : "missing"}`,
+  );
+  if (!standardsManifest.requiredComplete && standardsManifest.missingRequired.length > 0) {
+    console.warn(
+      `[warn] Missing required org standards: ${standardsManifest.missingRequired.join(", ")}.`,
+    );
+  }
 
   const classes = classify(process.cwd(), manifest.choreographies);
   const summary = summarize(classes);
@@ -170,14 +196,27 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     `Comparing locks: ${summary.new} new, ${summary.unchanged} unchanged, ${summary.remoteOnly} updated remote, ${summary.localEditNoRemote} local-only edits, ${summary.conflict} conflicts`,
   );
 
-  if (summary.unchanged === classes.length) {
-    console.log("Nothing to do — every choreography is in sync.");
+  const standardClasses = classifyStandards(process.cwd(), standardsManifest.standards);
+  const standardSummary = summarizeStandards(standardClasses);
+  if (standardsManifest.standards.length > 0) {
+    console.log(
+      `Comparing standard locks: ${standardSummary.new} new, ${standardSummary.unchanged} unchanged, ${standardSummary.remoteOnly} updated remote, ${standardSummary.localEditNoRemote} local-only edits, ${standardSummary.conflict} conflicts`,
+    );
+  }
+
+  if (
+    summary.unchanged === classes.length &&
+    standardSummary.unchanged === standardClasses.length
+  ) {
+    console.log("Nothing to do — every choreography and standard is in sync.");
     return 0;
   }
 
   // Resolve conflicts and locally-edited-no-remote-change entries
   const slugsToFetch: string[] = [];
   const skipped: string[] = [];
+  const standardsToFetch: string[] = [];
+  const standardsSkipped: string[] = [];
 
   for (const cls of classes) {
     if (cls.kind === "unchanged") continue;
@@ -223,21 +262,80 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     }
   }
 
+  for (const cls of standardClasses) {
+    if (cls.kind === "unchanged") continue;
+    if (cls.kind === "new" || cls.kind === "remote-only") {
+      standardsToFetch.push(cls.slug);
+      continue;
+    }
+    if (cls.kind === "locally-edited-no-remote-change") {
+      console.warn(
+        `  [skip] standard/${cls.slug}: local edits present, remote unchanged. Leaving as-is.`,
+      );
+      standardsSkipped.push(cls.slug);
+      continue;
+    }
+    if (options.force) {
+      console.warn(`  [force] standard/${cls.slug}: overwriting local edits.`);
+      standardsToFetch.push(cls.slug);
+      continue;
+    }
+    if (options.dryRun) {
+      console.log(`  [dry-run] standard/${cls.slug}: would prompt about conflict.`);
+      continue;
+    }
+    const choice = await askChoice(
+      `standard/${cls.slug}: local edits AND remote changes both diverge from lock. (overwrite / keep / diff)?`,
+      ["overwrite", "keep", "diff"],
+    );
+    if (choice === "diff") {
+      printStandardConflictDiff(cls);
+      const second = await askChoice(
+        `standard/${cls.slug}: overwrite or keep?`,
+        ["overwrite", "keep"],
+      );
+      if (second === "overwrite") standardsToFetch.push(cls.slug);
+      else standardsSkipped.push(cls.slug);
+    } else if (choice === "overwrite") {
+      standardsToFetch.push(cls.slug);
+    } else {
+      standardsSkipped.push(cls.slug);
+    }
+  }
+
   if (options.dryRun) {
     console.log(
       `[dry-run] Would fetch: ${slugsToFetch.join(", ") || "(none)"}`,
     );
     console.log(`[dry-run] Would skip:  ${skipped.join(", ") || "(none)"}`);
+    console.log(
+      `[dry-run] Would fetch standards: ${standardsToFetch.join(", ") || "(none)"}`,
+    );
+    console.log(`[dry-run] Would skip standards:  ${standardsSkipped.join(", ") || "(none)"}`);
     return 0;
   }
 
-  if (slugsToFetch.length === 0) {
+  if (slugsToFetch.length === 0 && standardsToFetch.length === 0) {
     console.log("No fetches needed.");
     return 0;
   }
 
-  const bundle = await fetchBundle(cfg, slugsToFetch);
-  console.log(`Fetched ${bundle.choreographies.length} entries; verifying hashes…`);
+  const [bundle, standardsBundle] = await Promise.all([
+    slugsToFetch.length > 0
+      ? fetchBundle(cfg, slugsToFetch)
+      : Promise.resolve({ choreographies: [], custom: [], manifestHash: manifest.manifestHash }),
+    standardsToFetch.length > 0
+      ? fetchStandardsBundle(cfg, standardsToFetch)
+      : Promise.resolve({
+          standards: [],
+          missingRequired: standardsManifest.missingRequired,
+          requiredComplete: standardsManifest.requiredComplete,
+          manifestHash: standardsManifest.manifestHash,
+        }),
+  ]);
+  console.log(
+    `Fetched ${bundle.choreographies.length} choreographies and ${standardsBundle.standards.length} standards; verifying hashes…`,
+  );
 
   // Verify hashes before writing
   for (const entry of bundle.choreographies) {
@@ -245,6 +343,15 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     if (computed !== entry.hash) {
       console.error(
         `Hash mismatch on ${entry.slug}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
+      );
+      return 1;
+    }
+  }
+  for (const entry of standardsBundle.standards) {
+    const computed = sha256(entry.content);
+    if (computed !== entry.hash) {
+      console.error(
+        `Hash mismatch on standard/${entry.slug}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
       );
       return 1;
     }
@@ -262,6 +369,20 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
       "platform",
     );
     console.log(`  [write] .coznt/skills/${entry.slug}/SKILL.md (v${entry.version})`);
+  }
+
+  for (const entry of standardsBundle.standards) {
+    writeLocalStandard(repoRoot, entry.slug, entry.content);
+    writeStandardLock(repoRoot, entry.slug, {
+      hash: entry.hash,
+      version: entry.version,
+      syncedAt: now,
+      scope: entry.scope,
+      kind: entry.kind,
+    });
+    console.log(
+      `  [write] .coznt/standards/${entry.slug}.md (v${entry.version}, scope=${entry.scope})`,
+    );
   }
 
   // Customer-authored choreographies — write to .coznt/skills/custom/<slug>/.
@@ -292,7 +413,7 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   }
 
   console.log(
-    `\nSync complete: ${bundle.choreographies.length} platform, ${customWritten} custom written, ${skipped.length} skipped, ${summary.unchanged} already current.`,
+    `\nSync complete: ${bundle.choreographies.length} platform, ${customWritten} custom written, ${standardsBundle.standards.length} standards written, ${skipped.length + standardsSkipped.length} skipped, ${summary.unchanged + standardSummary.unchanged} already current.`,
   );
 
   if (editorRestartNeeded) {
@@ -313,6 +434,15 @@ function printConflictDiff(cls: Classification): void {
   const repoRoot = process.cwd();
   const local = readLocalSkill(repoRoot, cls.slug) ?? "(missing)";
   console.log(`\n--- ${cls.slug}: local edits (sha=${cls.localHash.slice(0, 8)}…) ---`);
+  console.log(local.split("\n").slice(0, 30).join("\n"));
+  console.log("--- (showing first 30 lines; use git diff for full) ---\n");
+}
+
+function printStandardConflictDiff(cls: StandardClassification): void {
+  if (cls.kind !== "conflict") return;
+  const repoRoot = process.cwd();
+  const local = readLocalStandard(repoRoot, cls.slug) ?? "(missing)";
+  console.log(`\n--- standard/${cls.slug}: local edits (sha=${cls.localHash.slice(0, 8)}…) ---`);
   console.log(local.split("\n").slice(0, 30).join("\n"));
   console.log("--- (showing first 30 lines; use git diff for full) ---\n");
 }

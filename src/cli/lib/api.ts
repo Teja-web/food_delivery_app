@@ -24,6 +24,24 @@ export interface Manifest {
   manifestHash: string;
 }
 
+export interface StandardsManifestEntry {
+  slug: string;
+  version: string;
+  hash: string;
+  title: string;
+  kind: string;
+  scope: "org" | "project";
+  format: "markdown" | "text";
+  updatedAt: string;
+}
+
+export interface StandardsManifest {
+  standards: StandardsManifestEntry[];
+  missingRequired: string[];
+  requiredComplete: boolean;
+  manifestHash: string;
+}
+
 export interface BundleEntry extends ManifestEntry {
   content: string;
 }
@@ -39,6 +57,14 @@ export interface Bundle {
   /** Customer-authored choreographies (may be absent from older servers). */
   custom?: CustomBundleEntry[];
   manifestHash: string;
+}
+
+export interface StandardsBundleEntry extends StandardsManifestEntry {
+  content: string;
+}
+
+export interface StandardsBundle extends Omit<StandardsManifest, "standards"> {
+  standards: StandardsBundleEntry[];
 }
 
 export class ApiError extends Error {
@@ -93,6 +119,28 @@ export async function fetchManifest(cfg: CozntConfig): Promise<Manifest> {
 
 export async function fetchBundle(cfg: CozntConfig, slugs?: string[]): Promise<Bundle> {
   return request<Bundle>(cfg, "POST", "/api/v1/mcp/choreographies/sync", {
+    projectId: cfg.projectId,
+    slugs,
+  });
+}
+
+export async function fetchStandardsManifest(cfg: CozntConfig): Promise<StandardsManifest> {
+  const params = new URLSearchParams({ projectId: cfg.projectId });
+  try {
+    return await request<StandardsManifest>(cfg, "GET", `/api/v1/mcp/standards?${params.toString()}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return { standards: [], missingRequired: [], requiredComplete: true, manifestHash: "" };
+    }
+    throw err;
+  }
+}
+
+export async function fetchStandardsBundle(
+  cfg: CozntConfig,
+  slugs?: string[],
+): Promise<StandardsBundle> {
+  return request<StandardsBundle>(cfg, "POST", "/api/v1/mcp/standards/sync", {
     projectId: cfg.projectId,
     slugs,
   });

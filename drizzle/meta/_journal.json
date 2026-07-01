@@ -15,6 +15,13 @@
       "when": 1780906398311,
       "tag": "0001_young_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782887256766,
+      "tag": "0002_lonely_the_watchers",
+      "breakpoints": true
     }
   ]
 }

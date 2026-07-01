@@ -31,6 +31,8 @@ Test body.
 `;
 
 const FIXTURE_HASH = sha256(FIXTURE_CONTENT);
+const STANDARD_CONTENT = "# Coding Standards\n\nUse strict TypeScript.";
+const STANDARD_HASH = sha256(STANDARD_CONTENT);
 
 let tmpRoot = "";
 let originalCwd = "";
@@ -101,6 +103,61 @@ describe("coznt sync", () => {
     const lock = JSON.parse(readFileSync(lockPath, "utf-8"));
     expect(lock.hash).toBe(FIXTURE_HASH);
     expect(lock.version).toBe("1.0.0");
+  });
+
+  it("fresh sync writes standards markdown + lock files", async () => {
+    const manifest = { choreographies: [], manifestHash: "deadbeef" };
+    const standardsManifest = {
+      standards: [
+        {
+          slug: "coding_standards",
+          version: "1.0.0",
+          hash: STANDARD_HASH,
+          title: "Coding Standards",
+          kind: "coding_standards",
+          scope: "org",
+          format: "markdown",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      missingRequired: [],
+      requiredComplete: true,
+      manifestHash: "standards-hash",
+    };
+    const standardsBundle = {
+      ...standardsManifest,
+      standards: [
+        {
+          ...standardsManifest.standards[0],
+          content: STANDARD_CONTENT,
+        },
+      ],
+    };
+    global.fetch = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/standards/sync")) {
+        return new Response(JSON.stringify(standardsBundle), { status: 200 });
+      }
+      if (url.includes("/standards")) {
+        return new Response(JSON.stringify(standardsManifest), { status: 200 });
+      }
+      if (url.includes("/choreographies")) {
+        return new Response(JSON.stringify(manifest), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const code = await runSync({});
+    expect(code).toBe(0);
+
+    const standardPath = join(tmpRoot, ".coznt/standards/coding_standards.md");
+    const lockPath = join(tmpRoot, ".coznt/standards/coding_standards.lock");
+    expect(existsSync(standardPath)).toBe(true);
+    expect(existsSync(lockPath)).toBe(true);
+    expect(readFileSync(standardPath, "utf-8")).toBe(STANDARD_CONTENT);
+    const lock = JSON.parse(readFileSync(lockPath, "utf-8"));
+    expect(lock.hash).toBe(STANDARD_HASH);
+    expect(lock.kind).toBe("coding_standards");
   });
 
   it("no-op when local lock matches remote hash", async () => {

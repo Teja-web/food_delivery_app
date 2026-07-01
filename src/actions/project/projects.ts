@@ -23,6 +23,11 @@ import {
   resolveJiraProjectUrl,
   syncJiraProjectWorkItems,
 } from "@/operations/integration/jira-projects";
+import {
+  auditProjectStandardsInheritance,
+  assertRequiredOrgStandardsPresent,
+  MissingRequiredStandardsError,
+} from "@/operations/standards";
 
 export async function listProjects(opts: { offset?: number; limit?: number } = {}) {
   return projectCrud.list({ offset: opts.offset ?? 0, limit: opts.limit ?? 25, sortBy: "createdAt", sortOrder: "desc" });
@@ -110,6 +115,14 @@ export async function createProjectAction(
   }
 
   const ctx = await getActionContext();
+  try {
+    await assertRequiredOrgStandardsPresent(ctx.organizationId);
+  } catch (err) {
+    if (err instanceof MissingRequiredStandardsError) {
+      return { ok: false, error: err.message };
+    }
+    throw err;
+  }
   const dup = await db.query.projects.findFirst({
     where: and(eq(projects.organizationId, ctx.organizationId), eq(projects.slug, slug)),
     columns: { id: true },
@@ -269,6 +282,12 @@ export async function createProjectAction(
         });
       }
     }
+    await auditProjectStandardsInheritance({
+      organizationId: ctx.organizationId,
+      projectId: projectRow.id,
+      actorId: ctx.userId,
+      actorName: ctx.user.name,
+    });
 
     safeRevalidate("/projects");
     return { ok: true, id: projectRow.id };
