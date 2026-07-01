@@ -361,10 +361,8 @@ function ProjectRow({ project }: { project: PortfolioProjectClient }) {
 
 export function PortfolioTable({
   data,
-  standardsReady = true,
 }: {
   data: PortfolioClient;
-  standardsReady?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -431,15 +429,10 @@ export function PortfolioTable({
             </div>
             <Link
               href="/projects/new"
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
-                standardsReady
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : "border border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/15 dark:text-amber-200",
-              )}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden />
-              {standardsReady ? "New project" : "Add org standards"}
+              New project
             </Link>
           </div>
         </div>

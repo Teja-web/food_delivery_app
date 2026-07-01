@@ -2,10 +2,10 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { listApproverEligibleMembers } from "@/operations/auth/members";
-import { getOrgStandardsReadiness, STANDARD_KIND_LABELS } from "@/operations/standards";
+import { getOrgStandardsReadiness } from "@/operations/standards";
 
 import { NewProjectForm } from "./NewProjectForm";
-import { OrgStandardsSetupForm } from "./OrgStandardsSetupForm";
+import { StandardsMissingRedirectDialog } from "./StandardsMissingRedirectDialog";
 
 export default async function NewProjectPage() {
   const [approverCandidates, standardsReadiness] = await Promise.all([
@@ -27,17 +27,10 @@ export default async function NewProjectPage() {
         <NewProjectForm approverCandidates={approverCandidates} />
       ) : (
         <>
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
-            <div className="font-medium text-foreground">Organization standards are required</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Missing:{" "}
-              {standardsReadiness.missingRequired
-                .map((kind) => STANDARD_KIND_LABELS[kind])
-                .join(", ")}
-              . Add these once and every project can inherit them by default.
-            </p>
+          <div className="rounded-sm border bg-card/30 p-6 text-sm text-muted-foreground">
+            Project creation is paused until required organization standards are configured.
           </div>
-          <OrgStandardsSetupForm />
+          <StandardsMissingRedirectDialog />
         </>
       )}
     </div>

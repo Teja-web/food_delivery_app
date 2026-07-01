@@ -387,7 +387,8 @@ export async function upsertStandard(input: UpsertStandardInput): Promise<Standa
       invokedVia: "standards:upsert",
     });
     safeRevalidate("/projects");
-    safeRevalidate("/standards");
+    safeRevalidate("/settings");
+    safeRevalidate("/settings/standards");
     return row;
   }
 
@@ -423,7 +424,8 @@ export async function upsertStandard(input: UpsertStandardInput): Promise<Standa
     invokedVia: "standards:upsert",
   });
   safeRevalidate("/projects");
-  safeRevalidate("/standards");
+  safeRevalidate("/settings");
+  safeRevalidate("/settings/standards");
   return row;
 }
 
@@ -455,7 +457,8 @@ export async function softDeleteStandard(id: string): Promise<void> {
     invokedVia: "standards:delete",
   });
   safeRevalidate("/projects");
-  safeRevalidate("/standards");
+  safeRevalidate("/settings");
+  safeRevalidate("/settings/standards");
 }
 
 export async function auditProjectStandardsInheritance(input: {

@@ -45,12 +45,13 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z, type ZodTypeAny } from "zod";
 
+import { MCP_VERSION } from "../lib/agent-context/version";
 import { CozntClient, CozntApiError, readConfig } from "./client";
 import { getSessionProject, setSessionProject, type SessionProject } from "./session";
 import { tools, RESOURCES } from "./registry";
 
 const SERVER_NAME = "coznt-mcp";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = MCP_VERSION;
 
 /**
  * Diagnostic stderr logger. stdout is reserved for the MCP JSON-RPC

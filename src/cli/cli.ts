@@ -3,7 +3,7 @@
  * coznt CLI entry point.
  *
  * Subcommands:
- *   coznt sync    — pull choreographies into .coznt/skills/
+ *   coznt sync    — pull choreographies + standards into .coznt/
  *   coznt connect — bootstrap MCP wiring (added in add-coznt-connect-cli)
  *
  * Argument parsing is hand-rolled to keep the dep tree small. Each
@@ -63,7 +63,8 @@ function printUsage(): void {
       "",
       "Usage:",
       "  coznt sync [--force] [--dry-run]",
-      "      Pull the current project's choreographies into <repo>/.coznt/skills/.",
+      "      Pull the current project's choreographies into <repo>/.coznt/skills/",
+      "      and effective standards into <repo>/.coznt/standards/.",
       "",
       "  coznt connect [--editor=<name>] [--project=<slug>] [--server=<url>]",
       "                 [--api-key-env=<NAME>] [--mcp-launcher=<cmd>]",
@@ -106,22 +107,24 @@ async function main(): Promise<void> {
 
   if (args.flags.has("version") || args.subcommand === "version") {
     console.log(MCP_VERSION);
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
 
   if (!args.subcommand || args.subcommand === "help" || args.flags.has("help")) {
     printUsage();
-    process.exit(args.subcommand ? 0 : 1);
+    process.exitCode = args.subcommand || args.flags.has("help") ? 0 : 1;
+    return;
   }
 
   try {
+    let code = 0;
     switch (args.subcommand) {
       case "sync": {
-        const code = await runSync({
+        code = await runSync({
           force: Boolean(args.flags.get("force")),
           dryRun: Boolean(args.flags.get("dry-run")),
         });
-        process.exit(code);
         break;
       }
       case "connect": {
@@ -135,7 +138,7 @@ async function main(): Promise<void> {
         } else if (args.flags.has("no-install-prompt-hook")) {
           installPromptHook = false;
         }
-        const code = await runConnect({
+        code = await runConnect({
           editor: args.flags.get("editor") as string | undefined,
           project: args.flags.get("project") as string | undefined,
           serverUrl: args.flags.get("server") as string | undefined,
@@ -144,54 +147,50 @@ async function main(): Promise<void> {
           installPromptHook,
           force: Boolean(args.flags.get("force")),
         });
-        process.exit(code);
         break;
       }
       case "prompt-hook": {
-        const code = await runPromptHook({
+        code = await runPromptHook({
           subcommand: args.positional[0] ?? null,
         });
-        process.exit(code);
         break;
       }
       case "check": {
         const { runCheck } = await import("./commands/check.js");
-        const code = await runCheck({
+        code = await runCheck({
           slug: (args.flags.get("slug") as string | undefined) ?? (args.flags.get("rule") as string | undefined),
           rules: Boolean(args.flags.get("rules")),
           plans: Boolean(args.flags.get("plans")),
         });
-        process.exit(code);
         break;
       }
       case "walkthrough": {
         const { runWalkthrough } = await import("./commands/walkthrough.js");
-        const code = await runWalkthrough({
+        code = await runWalkthrough({
           raw: Boolean(args.flags.get("raw")),
         });
-        process.exit(code);
         break;
       }
       case "call": {
         const format = args.flags.get("format");
         const { runCall } = await import("./commands/call.js");
-        const code = await runCall({
+        code = await runCall({
           verb: args.positional[0] ?? null,
           flags: args.flags,
           format: format === "compact" ? "compact" : "json",
         });
-        process.exit(code);
         break;
       }
       default: {
         console.error(`Unknown subcommand: ${args.subcommand}`);
         printUsage();
-        process.exit(1);
+        code = 1;
       }
     }
+    process.exitCode = code;
   } catch (e) {
     console.error(`Error: ${(e as Error).message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
