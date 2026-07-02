@@ -26,6 +26,7 @@ import { generate, DEFAULT_MODEL, type ModelId } from "@/lib/ai";
 import { getActionContext } from "@/lib/auth/context";
 import { applyActionPolicyRules } from "@/operations/rule-engine";
 import { recordSkillOutcome } from "@/operations/skill/skill-autonomy";
+import { buildProjectArtifactsPromptBlock } from "@/operations/artifacts";
 
 export interface SkillInvocationRequest {
   slug: string;
@@ -109,13 +110,18 @@ export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInv
   );
 
   const resolvedModel = req.model ?? DEFAULT_MODEL;
+  const standardsPromptBlock = ctx.projectId
+    ? await buildProjectArtifactsPromptBlock(ctx.organizationId, ctx.projectId)
+    : null;
 
   try {
     const result = await generate({
       agent: {
         slug: skill.slug,
         name: skill.name,
-        systemPrompt: skill.body,
+        systemPrompt: standardsPromptBlock
+          ? `${skill.body}\n\n${standardsPromptBlock}`
+          : skill.body,
         ...(req.model && { model: req.model }),
       },
       prompt: resolveSkillBody(skill, req.input),

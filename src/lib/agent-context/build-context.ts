@@ -8,6 +8,7 @@ import { repositories } from "@/db/schema/repository";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill/skill";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill/skill-autonomy";
+import { getProjectArtifactsManifest } from "@/operations/artifacts";
 
 import type {
   McpProjectArtifacts,
@@ -187,6 +188,7 @@ export async function buildMcpContext(args: {
     primaryRepoUrl,
     recommendedKickoff,
     projectArtifacts,
+    standardsManifest,
   ] = await Promise.all([
     db.query.rules.findMany({
       where: and(
@@ -224,6 +226,7 @@ export async function buildMcpContext(args: {
     getPrimaryRepoUrlForProject(project.id),
     resolveRecommendedKickoff(project.organizationId, project),
     gatherProjectArtifacts(project.organizationId, project.id),
+    getProjectArtifactsManifest(project.organizationId, project.id),
   ]);
 
   const skillsWithAutonomy = await Promise.all(
@@ -271,6 +274,20 @@ export async function buildMcpContext(args: {
       title: p.title,
       url: appUrl(`/plans/${p.id}`),
     })),
+    standards: {
+      requiredComplete: standardsManifest.requiredComplete,
+      missingRequired: standardsManifest.missingRequired,
+      resourceUri: "coznt://standards",
+      items: standardsManifest.standards.map((standard) => ({
+        kind: standard.kind,
+        name: standard.name,
+        title: standard.title,
+        scope: standard.scope,
+        version: standard.version,
+        hash: standard.hash,
+        updatedAt: standard.updatedAt,
+      })),
+    },
     learnings: learnings.map((l) => ({
       id: l.id,
       body: l.body,

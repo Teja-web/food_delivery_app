@@ -159,13 +159,17 @@ export default async function PlanDetailPage({
           eq(workItems.planArtifactId, id),
           eq(workItems.source, "jira"),
         ),
-        columns: { externalUrl: true, externalId: true },
+        columns: { externalUrl: true, externalId: true, updatedAt: true },
       }),
     ]);
+  const jiraIssueKey = jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef);
+  const jiraPushNeedsSync =
+    Boolean(jiraBinding && jiraIssueKey) &&
+    (!jiraWorkItem?.updatedAt || plan.updatedAt.getTime() > jiraWorkItem.updatedAt.getTime());
   const jiraComments = await listJiraCommentsForIssue({
     organizationId: plan.organizationId,
     jiraProjectKey: jiraBinding?.externalKey,
-    issueKey: jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef),
+    issueKey: jiraIssueKey,
   });
   let comments = await listCommentsForPlan(id);
   const existingCommentIds = new Set(comments.map((comment) => comment.id));
@@ -279,7 +283,9 @@ export default async function PlanDetailPage({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {jiraBinding ? <PushPlansToJiraButton mode="single" planId={id} /> : null}
+            {jiraBinding ? (
+              <PushPlansToJiraButton mode="single" planId={id} needsPush={jiraPushNeedsSync} />
+            ) : null}
             {githubRepos.length > 0 ? (
               <PushPlanButton
                 planId={id}
