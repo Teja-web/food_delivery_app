@@ -46,8 +46,17 @@ const POLICIES: RateLimitPolicy[] = [
 ];
 
 export async function proxy(req: NextRequest) {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-coznt-pathname", req.nextUrl.pathname);
+  const nextWithPath = () =>
+    NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+
   const policy = POLICIES.find((p) => p.pattern.test(req.nextUrl.pathname));
-  if (!policy) return NextResponse.next();
+  if (!policy) return nextWithPath();
 
   const ip = clientIp(req.headers);
   const result = await checkRateLimit({
@@ -63,7 +72,7 @@ export async function proxy(req: NextRequest) {
     });
   }
 
-  return NextResponse.next();
+  return nextWithPath();
 }
 
 /**
@@ -74,6 +83,7 @@ export async function proxy(req: NextRequest) {
  */
 export const config = {
   matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\..*).*)",
     "/api/public/opportunities/:path*",
     "/api/opportunities/claim",
     "/api/campus/claim",

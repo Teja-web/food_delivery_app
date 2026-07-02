@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell/AppShell";
@@ -26,8 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getOrgName(organizationId),
     getOrgStandardsReadiness(organizationId),
   ]);
+  const pathname = (await headers()).get("x-coznt-pathname") ?? "";
+  const standardsManagementRoute = pathname.startsWith("/settings/standards");
 
-  if (!standardsReadiness.requiredComplete) {
+  if (!standardsReadiness.requiredComplete && !standardsManagementRoute) {
     return (
       <OrgStandardsOnboardingWizard
         orgName={orgName}

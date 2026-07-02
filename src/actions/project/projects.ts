@@ -7,6 +7,12 @@ import { environments, type EnvironmentTier } from "@/db/schema/environment";
 import { governancePolicies } from "@/db/schema/governance/policies";
 import { projects } from "@/db/schema/project";
 import { repositories, type RepositorySource } from "@/db/schema/repository";
+import {
+  REQUIRED_STANDARD_KINDS,
+  STANDARD_KIND_LABELS,
+  type RequiredStandardKind,
+  type StandardFormat,
+} from "@/db/schema/standard";
 import { assertElevatedRole, getActionContext } from "@/lib/auth/context";
 import { getPolicyTemplate } from "@/lib/governance/policy-templates";
 import { projectCrud } from "@/operations/project/projects";
@@ -27,6 +33,7 @@ import {
   auditProjectStandardsInheritance,
   assertRequiredOrgStandardsPresent,
   MissingRequiredStandardsError,
+  upsertStandard,
 } from "@/operations/standards";
 
 export async function listProjects(opts: { offset?: number; limit?: number } = {}) {
@@ -46,6 +53,27 @@ export async function createProject(input: Parameters<typeof projectCrud.create>
 }
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
+const STANDARD_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+interface ProjectRequiredStandardOverrideInput {
+  kind: RequiredStandardKind;
+  body: string;
+  format?: StandardFormat;
+  sourceFileName?: string;
+}
+
+interface ProjectCustomStandardInput {
+  title: string;
+  slug: string;
+  body: string;
+  format?: StandardFormat;
+  sourceFileName?: string;
+}
+
+interface NormalizedProjectStandardsInput {
+  requiredOverrides: ProjectRequiredStandardOverrideInput[];
+  customStandards: ProjectCustomStandardInput[];
+}
 
 export async function checkProjectSlugAvailability(
   slug: string,
@@ -95,6 +123,60 @@ export interface CreateProjectWizardInput {
   environmentsToCreate?: Array<{ name: string; tier: EnvironmentTier }>;
   criticalPaths?: string[];
   productionCriticalPaths?: string[];
+  projectStandards?: {
+    mode: "inherit" | "custom";
+    requiredOverrides?: ProjectRequiredStandardOverrideInput[];
+    customStandards?: ProjectCustomStandardInput[];
+  };
+}
+
+function normalizeProjectStandardsInput(
+  input: CreateProjectWizardInput["projectStandards"],
+): NormalizedProjectStandardsInput {
+  if (!input || input.mode === "inherit") {
+    return { requiredOverrides: [], customStandards: [] };
+  }
+
+  const requiredByKind = new Map<RequiredStandardKind, ProjectRequiredStandardOverrideInput>();
+  for (const override of input.requiredOverrides ?? []) {
+    const kind = override.kind;
+    if (!REQUIRED_STANDARD_KINDS.includes(kind)) {
+      throw new Error(`Unknown required standard kind: ${kind}.`);
+    }
+    const body = override.body.trim();
+    if (!body) continue;
+    requiredByKind.set(kind, {
+      kind,
+      body: override.body,
+      format: override.format ?? "markdown",
+      sourceFileName: override.sourceFileName?.trim() || undefined,
+    });
+  }
+
+  const customBySlug = new Map<string, ProjectCustomStandardInput>();
+  for (const standard of input.customStandards ?? []) {
+    const title = standard.title.trim();
+    const slug = standard.slug.trim();
+    const body = standard.body.trim();
+    if (!title && !slug && !body) continue;
+    if (!title) throw new Error("Project custom standard title is required.");
+    if (!STANDARD_SLUG_PATTERN.test(slug)) {
+      throw new Error("Project custom standard slug must use lowercase letters, digits, and hyphens.");
+    }
+    if (!body) throw new Error(`Project custom standard "${title}" needs file content.`);
+    customBySlug.set(slug, {
+      title,
+      slug,
+      body: standard.body,
+      format: standard.format ?? "markdown",
+      sourceFileName: standard.sourceFileName?.trim() || undefined,
+    });
+  }
+
+  return {
+    requiredOverrides: [...requiredByKind.values()],
+    customStandards: [...customBySlug.values()],
+  };
 }
 
 export async function createProjectAction(
@@ -132,6 +214,12 @@ export async function createProjectAction(
   const template = input.skipGovernance ? null : getPolicyTemplate(input.templateId);
   if (!input.skipGovernance && !template) {
     return { ok: false, error: `Unknown governance template: ${input.templateId}.` };
+  }
+  let projectStandards: NormalizedProjectStandardsInput;
+  try {
+    projectStandards = normalizeProjectStandardsInput(input.projectStandards);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Invalid project standards." };
   }
   let normalizedRepo:
     | ReturnType<typeof normalizeRepositoryInput>
@@ -265,6 +353,30 @@ export async function createProjectAction(
             url: repositoryUrl,
           })
         : Promise.resolve(),
+      ...projectStandards.requiredOverrides.map((override) =>
+        upsertStandard({
+          projectId: projectRow.id,
+          kind: override.kind,
+          slug: override.kind.replaceAll("_", "-"),
+          title: STANDARD_KIND_LABELS[override.kind],
+          body: override.body,
+          format: override.format ?? "markdown",
+          version: "1.0.0",
+          sourceFileName: override.sourceFileName,
+        }),
+      ),
+      ...projectStandards.customStandards.map((standard) =>
+        upsertStandard({
+          projectId: projectRow.id,
+          kind: "custom",
+          slug: standard.slug,
+          title: standard.title,
+          body: standard.body,
+          format: standard.format ?? "markdown",
+          version: "1.0.0",
+          sourceFileName: standard.sourceFileName,
+        }),
+      ),
     ]);
 
     if (normalizedRepo) {
