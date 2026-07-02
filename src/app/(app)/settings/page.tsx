@@ -233,6 +233,15 @@ export default async function SettingsPage() {
           </div>
           <div className="flex items-center justify-between">
             <div>
+              <div>Organization standards</div>
+              <div className="text-xs text-muted-foreground">Org-scoped coding, brand, architecture, and custom standards.</div>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/settings/standards">Open</Link>
+            </Button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
               <div>Tool discipline</div>
               <div className="text-xs text-muted-foreground">Which MCP verbs are allowed in which phase. Platform-declared, read-only.</div>
             </div>

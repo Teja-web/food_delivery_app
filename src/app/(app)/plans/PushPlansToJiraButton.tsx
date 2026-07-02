@@ -10,11 +10,13 @@ import {
   pushPlanToJiraAction,
 } from "@/actions/integration/jira-sync";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type PushPlansToJiraButtonProps =
   | {
       mode: "single";
       planId: string;
+      needsPush?: boolean;
       disabled?: boolean;
     }
   | {
@@ -47,6 +49,7 @@ export function PushPlansToJiraButton(props: PushPlansToJiraButtonProps) {
   const [pending, startTransition] = useTransition();
   const [progress, setProgress] = useState<JiraPushProgress>(null);
   const isGlobalPush = props.mode !== "single";
+  const needsPush = props.mode === "single" && props.needsPush === true;
   const disabled =
     props.disabled ||
     pending ||
@@ -55,7 +58,9 @@ export function PushPlansToJiraButton(props: PushPlansToJiraButtonProps) {
     (props.mode === "all" && props.totalCount === 0);
   const label =
     props.mode === "single"
-      ? "Push to Jira"
+      ? needsPush
+        ? "Push updates to Jira"
+        : "Push to Jira"
       : props.mode === "approved"
         ? props.approvedCount === 1
           ? "Push 1 approved plan"
@@ -149,10 +154,14 @@ export function PushPlansToJiraButton(props: PushPlansToJiraButtonProps) {
   return (
     <Button
       type="button"
-      variant="outline"
+      variant={needsPush ? "default" : "outline"}
       size="sm"
       disabled={disabled}
-      className={isGlobalPush ? "relative w-[260px] justify-start overflow-hidden" : undefined}
+      title={needsPush ? "This plan has Coznt changes that have not been pushed to Jira." : undefined}
+      className={cn(
+        isGlobalPush && "relative w-[260px] justify-start overflow-hidden",
+        needsPush && "shadow-sm ring-1 ring-primary/35",
+      )}
       onClick={() => {
         if (props.mode === "single") {
           startTransition(async () => {
