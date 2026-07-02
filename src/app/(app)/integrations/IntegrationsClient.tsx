@@ -66,12 +66,12 @@ const PROVIDERS: ProviderDef[] = [
   {
     id: "jira",
     name: "Jira",
-    description: "Sync issues, sprints, and statuses. Bind each coznt project to a Jira project key.",
+    description: "Sync issues, sprints, and statuses. Bind each coznt project to a Jira site and project key.",
     apiKeyLabel: "API token",
     apiKeyPlaceholder: "ATATT…",
     apiKeyHint: "Create at id.atlassian.com → Security → API tokens. Combined with your account email.",
     docsHref: "https://id.atlassian.com/manage-profile/security/api-tokens",
-    externalKeyHint: "Jira project key — e.g. ACME",
+    externalKeyHint: "site/project key - e.g. acme.atlassian.net/ACME",
     configFields: [
       { key: "baseUrl", label: "Site URL", placeholder: "https://acme.atlassian.net", type: "url", required: true },
       { key: "email", label: "Account email", placeholder: "you@acme.com", type: "email", required: true },

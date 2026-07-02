@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
 import {
@@ -9,6 +9,7 @@ import {
   type AdapterProvider,
 } from "@/db/schema/adapter-binding";
 import { safeRevalidate } from "@/lib/safe-revalidate";
+import { jiraExternalKeyLookupCandidates } from "@/lib/integrations/jira-keys";
 
 const adapterBindingSchema = z.object({
   projectId: z.string().min(1),
@@ -49,11 +50,31 @@ export async function findProjectIdForBinding(
   provider: AdapterProvider,
   externalKey: string,
 ): Promise<string | null> {
+  if (provider === "jira") {
+    for (const candidate of jiraExternalKeyLookupCandidates(externalKey)) {
+      const row = await db.query.adapterBindings.findFirst({
+        where: and(
+          eq(adapterBindings.organizationId, organizationId),
+          eq(adapterBindings.provider, provider),
+          sql`lower(${adapterBindings.externalKey}) = ${candidate.toLowerCase()}`,
+        ),
+        columns: { projectId: true },
+      });
+      if (row) return row.projectId;
+    }
+    return null;
+  }
+
+  const normalizedExternalKey = provider === "confluence"
+    ? externalKey.trim().toUpperCase()
+    : externalKey;
   const row = await db.query.adapterBindings.findFirst({
     where: and(
       eq(adapterBindings.organizationId, organizationId),
       eq(adapterBindings.provider, provider),
-      eq(adapterBindings.externalKey, externalKey),
+      provider === "confluence"
+        ? sql`upper(${adapterBindings.externalKey}) = ${normalizedExternalKey}`
+        : eq(adapterBindings.externalKey, normalizedExternalKey),
     ),
     columns: { projectId: true },
   });
@@ -70,12 +91,15 @@ export async function getOutboundBinding(
   projectId: string,
   provider: AdapterProvider,
 ): Promise<AdapterBinding | null> {
-  const row = await db.query.adapterBindings.findFirst({
+  const rows = await db.query.adapterBindings.findMany({
     where: and(
       eq(adapterBindings.organizationId, organizationId),
       eq(adapterBindings.projectId, projectId),
       eq(adapterBindings.provider, provider),
     ),
   });
-  return row ?? null;
+  if (provider === "jira") {
+    return rows.find((row) => row.externalKey.includes("/")) ?? rows[0] ?? null;
+  }
+  return rows[0] ?? null;
 }

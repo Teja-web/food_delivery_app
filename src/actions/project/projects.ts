@@ -24,6 +24,7 @@ import {
   resolveJiraProjectUrl,
   syncJiraProjectWorkItems,
 } from "@/operations/integration/jira-projects";
+import { jiraExternalKeyFromParts } from "@/lib/integrations/jira-keys";
 import {
   assertRequiredOrganizationArtifactsPresent,
   cloneOrganizationArtifactsToProject,
@@ -233,6 +234,7 @@ export async function createProjectAction(
     | ReturnType<typeof normalizeRepositoryInput>
     | null = null;
   let repositoryUrl: string | null = null;
+  let bindingExternalKey: string | null = null;
   if (input.repository) {
     try {
       let repositoryInput = input.repository;
@@ -283,6 +285,7 @@ export async function createProjectAction(
         url: repositoryInput.url,
       });
       repositoryUrl = normalizedRepo.url;
+      bindingExternalKey = normalizedRepo.externalKey;
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Invalid repository binding." };
     }
@@ -292,7 +295,7 @@ export async function createProjectAction(
     try {
       await ensureJiraProjectExists({
         organizationId: ctx.organizationId,
-        projectKey: normalizedRepo.externalKey,
+        projectKey: normalizedRepo.identifier,
         projectName: name,
         createIfMissing:
           input.repository?.source === "jira" &&
@@ -307,7 +310,8 @@ export async function createProjectAction(
       }
       return { ok: false, error: err instanceof Error ? err.message : "Jira project check failed." };
     }
-    repositoryUrl = await resolveJiraProjectUrl(ctx.organizationId, normalizedRepo.externalKey);
+    repositoryUrl = await resolveJiraProjectUrl(ctx.organizationId, normalizedRepo.identifier);
+    bindingExternalKey = jiraExternalKeyFromParts(normalizedRepo.identifier, repositoryUrl);
   }
 
   try {
@@ -387,13 +391,13 @@ export async function createProjectAction(
         organizationId: ctx.organizationId,
         projectId: projectRow.id,
         source: normalizedRepo.source,
-        externalKey: normalizedRepo.externalKey,
+        externalKey: bindingExternalKey ?? normalizedRepo.externalKey,
       });
       if (normalizedRepo.source === "jira") {
         await syncJiraProjectWorkItems({
           organizationId: ctx.organizationId,
           projectId: projectRow.id,
-          projectKey: normalizedRepo.externalKey,
+          projectKey: normalizedRepo.identifier,
         });
       }
     }

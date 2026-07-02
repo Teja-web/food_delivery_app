@@ -18,6 +18,7 @@ import {
   resolveJiraProjectUrl,
   syncJiraProjectWorkItems,
 } from "@/operations/integration/jira-projects";
+import { jiraExternalKeyFromParts } from "@/lib/integrations/jira-keys";
 
 export interface AddRepositoryInput {
   projectId: string;
@@ -43,6 +44,7 @@ export async function addRepositoryToProject(input: AddRepositoryInput) {
     url: input.url,
   });
   let repositoryUrl = normalized.url;
+  let bindingExternalKey = normalized.externalKey;
 
   if (normalized.source === "jira") {
     const project = await db.query.projects.findFirst({
@@ -54,7 +56,7 @@ export async function addRepositoryToProject(input: AddRepositoryInput) {
     try {
       await ensureJiraProjectExists({
         organizationId: ctx.organizationId,
-        projectKey: normalized.externalKey,
+        projectKey: normalized.identifier,
         projectName: project.name,
         createIfMissing: input.createMissingJiraProject === true,
       });
@@ -66,7 +68,8 @@ export async function addRepositoryToProject(input: AddRepositoryInput) {
       }
       throw err;
     }
-    repositoryUrl = await resolveJiraProjectUrl(ctx.organizationId, normalized.externalKey);
+    repositoryUrl = await resolveJiraProjectUrl(ctx.organizationId, normalized.identifier);
+    bindingExternalKey = jiraExternalKeyFromParts(normalized.identifier, repositoryUrl);
   }
 
   const row = await repositoryCrud.create({
@@ -79,13 +82,13 @@ export async function addRepositoryToProject(input: AddRepositoryInput) {
     organizationId: ctx.organizationId,
     projectId: input.projectId,
     source: normalized.source,
-    externalKey: normalized.externalKey,
+    externalKey: bindingExternalKey,
   });
   if (normalized.source === "jira") {
     await syncJiraProjectWorkItems({
       organizationId: ctx.organizationId,
       projectId: input.projectId,
-      projectKey: normalized.externalKey,
+      projectKey: normalized.identifier,
     });
   }
   return row;
