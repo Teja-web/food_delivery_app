@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { fileNameFromTitle, titleFromFileName } from "./standard-title";
 
 type RequiredStandardKind =
   | "coding_standards"
@@ -95,6 +96,10 @@ function emptyCustomDraft(): CustomStandardDraft {
 
 function inferFormat(fileName: string): StandardFormat {
   return fileName.toLowerCase().endsWith(".txt") ? "text" : "markdown";
+}
+
+function fileTypeForFormat(format: StandardFormat): ".md" | ".txt" {
+  return format === "text" ? ".txt" : ".md";
 }
 
 function isAcceptedTextFile(file: File): boolean {
@@ -208,6 +213,11 @@ function byteCount(value: string): string {
 
 function statusLabel(body: string): "Ready" | "Missing" {
   return body.trim().length > 0 ? "Ready" : "Missing";
+}
+
+function acceptsEditableFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase().trim();
+  return lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt");
 }
 
 function StandardStatus({ body }: { body: string }) {
@@ -349,6 +359,18 @@ export function OrgStandardsEditor({
     setNewCustom((item) => ({ ...item, ...patch }));
   }
 
+  function updateNewCustomFromFile(patch: {
+    body: string;
+    sourceFileName: string;
+    format: StandardFormat;
+  }) {
+    setNewCustom((item) => ({
+      ...item,
+      ...patch,
+      title: item.title.trim().length > 0 ? item.title : titleFromFileName(patch.sourceFileName),
+    }));
+  }
+
   function toggleEditor(key: string) {
     setOpenEditors((current) => {
       const next = new Set(current);
@@ -454,6 +476,14 @@ export function OrgStandardsEditor({
     updateRequired(selectedRequired.kind, { body });
   }
 
+  function updateSelectedFileName(fileName: string) {
+    if (!selectedIsCustom || selection.type !== "custom") return;
+    updateCustom(selection.index, {
+      sourceFileName: fileName,
+      format: fileName.trim() ? inferFormat(fileName) : selected.format,
+    });
+  }
+
   function deleteSelected() {
     if (selectedIsCustom && selection.type === "custom") {
       deleteCustom(selection.index);
@@ -499,6 +529,17 @@ export function OrgStandardsEditor({
       return;
     }
 
+    const invalidCustomFileName = customStandards.find((item) => {
+      const fileName = item.sourceFileName?.trim();
+      return fileName ? !acceptsEditableFileName(fileName) : false;
+    });
+    if (invalidCustomFileName?.sourceFileName) {
+      setErrors([
+        `${invalidCustomFileName.sourceFileName} must end with .md, .markdown, or .txt.`,
+      ]);
+      return;
+    }
+
     startTransition(async () => {
       const result = await saveOrgStandardsSetupAction({
         codingStandardsBody: coding.body,
@@ -512,10 +553,13 @@ export function OrgStandardsEditor({
         architecturePrinciplesSourceFileName: architecture.sourceFileName,
         customStandards: customStandards
           .map((item) => ({
+            id: item.id,
             title: item.title.trim(),
             body: item.body,
-            type: (item.format === "text" ? ".txt" : ".md") as ".md" | ".txt",
-            sourceFileName: item.sourceFileName,
+            type: fileTypeForFormat(item.format),
+            sourceFileName:
+              item.sourceFileName?.trim() ||
+              fileNameFromTitle(item.title, fileTypeForFormat(item.format)),
           }))
           .filter(
             (item) =>
@@ -717,10 +761,28 @@ export function OrgStandardsEditor({
           </div>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <MetadataItem
-              label="File name"
-              value={selected.sourceFileName ?? "No file uploaded"}
-            />
+            {selectedIsCustom ? (
+              <div className="rounded-sm border bg-background px-3 py-2">
+                <Label
+                  htmlFor="selected-additional-standard-file-name"
+                  className="font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-muted-foreground"
+                >
+                  File name
+                </Label>
+                <Input
+                  id="selected-additional-standard-file-name"
+                  value={selected.sourceFileName ?? ""}
+                  onChange={(event) => updateSelectedFileName(event.target.value)}
+                  placeholder={fileNameFromTitle(selected.title || "artifact", fileTypeForFormat(selected.format))}
+                  className="mt-1 h-7 px-0 text-sm font-medium shadow-none"
+                />
+              </div>
+            ) : (
+              <MetadataItem
+                label="File name"
+                value={selected.sourceFileName ?? "No file uploaded"}
+              />
+            )}
             <MetadataItem label="Type" value={selected.format} />
             <MetadataItem label="Size" value={byteCount(selected.body)} />
             <MetadataItem label="Status" value={statusLabel(selected.body)} />
@@ -857,9 +919,7 @@ export function OrgStandardsEditor({
                   accept={FILE_ACCEPT}
                   className="sr-only"
                   onChange={(event) =>
-                    void applyFile(event.target.files?.[0], (patch) =>
-                      updateNewCustom(patch),
-                    )
+                    void applyFile(event.target.files?.[0], updateNewCustomFromFile)
                   }
                 />
               </Label>
