@@ -19,10 +19,23 @@ import {
 } from "@/db/schema/artifact";
 
 const customStandardSchema = z.object({
+  id: z.string().uuid().optional(),
   title: z.string().min(1),
   body: z.string().refine((value) => value.trim().length > 0, "Standard body is required."),
   type: z.enum(ARTIFACT_FILE_TYPES).optional().default(".md"),
-  sourceFileName: z.string().optional().nullable(),
+  sourceFileName: z
+    .string()
+    .trim()
+    .refine(
+      (value) =>
+        value.length === 0 ||
+        value.toLowerCase().endsWith(".md") ||
+        value.toLowerCase().endsWith(".markdown") ||
+        value.toLowerCase().endsWith(".txt"),
+      "Additional standard file name must end with .md, .markdown, or .txt.",
+    )
+    .optional()
+    .nullable(),
 });
 
 const requiredPayloadSchema = z.object({
@@ -209,10 +222,18 @@ export async function saveOrgStandardsSetupAction(
       });
       saved.push(serializeSavedStandard(row));
     }
+    const seenCustomFileNames = new Set<string>();
     for (const custom of parsed.data.customStandards) {
+      const name = custom.sourceFileName?.trim() || fileNameFromTitle(custom.title.trim(), custom.type);
+      const duplicateKey = name.toLowerCase();
+      if (seenCustomFileNames.has(duplicateKey)) {
+        return { ok: false, errors: [`Additional standard file "${name}" is duplicated.`] };
+      }
+      seenCustomFileNames.add(duplicateKey);
       const row = await upsertOrganizationArtifact({
+        id: custom.id,
         title: custom.title.trim(),
-        name: custom.sourceFileName ?? fileNameFromTitle(custom.title.trim(), custom.type),
+        name,
         body: custom.body,
         type: custom.type,
       });

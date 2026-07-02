@@ -36,6 +36,7 @@ import { ApprovalActions } from "./ApprovalActions";
 import { PlanEditor } from "./PlanEditor";
 import { PushPlansToJiraButton } from "../PushPlansToJiraButton";
 import { PushPlanButton } from "./PushPlanButton";
+import { PlanActionsMenu } from "./PlanActionsMenu";
 
 async function addComment(planId: string, formData: FormData) {
   "use server";
@@ -298,12 +299,12 @@ export default async function PlanDetailPage({
                 initialRepositoryIdentifier={githubRepos[0].identifier}
               />
             ) : null}
-            <Button asChild variant="outline" size="sm">
-              <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <a href={`/api/v1/plans/${id}/export?format=html`}>Export .html</a>
-            </Button>
+            <PlanActionsMenu
+              planId={id}
+              projectId={plan.projectId}
+              body={plan.body ?? ""}
+              bodyHtml={bodyHtml}
+            />
           </div>
         </div>
 

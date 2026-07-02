@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { titleFromFileName } from "./standard-title";
 
 const requiredStandardFields = [
   {
@@ -64,12 +65,14 @@ function FileDropBox({
   savedAsFileName,
   id,
   required,
+  onFileSelected,
 }: {
   label: string;
   name: string;
   savedAsFileName?: string;
   id?: string;
   required?: boolean;
+  onFileSelected?: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = id ?? name;
@@ -79,6 +82,7 @@ function FileDropBox({
   function setFiles(files: FileList | null) {
     const file = files?.item(0);
     setFileName(file?.name ?? "");
+    if (file) onFileSelected?.(file);
   }
 
   return (
@@ -156,6 +160,16 @@ export function OrgStandardsOnboardingWizard({
   function updateCustomStandard(id: string, patch: Partial<CustomStandardDraft>) {
     setCustomStandards((items) =>
       items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  }
+
+  function applyCustomStandardFileName(id: string, fileName: string) {
+    setCustomStandards((items) =>
+      items.map((item) =>
+        item.id === id && item.title.trim().length === 0
+          ? { ...item, title: titleFromFileName(fileName) }
+          : item,
+      ),
     );
   }
 
@@ -246,6 +260,7 @@ export function OrgStandardsOnboardingWizard({
                       label="File"
                       name="customStandardFile"
                       id={`${item.id}-file`}
+                      onFileSelected={(file) => applyCustomStandardFileName(item.id, file.name)}
                     />
                   </div>
                 ))}
