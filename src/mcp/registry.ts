@@ -30,6 +30,10 @@ import {
   getProjectStandardsInput,
   runGetProjectStandards,
 } from "./tools/context/get-project-standards";
+import {
+  setupProjectStandardsInput,
+  runSetupProjectStandards,
+} from "./tools/context/setup-project-standards";
 import { setProjectInput, runSetProject } from "./tools/session/set-project";
 import { switchProjectInput, runSwitchProject } from "./tools/session/switch-project";
 import { getOutcomesInput, runGetOutcomes } from "./tools/skill/get-outcomes";
@@ -344,6 +348,19 @@ export const tools = [
     ].join(" "),
     schema: getProjectStandardsInput,
     run: runGetProjectStandards,
+  }),
+  tool({
+    name: "setup_project_standards",
+    description: [
+      "Project setup gate for standards before assigned work starts. Either",
+      "copy existing organization standards into project_artifacts with",
+      "`useOrganizationDefaults: true`, or upload project-exclusive",
+      "Requirements + Design via inline bodies or local file paths with",
+      "`useOrganizationDefaults: false`. Reflected immediately in the",
+      "project Standards tab and MCP standards sync.",
+    ].join(" "),
+    schema: setupProjectStandardsInput,
+    run: runSetupProjectStandards,
   }),
   tool({
     name: "update_work_item_status",

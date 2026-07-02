@@ -22,7 +22,7 @@ import {
   type RequiredOrganizationArtifactKey,
 } from "@/db/schema/artifact";
 import { projects } from "@/db/schema/project";
-import { assertElevatedRole, getActionContext } from "@/lib/auth/context";
+import { assertElevatedRole, getActionContext, hasElevatedRole, type ScopedActionContext } from "@/lib/auth/context";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export {
@@ -167,8 +167,10 @@ function toManifestEntry(row: ProjectArtifact): ArtifactManifestEntry {
 }
 
 function auditShape(row: OrganizationArtifact | ProjectArtifact, scope: ArtifactScope) {
+  const projectId = "projectId" in row ? row.projectId : null;
   return {
     id: row.id,
+    projectId,
     name: row.name,
     title: artifactTitle(row),
     type: row.type,
@@ -177,6 +179,15 @@ function auditShape(row: OrganizationArtifact | ProjectArtifact, scope: Artifact
     contentHash: artifactHash(row),
     metadata: row.metadata,
   };
+}
+
+function assertProjectArtifactWriteAllowed(
+  ctx: ScopedActionContext,
+  projectId: string,
+  action: string,
+): void {
+  if (hasElevatedRole(ctx) || ctx.projectId === projectId) return;
+  assertElevatedRole(ctx, action);
 }
 
 async function auditArtifactMutation(input: {
@@ -451,9 +462,9 @@ export async function upsertOrganizationArtifact(
 
 export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): Promise<ProjectArtifact> {
   const ctx = await getActionContext();
-  assertElevatedRole(ctx, "Changing project artifacts");
 
   const parsed = artifactInputSchema.extend({ projectId: z.string().min(1) }).parse(input);
+  assertProjectArtifactWriteAllowed(ctx, parsed.projectId, "Changing project artifacts");
   const project = await db.query.projects.findFirst({
     where: and(eq(projects.id, parsed.projectId), eq(projects.organizationId, ctx.organizationId)),
     columns: { id: true },
@@ -635,11 +646,11 @@ export async function deleteOrganizationArtifact(id: string): Promise<void> {
 
 export async function deleteProjectArtifact(id: string): Promise<void> {
   const ctx = await getActionContext();
-  assertElevatedRole(ctx, "Deleting project artifacts");
   const existing = await db.query.projectArtifacts.findFirst({
     where: and(eq(projectArtifacts.id, id), eq(projectArtifacts.organizationId, ctx.organizationId)),
   });
   if (!existing) throw new Error(`Project artifact ${id} not found.`);
+  assertProjectArtifactWriteAllowed(ctx, existing.projectId, "Deleting project artifacts");
   await db
     .delete(projectArtifacts)
     .where(and(eq(projectArtifacts.id, id), eq(projectArtifacts.organizationId, ctx.organizationId)));
