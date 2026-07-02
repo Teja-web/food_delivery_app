@@ -2,6 +2,7 @@
 
 import {
   ChevronLeft,
+  FileText,
   GitBranch,
   LayoutDashboard,
   ScrollText,
@@ -32,6 +33,7 @@ interface TabDef {
  */
 const TABS: readonly TabDef[] = [
   { slug: "overview", label: "Overview", Icon: LayoutDashboard },
+  { slug: "standards", label: "Standards", Icon: FileText },
   { slug: "plans", label: "Plans", Icon: ScrollText, count: (c) => c.plansTotal },
   { slug: "work-items", label: "Work items", Icon: GitBranch, count: (c) => c.workItems },
   { slug: "governance", label: "Governance", Icon: Shield, count: (c) => c.trustOutcomes },

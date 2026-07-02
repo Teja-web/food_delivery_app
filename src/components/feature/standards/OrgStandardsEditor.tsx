@@ -39,7 +39,6 @@ type StandardFormat = "markdown" | "text";
 export interface OrgStandardEditorItem {
   id: string;
   kind: StandardKind;
-  slug: string;
   title: string;
   body: string;
   format: StandardFormat;
@@ -52,7 +51,6 @@ export interface OrgStandardEditorItem {
 interface RequiredStandardDraft {
   id?: string;
   kind: RequiredStandardKind;
-  slug: string;
   title: string;
   body: string;
   format: StandardFormat;
@@ -64,7 +62,6 @@ interface RequiredStandardDraft {
 interface CustomStandardDraft {
   id?: string;
   title: string;
-  slug: string;
   body: string;
   format: StandardFormat;
   sourceFileName: string | null;
@@ -76,12 +73,11 @@ type Selection =
   | { type: "required"; kind: RequiredStandardKind }
   | { type: "custom"; index: number };
 
-const REQUIRED_DEFS: Array<Pick<RequiredStandardDraft, "kind" | "slug" | "title">> = [
-  { kind: "coding_standards", slug: "coding-standards", title: "Coding Standards" },
-  { kind: "brand_guidelines", slug: "brand-guidelines", title: "Brand Guidelines" },
+const REQUIRED_DEFS: Array<Pick<RequiredStandardDraft, "kind" | "title">> = [
+  { kind: "coding_standards", title: "Coding Standards" },
+  { kind: "brand_guidelines", title: "Brand Guidelines" },
   {
     kind: "architecture_principles",
-    slug: "architecture-principles",
     title: "Architecture Principles",
   },
 ];
@@ -91,19 +87,10 @@ const FILE_ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
 function emptyCustomDraft(): CustomStandardDraft {
   return {
     title: "",
-    slug: "",
     body: "",
     format: "markdown",
     sourceFileName: null,
   };
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function inferFormat(fileName: string): StandardFormat {
@@ -143,7 +130,6 @@ function initialCustomDrafts(items: OrgStandardEditorItem[]): CustomStandardDraf
     .map((item) => ({
       id: item.id,
       title: item.title,
-      slug: item.slug,
       body: item.body,
       format: item.format,
       sourceFileName: item.sourceFileName,
@@ -167,12 +153,15 @@ function canonicalDraftSnapshot(input: {
       .map((item) => ({
         id: item.id ?? null,
         title: item.title.trim(),
-        slug: item.slug.trim(),
         body: item.body,
         format: item.format,
         sourceFileName: item.sourceFileName ?? null,
       }))
-      .sort((a, b) => `${a.id ?? ""}:${a.slug}`.localeCompare(`${b.id ?? ""}:${b.slug}`)),
+      .sort((a, b) =>
+        `${a.id ?? ""}:${a.sourceFileName ?? ""}:${a.title}`.localeCompare(
+          `${b.id ?? ""}:${b.sourceFileName ?? ""}:${b.title}`,
+        ),
+      ),
   });
 }
 
@@ -189,7 +178,6 @@ function standardsKey(items: OrgStandardEditorItem[]): string {
       [
         item.kind,
         item.id,
-        item.slug,
         item.hash,
         item.sourceFileName ?? "",
         item.updatedAt,
@@ -202,7 +190,6 @@ function fromSavedStandards(items: SavedOrgStandard[]): OrgStandardEditorItem[] 
   return items.map((item) => ({
     id: item.id,
     kind: item.kind,
-    slug: item.slug,
     title: item.title,
     body: item.body,
     format: item.format,
@@ -229,15 +216,13 @@ function StandardStatus({ body }: { body: string }) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-        ready
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-amber-50 text-amber-700",
+        ready ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground",
       )}
     >
       <span
         className={cn(
           "h-1.5 w-1.5 rounded-full",
-          ready ? "bg-emerald-500" : "bg-amber-500",
+          ready ? "bg-primary" : "bg-muted-foreground",
         )}
         aria-hidden
       />
@@ -248,11 +233,11 @@ function StandardStatus({ body }: { body: string }) {
 
 function MetadataItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[12px] bg-slate-50 px-4 py-3">
-      <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">
+    <div className="rounded-sm border bg-background px-3 py-2">
+      <div className="font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 truncate text-sm font-medium text-slate-950">{value}</div>
+      <div className="mt-1 truncate text-sm font-medium">{value}</div>
     </div>
   );
 }
@@ -356,25 +341,12 @@ export function OrgStandardsEditor({
 
   function updateCustom(index: number, patch: Partial<CustomStandardDraft>) {
     setCustomStandards((items) =>
-      items.map((item, idx) => {
-        if (idx !== index) return item;
-        const next = { ...item, ...patch };
-        if (patch.title !== undefined && item.slug.trim().length === 0) {
-          next.slug = slugify(patch.title);
-        }
-        return next;
-      }),
+      items.map((item, idx) => (idx === index ? { ...item, ...patch } : item)),
     );
   }
 
   function updateNewCustom(patch: Partial<CustomStandardDraft>) {
-    setNewCustom((item) => {
-      const next = { ...item, ...patch };
-      if (patch.title !== undefined && item.slug.trim().length === 0) {
-        next.slug = slugify(patch.title);
-      }
-      return next;
-    });
+    setNewCustom((item) => ({ ...item, ...patch }));
   }
 
   function toggleEditor(key: string) {
@@ -439,7 +411,7 @@ export function OrgStandardsEditor({
         next.delete(`custom:${index}`);
         return next;
       });
-      toast.success(`${item.title || item.slug} deleted.`);
+      toast.success(`${item.title || item.sourceFileName || "Additional standard"} deleted.`);
       router.refresh();
     });
   }
@@ -492,13 +464,8 @@ export function OrgStandardsEditor({
 
   function addCustomStandard() {
     const title = newCustom.title.trim();
-    const slug = newCustom.slug.trim();
     if (!title) {
       setErrors(["Additional standard title is required."]);
-      return;
-    }
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
-      setErrors(["Additional standard slug must use lowercase letters, digits, and hyphens."]);
       return;
     }
     if (newCustom.body.trim().length === 0) {
@@ -512,7 +479,6 @@ export function OrgStandardsEditor({
       {
         ...newCustom,
         title,
-        slug,
       },
     ]);
     setSelection({ type: "custom", index: nextIndex });
@@ -547,14 +513,13 @@ export function OrgStandardsEditor({
         customStandards: customStandards
           .map((item) => ({
             title: item.title.trim(),
-            slug: item.slug.trim(),
             body: item.body,
-            format: item.format,
+            type: (item.format === "text" ? ".txt" : ".md") as ".md" | ".txt",
             sourceFileName: item.sourceFileName,
           }))
           .filter(
             (item) =>
-              item.title.length > 0 || item.slug.length > 0 || item.body.trim().length > 0,
+              item.title.length > 0 || item.body.trim().length > 0,
           ),
       });
       if (!result.ok) {
@@ -571,17 +536,17 @@ export function OrgStandardsEditor({
   }
 
   return (
-    <div className="rounded-[20px] bg-[#f7f8fb] p-4 font-sans text-slate-950 shadow-sm sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/70 pb-5">
+    <div className="rounded-sm border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-blue-600 text-white shadow-sm shadow-blue-600/20">
-              <ShieldCheck className="h-4 w-4" aria-hidden />
+            <span className="flex h-8 w-8 items-center justify-center rounded-sm border bg-background">
+              <ShieldCheck className="h-4 w-4 text-primary" aria-hidden />
             </span>
             <div>
-              <h2 className="text-base font-semibold tracking-[-0.01em]">Standards library</h2>
-              <p className="text-sm text-slate-500">
-                {totalReady}/3 required standards configured
+              <h2 className="text-base font-semibold">Standards library</h2>
+              <p className="text-xs text-muted-foreground">
+                {totalReady}/3 required standards configured. Updates are audited and hash tracked.
               </p>
             </div>
           </div>
@@ -590,7 +555,6 @@ export function OrgStandardsEditor({
           type="button"
           onClick={save}
           disabled={pending || !allRequiredComplete || !hasUnsavedChanges}
-          className="rounded-[10px] bg-slate-950 text-white hover:bg-slate-800"
         >
           {pending ? (
             <>
@@ -604,7 +568,7 @@ export function OrgStandardsEditor({
       </div>
 
       {errors.length > 0 ? (
-        <div className="mt-5 space-y-1 rounded-[12px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="m-3 space-y-1 rounded-sm border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           {errors.map((error) => (
             <div key={error} className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -614,59 +578,61 @@ export function OrgStandardsEditor({
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-4">
+      <div className="grid lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="space-y-4 border-b p-3 lg:border-b-0 lg:border-r">
           <div className="space-y-2">
-            <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <div className="px-1 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
               Required
             </div>
             {required.map((item) => {
               const selectedCard =
                 selection.type === "required" && selection.kind === item.kind;
               return (
-                <button
+                <Button
                   key={item.kind}
                   type="button"
+                  variant="unstyled"
                   onClick={() => setSelection({ type: "required", kind: item.kind })}
                   className={cn(
-                    "group w-full rounded-[12px] border bg-white p-4 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md",
+                    "group w-full rounded-sm border bg-background px-3 py-2 text-left transition-colors hover:bg-secondary",
                     selectedCard
-                      ? "border-blue-300 bg-blue-50/70 ring-2 ring-blue-100"
-                      : "border-slate-200/80",
+                      ? "border-primary/40 bg-primary/5"
+                      : "border-border",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{item.title}</div>
-                      <div className="mt-1 truncate text-xs text-slate-500">
+                      <div className="mt-1 truncate text-xs text-muted-foreground">
                         {item.sourceFileName ?? "No file uploaded"}
                       </div>
                     </div>
                     <StandardStatus body={item.body} />
                   </div>
-                </button>
+                </Button>
               );
             })}
           </div>
 
           {customStandards.length > 0 ? (
             <div className="space-y-2">
-              <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              <div className="px-1 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
                 Additional
               </div>
               {customStandards.map((item, index) => {
                 const selectedCard =
                   selection.type === "custom" && selection.index === index;
                 return (
-                  <button
-                    key={item.id ?? `${item.slug}-${index}`}
+                  <Button
+                    key={item.id ?? `${item.sourceFileName ?? item.title}-${index}`}
                     type="button"
+                    variant="unstyled"
                     onClick={() => setSelection({ type: "custom", index })}
                     className={cn(
-                      "group w-full rounded-[12px] border bg-white p-4 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md",
+                      "group w-full rounded-sm border bg-background px-3 py-2 text-left transition-colors hover:bg-secondary",
                       selectedCard
-                        ? "border-blue-300 bg-blue-50/70 ring-2 ring-blue-100"
-                        : "border-slate-200/80",
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-border",
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -674,13 +640,13 @@ export function OrgStandardsEditor({
                         <div className="truncate text-sm font-semibold">
                           {item.title || "Untitled standard"}
                         </div>
-                        <div className="mt-1 truncate text-xs text-slate-500">
-                          {item.sourceFileName ?? item.slug}
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {item.sourceFileName ?? "No file uploaded"}
                         </div>
                       </div>
                       <StandardStatus body={item.body} />
                     </div>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -688,17 +654,17 @@ export function OrgStandardsEditor({
 
         </aside>
 
-        <section className="rounded-[16px] border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+        <section className="min-w-0 p-3">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <FileText className="h-4 w-4 text-blue-600" aria-hidden />
+                <FileText className="h-4 w-4 text-primary" aria-hidden />
                 <h3 className="truncate text-lg font-semibold tracking-[-0.01em]">
                   {selected.title || "Untitled standard"}
                 </h3>
                 <StandardStatus body={selected.body} />
               </div>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {selectedIsCustom ? "Additional organization standard" : "Required organization baseline"}
               </p>
             </div>
@@ -706,19 +672,19 @@ export function OrgStandardsEditor({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
                 onClick={() => toggleEditor(selectedEditorKey)}
-                className="rounded-[10px] bg-blue-600 text-white hover:bg-blue-700"
               >
                 <PencilLine className="h-3.5 w-3.5" aria-hidden />
                 {selectedEditorOpen ? "Close editor" : "Edit"}
               </Button>
               <Label
                 className={cn(
-                  "inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border px-3 text-sm font-medium shadow-xs transition-colors",
+                  "inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-sm border px-3 text-sm font-medium transition-colors",
                   selectedHasFile
-                    ? "border-slate-200 bg-white hover:bg-slate-50"
-                    : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                    ? "bg-background hover:bg-secondary"
+                    : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15",
                 )}
               >
                 {selectedHasFile ? (
@@ -742,7 +708,7 @@ export function OrgStandardsEditor({
                 size="sm"
                 onClick={deleteSelected}
                 disabled={pending || selected.body.trim().length === 0}
-                className="rounded-[10px] border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden />
                 Delete
@@ -750,7 +716,7 @@ export function OrgStandardsEditor({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <MetadataItem
               label="File name"
               value={selected.sourceFileName ?? "No file uploaded"}
@@ -761,12 +727,12 @@ export function OrgStandardsEditor({
           </div>
 
           {selectedEditorOpen ? (
-            <div className="mt-6 rounded-[14px] border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mt-3 rounded-sm border bg-background p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Manual text editor</div>
-                  <div className="text-xs text-slate-500">
-                    File contents are hidden until explicitly edited.
+                  <div className="text-sm font-medium">Exact document body</div>
+                  <div className="text-xs text-muted-foreground">
+                    This text is stored verbatim and inherited by projects unless overridden.
                   </div>
                 </div>
                 <Button
@@ -783,18 +749,18 @@ export function OrgStandardsEditor({
                 value={selected.body}
                 onChange={(event) => updateSelectedBody(event.target.value)}
                 rows={mode === "setup" ? 8 : 10}
-                className="min-h-[220px] rounded-[12px] border-slate-200 bg-white font-mono text-xs"
+                className="min-h-[240px] font-mono text-xs"
                 placeholder={`Paste ${selected.title || "standard"} content.`}
               />
             </div>
           ) : (
-            <div className="mt-6 rounded-[14px] border border-dashed border-slate-200 bg-slate-50/70 p-5 text-sm text-slate-500">
+            <div className="mt-3 rounded-sm border border-dashed bg-background p-3 text-sm text-muted-foreground">
               {selectedHasFile ? (
                 "Use Edit to view or update the text body. Use Replace to upload a new Markdown or text file."
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span>No file has been uploaded for this standard yet.</span>
-                  <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-blue-600 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700">
+                  <Label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium transition-colors hover:bg-secondary">
                     <Upload className="h-3.5 w-3.5" aria-hidden />
                     Upload file
                     <Input
@@ -813,19 +779,20 @@ export function OrgStandardsEditor({
         </section>
       </div>
 
-      <section className="mt-6 rounded-[16px] border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+      <section className="border-t bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold tracking-[-0.01em]">Add additional standard</h3>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Upload a new optional file. Existing additional standards appear in the sidebar.
             </p>
           </div>
           {!addingCustom ? (
             <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setAddingCustom(true)}
-              className="rounded-[10px] bg-slate-950 text-white hover:bg-slate-800"
             >
               <Plus className="h-4 w-4" aria-hidden />
               New Standard
@@ -834,30 +801,31 @@ export function OrgStandardsEditor({
         </div>
 
         {!addingCustom ? (
-          <button
+          <Button
             type="button"
+            variant="unstyled"
             onClick={() => setAddingCustom(true)}
-            className="mt-5 flex w-full items-center justify-between rounded-[14px] border border-dashed border-slate-300 bg-slate-50 p-5 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+            className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed bg-background p-3 text-left transition-colors hover:bg-secondary"
           >
             <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-white text-blue-600 shadow-sm">
+              <span className="flex h-8 w-8 items-center justify-center rounded-sm border bg-card text-primary">
                 <FilePlus2 className="h-4 w-4" aria-hidden />
               </span>
               <span>
                 <span className="block text-sm font-semibold">Upload an additional standard</span>
-                <span className="block text-xs text-slate-500">
+                <span className="block text-xs text-muted-foreground">
                   Add security, accessibility, QA, or other org-specific guidance.
                 </span>
               </span>
             </span>
-            <Plus className="h-4 w-4 text-slate-400" aria-hidden />
-          </button>
+            <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
+          </Button>
         ) : (
-          <div className="mt-5 rounded-[16px] border border-blue-200 bg-blue-50/50 p-4">
+          <div className="mt-3 rounded-sm border bg-background p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold">New additional standard</div>
-                <div className="text-xs text-slate-500">Upload or paste an optional org file.</div>
+                <div className="text-xs text-muted-foreground">Upload or paste an optional org file.</div>
               </div>
               <Button
                 type="button"
@@ -874,22 +842,14 @@ export function OrgStandardsEditor({
               </Button>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_220px_auto]">
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
               <Input
                 aria-label="New additional standard title"
                 placeholder="Title"
                 value={newCustom.title}
                 onChange={(event) => updateNewCustom({ title: event.target.value })}
-                className="rounded-[10px] bg-white"
               />
-              <Input
-                aria-label="New additional standard slug"
-                placeholder="slug"
-                value={newCustom.slug}
-                onChange={(event) => updateNewCustom({ slug: event.target.value })}
-                className="rounded-[10px] bg-white"
-              />
-              <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-medium shadow-xs transition-colors hover:bg-slate-50">
+              <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium transition-colors hover:bg-secondary">
                 <Upload className="h-3.5 w-3.5" aria-hidden />
                 {newCustom.body.trim().length > 0 ? "Replace" : "Upload"}
                 <Input
@@ -905,7 +865,7 @@ export function OrgStandardsEditor({
               </Label>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <MetadataItem
                 label="File name"
                 value={newCustom.sourceFileName ?? "No file uploaded"}
@@ -919,18 +879,17 @@ export function OrgStandardsEditor({
                 value={newCustom.body}
                 onChange={(event) => updateNewCustom({ body: event.target.value })}
                 rows={7}
-                className="mt-4 rounded-[12px] bg-white font-mono text-xs"
+                className="mt-3 font-mono text-xs"
                 placeholder="Paste the standard body."
               />
             ) : null}
 
-            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setNewCustomEditorOpen((open) => !open)}
-                className="rounded-[10px]"
               >
                 <PencilLine className="h-3.5 w-3.5" aria-hidden />
                 {newCustomEditorOpen ? "Hide text" : "Edit text"}
@@ -939,7 +898,6 @@ export function OrgStandardsEditor({
                 type="button"
                 size="sm"
                 onClick={addCustomStandard}
-                className="rounded-[10px] bg-blue-600 text-white hover:bg-blue-700"
               >
                 Add standard
               </Button>
@@ -947,6 +905,21 @@ export function OrgStandardsEditor({
           </div>
         )}
       </section>
+
+      {!allRequiredComplete ? (
+        <div className="border-t bg-primary/5 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <div>
+              <div className="font-medium">Required standards are incomplete.</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                This management page remains available so admins can repair missing files. Other
+                governed app flows stay gated until all three required standards are saved.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

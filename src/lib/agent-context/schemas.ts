@@ -51,7 +51,7 @@ export const McpStandardsSchema = z.object({
   items: z.array(
     z.object({
       kind: z.string(),
-      slug: z.string(),
+      name: z.string(),
       title: z.string(),
       scope: z.enum(["org", "project"]),
       version: z.string(),

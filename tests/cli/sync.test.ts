@@ -110,7 +110,7 @@ describe("coznt sync", () => {
     const standardsManifest = {
       standards: [
         {
-          slug: "coding_standards",
+          name: "coding_instructions.md",
           version: "1.0.0",
           hash: STANDARD_HASH,
           title: "Coding Standards",
@@ -150,8 +150,8 @@ describe("coznt sync", () => {
     const code = await runSync({});
     expect(code).toBe(0);
 
-    const standardPath = join(tmpRoot, ".coznt/standards/coding_standards.md");
-    const lockPath = join(tmpRoot, ".coznt/standards/coding_standards.lock");
+    const standardPath = join(tmpRoot, ".coznt/artifacts/coding_instructions.md");
+    const lockPath = join(tmpRoot, ".coznt/artifacts/coding_instructions.md.lock");
     expect(existsSync(standardPath)).toBe(true);
     expect(existsSync(lockPath)).toBe(true);
     expect(readFileSync(standardPath, "utf-8")).toBe(STANDARD_CONTENT);

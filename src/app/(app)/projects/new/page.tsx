@@ -2,15 +2,27 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { listApproverEligibleMembers } from "@/operations/auth/members";
-import { getOrgStandardsReadiness } from "@/operations/standards";
+import { listOrganizationArtifacts } from "@/operations/artifacts";
 
-import { NewProjectForm } from "./NewProjectForm";
-import { StandardsMissingRedirectDialog } from "./StandardsMissingRedirectDialog";
+import { NewProjectForm, type OrgStandardOption } from "./NewProjectForm";
+
+function serializeOrgStandards(rows: Awaited<ReturnType<typeof listOrganizationArtifacts>>): OrgStandardOption[] {
+  return rows.map((row) => ({
+    id: row.id,
+    requiredKey: row.metadata.requiredKey ?? null,
+    title: typeof row.metadata.title === "string" ? row.metadata.title : row.name,
+    type: row.type,
+    name: row.name,
+    category: row.category,
+    sourceFileName: row.name,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+}
 
 export default async function NewProjectPage() {
-  const [approverCandidates, standardsReadiness] = await Promise.all([
+  const [approverCandidates, orgStandards] = await Promise.all([
     listApproverEligibleMembers().catch(() => []),
-    getOrgStandardsReadiness(),
+    listOrganizationArtifacts(),
   ]);
 
   return (
@@ -23,16 +35,10 @@ export default async function NewProjectPage() {
         Projects
       </Link>
       <h1 className="text-2xl font-semibold">New project</h1>
-      {standardsReadiness.requiredComplete ? (
-        <NewProjectForm approverCandidates={approverCandidates} />
-      ) : (
-        <>
-          <div className="rounded-sm border bg-card/30 p-6 text-sm text-muted-foreground">
-            Project creation is paused until required organization standards are configured.
-          </div>
-          <StandardsMissingRedirectDialog />
-        </>
-      )}
+      <NewProjectForm
+        approverCandidates={approverCandidates}
+        orgStandards={serializeOrgStandards(orgStandards)}
+      />
     </div>
   );
 }

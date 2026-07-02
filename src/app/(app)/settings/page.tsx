@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema/auth";
 import { getCurrentUser } from "@/lib/auth/actions";
-import { getOrgStandardsReadiness } from "@/operations/standards";
 
 import { ThemePicker } from "./ThemePicker";
 
@@ -33,9 +32,6 @@ export default async function SettingsPage() {
         .limit(1)
         .then((rows) => rows[0])
     : undefined;
-  const standardsReadiness = organizationId
-    ? await getOrgStandardsReadiness(organizationId)
-    : null;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -143,27 +139,6 @@ export default async function SettingsPage() {
                   </dd>
                 </div>
               </dl>
-              <div className="flex items-center justify-between gap-3 border-t border-border/40 pt-3">
-                <div>
-                  <div className="text-sm font-medium">Org standards</div>
-                  <div className="text-xs text-muted-foreground">
-                    Coding, brand, and architecture files inherited by projects.
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {standardsReadiness ? (
-                    <Badge
-                      variant={standardsReadiness.requiredComplete ? "secondary" : "outline"}
-                      className="font-mono text-[10px] uppercase tracking-[0.06em]"
-                    >
-                      {standardsReadiness.requiredComplete ? "complete" : "missing"}
-                    </Badge>
-                  ) : null}
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/settings/standards">Open</Link>
-                  </Button>
-                </div>
-              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No active workspace.</p>
@@ -254,6 +229,15 @@ export default async function SettingsPage() {
             </div>
             <Button asChild size="sm" variant="outline">
               <Link href="/api-keys">Open</Link>
+            </Button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div>Organization standards</div>
+              <div className="text-xs text-muted-foreground">Org-scoped coding, brand, architecture, and custom standards.</div>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/settings/standards">Open</Link>
             </Button>
           </div>
           <div className="flex items-center justify-between">

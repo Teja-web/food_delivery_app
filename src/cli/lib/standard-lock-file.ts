@@ -1,12 +1,12 @@
 /**
- * Per-standard local files written by `coznt sync`.
+ * Per-artifact local files written by `coznt sync`.
  *
- * Standards are passive reference docs, so they live under
- * `.coznt/standards/` instead of `.coznt/skills/`.
+ * Artifacts are passive reference docs, so they live under
+ * `.coznt/artifacts/` instead of `.coznt/skills/`.
  */
 
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 export interface StandardLockEntry {
   hash: string;
@@ -14,18 +14,24 @@ export interface StandardLockEntry {
   syncedAt: string;
   scope: "org" | "project";
   kind: string;
+  type?: ".md" | ".txt";
 }
 
-export function standardPath(repoRoot: string, slug: string): string {
-  return join(repoRoot, ".coznt", "standards", `${slug}.md`);
+function safeArtifactName(name: string): string {
+  const normalized = basename(name).replace(/[<>:"/\\|?*\x00-\x1F]/g, "-").trim();
+  return normalized || "artifact.md";
 }
 
-export function standardLockPath(repoRoot: string, slug: string): string {
-  return join(repoRoot, ".coznt", "standards", `${slug}.lock`);
+export function standardPath(repoRoot: string, name: string): string {
+  return join(repoRoot, ".coznt", "artifacts", safeArtifactName(name));
 }
 
-export function readStandardLock(repoRoot: string, slug: string): StandardLockEntry | null {
-  const path = standardLockPath(repoRoot, slug);
+export function standardLockPath(repoRoot: string, name: string): string {
+  return join(repoRoot, ".coznt", "artifacts", `${safeArtifactName(name)}.lock`);
+}
+
+export function readStandardLock(repoRoot: string, name: string): StandardLockEntry | null {
+  const path = standardLockPath(repoRoot, name);
   try {
     statSync(path);
   } catch {
@@ -34,8 +40,8 @@ export function readStandardLock(repoRoot: string, slug: string): StandardLockEn
   return JSON.parse(readFileSync(path, "utf-8")) as StandardLockEntry;
 }
 
-export function readLocalStandard(repoRoot: string, slug: string): string | null {
-  const path = standardPath(repoRoot, slug);
+export function readLocalStandard(repoRoot: string, name: string): string | null {
+  const path = standardPath(repoRoot, name);
   try {
     statSync(path);
   } catch {
@@ -44,18 +50,22 @@ export function readLocalStandard(repoRoot: string, slug: string): string | null
   return readFileSync(path, "utf-8");
 }
 
-export function writeLocalStandard(repoRoot: string, slug: string, content: string): void {
-  const path = standardPath(repoRoot, slug);
+export function writeLocalStandard(
+  repoRoot: string,
+  name: string,
+  content: string,
+): void {
+  const path = standardPath(repoRoot, name);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, "utf-8");
 }
 
 export function writeStandardLock(
   repoRoot: string,
-  slug: string,
+  name: string,
   entry: StandardLockEntry,
 ): void {
-  const path = standardLockPath(repoRoot, slug);
+  const path = standardLockPath(repoRoot, name);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(entry, null, 2) + "\n", "utf-8");
 }

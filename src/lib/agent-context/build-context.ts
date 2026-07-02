@@ -8,7 +8,7 @@ import { repositories } from "@/db/schema/repository";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill/skill";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill/skill-autonomy";
-import { getStandardsManifest } from "@/operations/standards";
+import { getProjectArtifactsManifest } from "@/operations/artifacts";
 
 import type {
   McpProjectArtifacts,
@@ -226,7 +226,7 @@ export async function buildMcpContext(args: {
     getPrimaryRepoUrlForProject(project.id),
     resolveRecommendedKickoff(project.organizationId, project),
     gatherProjectArtifacts(project.organizationId, project.id),
-    getStandardsManifest(project.organizationId, project.id),
+    getProjectArtifactsManifest(project.organizationId, project.id),
   ]);
 
   const skillsWithAutonomy = await Promise.all(
@@ -280,7 +280,7 @@ export async function buildMcpContext(args: {
       resourceUri: "coznt://standards",
       items: standardsManifest.standards.map((standard) => ({
         kind: standard.kind,
-        slug: standard.slug,
+        name: standard.name,
         title: standard.title,
         scope: standard.scope,
         version: standard.version,

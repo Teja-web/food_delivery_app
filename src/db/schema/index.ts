@@ -9,7 +9,7 @@ export * from "./rate-limits";
 export * from "./project";
 export * from "./repository";
 export * from "./environment";
-export * from "./standard";
+export * from "./artifact";
 export * from "./plan/plan-artifact";
 export * from "./plan/plan-relationship";
 export * from "./plan/plan-revision";

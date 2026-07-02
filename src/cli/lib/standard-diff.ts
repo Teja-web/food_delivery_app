@@ -3,13 +3,13 @@ import { sha256 } from "./hashing";
 import { readLocalStandard, readStandardLock } from "./standard-lock-file";
 
 export type StandardClassification =
-  | { kind: "new"; slug: string; remote: StandardsManifestEntry }
-  | { kind: "unchanged"; slug: string; remote: StandardsManifestEntry }
-  | { kind: "remote-only"; slug: string; remote: StandardsManifestEntry }
-  | { kind: "locally-edited-no-remote-change"; slug: string; remote: StandardsManifestEntry }
+  | { kind: "new"; name: string; remote: StandardsManifestEntry }
+  | { kind: "unchanged"; name: string; remote: StandardsManifestEntry }
+  | { kind: "remote-only"; name: string; remote: StandardsManifestEntry }
+  | { kind: "locally-edited-no-remote-change"; name: string; remote: StandardsManifestEntry }
   | {
       kind: "conflict";
-      slug: string;
+      name: string;
       remote: StandardsManifestEntry;
       localHash: string;
       lockHash: string;
@@ -21,17 +21,17 @@ export function classifyStandards(
 ): StandardClassification[] {
   const out: StandardClassification[] = [];
   for (const remote of manifestEntries) {
-    const lock = readStandardLock(repoRoot, remote.slug);
-    const localContent = readLocalStandard(repoRoot, remote.slug);
+    const lock = readStandardLock(repoRoot, remote.name);
+    const localContent = readLocalStandard(repoRoot, remote.name);
 
     if (!lock && !localContent) {
-      out.push({ kind: "new", slug: remote.slug, remote });
+      out.push({ kind: "new", name: remote.name, remote });
       continue;
     }
     if (!lock && localContent) {
       out.push({
         kind: "conflict",
-        slug: remote.slug,
+        name: remote.name,
         remote,
         localHash: sha256(localContent),
         lockHash: "(no lock)",
@@ -42,20 +42,20 @@ export function classifyStandards(
     const localHash = localContent ? sha256(localContent) : null;
     const lockHash = lock!.hash;
     if (localHash === lockHash && lockHash === remote.hash) {
-      out.push({ kind: "unchanged", slug: remote.slug, remote });
+      out.push({ kind: "unchanged", name: remote.name, remote });
       continue;
     }
     if (localHash === lockHash && lockHash !== remote.hash) {
-      out.push({ kind: "remote-only", slug: remote.slug, remote });
+      out.push({ kind: "remote-only", name: remote.name, remote });
       continue;
     }
     if (localHash !== lockHash && lockHash === remote.hash) {
-      out.push({ kind: "locally-edited-no-remote-change", slug: remote.slug, remote });
+      out.push({ kind: "locally-edited-no-remote-change", name: remote.name, remote });
       continue;
     }
     out.push({
       kind: "conflict",
-      slug: remote.slug,
+      name: remote.name,
       remote,
       localHash: localHash ?? "(missing file but lock exists)",
       lockHash,
