@@ -14,7 +14,6 @@ import {
   putFileContent,
 } from "@/lib/integrations/github-app";
 import { GitHubClient } from "@/lib/integrations/clients/github";
-import { pushPlanToJira } from "@/lib/integrations/outbound";
 import { getGitHubAccessToken } from "@/operations/integration/github-oauth";
 import {
   appendPlanRevision,
@@ -79,9 +78,8 @@ export async function savePlanRevision(args: {
     });
   }
 
-  if ((titleChanged || summaryChanged || bodyChanged) && existing.externalRef?.startsWith("jira:")) {
-    await pushPlanToJira(args.planId);
-  }
+  // Jira sync is intentionally manual/global-button driven so saved Coznt
+  // revisions remain visible as pending Jira pushes.
 }
 
 export async function pushPlanArtifactToRepo(args: {

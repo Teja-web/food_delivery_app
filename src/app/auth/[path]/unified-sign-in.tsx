@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth/client";
@@ -22,8 +22,14 @@ export function UnifiedSignIn() {
 
   const callbackUrl = searchParams.get("callbackUrl") || "/projects";
   const invite = searchParams.get("invite");
+  const registered = searchParams.get("registered");
+  const initialEmail = searchParams.get("email") || "";
 
   const client = authClient;
+
+  useEffect(() => {
+    if (initialEmail) setEmail(initialEmail);
+  }, [initialEmail]);
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,9 +69,27 @@ export function UnifiedSignIn() {
 
         <Card>
           <CardContent className="pt-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-lg font-semibold">Sign in</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Access your Coznt workspace.
+                </p>
+              </div>
+              <Button asChild type="button" variant="outline" size="sm">
+                <Link href="/auth/sign-up">Sign Up</Link>
+              </Button>
+            </div>
+
             {error && (
               <div className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
+              </div>
+            )}
+
+            {registered && (
+              <div className="mb-4 rounded-sm border border-primary/20 bg-primary/10 p-3 text-sm text-primary">
+                Account created. Sign in to continue setup.
               </div>
             )}
 

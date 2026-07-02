@@ -26,7 +26,8 @@ function sourceToProvider(source: WebhookSource): AdapterProvider {
  *
  * `externalKey` format per source — see `src/db/schema/adapter-binding.ts`:
  *   - `github`     → `host/owner/repo`     (e.g. `github.com/acme/api`)
- *   - `jira`       → Jira project key      (e.g. `ACME`)
+ *   - `jira`       → `site-host/project-key` (e.g. `acme.atlassian.net/ACME`)
+ *                    Legacy rows may contain only the project key.
  *   - `ado`        → `organization/project` (e.g. `acme-org/api`)
  *   - `confluence` → space key             (e.g. `ENG`)
  */

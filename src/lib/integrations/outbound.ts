@@ -5,21 +5,23 @@
  *   1. No adapter binding for the project + provider → no-op (returns null).
  *   2. Push failure is logged but never re-thrown — sync upstream must not
  *      block the primary coznt operation (approval, gate pass, etc.).
- *   3. Success writes `externalRef` back on the source row and (where it
- *      makes sense) upserts a `work_items` row so the link is queryable.
+ *   3. Success writes `externalRef` back on the source row. Inbound webhooks
+ *      own `work_items`; outbound plan pushes are audited directly.
  *
  * This is the partner of `src/automations/tasks/process-webhook-event.ts` —
  * outbound here, inbound there.
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { planArtifacts as plans, type PlanArtifact } from "@/db/schema/plan/plan-artifact";
+import { auditLogs } from "@/db/schema/audit/audit-log";
 import { workItems } from "@/db/schema/work-item";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
 import { upsertWorkItem } from "@/operations/work/work-items";
 import { createLogger } from "@/lib/logger";
+import { jiraProjectKeyFromExternalKey } from "@/lib/integrations/jira-keys";
 import {
   getJiraClient,
   getAdoClient,
@@ -29,6 +31,21 @@ import {
 
 const log = createLogger("integrations:outbound");
 const JIRA_DESCRIPTION_LIMIT = 30000;
+
+type JiraTaskAuditShape = {
+  id?: string;
+  source: string;
+  externalId: string;
+  externalUrl?: string | null;
+  projectId?: string | null;
+  planArtifactId?: string | null;
+  kind?: string | null;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+};
+
+export const JIRA_PLAN_PUSH_ACTIONS = ["plan.synced_to_jira", "plan.updated_to_jira"] as const;
 
 // ---------------------------------------------------------------------------
 // Plan kind → external issue type mapping
@@ -162,6 +179,65 @@ function jiraPlanLabels(kind: string): string[] {
   return ["coznt-plan", planKindToLabel(kind)];
 }
 
+function jiraTaskAuditShape(row: JiraTaskAuditShape): Record<string, unknown> {
+  return {
+    id: row.id,
+    source: row.source,
+    externalId: row.externalId,
+    externalUrl: row.externalUrl ?? null,
+    projectId: row.projectId ?? null,
+    planArtifactId: row.planArtifactId ?? null,
+    kind: row.kind ?? null,
+    title: row.title,
+    description: row.description ?? null,
+    status: row.status ?? null,
+  };
+}
+
+function sameAuditShape(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+async function auditPlanPushedToJira(input: {
+  organizationId: string;
+  planId: string;
+  issueKey: string;
+  planTitle: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown>;
+}) {
+  if (input.before && sameAuditShape(input.before, input.after)) return;
+
+  await db.insert(auditLogs).values({
+    organizationId: input.organizationId,
+    actorType: "integration",
+    actorId: "coznt:jira-sync",
+    actorName: "Coznt Jira sync",
+    action: input.before ? "plan.updated_to_jira" : "plan.synced_to_jira",
+    entityType: "plan",
+    entityId: input.planId,
+    summary: input.before
+      ? `Updated Jira task ${input.issueKey} from Coznt plan "${input.planTitle}".`
+      : `Synced Coznt plan "${input.planTitle}" to Jira task ${input.issueKey}.`,
+    before: input.before,
+    after: input.after,
+    invokedVia: "jira:push",
+  });
+}
+
+async function lastJiraPlanPushAudit(input: { organizationId: string; planId: string }) {
+  return db.query.auditLogs.findFirst({
+    where: and(
+      eq(auditLogs.organizationId, input.organizationId),
+      eq(auditLogs.entityType, "plan"),
+      eq(auditLogs.entityId, input.planId),
+      inArray(auditLogs.action, [...JIRA_PLAN_PUSH_ACTIONS]),
+    ),
+    orderBy: [desc(auditLogs.createdAt)],
+    columns: { after: true, createdAt: true },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Jira
 // ---------------------------------------------------------------------------
@@ -169,7 +245,7 @@ function jiraPlanLabels(kind: string): string[] {
 /**
  * Create (or update) a Jira issue for a plan. Skips silently if the project
  * has no Jira binding. On first push, stores the issue key on
- * `plans.externalRef` and upserts a `work_items` row.
+ * `plans.externalRef`; inbound Jira webhooks own `work_items`.
  *
  * Re-running on an already-pushed plan updates summary + description in place.
  */
@@ -189,10 +265,16 @@ export async function pushPlanToJira(
     const description = buildJiraPlanDescription(plan);
     const labels = jiraPlanLabels(plan.kind);
     const targetStatus = mapCozntStatusToJira(plan.status);
+    const projectKey = jiraProjectKeyFromExternalKey(binding.externalKey);
+    const workItemKind = jiraIssueTypeToWorkItemKind(issueType);
 
     // Already pushed → update.
     if (plan.externalRef && plan.externalRef.startsWith("jira:")) {
       const issueKey = plan.externalRef.slice("jira:".length);
+      const beforePush = await lastJiraPlanPushAudit({
+        organizationId: plan.organizationId,
+        planId: plan.id,
+      });
       await client.updateIssue(issueKey, {
         summary: plan.title,
         description,
@@ -200,23 +282,32 @@ export async function pushPlanToJira(
       });
       await transitionJiraIssueToTarget(client, issueKey, targetStatus);
       const url = client.issueBrowseUrl(issueKey);
-      await upsertWorkItem({
+      await auditPlanPushedToJira({
         organizationId: plan.organizationId,
-        projectId: plan.projectId,
-        planArtifactId: plan.id,
-        source: "jira",
-        externalId: issueKey,
-        externalUrl: url,
-        kind: jiraIssueTypeToWorkItemKind(issueType),
-        title: plan.title,
-        description,
-        status: targetStatus,
+        planId: plan.id,
+        issueKey,
+        planTitle: plan.title,
+        before:
+          beforePush?.after && typeof beforePush.after === "object"
+            ? (beforePush.after as Record<string, unknown>)
+            : null,
+        after: jiraTaskAuditShape({
+          source: "jira",
+          externalId: issueKey,
+          externalUrl: url,
+          projectId: plan.projectId,
+          planArtifactId: plan.id,
+          kind: workItemKind,
+          title: plan.title,
+          description,
+          status: targetStatus,
+        }),
       });
       return { key: issueKey, url };
     }
 
     // First push → create.
-    const created = await createJiraIssueWithFallback(client, binding.externalKey, {
+    const created = await createJiraIssueWithFallback(client, projectKey, {
       summary: plan.title,
       description,
       issueType,
@@ -231,17 +322,23 @@ export async function pushPlanToJira(
 
     await transitionJiraIssueToTarget(client, created.key, targetStatus);
 
-    await upsertWorkItem({
+    await auditPlanPushedToJira({
       organizationId: plan.organizationId,
-      projectId: plan.projectId,
-      planArtifactId: plan.id,
-      source: "jira",
-      externalId: created.key,
-      externalUrl: url,
-      kind: jiraIssueTypeToWorkItemKind(issueType),
-      title: plan.title,
-      description,
-      status: targetStatus,
+      planId: plan.id,
+      issueKey: created.key,
+      planTitle: plan.title,
+      before: null,
+      after: jiraTaskAuditShape({
+        source: "jira",
+        externalId: created.key,
+        externalUrl: url,
+        projectId: plan.projectId,
+        planArtifactId: plan.id,
+        kind: workItemKind,
+        title: plan.title,
+        description,
+        status: targetStatus,
+      }),
     });
 
     log.info(`pushed plan ${plan.id} to Jira ${created.key}`);
@@ -275,6 +372,44 @@ function jiraIssueTypeToWorkItemKind(issueType: string): "epic" | "story" | "tas
   if (normalized === "epic") return "epic";
   if (normalized === "story") return "story";
   return "task";
+}
+
+export function canonicalJiraStatus(status: string | null | undefined): string | null {
+  const value = status?.trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (!value) return null;
+  if (value === "to do" || value === "todo" || value === "open") return "backlog";
+  if (value.includes("selected") || value === "approved" || value.includes("ready for development")) {
+    return "selected for development";
+  }
+  if (value.includes("progress")) return "in progress";
+  if (value === "closed" || value === "resolved" || value.includes("complete")) return "done";
+  if (value === "won't do" || value === "wont do" || value.includes("reject") || value.includes("cancel")) {
+    return "wont do";
+  }
+  return value;
+}
+
+export function jiraPlanMirrorNeedsPush(
+  plan: Pick<PlanArtifact, "title" | "status" | "updatedAt">,
+  mirror: { title?: string | null; status?: string | null; updatedAt?: Date | null } | null | undefined,
+): boolean {
+  if (!mirror?.updatedAt) return true;
+  if (plan.updatedAt.getTime() > mirror.updatedAt.getTime()) return true;
+  if (plan.title !== mirror.title) return true;
+
+  const expectedStatus = canonicalJiraStatus(mapCozntStatusToJira(plan.status));
+  const mirroredStatus = canonicalJiraStatus(mirror.status);
+  return expectedStatus !== mirroredStatus;
+}
+
+export function jiraPlanNeedsPush(
+  plan: Pick<PlanArtifact, "externalRef" | "updatedAt" | "updatedById">,
+  sync: { lastPushedAt?: Date | null },
+): boolean {
+  if (!plan.externalRef?.startsWith("jira:")) return true;
+  if (!sync.lastPushedAt) return true;
+  if (plan.updatedAt.getTime() <= sync.lastPushedAt.getTime()) return false;
+  return !plan.updatedById?.startsWith("jira:");
 }
 
 async function transitionJiraIssueToTarget(
@@ -325,7 +460,7 @@ export async function transitionJiraIssueForPlan(
  * canonical default-workflow names and rely on `transitionIssueByName`'s
  * case-insensitive match to handle minor variations.
  */
-function mapCozntStatusToJira(status: string): string {
+export function mapCozntStatusToJira(status: string): string {
   const s = status.toLowerCase();
   if (s === "draft" || s === "in_review" || s === "changes_requested") return "Backlog";
   if (s === "approved") return "Selected for Development";

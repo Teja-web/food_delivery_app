@@ -50,11 +50,17 @@ export type AuditQuery = {
 const SCOPE_ENTITY_FILTER: Record<AuditScope, string[] | null> = {
   all: null,
   skills: ["skill", "skill_outcome", "skill_autonomy"],
-  plans: ["plan", "plan_revision"],
-  projects: ["project", "governance_record"],
+  plans: ["plan", "plan_revision", "work_item", "comment"],
+  projects: ["project", "governance_record", "artifact"],
   approvals: ["approval"],
   deployments: ["deployment"],
 };
+
+function projectIdFromAuditPayload(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const projectId = (value as { projectId?: unknown }).projectId;
+  return typeof projectId === "string" && projectId.trim().length > 0 ? projectId : null;
+}
 
 function hashSignature(parts: Array<string | number | null | undefined>): string {
   // Fallback for rows that don't have a chain-computed row_hash (e.g.
@@ -118,6 +124,9 @@ export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[
   const projectIds = new Set<string>();
   for (const a of auditRows) {
     if (a.entityType === "project") projectIds.add(a.entityId);
+    const payloadProjectId =
+      projectIdFromAuditPayload(a.after) ?? projectIdFromAuditPayload(a.before);
+    if (payloadProjectId) projectIds.add(payloadProjectId);
   }
   const projectsById = new Map<string, Project>();
   if (projectIds.size > 0) {
@@ -132,7 +141,9 @@ export async function queryAuditLog(query: AuditQuery): Promise<UnifiedAuditRow[
 
   const unified: UnifiedAuditRow[] = [];
   for (const a of auditRows) {
-    const proj = projectsById.get(a.entityId);
+    const payloadProjectId =
+      projectIdFromAuditPayload(a.after) ?? projectIdFromAuditPayload(a.before);
+    const proj = projectsById.get(payloadProjectId ?? a.entityId);
     unified.push({
       id: a.id,
       occurredAt: a.createdAt,

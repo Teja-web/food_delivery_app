@@ -62,12 +62,16 @@ export function PushPlansToJiraButton(props: PushPlansToJiraButtonProps) {
         ? "Push updates to Jira"
         : "Push to Jira"
       : props.mode === "approved"
-        ? props.approvedCount === 1
-          ? "Push 1 approved plan"
-          : `Push ${props.approvedCount} approved plans`
-        : props.totalCount === 1
-          ? "Push 1 plan"
-          : `Push all ${props.totalCount} plans`;
+        ? props.approvedCount === 0
+          ? "No approved Jira changes"
+          : props.approvedCount === 1
+            ? "Push 1 changed approved plan"
+            : `Push ${props.approvedCount} changed approved plans`
+        : props.totalCount === 0
+          ? "No Jira changes to push"
+          : props.totalCount === 1
+            ? "Push 1 changed plan"
+            : `Push ${props.totalCount} changed plans`;
   const progressPercent =
     progress && progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
   const buttonLabel = progress ? formatProgressLabel(progress) : label;

@@ -164,6 +164,14 @@ const AUDIT_LOGS_ALLOWED: { path: string; reason: string }[] = [
     reason: "artifact create/update/delete/clone events are governance-domain mutations",
   },
   {
+    path: "src/automations/tasks/process-webhook-event.ts",
+    reason: "integration-origin Jira webhook mutations mirror external state into plans, work items, and comments",
+  },
+  {
+    path: "src/lib/integrations/outbound.ts",
+    reason: "Coznt-to-Jira pushes audit plan sync/update rows after successful outbound issue writes",
+  },
+  {
     path: "src/app/api/v1/mcp/sessions/route.ts",
     reason: "mcp.session_start — first audit row of every MCP session",
   },

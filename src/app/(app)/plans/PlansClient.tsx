@@ -199,7 +199,7 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
           <PushPlansToJiraButton
             mode="all"
             projectId={data.projectId}
-            totalCount={data.counts.total}
+            totalCount={data.counts.jiraPushTargets}
           />
           <ViewToggle value={view} onChange={setView} />
         </div>
