@@ -38,7 +38,6 @@ export type ArtifactFormat = "markdown" | "text";
 export interface ArtifactManifestEntry {
   id: string;
   kind: RequiredOrganizationArtifactKey | "custom";
-  slug: string;
   title: string;
   name: string;
   type: ArtifactFileType;
@@ -91,7 +90,6 @@ const artifactInputSchema = z.object({
   summary: z.string().optional().nullable(),
   type: z.enum(ARTIFACT_FILE_TYPES),
   category: z.string().optional().nullable(),
-  slug: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/),
   title: z.string().min(1),
   requiredKey: z.enum(REQUIRED_ORGANIZATION_ARTIFACT_KEYS).optional().nullable(),
   createdVia: z.enum(PROJECT_ARTIFACT_CREATED_VIA).optional().default("upload"),
@@ -102,10 +100,10 @@ export type UpsertProjectArtifactInput = z.input<typeof artifactInputSchema> & {
   projectId: string;
 };
 
-function canonicalManifestHash(entries: { slug: string; hash: string; scope: ArtifactScope }[]): string {
+function canonicalManifestHash(entries: { name: string; hash: string; scope: ArtifactScope }[]): string {
   const canonical = [...entries]
-    .sort((a, b) => `${a.scope}:${a.slug}`.localeCompare(`${b.scope}:${b.slug}`))
-    .map((entry) => `${entry.scope}:${entry.slug}:${entry.hash}`)
+    .sort((a, b) => `${a.scope}:${a.name}`.localeCompare(`${b.scope}:${b.name}`))
+    .map((entry) => `${entry.scope}:${entry.name}:${entry.hash}`)
     .join("\n");
   return hashArtifactBody(canonical);
 }
@@ -117,27 +115,10 @@ function metadataRequiredKeyPredicate(
   return sql`${table.metadata}->>'requiredKey' = ${key}`;
 }
 
-function metadataSlugPredicate(
-  table: typeof organizationArtifacts | typeof projectArtifacts,
-  slug: string,
-) {
-  return sql`${table.metadata}->>'slug' = ${slug}`;
-}
-
 function artifactTitle(row: Pick<OrganizationArtifact | ProjectArtifact, "metadata" | "name">): string {
   return typeof row.metadata.title === "string" && row.metadata.title.trim()
     ? row.metadata.title
     : row.name;
-}
-
-function artifactSlug(row: Pick<OrganizationArtifact | ProjectArtifact, "metadata" | "name">): string {
-  if (typeof row.metadata.slug === "string" && row.metadata.slug.trim()) {
-    return row.metadata.slug;
-  }
-  if (typeof row.metadata.requiredKey === "string") {
-    return row.metadata.requiredKey.replaceAll("_", "-");
-  }
-  return slugify(row.name.replace(/\.[^.]+$/, ""));
 }
 
 function artifactHash(row: Pick<OrganizationArtifact | ProjectArtifact, "metadata" | "body">): string {
@@ -150,12 +131,7 @@ function artifactFormat(type: ArtifactFileType): ArtifactFormat {
   return type === ".txt" ? "text" : "markdown";
 }
 
-function artifactPathExtension(type: ArtifactFileType): string {
-  return type === ".txt" ? ".txt" : ".md";
-}
-
 function toMetadata(input: {
-  slug: string;
   title: string;
   requiredKey?: RequiredOrganizationArtifactKey | null;
   body: string;
@@ -163,7 +139,6 @@ function toMetadata(input: {
 }): ArtifactMetadata {
   return {
     ...(input.extra ?? {}),
-    slug: input.slug,
     title: input.title,
     contentHash: hashArtifactBody(input.body),
     ...(input.requiredKey ? { requiredKey: input.requiredKey } : {}),
@@ -175,7 +150,6 @@ function toManifestEntry(row: ProjectArtifact): ArtifactManifestEntry {
   return {
     id: row.id,
     kind: row.metadata.requiredKey ?? "custom",
-    slug: artifactSlug(row),
     title: artifactTitle(row),
     name: row.name,
     type: row.type,
@@ -197,7 +171,6 @@ function auditShape(row: OrganizationArtifact | ProjectArtifact, scope: Artifact
     id: row.id,
     name: row.name,
     title: artifactTitle(row),
-    slug: artifactSlug(row),
     type: row.type,
     category: row.category,
     scope,
@@ -230,14 +203,6 @@ async function auditArtifactMutation(input: {
     after: input.after ?? null,
     invokedVia: input.invokedVia,
   });
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 export function hashArtifactBody(body: string): string {
@@ -322,14 +287,14 @@ export async function getProjectArtifactsManifest(
 export async function getProjectArtifactsBundle(
   organizationId: string,
   projectId: string,
-  slugs?: string[],
+  names?: string[],
 ): Promise<ArtifactsBundle> {
   const manifest = await getProjectArtifactsManifest(organizationId, projectId);
-  const allowed = slugs && slugs.length > 0 ? new Set(slugs) : null;
-  const bySlug = new Map(manifest.artifacts.map((entry) => [entry.slug, entry]));
+  const allowed = names && names.length > 0 ? new Set(names) : null;
+  const byName = new Map(manifest.artifacts.map((entry) => [entry.name, entry]));
   if (allowed) {
-    for (const slug of allowed) {
-      if (!bySlug.has(slug)) throw new Error(`Unknown artifact slug: ${slug}`);
+    for (const name of allowed) {
+      if (!byName.has(name)) throw new Error(`Unknown artifact name: ${name}`);
     }
   }
 
@@ -341,7 +306,7 @@ export async function getProjectArtifactsBundle(
   });
   const bodyById = new Map(rows.map((row) => [row.id, row.body]));
   const entries = manifest.artifacts
-    .filter((entry) => !allowed || allowed.has(entry.slug))
+    .filter((entry) => !allowed || allowed.has(entry.name))
     .map((entry) => ({
       ...entry,
       content: bodyById.get(entry.sourceArtifactId) ?? "",
@@ -398,7 +363,6 @@ export async function upsertOrganizationArtifact(
 
   const parsed = artifactInputSchema.parse(input);
   const metadata = toMetadata({
-    slug: parsed.slug,
     title: parsed.title,
     requiredKey: parsed.requiredKey,
     body: parsed.body,
@@ -415,7 +379,7 @@ export async function upsertOrganizationArtifact(
           eq(organizationArtifacts.organizationId, ctx.organizationId),
           parsed.requiredKey
             ? metadataRequiredKeyPredicate(organizationArtifacts, parsed.requiredKey)
-            : metadataSlugPredicate(organizationArtifacts, parsed.slug),
+            : eq(organizationArtifacts.name, parsed.name),
         ),
       });
 
@@ -497,7 +461,6 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
   if (!project) throw new Error(`Project ${parsed.projectId} not found in this organization.`);
 
   const metadata = toMetadata({
-    slug: parsed.slug,
     title: parsed.title,
     requiredKey: parsed.requiredKey,
     body: parsed.body,
@@ -514,7 +477,7 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
         where: and(
           eq(projectArtifacts.organizationId, ctx.organizationId),
           eq(projectArtifacts.projectId, parsed.projectId),
-          metadataSlugPredicate(projectArtifacts, parsed.slug),
+          eq(projectArtifacts.name, parsed.name),
         ),
       });
 
@@ -690,8 +653,4 @@ export async function deleteProjectArtifact(id: string): Promise<void> {
     summary: `Deleted project artifact ${artifactTitle(existing)}`,
     invokedVia: "artifacts:delete-project",
   });
-}
-
-export function artifactFileName(input: { slug: string; type: ArtifactFileType }): string {
-  return `${input.slug}${artifactPathExtension(input.type)}`;
 }

@@ -48,11 +48,9 @@ export async function createProject(input: Parameters<typeof projectCrud.create>
 }
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
-const STANDARD_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 interface ProjectCustomArtifactInput {
   title: string;
-  slug: string;
   body: string;
   type?: ArtifactFileType;
   sourceFileName?: string;
@@ -61,6 +59,15 @@ interface ProjectCustomArtifactInput {
 interface NormalizedProjectArtifactsInput {
   selectedOrganizationArtifactIds: string[];
   customArtifacts: ProjectCustomArtifactInput[];
+}
+
+function artifactFileNameFromTitle(title: string, type: ArtifactFileType): string {
+  const base = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${base || "artifact"}${type}`;
 }
 
 export async function checkProjectSlugAvailability(
@@ -124,29 +131,26 @@ function normalizeProjectArtifactsInput(
     .map((id) => id.trim())
     .filter(Boolean);
 
-  const customBySlug = new Map<string, ProjectCustomArtifactInput>();
+  const customByName = new Map<string, ProjectCustomArtifactInput>();
   for (const artifact of input?.customArtifacts ?? []) {
     const title = artifact.title.trim();
-    const slug = artifact.slug.trim();
     const body = artifact.body.trim();
-    if (!title && !slug && !body) continue;
+    if (!title && !body) continue;
     if (!title) throw new Error("Project custom artifact title is required.");
-    if (!STANDARD_SLUG_PATTERN.test(slug)) {
-      throw new Error("Project custom artifact slug must use lowercase letters, digits, and hyphens.");
-    }
     if (!body) throw new Error(`Project custom artifact "${title}" needs file content.`);
-    customBySlug.set(slug, {
+    const type = artifact.type ?? ".md";
+    const name = artifact.sourceFileName?.trim() || artifactFileNameFromTitle(title, type);
+    customByName.set(name, {
       title,
-      slug,
       body: artifact.body,
-      type: artifact.type ?? ".md",
-      sourceFileName: artifact.sourceFileName?.trim() || undefined,
+      type,
+      sourceFileName: name,
     });
   }
 
   return {
     selectedOrganizationArtifactIds,
-    customArtifacts: [...customBySlug.values()],
+    customArtifacts: [...customByName.values()],
   };
 }
 
@@ -333,9 +337,10 @@ export async function createProjectAction(
       ...projectArtifacts.customArtifacts.map((artifact) =>
         upsertProjectArtifact({
           projectId: projectRow.id,
-          slug: artifact.slug,
           title: artifact.title,
-          name: artifact.sourceFileName ?? `${artifact.slug}${artifact.type ?? ".md"}`,
+          name:
+            artifact.sourceFileName ??
+            artifactFileNameFromTitle(artifact.title, artifact.type ?? ".md"),
           body: artifact.body,
           type: artifact.type ?? ".md",
           createdVia: "upload",

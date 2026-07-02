@@ -25,7 +25,7 @@ export interface Manifest {
 }
 
 export interface StandardsManifestEntry {
-  slug: string;
+  name: string;
   version: string;
   hash: string;
   title: string;
@@ -139,10 +139,10 @@ export async function fetchStandardsManifest(cfg: CozntConfig): Promise<Standard
 
 export async function fetchStandardsBundle(
   cfg: CozntConfig,
-  slugs?: string[],
+  names?: string[],
 ): Promise<StandardsBundle> {
   return request<StandardsBundle>(cfg, "POST", "/api/v1/mcp/standards/sync", {
     projectId: cfg.projectId,
-    slugs,
+    names,
   });
 }

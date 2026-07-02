@@ -39,7 +39,6 @@ type StandardFormat = "markdown" | "text";
 export interface OrgStandardEditorItem {
   id: string;
   kind: StandardKind;
-  slug: string;
   title: string;
   body: string;
   format: StandardFormat;
@@ -52,7 +51,6 @@ export interface OrgStandardEditorItem {
 interface RequiredStandardDraft {
   id?: string;
   kind: RequiredStandardKind;
-  slug: string;
   title: string;
   body: string;
   format: StandardFormat;
@@ -64,7 +62,6 @@ interface RequiredStandardDraft {
 interface CustomStandardDraft {
   id?: string;
   title: string;
-  slug: string;
   body: string;
   format: StandardFormat;
   sourceFileName: string | null;
@@ -76,12 +73,11 @@ type Selection =
   | { type: "required"; kind: RequiredStandardKind }
   | { type: "custom"; index: number };
 
-const REQUIRED_DEFS: Array<Pick<RequiredStandardDraft, "kind" | "slug" | "title">> = [
-  { kind: "coding_standards", slug: "coding_instructions", title: "Coding Standards" },
-  { kind: "brand_guidelines", slug: "brand_guidelines", title: "Brand Guidelines" },
+const REQUIRED_DEFS: Array<Pick<RequiredStandardDraft, "kind" | "title">> = [
+  { kind: "coding_standards", title: "Coding Standards" },
+  { kind: "brand_guidelines", title: "Brand Guidelines" },
   {
     kind: "architecture_principles",
-    slug: "architecture",
     title: "Architecture Principles",
   },
 ];
@@ -91,19 +87,10 @@ const FILE_ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
 function emptyCustomDraft(): CustomStandardDraft {
   return {
     title: "",
-    slug: "",
     body: "",
     format: "markdown",
     sourceFileName: null,
   };
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function inferFormat(fileName: string): StandardFormat {
@@ -143,7 +130,6 @@ function initialCustomDrafts(items: OrgStandardEditorItem[]): CustomStandardDraf
     .map((item) => ({
       id: item.id,
       title: item.title,
-      slug: item.slug,
       body: item.body,
       format: item.format,
       sourceFileName: item.sourceFileName,
@@ -167,12 +153,15 @@ function canonicalDraftSnapshot(input: {
       .map((item) => ({
         id: item.id ?? null,
         title: item.title.trim(),
-        slug: item.slug.trim(),
         body: item.body,
         format: item.format,
         sourceFileName: item.sourceFileName ?? null,
       }))
-      .sort((a, b) => `${a.id ?? ""}:${a.slug}`.localeCompare(`${b.id ?? ""}:${b.slug}`)),
+      .sort((a, b) =>
+        `${a.id ?? ""}:${a.sourceFileName ?? ""}:${a.title}`.localeCompare(
+          `${b.id ?? ""}:${b.sourceFileName ?? ""}:${b.title}`,
+        ),
+      ),
   });
 }
 
@@ -189,7 +178,6 @@ function standardsKey(items: OrgStandardEditorItem[]): string {
       [
         item.kind,
         item.id,
-        item.slug,
         item.hash,
         item.sourceFileName ?? "",
         item.updatedAt,
@@ -202,7 +190,6 @@ function fromSavedStandards(items: SavedOrgStandard[]): OrgStandardEditorItem[] 
   return items.map((item) => ({
     id: item.id,
     kind: item.kind,
-    slug: item.slug,
     title: item.title,
     body: item.body,
     format: item.format,
@@ -354,25 +341,12 @@ export function OrgStandardsEditor({
 
   function updateCustom(index: number, patch: Partial<CustomStandardDraft>) {
     setCustomStandards((items) =>
-      items.map((item, idx) => {
-        if (idx !== index) return item;
-        const next = { ...item, ...patch };
-        if (patch.title !== undefined && item.slug.trim().length === 0) {
-          next.slug = slugify(patch.title);
-        }
-        return next;
-      }),
+      items.map((item, idx) => (idx === index ? { ...item, ...patch } : item)),
     );
   }
 
   function updateNewCustom(patch: Partial<CustomStandardDraft>) {
-    setNewCustom((item) => {
-      const next = { ...item, ...patch };
-      if (patch.title !== undefined && item.slug.trim().length === 0) {
-        next.slug = slugify(patch.title);
-      }
-      return next;
-    });
+    setNewCustom((item) => ({ ...item, ...patch }));
   }
 
   function toggleEditor(key: string) {
@@ -437,7 +411,7 @@ export function OrgStandardsEditor({
         next.delete(`custom:${index}`);
         return next;
       });
-      toast.success(`${item.title || item.slug} deleted.`);
+      toast.success(`${item.title || item.sourceFileName || "Additional standard"} deleted.`);
       router.refresh();
     });
   }
@@ -490,13 +464,8 @@ export function OrgStandardsEditor({
 
   function addCustomStandard() {
     const title = newCustom.title.trim();
-    const slug = newCustom.slug.trim();
     if (!title) {
       setErrors(["Additional standard title is required."]);
-      return;
-    }
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
-      setErrors(["Additional standard slug must use lowercase letters, digits, and hyphens."]);
       return;
     }
     if (newCustom.body.trim().length === 0) {
@@ -510,7 +479,6 @@ export function OrgStandardsEditor({
       {
         ...newCustom,
         title,
-        slug,
       },
     ]);
     setSelection({ type: "custom", index: nextIndex });
@@ -545,14 +513,13 @@ export function OrgStandardsEditor({
         customStandards: customStandards
           .map((item) => ({
             title: item.title.trim(),
-            slug: item.slug.trim(),
             body: item.body,
             type: (item.format === "text" ? ".txt" : ".md") as ".md" | ".txt",
             sourceFileName: item.sourceFileName,
           }))
           .filter(
             (item) =>
-              item.title.length > 0 || item.slug.length > 0 || item.body.trim().length > 0,
+              item.title.length > 0 || item.body.trim().length > 0,
           ),
       });
       if (!result.ok) {
@@ -657,7 +624,7 @@ export function OrgStandardsEditor({
                   selection.type === "custom" && selection.index === index;
                 return (
                   <Button
-                    key={item.id ?? `${item.slug}-${index}`}
+                    key={item.id ?? `${item.sourceFileName ?? item.title}-${index}`}
                     type="button"
                     variant="unstyled"
                     onClick={() => setSelection({ type: "custom", index })}
@@ -674,7 +641,7 @@ export function OrgStandardsEditor({
                           {item.title || "Untitled standard"}
                         </div>
                         <div className="mt-1 truncate text-xs text-muted-foreground">
-                          {item.sourceFileName ?? item.slug}
+                          {item.sourceFileName ?? "No file uploaded"}
                         </div>
                       </div>
                       <StandardStatus body={item.body} />
@@ -875,18 +842,12 @@ export function OrgStandardsEditor({
               </Button>
             </div>
 
-            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_220px_auto]">
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
               <Input
                 aria-label="New additional standard title"
                 placeholder="Title"
                 value={newCustom.title}
                 onChange={(event) => updateNewCustom({ title: event.target.value })}
-              />
-              <Input
-                aria-label="New additional standard slug"
-                placeholder="slug"
-                value={newCustom.slug}
-                onChange={(event) => updateNewCustom({ slug: event.target.value })}
               />
               <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium transition-colors hover:bg-secondary">
                 <Upload className="h-3.5 w-3.5" aria-hidden />

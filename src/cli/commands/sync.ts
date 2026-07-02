@@ -265,41 +265,41 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   for (const cls of standardClasses) {
     if (cls.kind === "unchanged") continue;
     if (cls.kind === "new" || cls.kind === "remote-only") {
-      standardsToFetch.push(cls.slug);
+      standardsToFetch.push(cls.name);
       continue;
     }
     if (cls.kind === "locally-edited-no-remote-change") {
       console.warn(
-        `  [skip] standard/${cls.slug}: local edits present, remote unchanged. Leaving as-is.`,
+        `  [skip] artifact/${cls.name}: local edits present, remote unchanged. Leaving as-is.`,
       );
-      standardsSkipped.push(cls.slug);
+      standardsSkipped.push(cls.name);
       continue;
     }
     if (options.force) {
-      console.warn(`  [force] standard/${cls.slug}: overwriting local edits.`);
-      standardsToFetch.push(cls.slug);
+      console.warn(`  [force] artifact/${cls.name}: overwriting local edits.`);
+      standardsToFetch.push(cls.name);
       continue;
     }
     if (options.dryRun) {
-      console.log(`  [dry-run] standard/${cls.slug}: would prompt about conflict.`);
+      console.log(`  [dry-run] artifact/${cls.name}: would prompt about conflict.`);
       continue;
     }
     const choice = await askChoice(
-      `standard/${cls.slug}: local edits AND remote changes both diverge from lock. (overwrite / keep / diff)?`,
+      `artifact/${cls.name}: local edits AND remote changes both diverge from lock. (overwrite / keep / diff)?`,
       ["overwrite", "keep", "diff"],
     );
     if (choice === "diff") {
       printStandardConflictDiff(cls);
       const second = await askChoice(
-        `standard/${cls.slug}: overwrite or keep?`,
+        `artifact/${cls.name}: overwrite or keep?`,
         ["overwrite", "keep"],
       );
-      if (second === "overwrite") standardsToFetch.push(cls.slug);
-      else standardsSkipped.push(cls.slug);
+      if (second === "overwrite") standardsToFetch.push(cls.name);
+      else standardsSkipped.push(cls.name);
     } else if (choice === "overwrite") {
-      standardsToFetch.push(cls.slug);
+      standardsToFetch.push(cls.name);
     } else {
-      standardsSkipped.push(cls.slug);
+      standardsSkipped.push(cls.name);
     }
   }
 
@@ -351,7 +351,7 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     const computed = sha256(entry.content);
     if (computed !== entry.hash) {
       console.error(
-        `Hash mismatch on standard/${entry.slug}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
+        `Hash mismatch on artifact/${entry.name}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
       );
       return 1;
     }
@@ -372,8 +372,8 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   }
 
   for (const entry of standardsBundle.standards) {
-    writeLocalStandard(repoRoot, entry.slug, entry.content, entry.type ?? ".md");
-    writeStandardLock(repoRoot, entry.slug, {
+    writeLocalStandard(repoRoot, entry.name, entry.content);
+    writeStandardLock(repoRoot, entry.name, {
       hash: entry.hash,
       version: entry.version,
       syncedAt: now,
@@ -382,7 +382,7 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
       type: entry.type,
     });
     console.log(
-      `  [write] .coznt/artifacts/${entry.slug}${entry.type ?? ".md"} (v${entry.version}, scope=${entry.scope})`,
+      `  [write] .coznt/artifacts/${entry.name} (v${entry.version}, scope=${entry.scope})`,
     );
   }
 
@@ -442,8 +442,8 @@ function printConflictDiff(cls: Classification): void {
 function printStandardConflictDiff(cls: StandardClassification): void {
   if (cls.kind !== "conflict") return;
   const repoRoot = process.cwd();
-  const local = readLocalStandard(repoRoot, cls.slug, cls.remote.type ?? ".md") ?? "(missing)";
-  console.log(`\n--- standard/${cls.slug}: local edits (sha=${cls.localHash.slice(0, 8)}…) ---`);
+  const local = readLocalStandard(repoRoot, cls.name) ?? "(missing)";
+  console.log(`\n--- artifact/${cls.name}: local edits (sha=${cls.localHash.slice(0, 8)}...) ---`);
   console.log(local.split("\n").slice(0, 30).join("\n"));
   console.log("--- (showing first 30 lines; use git diff for full) ---\n");
 }

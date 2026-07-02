@@ -64,13 +64,11 @@ interface ProjectStandardUploadDraft {
 interface ProjectCustomStandardDraft extends ProjectStandardUploadDraft {
   id: string;
   title: string;
-  slug: string;
 }
 
 export interface OrgStandardOption {
   id: string;
   requiredKey: RequiredOrganizationArtifactKey | null;
-  slug: string;
   title: string;
   type: ArtifactFileType;
   name: string;
@@ -138,7 +136,6 @@ function emptyCustomProjectStandard(): ProjectCustomStandardDraft {
   return {
     id: crypto.randomUUID(),
     title: "",
-    slug: "",
     ...emptyStandardUpload(),
   };
 }
@@ -347,7 +344,6 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
         customArtifacts: form.projectCustomStandards
           .map((item) => ({
             title: item.title.trim(),
-            slug: item.slug.trim(),
             body: item.body,
             type: item.type,
             sourceFileName: item.sourceFileName || undefined,
@@ -355,7 +351,6 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
           .filter(
             (item) =>
               item.title.length > 0 ||
-              item.slug.length > 0 ||
               item.body.trim().length > 0,
           ),
       },
@@ -826,14 +821,9 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
   function updateCustom(id: string, patch: Partial<ProjectCustomStandardDraft>) {
     setForm((current) => ({
       ...current,
-      projectCustomStandards: current.projectCustomStandards.map((item) => {
-        if (item.id !== id) return item;
-        const next = { ...item, ...patch };
-        if (patch.title !== undefined && item.slug.trim().length === 0) {
-          next.slug = slugify(patch.title);
-        }
-        return next;
-      }),
+      projectCustomStandards: current.projectCustomStandards.map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
     }));
   }
 
@@ -923,7 +913,7 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
             {form.projectCustomStandards.map((standard) => (
               <div
                 key={standard.id}
-                className="grid gap-3 rounded-md border bg-card p-3 md:grid-cols-[1fr_180px_auto_auto]"
+                className="grid gap-3 rounded-md border bg-card p-3 md:grid-cols-[1fr_auto_auto]"
               >
                 <Input
                   aria-label="Project artifact title"
@@ -931,14 +921,6 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
                   value={standard.title}
                   onChange={(event) =>
                     updateCustom(standard.id, { title: event.target.value })
-                  }
-                />
-                <Input
-                  aria-label="Project artifact slug"
-                  placeholder="slug"
-                  value={standard.slug}
-                  onChange={(event) =>
-                    updateCustom(standard.id, { slug: event.target.value })
                   }
                 />
                 <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium hover:bg-secondary">

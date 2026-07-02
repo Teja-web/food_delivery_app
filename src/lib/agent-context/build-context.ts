@@ -280,7 +280,7 @@ export async function buildMcpContext(args: {
       resourceUri: "coznt://standards",
       items: standardsManifest.standards.map((standard) => ({
         kind: standard.kind,
-        slug: standard.slug,
+        name: standard.name,
         title: standard.title,
         scope: standard.scope,
         version: standard.version,

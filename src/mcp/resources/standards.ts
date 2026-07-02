@@ -14,7 +14,7 @@ interface StandardsBundleResponse {
   missingRequired: string[];
   standards: Array<{
     kind: string;
-    slug: string;
+    name: string;
     title: string;
     scope: "org" | "project";
     version: string;
@@ -40,7 +40,7 @@ export async function readStandards(client: CozntClient) {
             missingRequired: data.missingRequired,
             standards: data.standards.map((standard) => ({
               kind: standard.kind,
-              slug: standard.slug,
+              name: standard.name,
               title: standard.title,
               scope: standard.scope,
               version: standard.version,

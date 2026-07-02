@@ -2,7 +2,7 @@
  * POST /api/v1/mcp/standards/sync
  *
  * Returns exact effective standard bodies for a project. This is the source
- * for `coznt sync` writes into `.coznt/standards/`.
+ * for `coznt sync` writes into `.coznt/artifacts/`.
  */
 
 import { z } from "zod/v4";
@@ -13,7 +13,7 @@ import { getProjectArtifactsBundle } from "@/operations/artifacts";
 
 const bodySchema = z.object({
   projectId: z.string().optional(),
-  slugs: z.array(z.string()).optional(),
+  names: z.array(z.string()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -30,6 +30,6 @@ export async function POST(req: Request) {
     }
     await requireProjectScope(ctx, projectId);
 
-    return getProjectArtifactsBundle(ctx.organizationId, projectId, parsed.data.slugs);
+    return getProjectArtifactsBundle(ctx.organizationId, projectId, parsed.data.names);
   });
 }

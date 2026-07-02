@@ -10,7 +10,6 @@ function serializeOrgStandards(rows: Awaited<ReturnType<typeof listOrganizationA
   return rows.map((row) => ({
     id: row.id,
     requiredKey: row.metadata.requiredKey ?? null,
-    slug: typeof row.metadata.slug === "string" ? row.metadata.slug : row.name.replace(/\.[^.]+$/, ""),
     title: typeof row.metadata.title === "string" ? row.metadata.title : row.name,
     type: row.type,
     name: row.name,

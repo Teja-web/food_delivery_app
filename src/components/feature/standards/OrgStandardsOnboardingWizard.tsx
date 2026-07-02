@@ -31,7 +31,6 @@ const requiredStandardFields = [
 interface CustomStandardDraft {
   id: string;
   title: string;
-  slug: string;
 }
 
 interface OrgStandardsOnboardingWizardProps {
@@ -42,14 +41,6 @@ interface OrgStandardsOnboardingWizardProps {
 const initialOrgStandardsOnboardingState = {
   errors: [] as string[],
 };
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -158,21 +149,13 @@ export function OrgStandardsOnboardingWizard({
       {
         id: crypto.randomUUID(),
         title: "",
-        slug: "",
       },
     ]);
   }
 
   function updateCustomStandard(id: string, patch: Partial<CustomStandardDraft>) {
     setCustomStandards((items) =>
-      items.map((item) => {
-        if (item.id !== id) return item;
-        const next = { ...item, ...patch };
-        if (patch.title !== undefined && item.slug.trim().length === 0) {
-          next.slug = slugify(patch.title);
-        }
-        return next;
-      }),
+      items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
   }
 
@@ -230,7 +213,7 @@ export function OrgStandardsOnboardingWizard({
               <div className="grid gap-4 lg:grid-cols-2">
                 {customStandards.map((item, index) => (
                   <div key={item.id} className="space-y-3 rounded-sm border bg-card p-4">
-                    <div className="grid gap-3 sm:grid-cols-[1fr_180px_32px]">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_32px]">
                       <div className="space-y-1.5">
                         <Label htmlFor={`${item.id}-title`}>Title</Label>
                         <Input
@@ -240,18 +223,6 @@ export function OrgStandardsOnboardingWizard({
                           placeholder="Security Standard"
                           onChange={(event) =>
                             updateCustomStandard(item.id, { title: event.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`${item.id}-slug`}>Slug</Label>
-                        <Input
-                          id={`${item.id}-slug`}
-                          name="customStandardSlug"
-                          value={item.slug}
-                          placeholder="security-standard"
-                          onChange={(event) =>
-                            updateCustomStandard(item.id, { slug: event.target.value })
                           }
                         />
                       </div>

@@ -71,7 +71,6 @@ function orgArtifact(input: {
     category: null,
     metadata: {
       requiredKey: input.requiredKey,
-      slug: input.name.replace(/\.md$/, ""),
       title: input.name.replace(/\.md$/, ""),
       contentHash: hashArtifactBody(`# ${input.name}`),
     },
@@ -88,7 +87,6 @@ function projectArtifact(input: { id: string; sourceOrganizationArtifactId: stri
     projectId: PROJECT,
     createdVia: "upload" as const,
     metadata: {
-      slug: input.name.replace(/\.md$/, ""),
       title: input.name.replace(/\.md$/, ""),
       sourceOrganizationArtifactId: input.sourceOrganizationArtifactId,
       contentHash: hashArtifactBody(`# ${input.name}`),

@@ -54,7 +54,6 @@ export type ProjectArtifactCreatedVia = (typeof PROJECT_ARTIFACT_CREATED_VIA)[nu
 
 export interface ArtifactMetadata {
   requiredKey?: RequiredOrganizationArtifactKey;
-  slug?: string;
   title?: string;
   contentHash?: string;
   sourceOrganizationArtifactId?: string;

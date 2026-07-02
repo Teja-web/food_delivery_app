@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 
 import {
-  artifactFileName,
   deleteOrganizationArtifact,
   ORGANIZATION_ARTIFACT_LABELS,
   ORGANIZATION_ARTIFACT_UPLOAD_FIELDS,
@@ -21,7 +20,6 @@ import {
 
 const customStandardSchema = z.object({
   title: z.string().min(1),
-  slug: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/),
   body: z.string().refine((value) => value.trim().length > 0, "Standard body is required."),
   type: z.enum(ARTIFACT_FILE_TYPES).optional().default(".md"),
   sourceFileName: z.string().optional().nullable(),
@@ -53,7 +51,6 @@ export interface OrgStandardsOnboardingState {
 export interface SavedOrgStandard {
   id: string;
   kind: RequiredOrganizationArtifactKey | "custom";
-  slug: string;
   title: string;
   body: string;
   format: "markdown" | "text";
@@ -70,10 +67,6 @@ export type SaveOrgStandardsSetupResult =
 const MAX_STANDARD_FILE_BYTES = 2 * 1024 * 1024;
 const acceptedStandardExtensions = [".md", ".txt"] as const;
 
-function slugForRequiredKind(kind: RequiredOrganizationArtifactKey): string {
-  return REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[kind].replace(/\.[^.]+$/, "");
-}
-
 function rowRequiredKey(row: OrganizationArtifact): SavedOrgStandard["kind"] {
   const key = row.metadata.requiredKey;
   return key === "coding_standards" ||
@@ -81,14 +74,6 @@ function rowRequiredKey(row: OrganizationArtifact): SavedOrgStandard["kind"] {
     key === "architecture_principles"
     ? key
     : "custom";
-}
-
-function rowSlug(row: OrganizationArtifact): string {
-  if (typeof row.metadata.slug === "string" && row.metadata.slug.trim()) {
-    return row.metadata.slug;
-  }
-  const key = rowRequiredKey(row);
-  return key === "custom" ? row.name.replace(/\.[^.]+$/, "") : key.replaceAll("_", "-");
 }
 
 function rowTitle(row: OrganizationArtifact): string {
@@ -107,7 +92,6 @@ function serializeSavedStandard(row: OrganizationArtifact): SavedOrgStandard {
   return {
     id: row.id,
     kind: rowRequiredKey(row),
-    slug: rowSlug(row),
     title: rowTitle(row),
     body: row.body,
     format: rowFormat(row),
@@ -144,12 +128,13 @@ function requiredInputForKind(
   }
 }
 
-function slugify(value: string): string {
-  return value
+function fileNameFromTitle(value: string, type: ".md" | ".txt"): string {
+  const base = value
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+  return `${base || "artifact"}${type}`;
 }
 
 function extensionFor(fileName: string): string {
@@ -215,10 +200,8 @@ export async function saveOrgStandardsSetupAction(
     const saved: SavedOrgStandard[] = [];
     for (const kind of REQUIRED_ORGANIZATION_ARTIFACT_KEYS) {
       const standard = requiredInputForKind(parsed.data, kind);
-      const slug = slugForRequiredKind(kind);
       const row = await upsertOrganizationArtifact({
         requiredKey: kind,
-        slug: slugForRequiredKind(kind),
         title: ORGANIZATION_ARTIFACT_LABELS[kind],
         name: REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[kind],
         body: standard.body,
@@ -228,9 +211,8 @@ export async function saveOrgStandardsSetupAction(
     }
     for (const custom of parsed.data.customStandards) {
       const row = await upsertOrganizationArtifact({
-        slug: custom.slug.trim(),
         title: custom.title.trim(),
-        name: custom.sourceFileName ?? artifactFileName({ slug: custom.slug.trim(), type: custom.type }),
+        name: custom.sourceFileName ?? fileNameFromTitle(custom.title.trim(), custom.type),
         body: custom.body,
         type: custom.type,
       });
@@ -275,23 +257,20 @@ export async function completeOrgStandardsOnboardingAction(
   );
 
   const customTitles = formData.getAll("customStandardTitle");
-  const customSlugs = formData.getAll("customStandardSlug");
   const customFiles = formData.getAll("customStandardFile");
   const customStandards: Array<{
     title: string;
-    slug: string;
     body: string;
     type: ".md" | ".txt";
     sourceFileName: string;
   }> = [];
-  const seenCustomSlugs = new Set<string>();
+  const seenCustomFileNames = new Set<string>();
 
   for (let index = 0; index < customFiles.length; index += 1) {
     const file = customFiles[index];
     const rawTitle = formString(customTitles[index]);
-    const rawSlug = formString(customSlugs[index]);
     const hasFile = file instanceof File && file.name.trim().length > 0;
-    const hasText = rawTitle.length > 0 || rawSlug.length > 0;
+    const hasText = rawTitle.length > 0;
 
     if (!hasFile && !hasText) continue;
     if (!(file instanceof File) || file.name.trim().length === 0) {
@@ -305,14 +284,9 @@ export async function completeOrgStandardsOnboardingAction(
         .replace(/\.[^.]+$/, "")
         .replace(/[-_]+/g, " ")
         .trim();
-    const slug = rawSlug || slugify(title);
-    const parsed = customStandardSchema.safeParse({ title, slug, body: "placeholder" });
+    const parsed = customStandardSchema.safeParse({ title, body: "placeholder" });
     if (!parsed.success) {
-      errors.push(`Additional standard ${index + 1} needs a valid title and slug.`);
-      continue;
-    }
-    if (seenCustomSlugs.has(slug)) {
-      errors.push(`Additional standard slug "${slug}" is duplicated.`);
+      errors.push(`Additional standard ${index + 1} needs a valid title.`);
       continue;
     }
 
@@ -328,11 +302,14 @@ export async function completeOrgStandardsOnboardingAction(
       errors,
     });
     if (!upload) continue;
+    if (seenCustomFileNames.has(upload.sourceFileName)) {
+      errors.push(`Additional standard file "${upload.sourceFileName}" is duplicated.`);
+      continue;
+    }
 
-    seenCustomSlugs.add(slug);
+    seenCustomFileNames.add(upload.sourceFileName);
     customStandards.push({
       title,
-      slug,
       body: upload.body,
       type: upload.type,
       sourceFileName: upload.sourceFileName,
@@ -346,10 +323,8 @@ export async function completeOrgStandardsOnboardingAction(
   try {
     for (const entry of requiredUploads) {
       if (!entry.upload) continue;
-      const slug = slugForRequiredKind(entry.kind);
       await upsertOrganizationArtifact({
         requiredKey: entry.kind,
-        slug: slugForRequiredKind(entry.kind),
         title: ORGANIZATION_ARTIFACT_LABELS[entry.kind],
         name: REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[entry.kind],
         body: entry.upload.body,
@@ -358,9 +333,8 @@ export async function completeOrgStandardsOnboardingAction(
     }
     for (const custom of customStandards) {
       await upsertOrganizationArtifact({
-        slug: custom.slug,
         title: custom.title,
-        name: custom.sourceFileName ?? artifactFileName({ slug: custom.slug, type: custom.type }),
+        name: custom.sourceFileName,
         body: custom.body,
         type: custom.type,
       });

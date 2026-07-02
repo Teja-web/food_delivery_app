@@ -14,7 +14,6 @@ function serializeStandardsForEditor(rows: Awaited<ReturnType<typeof listOrganiz
   return rows.map((row) => ({
     id: row.id,
     kind: row.metadata.requiredKey ?? "custom",
-    slug: typeof row.metadata.slug === "string" ? row.metadata.slug : row.name.replace(/\.[^.]+$/, ""),
     title: typeof row.metadata.title === "string" ? row.metadata.title : row.name,
     body: row.body,
     format: row.type === ".txt" ? "text" : "markdown",
