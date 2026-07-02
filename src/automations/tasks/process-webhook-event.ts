@@ -19,12 +19,16 @@
  *   - fire the AI change-risk classifier (best-effort)
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
 import { projects } from "@/db/schema/project";
 import { skills } from "@/db/schema/skill/skill";
 import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { planRevisions } from "@/db/schema/plan/plan-revision";
+import { comments } from "@/db/schema/plan/comment";
+import { workItems } from "@/db/schema/work-item";
+import { auditLogs } from "@/db/schema/audit/audit-log";
 import { webhookEvents, type WebhookEvent } from "@/db/schema/audit/webhook-event";
 import { assessDeployIncident } from "@/domain/outcomes";
 import { resolveProjectForWebhook } from "@/lib/integrations/resolve";
@@ -39,6 +43,9 @@ import {
   recomputeSkillAutonomy,
 } from "@/operations/skill/skill-autonomy";
 import { upsertWorkItem } from "@/operations/work/work-items";
+import { jiraExternalKeyFromParts } from "@/lib/integrations/jira-keys";
+import { getJiraClient } from "@/lib/integrations/clients";
+import { canonicalJiraStatus, mapCozntStatusToJira } from "@/lib/integrations/outbound";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -743,7 +750,624 @@ function jiraExternalKey(payload: Json): string | null {
   const issue = asObject(payload.issue);
   const fields = asObject(issue?.fields);
   const project = asObject(fields?.project);
-  return asString(project?.key) ?? null;
+  const projectKey = asString(project?.key);
+  if (!projectKey) return null;
+  return jiraExternalKeyFromParts(projectKey, asString(issue?.self) ?? asString(project?.self));
+}
+
+function jiraWebhookEventName(evt: WebhookEvent, payload: Json): string {
+  if (evt.event && evt.event !== "unknown") return evt.event;
+  return asString(payload.webhookEvent) ?? asString(payload.event) ?? "";
+}
+
+function isJiraIssueEvent(eventName: string): boolean {
+  const value = eventName.toLowerCase();
+  return value.startsWith("jira:issue") || value.startsWith("issue_");
+}
+
+function asIdString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+function dateFromJira(value: unknown, fallback = new Date()): Date {
+  const raw = asString(value);
+  if (!raw) return fallback;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+function jsonEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+async function auditJiraWebhookMutation(input: {
+  organizationId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  summary: string;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  actorId?: string | null;
+  actorName?: string | null;
+}) {
+  await db.insert(auditLogs).values({
+    organizationId: input.organizationId,
+    actorType: "integration",
+    actorId: input.actorId ?? "jira",
+    actorName: input.actorName ?? "Jira",
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    summary: input.summary,
+    before: input.before ?? null,
+    after: input.after ?? null,
+    invokedVia: "webhook:jira",
+  });
+}
+
+const JIRA_PLAN_DESCRIPTION_SECTIONS = new Set([
+  "Metadata",
+  "Summary",
+  "Plan details",
+  "Body",
+]);
+
+function parseJiraPlanDescription(description: string | null | undefined): {
+  summary?: string;
+  body?: string;
+} {
+  const text = description?.replace(/\r\n/g, "\n").trim();
+  if (!text) return {};
+
+  const lines = text.split("\n");
+  const sections = new Map<string, string[]>();
+  let current: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (JIRA_PLAN_DESCRIPTION_SECTIONS.has(trimmed)) {
+      current = trimmed;
+      sections.set(current, []);
+      continue;
+    }
+    if (current) sections.get(current)?.push(line);
+  }
+
+  const sectionText = (name: string) => {
+    if (!sections.has(name)) return undefined;
+    return (sections.get(name) ?? []).join("\n").trim();
+  };
+
+  return {
+    summary: sectionText("Summary"),
+    body: sectionText("Body"),
+  };
+}
+
+function jiraCommentDbId(planArtifactId: string, jiraCommentId: string): string {
+  return `jira:${planArtifactId}:${jiraCommentId}`;
+}
+
+function extractJiraText(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(extractJiraText).join("");
+  }
+  const node = asObject(value);
+  if (!node) return "";
+  if (typeof node.text === "string") return node.text;
+  if (node.type === "hardBreak") return "\n";
+  if (!Array.isArray(node.content)) return "";
+  const separator = node.type === "doc" ? "\n" : "";
+  return node.content.map(extractJiraText).filter(Boolean).join(separator);
+}
+
+function jiraCommentCozntCommentId(comment: Json): string | null {
+  if (!Array.isArray(comment.properties)) return null;
+  for (const item of comment.properties) {
+    const property = asObject(item);
+    if (asString(property?.key) !== "coznt.commentId") continue;
+    const value = asObject(property?.value);
+    const commentId = asString(value?.commentId);
+    if (commentId) return commentId;
+  }
+  return null;
+}
+
+function workItemAuditShape(row: {
+  id?: string;
+  source: string;
+  externalId: string;
+  externalUrl?: string | null;
+  projectId?: string | null;
+  planArtifactId?: string | null;
+  kind?: string | null;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  assigneeEmail?: string | null;
+}) {
+  return {
+    id: row.id,
+    source: row.source,
+    externalId: row.externalId,
+    externalUrl: row.externalUrl ?? null,
+    projectId: row.projectId ?? null,
+    planArtifactId: row.planArtifactId ?? null,
+    kind: row.kind ?? null,
+    title: row.title,
+    description: row.description ?? null,
+    status: row.status ?? null,
+    assigneeEmail: row.assigneeEmail ?? null,
+  };
+}
+
+function planAuditShape(row: {
+  id: string;
+  kind: string;
+  slug: string;
+  title: string;
+  summary?: string | null;
+  body?: string | null;
+  status: string;
+  externalRef?: string | null;
+}) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary ?? null,
+    body: row.body ?? "",
+    status: row.status,
+    externalRef: row.externalRef ?? null,
+  };
+}
+
+function jiraStatusDiffersFromPlan(planStatus: string, jiraStatus: string | null | undefined): boolean {
+  const expected = canonicalJiraStatus(mapCozntStatusToJira(planStatus));
+  const actual = canonicalJiraStatus(jiraStatus);
+  return Boolean(expected && actual && expected !== actual);
+}
+
+async function auditJiraStatusChangeBlocked(input: {
+  organizationId: string;
+  planId: string;
+  summary: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+}) {
+  const recentCutoff = new Date(Date.now() - 5 * 60 * 1000);
+  const [recent] = await db
+    .select({ id: auditLogs.id })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.organizationId, input.organizationId),
+        eq(auditLogs.action, "plan.status_change_blocked_from_jira"),
+        eq(auditLogs.entityType, "plan"),
+        eq(auditLogs.entityId, input.planId),
+        eq(auditLogs.summary, input.summary),
+        gte(auditLogs.createdAt, recentCutoff),
+      ),
+    )
+    .limit(1);
+  if (recent) return;
+
+  await auditJiraWebhookMutation({
+    organizationId: input.organizationId,
+    action: "plan.status_change_blocked_from_jira",
+    entityType: "plan",
+    entityId: input.planId,
+    summary: input.summary,
+    before: input.before,
+    after: input.after,
+  });
+}
+
+async function blockJiraStatusChangeAndRestore(input: {
+  organizationId: string;
+  issueKey: string;
+  jiraStatus: string;
+  plan: Parameters<typeof planAuditShape>[0];
+}): Promise<string | null> {
+  const targetStatus = mapCozntStatusToJira(input.plan.status);
+  const baseSummary = `Jira ${input.issueKey} attempted to change Coznt plan "${input.plan.title}" status from "${input.plan.status}" to "${input.jiraStatus}". Status changes from Jira are not allowed`;
+
+  try {
+    const client = await getJiraClient(input.organizationId);
+    const transition = await client.transitionIssueByName(input.issueKey, targetStatus);
+    const corrected = transition !== null;
+
+    await auditJiraStatusChangeBlocked({
+      organizationId: input.organizationId,
+      planId: input.plan.id,
+      summary: corrected
+        ? `${baseSummary}; Coznt restored Jira to "${targetStatus}".`
+        : `${baseSummary}; Coznt could not restore Jira to "${targetStatus}".`,
+      before: {
+        ...planAuditShape(input.plan),
+        attemptedJiraStatus: input.jiraStatus,
+      },
+      after: {
+        ...planAuditShape(input.plan),
+        blocked: true,
+        reason: "status changes from Jira are not allowed",
+        jiraIssueKey: input.issueKey,
+        attemptedJiraStatus: input.jiraStatus,
+        cozntStatus: input.plan.status,
+        restoredJiraStatus: corrected ? targetStatus : null,
+        corrected,
+        transition: transition?.name ?? null,
+      },
+    });
+
+    return corrected ? targetStatus : null;
+  } catch (err) {
+    await auditJiraStatusChangeBlocked({
+      organizationId: input.organizationId,
+      planId: input.plan.id,
+      summary: `${baseSummary}; Coznt could not restore Jira to "${targetStatus}".`,
+      before: {
+        ...planAuditShape(input.plan),
+        attemptedJiraStatus: input.jiraStatus,
+      },
+      after: {
+        ...planAuditShape(input.plan),
+        blocked: true,
+        reason: "status changes from Jira are not allowed",
+        jiraIssueKey: input.issueKey,
+        attemptedJiraStatus: input.jiraStatus,
+        cozntStatus: input.plan.status,
+        restoredJiraStatus: null,
+        corrected: false,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
+    return null;
+  }
+}
+
+function commentAuditShape(row: {
+  id: string;
+  planArtifactId: string;
+  authorId: string;
+  authorName?: string | null;
+  body: string;
+  resolved?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}) {
+  return {
+    id: row.id,
+    planArtifactId: row.planArtifactId,
+    authorId: row.authorId,
+    authorName: row.authorName ?? null,
+    body: row.body,
+    resolved: row.resolved ?? false,
+    createdAt: row.createdAt?.toISOString(),
+    updatedAt: row.updatedAt?.toISOString(),
+  };
+}
+
+async function appendJiraPlanRevision(input: {
+  organizationId: string;
+  planArtifactId: string;
+  body: string;
+  details?: Record<string, unknown> | null;
+  issueKey: string;
+}) {
+  const last = await db.query.planRevisions.findFirst({
+    where: and(
+      eq(planRevisions.organizationId, input.organizationId),
+      eq(planRevisions.planArtifactId, input.planArtifactId),
+    ),
+    orderBy: [desc(planRevisions.revisionNumber)],
+    columns: { revisionNumber: true },
+  });
+
+  await db.insert(planRevisions).values({
+    organizationId: input.organizationId,
+    planArtifactId: input.planArtifactId,
+    revisionNumber: (last?.revisionNumber ?? 0) + 1,
+    body: input.body,
+    details: input.details ?? undefined,
+    changeNote: `Synced from Jira ${input.issueKey}`,
+    createdById: `jira:${input.issueKey}`,
+    createdByName: "Jira",
+  });
+}
+
+type LinkedJiraWorkItem = { id: string; planArtifactId: string | null };
+
+async function resolveLinkedJiraPlan(input: {
+  organizationId: string;
+  projectId: string;
+  issueKey: string;
+  linkedWorkItem?: LinkedJiraWorkItem | null;
+}): Promise<{ planArtifactId: string | null; linkedWorkItem: LinkedJiraWorkItem | null }> {
+  const linkedWorkItem =
+    input.linkedWorkItem === undefined
+      ? await db.query.workItems.findFirst({
+          where: and(
+            eq(workItems.organizationId, input.organizationId),
+            eq(workItems.projectId, input.projectId),
+            eq(workItems.source, "jira"),
+            eq(workItems.externalId, input.issueKey),
+          ),
+          columns: { id: true, planArtifactId: true },
+        })
+      : input.linkedWorkItem;
+
+  let planArtifactId = linkedWorkItem?.planArtifactId ?? null;
+  if (!planArtifactId) {
+    const linkedPlan = await db.query.planArtifacts.findFirst({
+      where: and(
+        eq(planArtifacts.organizationId, input.organizationId),
+        eq(planArtifacts.projectId, input.projectId),
+        eq(planArtifacts.externalRef, `jira:${input.issueKey}`),
+      ),
+      columns: { id: true },
+    });
+    planArtifactId = linkedPlan?.id ?? null;
+    if (planArtifactId && linkedWorkItem) {
+      await db
+        .update(workItems)
+        .set({ planArtifactId, updatedAt: new Date() })
+        .where(eq(workItems.id, linkedWorkItem.id));
+    }
+  }
+
+  return { planArtifactId, linkedWorkItem: linkedWorkItem ?? null };
+}
+
+async function syncLinkedPlanFromJiraIssue(input: {
+  organizationId: string;
+  projectId: string;
+  issueKey: string;
+  summary: string;
+  description: string | null;
+  status: string | null;
+  linkedWorkItem?: LinkedJiraWorkItem | null;
+}): Promise<{
+  linked: boolean;
+  mirrorWorkItem: boolean;
+  mirrorStatus?: string | null;
+  planArtifactId?: string | null;
+}> {
+  const { planArtifactId, linkedWorkItem } = await resolveLinkedJiraPlan(input);
+  if (!planArtifactId) return { linked: false, mirrorWorkItem: true };
+
+  const plan = await db.query.planArtifacts.findFirst({
+    where: and(
+      eq(planArtifacts.organizationId, input.organizationId),
+      eq(planArtifacts.projectId, input.projectId),
+      eq(planArtifacts.id, planArtifactId),
+    ),
+  });
+  if (!plan) return { linked: false, mirrorWorkItem: true };
+
+  const parsedDescription = parseJiraPlanDescription(input.description);
+  const update: Partial<typeof planArtifacts.$inferInsert> = {};
+  const editableFromJira = plan.status === "draft" || plan.status === "in_review";
+  let mirrorStatus = input.status;
+  const statusDrifted = jiraStatusDiffersFromPlan(plan.status, input.status);
+
+  if (input.summary && input.summary !== plan.title) update.title = input.summary;
+  if (parsedDescription.summary !== undefined && parsedDescription.summary !== (plan.summary ?? "")) {
+    update.summary = parsedDescription.summary || null;
+  }
+  if (parsedDescription.body !== undefined && parsedDescription.body !== (plan.body ?? "")) {
+    update.body = parsedDescription.body;
+  }
+
+  if (statusDrifted) {
+    const correctedStatus = await blockJiraStatusChangeAndRestore({
+      organizationId: input.organizationId,
+      issueKey: input.issueKey,
+      jiraStatus: input.status!,
+      plan,
+    });
+    mirrorStatus = correctedStatus ?? input.status;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return { linked: true, mirrorWorkItem: statusDrifted, mirrorStatus, planArtifactId };
+  }
+
+  if (!editableFromJira) {
+    await auditJiraWebhookMutation({
+      organizationId: input.organizationId,
+      action: "plan.update_blocked_from_jira",
+      entityType: "plan",
+      entityId: plan.id,
+      summary: `Jira ${input.issueKey} attempted to update protected Coznt plan "${plan.title}" while status is ${plan.status}.`,
+      before: planAuditShape(plan),
+      after: {
+        ...planAuditShape(plan),
+        blocked: true,
+        reason: `plan status ${plan.status} is not editable from Jira`,
+        attemptedChanges: update,
+      },
+    });
+    return { linked: true, mirrorWorkItem: false, mirrorStatus, planArtifactId };
+  }
+
+  const before = planAuditShape(plan);
+  const now = new Date();
+  const [updated] = await db
+    .update(planArtifacts)
+    .set({
+      ...update,
+      updatedAt: now,
+      updatedById: `jira:${input.issueKey}`,
+      updatedByName: "Jira",
+    })
+    .where(eq(planArtifacts.id, plan.id))
+    .returning();
+
+  if (linkedWorkItem) {
+    await db
+      .update(workItems)
+      .set({ lastSyncedAt: now, updatedAt: now })
+      .where(eq(workItems.id, linkedWorkItem.id));
+  }
+
+  if (update.body !== undefined) {
+    await appendJiraPlanRevision({
+      organizationId: input.organizationId,
+      planArtifactId: plan.id,
+      body: update.body,
+      details: plan.details,
+      issueKey: input.issueKey,
+    });
+  }
+
+  await auditJiraWebhookMutation({
+    organizationId: input.organizationId,
+    action: "plan.updated_from_jira",
+    entityType: "plan",
+    entityId: plan.id,
+    summary: `Jira ${input.issueKey} updated Coznt plan "${plan.title}".`,
+    before,
+    after: planAuditShape(updated),
+  });
+  return { linked: true, mirrorWorkItem: true, mirrorStatus, planArtifactId };
+}
+
+async function auditJiraWorkItemSync(input: {
+  organizationId: string;
+  workItemId: string;
+  issueKey: string;
+  before: ReturnType<typeof workItemAuditShape> | null;
+  after: ReturnType<typeof workItemAuditShape>;
+}) {
+  if (input.before && jsonEqual(input.before, input.after)) return;
+  await auditJiraWebhookMutation({
+    organizationId: input.organizationId,
+    action: input.before ? "work_item.updated_from_jira" : "work_item.synced_from_jira",
+    entityType: "work_item",
+    entityId: input.workItemId,
+    summary: input.before
+      ? `Jira ${input.issueKey} updated task mirror "${input.after.title}".`
+      : `Jira ${input.issueKey} synced task mirror "${input.after.title}".`,
+    before: input.before,
+    after: input.after,
+  });
+}
+
+async function mirrorJiraCommentToPlan(input: {
+  organizationId: string;
+  projectId: string;
+  issueKey: string;
+  eventName: string;
+  comment: Json;
+}): Promise<boolean> {
+  const commentId = asIdString(input.comment.id);
+  if (!commentId) return false;
+
+  const { planArtifactId } = await resolveLinkedJiraPlan(input);
+  if (!planArtifactId) return false;
+
+  const mirrorId = jiraCommentDbId(planArtifactId, commentId);
+  const cozntOriginCommentId = jiraCommentCozntCommentId(input.comment);
+  const isDelete = input.eventName.includes("comment_deleted");
+  const existingComment = await db.query.comments.findFirst({
+    where: and(
+      eq(comments.organizationId, input.organizationId),
+      eq(comments.planArtifactId, planArtifactId),
+      eq(comments.id, mirrorId),
+    ),
+  });
+
+  if (isDelete || cozntOriginCommentId) {
+    if (existingComment) {
+      await db
+        .delete(comments)
+        .where(
+          and(
+            eq(comments.organizationId, input.organizationId),
+            eq(comments.planArtifactId, planArtifactId),
+            eq(comments.id, mirrorId),
+          ),
+        );
+      await auditJiraWebhookMutation({
+        organizationId: input.organizationId,
+        action: "comment.deleted_from_jira",
+        entityType: "comment",
+        entityId: mirrorId,
+        summary: `Jira ${input.issueKey} deleted a mirrored plan comment.`,
+        before: commentAuditShape(existingComment),
+        after: null,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  const createdAt = dateFromJira(input.comment.created);
+  const updatedAt = dateFromJira(input.comment.updated, createdAt);
+  const author = asObject(input.comment.author) ?? asObject(input.comment.updateAuthor);
+  const authorName = asString(author?.displayName) ?? "Jira user";
+  const authorAccountId = asString(author?.accountId);
+  const body = extractJiraText(input.comment.body).trim() || "No comment body.";
+  const nextComment = {
+    id: mirrorId,
+    planArtifactId,
+    authorId: `jira:${commentId}`,
+    authorName,
+    body,
+    resolved: false,
+    createdAt,
+    updatedAt,
+  };
+
+  await db
+    .insert(comments)
+    .values({
+      organizationId: input.organizationId,
+      id: nextComment.id,
+      planArtifactId: nextComment.planArtifactId,
+      parentCommentId: null,
+      authorId: nextComment.authorId,
+      authorName: nextComment.authorName,
+      body: nextComment.body,
+      resolved: nextComment.resolved,
+      createdAt: nextComment.createdAt,
+      updatedAt: nextComment.updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: comments.id,
+      set: {
+        authorName: sql`excluded.author_name`,
+        body: sql`excluded.body`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+
+  const before = existingComment ? commentAuditShape(existingComment) : null;
+  const after = commentAuditShape(nextComment);
+  const changed = !before || !jsonEqual(before, after);
+  if (changed) {
+    await auditJiraWebhookMutation({
+      organizationId: input.organizationId,
+      action: before ? "comment.updated_from_jira" : "comment.created_from_jira",
+      entityType: "comment",
+      entityId: mirrorId,
+      summary: before
+        ? `Jira ${input.issueKey} updated a mirrored plan comment.`
+        : `Jira ${input.issueKey} added a mirrored plan comment.`,
+      before,
+      after,
+      actorId: authorAccountId ? `jira:${authorAccountId}` : undefined,
+      actorName: authorName,
+    });
+  }
+  return changed;
 }
 
 async function handleJira(evt: WebhookEvent): Promise<void> {
@@ -760,20 +1384,36 @@ async function handleJira(evt: WebhookEvent): Promise<void> {
     return markProcessed(evt.id, `no project binding for jira:${externalKey}`);
   }
 
-  const eventName = evt.event;
-  if (!eventName || !eventName.startsWith("jira:issue")) {
+  const eventName = jiraWebhookEventName(evt, payload);
+  const issue = asObject(payload.issue);
+  const issueKey = asString(issue?.key);
+  const comment = asObject(payload.comment);
+  let mirroredJiraComment = false;
+
+  if (comment) {
+    if (!issue || !issueKey) {
+      return markProcessed(evt.id, "jira comment payload missing issue.key");
+    }
+    mirroredJiraComment = await mirrorJiraCommentToPlan({
+      organizationId: evt.organizationId,
+      projectId,
+      issueKey,
+      eventName,
+      comment,
+    });
+  }
+
+  if (!isJiraIssueEvent(eventName) && !comment) {
     return markProcessed(evt.id);
   }
 
-  const issue = asObject(payload.issue);
-  const issueKey = asString(issue?.key);
   if (!issue || !issueKey) {
     return markProcessed(evt.id, "jira payload missing issue.key");
   }
 
   const fields = asObject(issue.fields) ?? {};
   const summary = asString(fields.summary) ?? issueKey;
-  const description = asString(fields.description) ?? null;
+  const description = extractJiraText(fields.description).trim() || null;
   const statusObj = asObject(fields.status);
   const status = asString(statusObj?.name) ?? null;
   const typeObj = asObject(fields.issuetype);
@@ -794,7 +1434,32 @@ async function handleJira(evt: WebhookEvent): Promise<void> {
     asString(issue.self) ??
     undefined;
 
-  await upsertWorkItem({
+  const existingWorkItem = await db.query.workItems.findFirst({
+    where: and(
+      eq(workItems.organizationId, evt.organizationId),
+      eq(workItems.projectId, projectId),
+      eq(workItems.source, "jira"),
+      eq(workItems.externalId, issueKey),
+    ),
+  });
+  const beforeWorkItem = existingWorkItem ? workItemAuditShape(existingWorkItem) : null;
+
+  const planSync = await syncLinkedPlanFromJiraIssue({
+    organizationId: evt.organizationId,
+    projectId,
+    issueKey,
+    summary,
+    description,
+    status,
+    linkedWorkItem: existingWorkItem
+      ? { id: existingWorkItem.id, planArtifactId: existingWorkItem.planArtifactId }
+      : null,
+  });
+  if (planSync.linked && !planSync.mirrorWorkItem && !mirroredJiraComment) {
+    return markProcessed(evt.id);
+  }
+
+  const workItemId = await upsertWorkItem({
     organizationId: evt.organizationId,
     projectId,
     source: "jira",
@@ -803,10 +1468,24 @@ async function handleJira(evt: WebhookEvent): Promise<void> {
     kind,
     title: summary,
     description: description ?? undefined,
-    status: status ?? undefined,
+    status: planSync.mirrorStatus ?? status ?? undefined,
     assigneeEmail,
+    planArtifactId: planSync.planArtifactId ?? undefined,
     raw: payload,
   });
+
+  const syncedWorkItem = await db.query.workItems.findFirst({
+    where: and(eq(workItems.organizationId, evt.organizationId), eq(workItems.id, workItemId)),
+  });
+  if (syncedWorkItem && !planSync.linked) {
+    await auditJiraWorkItemSync({
+      organizationId: evt.organizationId,
+      workItemId,
+      issueKey,
+      before: beforeWorkItem,
+      after: workItemAuditShape(syncedWorkItem),
+    });
+  }
 
   return markProcessed(evt.id);
 }

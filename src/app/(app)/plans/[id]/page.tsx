@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { auditLogs } from "@/db/schema/audit/audit-log";
 import { workItems } from "@/db/schema/work-item";
 import { listCommentsForPlan, createComment } from "@/actions/plan/comments";
 import { getPlan } from "@/actions/plan/plans";
@@ -16,7 +17,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { DEFAULT_AUTHORING_PATHS } from "@/lib/authoring/coznt-config";
 import { getJiraClient } from "@/lib/integrations/clients";
-import type { JiraComment } from "@/lib/integrations/clients/jira";
+import { jiraIssueBelongsToExternalKey } from "@/lib/integrations/jira-keys";
+import { JIRA_PLAN_PUSH_ACTIONS, jiraPlanNeedsPush } from "@/lib/integrations/outbound";
 import { listEvidenceForPlan } from "@/operations/evidence";
 import { listRecordsForPlan } from "@/operations/governance/records";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
@@ -25,10 +27,6 @@ import {
   listChildPlans,
   listPlanRevisions,
 } from "@/operations/plan/plans";
-import {
-  deleteExternalCommentsForPlan,
-  upsertExternalCommentsForPlan,
-} from "@/operations/plan/comments";
 import { listRelationshipsForPlan } from "@/operations/plan/relationships";
 import { listRepositoriesForProject } from "@/operations/project/repositories";
 
@@ -68,7 +66,7 @@ async function addComment(planId: string, formData: FormData) {
   ]);
 
   const issueKey = jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef);
-  if (!jiraIssueBelongsToSource(issueKey, jiraBinding?.externalKey)) return;
+  if (!jiraIssueBelongsToExternalKey(issueKey, jiraBinding?.externalKey)) return;
 
   try {
     const client = await getJiraClient(plan.organizationId);
@@ -82,38 +80,8 @@ async function addComment(planId: string, formData: FormData) {
   }
 }
 
-async function listJiraCommentsForIssue(input: {
-  organizationId: string;
-  jiraProjectKey?: string | null;
-  issueKey?: string | null;
-}): Promise<JiraComment[]> {
-  if (!input.issueKey || !input.jiraProjectKey) return [];
-  if (!jiraIssueBelongsToSource(input.issueKey, input.jiraProjectKey)) {
-    return [];
-  }
-  try {
-    const client = await getJiraClient(input.organizationId);
-    return await client.getIssueComments(input.issueKey);
-  } catch {
-    return [];
-  }
-}
-
-function jiraIssueBelongsToSource(
-  issueKey: string | null | undefined,
-  jiraProjectKey: string | null | undefined,
-): issueKey is string {
-  if (!issueKey || !jiraProjectKey) return false;
-  const projectKey = jiraProjectKey.trim().toUpperCase();
-  return projectKey.length > 0 && issueKey.toUpperCase().startsWith(`${projectKey}-`);
-}
-
 function jiraIssueKeyFromExternalRef(externalRef: string | null | undefined): string | null {
   return externalRef?.startsWith("jira:") ? externalRef.slice("jira:".length) : null;
-}
-
-function jiraCommentDbId(planId: string, jiraCommentId: string): string {
-  return `jira:${planId}:${jiraCommentId}`;
 }
 
 function isJiraStoredComment(commentId: string, authorId: string): boolean {
@@ -139,6 +107,7 @@ export default async function PlanDetailPage({
     bodyHtml,
     jiraBinding,
     jiraWorkItem,
+    jiraLastPushAudit,
   ] =
     await Promise.all([
       listRecordsForPlan(id),
@@ -158,44 +127,23 @@ export default async function PlanDetailPage({
           eq(workItems.planArtifactId, id),
           eq(workItems.source, "jira"),
         ),
-        columns: { externalUrl: true, externalId: true, updatedAt: true },
+        columns: { externalUrl: true, externalId: true, title: true, status: true, updatedAt: true },
+      }),
+      db.query.auditLogs.findFirst({
+        where: and(
+          eq(auditLogs.organizationId, plan.organizationId),
+          eq(auditLogs.entityType, "plan"),
+          eq(auditLogs.entityId, id),
+          inArray(auditLogs.action, [...JIRA_PLAN_PUSH_ACTIONS]),
+        ),
+        orderBy: [desc(auditLogs.createdAt)],
+        columns: { createdAt: true },
       }),
     ]);
-  const jiraIssueKey = jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef);
   const jiraPushNeedsSync =
-    Boolean(jiraBinding && jiraIssueKey) &&
-    (!jiraWorkItem?.updatedAt || plan.updatedAt.getTime() > jiraWorkItem.updatedAt.getTime());
-  const jiraComments = await listJiraCommentsForIssue({
-    organizationId: plan.organizationId,
-    jiraProjectKey: jiraBinding?.externalKey,
-    issueKey: jiraIssueKey,
-  });
-  let comments = await listCommentsForPlan(id);
-  const existingCommentIds = new Set(comments.map((comment) => comment.id));
-  const cozntOriginComments = jiraComments.filter(
-    (comment) => comment.cozntCommentId && existingCommentIds.has(comment.cozntCommentId),
-  );
-  const jiraCommentsToMirror = jiraComments.filter(
-    (comment) => !comment.cozntCommentId || !existingCommentIds.has(comment.cozntCommentId),
-  );
-  const jiraCommentMirrorIdsToDelete = cozntOriginComments.map((comment) =>
-    jiraCommentDbId(id, comment.id),
-  );
-  await deleteExternalCommentsForPlan(id, jiraCommentMirrorIdsToDelete);
-  await upsertExternalCommentsForPlan(
-    id,
-    jiraCommentsToMirror.map((comment) => ({
-      id: jiraCommentDbId(id, comment.id),
-      authorId: `jira:${comment.id}`,
-      authorName: comment.authorName,
-      body: comment.body,
-      createdAt: new Date(comment.createdAt),
-      updatedAt: new Date(comment.createdAt),
-    })),
-  );
-  if (jiraCommentMirrorIdsToDelete.length > 0 || jiraCommentsToMirror.length > 0) {
-    comments = await listCommentsForPlan(id);
-  }
+    Boolean(jiraBinding) &&
+    jiraPlanNeedsPush(plan, { lastPushedAt: jiraLastPushAudit?.createdAt ?? null });
+  const comments = await listCommentsForPlan(id);
   const projectRepos = await listRepositoriesForProject(plan.projectId);
 
   const pendingApprovals = records.filter(

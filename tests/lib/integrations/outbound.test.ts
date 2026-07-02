@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildJiraPlanDescription, planKindToJiraType } from "@/lib/integrations/outbound";
+import {
+  buildJiraPlanDescription,
+  jiraPlanNeedsPush,
+  planKindToJiraType,
+} from "@/lib/integrations/outbound";
 
 describe("buildJiraPlanDescription", () => {
   it("includes structured plan details when syncing to Jira", () => {
@@ -43,5 +47,55 @@ describe("planKindToJiraType", () => {
     expect(planKindToJiraType("story")).toBe("Story");
     expect(planKindToJiraType("adr")).toBe("Task");
     expect(planKindToJiraType("unknown")).toBe("Task");
+  });
+});
+
+describe("jiraPlanNeedsPush", () => {
+  it("treats Coznt edits as dirty while ignoring Jira-origin webhook edits", () => {
+    const lastPushedAt = new Date("2026-07-02T10:00:00.000Z");
+
+    expect(
+      jiraPlanNeedsPush(
+        {
+          externalRef: null,
+          updatedAt: new Date("2026-07-02T09:00:00.000Z"),
+          updatedById: "user_1",
+        },
+        { lastPushedAt },
+      ),
+    ).toBe(true);
+
+    expect(
+      jiraPlanNeedsPush(
+        {
+          externalRef: "jira:KEY-1",
+          updatedAt: new Date("2026-07-02T09:30:00.000Z"),
+          updatedById: "user_1",
+        },
+        { lastPushedAt },
+      ),
+    ).toBe(false);
+
+    expect(
+      jiraPlanNeedsPush(
+        {
+          externalRef: "jira:KEY-1",
+          updatedAt: new Date("2026-07-02T10:30:00.000Z"),
+          updatedById: "user_1",
+        },
+        { lastPushedAt },
+      ),
+    ).toBe(true);
+
+    expect(
+      jiraPlanNeedsPush(
+        {
+          externalRef: "jira:KEY-1",
+          updatedAt: new Date("2026-07-02T10:30:00.000Z"),
+          updatedById: "jira:KEY-1",
+        },
+        { lastPushedAt },
+      ),
+    ).toBe(false);
   });
 });

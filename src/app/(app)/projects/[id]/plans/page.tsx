@@ -12,6 +12,7 @@ import {
 } from "@/db/schema/plan/plan-artifact";
 import type { Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
+import { listJiraPushTargetsAction } from "@/actions/integration/jira-sync";
 import { planCrud } from "@/operations/plan/plans";
 import { listRelationshipsForPlans } from "@/operations/plan/relationships";
 
@@ -80,6 +81,7 @@ export default async function ProjectPlansPage({
     planItems.map((p) => p.id),
     { kind: "parent_of" },
   );
+  const jiraPushTargets = await listJiraPushTargetsAction({ mode: "all", projectId: id });
   const relationships: PlanRelationshipRowClient[] = relationshipRows.map((r) => ({
     fromPlanArtifactId: r.fromPlanArtifactId,
     toPlanArtifactId: r.toPlanArtifactId,
@@ -90,7 +92,13 @@ export default async function ProjectPlansPage({
     rows,
     relationships,
     projectId: id,
-    counts: { total: rows.length, byStatus, byKind, needsApproval: needsApprovalCount },
+    counts: {
+      total: rows.length,
+      byStatus,
+      byKind,
+      needsApproval: needsApprovalCount,
+      jiraPushTargets: jiraPushTargets.length,
+    },
   };
 
   return (
