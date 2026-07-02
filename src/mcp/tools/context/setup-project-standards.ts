@@ -30,6 +30,10 @@ export const setupProjectStandardsInput = z.object({
     .array(z.string())
     .optional()
     .describe("Optional subset of organization artifact ids to copy when useOrganizationDefaults=true."),
+  additionalArtifacts: z
+    .array(projectStandardInput)
+    .optional()
+    .describe("Optional extra project-standard files. Each item can provide body or filePath."),
   requirements: projectStandardInput
     .optional()
     .describe("Project-exclusive Requirements. Provide body or filePath when useOrganizationDefaults=false."),
@@ -44,12 +48,17 @@ function inferType(fileName: string): ".md" | ".txt" {
   return fileName.toLowerCase().endsWith(".txt") ? ".txt" : ".md";
 }
 
-function defaultFileName(kind: "requirements" | "design", type: ".md" | ".txt"): string {
-  return kind === "requirements" ? `requirements${type}` : `design${type}`;
+function defaultFileName(
+  kind: "requirements" | "design" | "additional",
+  type: ".md" | ".txt",
+): string {
+  if (kind === "requirements") return `requirements${type}`;
+  if (kind === "design") return `design${type}`;
+  return `additional-artifact${type}`;
 }
 
 async function resolveStandardBody(
-  kind: "requirements" | "design",
+  kind: "requirements" | "design" | "additional",
   input: z.infer<typeof projectStandardInput> | undefined,
 ): Promise<{
   title?: string;
@@ -58,19 +67,23 @@ async function resolveStandardBody(
   sourceFileName: string;
 }> {
   if (!input) {
+    const label = kind === "design" ? "Design" : kind === "requirements" ? "Requirements" : "Additional artifact";
     throw new Error(
-      `${kind === "requirements" ? "Requirements" : "Design"} is required when useOrganizationDefaults=false.`,
+      `${label} is required when useOrganizationDefaults=false.`,
     );
   }
 
   const fileNameFromPath = input.filePath ? basename(input.filePath) : null;
   const sourceFileName =
-    input.sourceFileName?.trim() || fileNameFromPath || defaultFileName(kind, ".md");
+    input.sourceFileName?.trim() ||
+    fileNameFromPath ||
+    defaultFileName(kind, ".md");
   const type = inferType(sourceFileName);
   const body = input.filePath ? await readFile(input.filePath, "utf8") : input.body ?? "";
   if (!body.trim()) {
+    const label = kind === "design" ? "Design" : kind === "requirements" ? "Requirements" : "Additional artifact";
     throw new Error(
-      `${kind === "requirements" ? "Requirements" : "Design"} needs a non-empty body or filePath.`,
+      `${label} needs a non-empty body or filePath.`,
     );
   }
 
@@ -95,18 +108,29 @@ export async function runSetupProjectStandards(
   }
 
   if (input.useOrganizationDefaults) {
+    const additionalArtifacts = await Promise.all(
+      (input.additionalArtifacts ?? []).map((artifact) =>
+        resolveStandardBody("additional", artifact),
+      ),
+    );
     return client.post<unknown>(
       `/api/v1/mcp/projects/${encodeURIComponent(projectId)}/standards/setup`,
       {
         useOrganizationDefaults: true,
         organizationArtifactIds: input.organizationArtifactIds,
+        additionalArtifacts,
       },
     );
   }
 
-  const [requirements, design] = await Promise.all([
+  const [requirements, design, additionalArtifacts] = await Promise.all([
     resolveStandardBody("requirements", input.requirements),
     resolveStandardBody("design", input.design),
+    Promise.all(
+      (input.additionalArtifacts ?? []).map((artifact) =>
+        resolveStandardBody("additional", artifact),
+      ),
+    ),
   ]);
 
   return client.post<unknown>(
@@ -115,6 +139,7 @@ export async function runSetupProjectStandards(
       useOrganizationDefaults: false,
       requirements,
       design,
+      additionalArtifacts,
     },
   );
 }
