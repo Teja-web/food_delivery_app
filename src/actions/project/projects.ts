@@ -50,15 +50,19 @@ export async function createProject(input: Parameters<typeof projectCrud.create>
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
 interface ProjectCustomArtifactInput {
+  kind?: "requirements" | "design" | "custom";
   title: string;
   body: string;
   type?: ArtifactFileType;
   sourceFileName?: string;
+  category?: string | null;
 }
 
 interface NormalizedProjectArtifactsInput {
   selectedOrganizationArtifactIds: string[];
   customArtifacts: ProjectCustomArtifactInput[];
+  usesOrganizationDefaults: boolean;
+  hasProjectExclusiveRequiredPair: boolean;
 }
 
 function artifactFileNameFromTitle(title: string, type: ArtifactFileType): string {
@@ -68,6 +72,12 @@ function artifactFileNameFromTitle(title: string, type: ArtifactFileType): strin
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return `${base || "artifact"}${type}`;
+}
+
+function defaultProjectArtifactTitle(kind: ProjectCustomArtifactInput["kind"]): string {
+  if (kind === "requirements") return "Project Requirements";
+  if (kind === "design") return "Project Design";
+  return "Project Artifact";
 }
 
 export async function checkProjectSlugAvailability(
@@ -130,10 +140,12 @@ function normalizeProjectArtifactsInput(
   const selectedOrganizationArtifactIds = [...new Set(input?.selectedOrganizationArtifactIds ?? [])]
     .map((id) => id.trim())
     .filter(Boolean);
+  const usesOrganizationDefaults = selectedOrganizationArtifactIds.length > 0;
 
   const customByName = new Map<string, ProjectCustomArtifactInput>();
   for (const artifact of input?.customArtifacts ?? []) {
-    const title = artifact.title.trim();
+    const kind = artifact.kind ?? "custom";
+    const title = artifact.title.trim() || defaultProjectArtifactTitle(kind);
     const body = artifact.body.trim();
     if (!title && !body) continue;
     if (!title) throw new Error("Project custom artifact title is required.");
@@ -145,12 +157,23 @@ function normalizeProjectArtifactsInput(
       body: artifact.body,
       type,
       sourceFileName: name,
+      kind,
+      category:
+        artifact.category ??
+        (kind === "requirements" || kind === "design" ? "project-exclusive" : "project-standard"),
     });
   }
 
+  const customArtifacts = [...customByName.values()];
+  const hasProjectExclusiveRequiredPair =
+    customArtifacts.some((artifact) => artifact.kind === "requirements" && artifact.body.trim()) &&
+    customArtifacts.some((artifact) => artifact.kind === "design" && artifact.body.trim());
+
   return {
     selectedOrganizationArtifactIds,
-    customArtifacts: [...customByName.values()],
+    customArtifacts,
+    usesOrganizationDefaults,
+    hasProjectExclusiveRequiredPair,
   };
 }
 
@@ -195,6 +218,16 @@ export async function createProjectAction(
     projectArtifacts = normalizeProjectArtifactsInput(input.projectArtifacts);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Invalid project artifacts." };
+  }
+  if (
+    !projectArtifacts.usesOrganizationDefaults &&
+    !projectArtifacts.hasProjectExclusiveRequiredPair
+  ) {
+    return {
+      ok: false,
+      error:
+        "Select default organization standards, or upload both project Requirements and Design files.",
+    };
   }
   let normalizedRepo:
     | ReturnType<typeof normalizeRepositoryInput>
@@ -343,6 +376,7 @@ export async function createProjectAction(
             artifactFileNameFromTitle(artifact.title, artifact.type ?? ".md"),
           body: artifact.body,
           type: artifact.type ?? ".md",
+          category: artifact.category ?? null,
           createdVia: "upload",
         }),
       ),
