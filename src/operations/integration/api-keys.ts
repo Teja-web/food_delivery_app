@@ -12,7 +12,11 @@ import { db } from "@/db/client";
 import { apiKeys, type ApiKey } from "@/db/schema/api-key";
 import { user } from "@/db/schema/auth";
 import { projects } from "@/db/schema/project";
-import { getActionContext } from "@/lib/auth/context";
+import { assertOwnerRole, getActionContext } from "@/lib/auth/context";
+import {
+  parseApiKeyRole,
+  type ApiKeyRole,
+} from "@/lib/auth/api-key-roles";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export interface ApiKeyWithContext extends ApiKey {
@@ -36,6 +40,7 @@ function hash(plaintext: string): string {
 export interface MintInput {
   name: string;
   projectId: string;
+  role?: ApiKeyRole | string | null;
   expiresAt?: Date | null;
 }
 
@@ -47,6 +52,8 @@ export interface MintResult {
 
 export async function mintApiKey(input: MintInput): Promise<MintResult> {
   const ctx = await getActionContext();
+  assertOwnerRole(ctx, "Creating API keys");
+  const role = parseApiKeyRole(input.role);
 
   const [project] = await db
     .select({ id: projects.id })
@@ -68,6 +75,7 @@ export async function mintApiKey(input: MintInput): Promise<MintResult> {
       name: input.name,
       prefix,
       keyHash: hash(plaintext),
+      role,
       createdById: ctx.userId,
       expiresAt: input.expiresAt ?? null,
     })

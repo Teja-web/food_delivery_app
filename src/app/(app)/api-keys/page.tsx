@@ -1,6 +1,7 @@
 import type { Project } from "@/db/schema/project";
 import { listApiKeysWithContextAction } from "@/actions/integration/api-keys";
 import { listProjects } from "@/actions/project/projects";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 import { ApiKeysAuditClient } from "./ApiKeysAuditClient";
 import {
@@ -11,9 +12,10 @@ import {
 } from "./serialize";
 
 export default async function ApiKeysPage() {
-  const [keys, projectsList] = await Promise.all([
+  const [keys, projectsList, currentUser] = await Promise.all([
     listApiKeysWithContextAction(),
     listProjects({ limit: 500 }),
+    getCurrentUser(),
   ]);
   const rows = keys.map(serializeApiKey);
   const kpis = computeKpis(rows);
@@ -40,6 +42,7 @@ export default async function ApiKeysPage() {
         groups={groups}
         rows={rows}
         projects={projects}
+        canCreateApiKeys={currentUser.role === "owner"}
       />
     </div>
   );
