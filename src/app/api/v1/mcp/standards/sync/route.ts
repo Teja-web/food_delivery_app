@@ -9,7 +9,7 @@ import { z } from "zod/v4";
 
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
-import { getStandardsBundle } from "@/operations/standards";
+import { getProjectArtifactsBundle } from "@/operations/artifacts";
 
 const bodySchema = z.object({
   projectId: z.string().optional(),
@@ -30,6 +30,6 @@ export async function POST(req: Request) {
     }
     await requireProjectScope(ctx, projectId);
 
-    return getStandardsBundle(ctx.organizationId, projectId, parsed.data.slugs);
+    return getProjectArtifactsBundle(ctx.organizationId, projectId, parsed.data.slugs);
   });
 }

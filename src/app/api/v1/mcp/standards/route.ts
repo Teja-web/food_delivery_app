@@ -8,7 +8,7 @@
 
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
-import { getStandardsManifest } from "@/operations/standards";
+import { getProjectArtifactsManifest } from "@/operations/artifacts";
 
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {
@@ -19,6 +19,6 @@ export async function GET(req: Request) {
       throw httpError(400, "projectId is required (pass ?projectId=... or use a project-scoped API key)");
     }
     await requireProjectScope(ctx, projectId);
-    return getStandardsManifest(ctx.organizationId, projectId);
+    return getProjectArtifactsManifest(ctx.organizationId, projectId);
   });
 }

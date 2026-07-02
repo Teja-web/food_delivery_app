@@ -2,33 +2,33 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle2, FileText, ShieldCheck } from "lucide-react";
 
 import {
-  getOrgStandardsReadiness,
-  listOrgStandards,
-} from "@/operations/standards";
+  getOrganizationArtifactsReadiness,
+  listOrganizationArtifacts,
+} from "@/operations/artifacts";
 import {
   OrgStandardsEditor,
   type OrgStandardEditorItem,
 } from "@/components/feature/standards/OrgStandardsEditor";
 
-function serializeStandardsForEditor(rows: Awaited<ReturnType<typeof listOrgStandards>>): OrgStandardEditorItem[] {
+function serializeStandardsForEditor(rows: Awaited<ReturnType<typeof listOrganizationArtifacts>>): OrgStandardEditorItem[] {
   return rows.map((row) => ({
     id: row.id,
-    kind: row.kind,
-    slug: row.slug,
-    title: row.title,
+    kind: row.metadata.requiredKey ?? "custom",
+    slug: typeof row.metadata.slug === "string" ? row.metadata.slug : row.name.replace(/\.[^.]+$/, ""),
+    title: typeof row.metadata.title === "string" ? row.metadata.title : row.name,
     body: row.body,
-    format: row.format,
-    version: row.version,
-    hash: row.contentHash,
-    sourceFileName: row.sourceFileName,
+    format: row.type === ".txt" ? "text" : "markdown",
+    version: "1.0.0",
+    hash: typeof row.metadata.contentHash === "string" ? row.metadata.contentHash : "",
+    sourceFileName: row.name,
     updatedAt: row.updatedAt.toISOString(),
   }));
 }
 
 export default async function OrgStandardsSettingsPage() {
   const [standards, readiness] = await Promise.all([
-    listOrgStandards(),
-    getOrgStandardsReadiness(),
+    listOrganizationArtifacts(),
+    getOrganizationArtifactsReadiness(),
   ]);
   const initialStandards = serializeStandardsForEditor(standards);
 

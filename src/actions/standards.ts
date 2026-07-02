@@ -5,24 +5,25 @@ import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 
 import {
-  REQUIRED_STANDARD_KINDS,
-  STANDARD_KIND_LABELS,
-  STANDARD_UPLOAD_FIELDS,
-  softDeleteStandard,
-  upsertStandard,
-} from "@/operations/standards";
+  artifactFileName,
+  deleteOrganizationArtifact,
+  ORGANIZATION_ARTIFACT_LABELS,
+  ORGANIZATION_ARTIFACT_UPLOAD_FIELDS,
+  REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES,
+  REQUIRED_ORGANIZATION_ARTIFACT_KEYS,
+  upsertOrganizationArtifact,
+} from "@/operations/artifacts";
 import {
-  STANDARD_FORMATS,
-  type RequiredStandardKind,
-  type Standard,
-  type StandardFormat,
-} from "@/db/schema/standard";
+  ARTIFACT_FILE_TYPES,
+  type OrganizationArtifact,
+  type RequiredOrganizationArtifactKey,
+} from "@/db/schema/artifact";
 
 const customStandardSchema = z.object({
   title: z.string().min(1),
   slug: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/),
   body: z.string().refine((value) => value.trim().length > 0, "Standard body is required."),
-  format: z.enum(STANDARD_FORMATS).optional().default("markdown"),
+  type: z.enum(ARTIFACT_FILE_TYPES).optional().default(".md"),
   sourceFileName: z.string().optional().nullable(),
 });
 
@@ -30,17 +31,17 @@ const requiredPayloadSchema = z.object({
   codingStandardsBody: z
     .string()
     .refine((value) => value.trim().length > 0, "Coding Standards is required."),
-  codingStandardsFormat: z.enum(STANDARD_FORMATS).optional().default("markdown"),
+  codingStandardsFormat: z.enum(["markdown", "text"]).optional().default("markdown"),
   codingStandardsSourceFileName: z.string().optional().nullable(),
   brandGuidelinesBody: z
     .string()
     .refine((value) => value.trim().length > 0, "Brand Guidelines is required."),
-  brandGuidelinesFormat: z.enum(STANDARD_FORMATS).optional().default("markdown"),
+  brandGuidelinesFormat: z.enum(["markdown", "text"]).optional().default("markdown"),
   brandGuidelinesSourceFileName: z.string().optional().nullable(),
   architecturePrinciplesBody: z
     .string()
     .refine((value) => value.trim().length > 0, "Architecture Principles is required."),
-  architecturePrinciplesFormat: z.enum(STANDARD_FORMATS).optional().default("markdown"),
+  architecturePrinciplesFormat: z.enum(["markdown", "text"]).optional().default("markdown"),
   architecturePrinciplesSourceFileName: z.string().optional().nullable(),
   customStandards: z.array(customStandardSchema).optional().default([]),
 });
@@ -51,11 +52,11 @@ export interface OrgStandardsOnboardingState {
 
 export interface SavedOrgStandard {
   id: string;
-  kind: "coding_standards" | "brand_guidelines" | "architecture_principles" | "custom";
+  kind: RequiredOrganizationArtifactKey | "custom";
   slug: string;
   title: string;
   body: string;
-  format: StandardFormat;
+  format: "markdown" | "text";
   version: string;
   hash: string;
   sourceFileName: string | null;
@@ -69,29 +70,58 @@ export type SaveOrgStandardsSetupResult =
 const MAX_STANDARD_FILE_BYTES = 2 * 1024 * 1024;
 const acceptedStandardExtensions = [".md", ".txt"] as const;
 
-function slugForRequiredKind(kind: RequiredStandardKind): string {
-  return kind.replaceAll("_", "-");
+function slugForRequiredKind(kind: RequiredOrganizationArtifactKey): string {
+  return REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[kind].replace(/\.[^.]+$/, "");
 }
 
-function serializeSavedStandard(row: Standard): SavedOrgStandard {
+function rowRequiredKey(row: OrganizationArtifact): SavedOrgStandard["kind"] {
+  const key = row.metadata.requiredKey;
+  return key === "coding_standards" ||
+    key === "brand_guidelines" ||
+    key === "architecture_principles"
+    ? key
+    : "custom";
+}
+
+function rowSlug(row: OrganizationArtifact): string {
+  if (typeof row.metadata.slug === "string" && row.metadata.slug.trim()) {
+    return row.metadata.slug;
+  }
+  const key = rowRequiredKey(row);
+  return key === "custom" ? row.name.replace(/\.[^.]+$/, "") : key.replaceAll("_", "-");
+}
+
+function rowTitle(row: OrganizationArtifact): string {
+  if (typeof row.metadata.title === "string" && row.metadata.title.trim()) {
+    return row.metadata.title;
+  }
+  const key = rowRequiredKey(row);
+  return key === "custom" ? row.name : ORGANIZATION_ARTIFACT_LABELS[key];
+}
+
+function rowFormat(row: OrganizationArtifact): "markdown" | "text" {
+  return row.type === ".txt" ? "text" : "markdown";
+}
+
+function serializeSavedStandard(row: OrganizationArtifact): SavedOrgStandard {
   return {
     id: row.id,
-    kind: row.kind,
-    slug: row.slug,
-    title: row.title,
+    kind: rowRequiredKey(row),
+    slug: rowSlug(row),
+    title: rowTitle(row),
     body: row.body,
-    format: row.format,
-    version: row.version,
-    hash: row.contentHash,
-    sourceFileName: row.sourceFileName,
+    format: rowFormat(row),
+    version: "1.0.0",
+    hash: typeof row.metadata.contentHash === "string" ? row.metadata.contentHash : "",
+    sourceFileName: row.name,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
 
 function requiredInputForKind(
   data: z.infer<typeof requiredPayloadSchema>,
-  kind: RequiredStandardKind,
-): { body: string; format: StandardFormat; sourceFileName: string | null } {
+  kind: RequiredOrganizationArtifactKey,
+): { body: string; format: "markdown" | "text"; sourceFileName: string | null } {
   switch (kind) {
     case "coding_standards":
       return {
@@ -143,7 +173,7 @@ async function readUploadedStandardFile(input: {
   label: string;
   required: boolean;
   errors: string[];
-}): Promise<{ body: string; sourceFileName: string; format: "markdown" | "text" } | null> {
+}): Promise<{ body: string; sourceFileName: string; type: ".md" | ".txt" } | null> {
   const value = input.formData.get(input.fieldName);
   if (!(value instanceof File) || value.name.trim().length === 0) {
     if (input.required) input.errors.push(`${input.label} file is required.`);
@@ -169,7 +199,7 @@ async function readUploadedStandardFile(input: {
   return {
     body,
     sourceFileName: value.name,
-    format: extensionFor(value.name) === ".txt" ? "text" : "markdown",
+    type: extensionFor(value.name) === ".txt" ? ".txt" : ".md",
   };
 }
 
@@ -183,28 +213,26 @@ export async function saveOrgStandardsSetupAction(
 
   try {
     const saved: SavedOrgStandard[] = [];
-    for (const kind of REQUIRED_STANDARD_KINDS) {
+    for (const kind of REQUIRED_ORGANIZATION_ARTIFACT_KEYS) {
       const standard = requiredInputForKind(parsed.data, kind);
-      const row = await upsertStandard({
-        kind,
+      const slug = slugForRequiredKind(kind);
+      const row = await upsertOrganizationArtifact({
+        requiredKey: kind,
         slug: slugForRequiredKind(kind),
-        title: STANDARD_KIND_LABELS[kind],
+        title: ORGANIZATION_ARTIFACT_LABELS[kind],
+        name: REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[kind],
         body: standard.body,
-        format: standard.format,
-        version: "1.0.0",
-        sourceFileName: standard.sourceFileName,
+        type: ".md",
       });
       saved.push(serializeSavedStandard(row));
     }
     for (const custom of parsed.data.customStandards) {
-      const row = await upsertStandard({
-        kind: "custom",
+      const row = await upsertOrganizationArtifact({
         slug: custom.slug.trim(),
         title: custom.title.trim(),
+        name: custom.sourceFileName ?? artifactFileName({ slug: custom.slug.trim(), type: custom.type }),
         body: custom.body,
-        format: custom.format,
-        version: "1.0.0",
-        sourceFileName: custom.sourceFileName ?? null,
+        type: custom.type,
       });
       saved.push(serializeSavedStandard(row));
     }
@@ -218,7 +246,7 @@ export async function deleteOrgStandardAction(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await softDeleteStandard(id);
+    await deleteOrganizationArtifact(id);
     return { ok: true };
   } catch (err) {
     return {
@@ -234,12 +262,12 @@ export async function completeOrgStandardsOnboardingAction(
 ): Promise<OrgStandardsOnboardingState> {
   const errors: string[] = [];
   const requiredUploads = await Promise.all(
-    REQUIRED_STANDARD_KINDS.map(async (kind) => ({
+    REQUIRED_ORGANIZATION_ARTIFACT_KEYS.map(async (kind) => ({
       kind,
       upload: await readUploadedStandardFile({
         formData,
-        fieldName: `${STANDARD_UPLOAD_FIELDS[kind]}File`,
-        label: STANDARD_KIND_LABELS[kind],
+        fieldName: `${ORGANIZATION_ARTIFACT_UPLOAD_FIELDS[kind]}File`,
+        label: ORGANIZATION_ARTIFACT_LABELS[kind],
         required: true,
         errors,
       }),
@@ -253,7 +281,7 @@ export async function completeOrgStandardsOnboardingAction(
     title: string;
     slug: string;
     body: string;
-    format: "markdown" | "text";
+    type: ".md" | ".txt";
     sourceFileName: string;
   }> = [];
   const seenCustomSlugs = new Set<string>();
@@ -306,7 +334,7 @@ export async function completeOrgStandardsOnboardingAction(
       title,
       slug,
       body: upload.body,
-      format: upload.format,
+      type: upload.type,
       sourceFileName: upload.sourceFileName,
     });
   }
@@ -318,25 +346,23 @@ export async function completeOrgStandardsOnboardingAction(
   try {
     for (const entry of requiredUploads) {
       if (!entry.upload) continue;
-      await upsertStandard({
-        kind: entry.kind,
+      const slug = slugForRequiredKind(entry.kind);
+      await upsertOrganizationArtifact({
+        requiredKey: entry.kind,
         slug: slugForRequiredKind(entry.kind),
-        title: STANDARD_KIND_LABELS[entry.kind],
+        title: ORGANIZATION_ARTIFACT_LABELS[entry.kind],
+        name: REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[entry.kind],
         body: entry.upload.body,
-        format: entry.upload.format,
-        version: "1.0.0",
-        sourceFileName: entry.upload.sourceFileName,
+        type: ".md",
       });
     }
     for (const custom of customStandards) {
-      await upsertStandard({
-        kind: "custom",
+      await upsertOrganizationArtifact({
         slug: custom.slug,
         title: custom.title,
+        name: custom.sourceFileName ?? artifactFileName({ slug: custom.slug, type: custom.type }),
         body: custom.body,
-        format: custom.format,
-        version: "1.0.0",
-        sourceFileName: custom.sourceFileName,
+        type: custom.type,
       });
     }
   } catch (err) {

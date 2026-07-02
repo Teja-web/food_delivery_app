@@ -7,12 +7,7 @@ import { environments, type EnvironmentTier } from "@/db/schema/environment";
 import { governancePolicies } from "@/db/schema/governance/policies";
 import { projects } from "@/db/schema/project";
 import { repositories, type RepositorySource } from "@/db/schema/repository";
-import {
-  REQUIRED_STANDARD_KINDS,
-  STANDARD_KIND_LABELS,
-  type RequiredStandardKind,
-  type StandardFormat,
-} from "@/db/schema/standard";
+import { type ArtifactFileType } from "@/db/schema/artifact";
 import { assertElevatedRole, getActionContext } from "@/lib/auth/context";
 import { getPolicyTemplate } from "@/lib/governance/policy-templates";
 import { projectCrud } from "@/operations/project/projects";
@@ -30,11 +25,11 @@ import {
   syncJiraProjectWorkItems,
 } from "@/operations/integration/jira-projects";
 import {
-  auditProjectStandardsInheritance,
-  assertRequiredOrgStandardsPresent,
-  MissingRequiredStandardsError,
-  upsertStandard,
-} from "@/operations/standards";
+  assertRequiredOrganizationArtifactsPresent,
+  cloneOrganizationArtifactsToProject,
+  MissingRequiredOrganizationArtifactsError,
+  upsertProjectArtifact,
+} from "@/operations/artifacts";
 
 export async function listProjects(opts: { offset?: number; limit?: number } = {}) {
   return projectCrud.list({ offset: opts.offset ?? 0, limit: opts.limit ?? 25, sortBy: "createdAt", sortOrder: "desc" });
@@ -55,24 +50,17 @@ export async function createProject(input: Parameters<typeof projectCrud.create>
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 const STANDARD_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-interface ProjectRequiredStandardOverrideInput {
-  kind: RequiredStandardKind;
-  body: string;
-  format?: StandardFormat;
-  sourceFileName?: string;
-}
-
-interface ProjectCustomStandardInput {
+interface ProjectCustomArtifactInput {
   title: string;
   slug: string;
   body: string;
-  format?: StandardFormat;
+  type?: ArtifactFileType;
   sourceFileName?: string;
 }
 
-interface NormalizedProjectStandardsInput {
-  requiredOverrides: ProjectRequiredStandardOverrideInput[];
-  customStandards: ProjectCustomStandardInput[];
+interface NormalizedProjectArtifactsInput {
+  selectedOrganizationArtifactIds: string[];
+  customArtifacts: ProjectCustomArtifactInput[];
 }
 
 export async function checkProjectSlugAvailability(
@@ -123,59 +111,42 @@ export interface CreateProjectWizardInput {
   environmentsToCreate?: Array<{ name: string; tier: EnvironmentTier }>;
   criticalPaths?: string[];
   productionCriticalPaths?: string[];
-  projectStandards?: {
-    mode: "inherit" | "custom";
-    requiredOverrides?: ProjectRequiredStandardOverrideInput[];
-    customStandards?: ProjectCustomStandardInput[];
+  projectArtifacts?: {
+    selectedOrganizationArtifactIds?: string[];
+    customArtifacts?: ProjectCustomArtifactInput[];
   };
 }
 
-function normalizeProjectStandardsInput(
-  input: CreateProjectWizardInput["projectStandards"],
-): NormalizedProjectStandardsInput {
-  if (!input || input.mode === "inherit") {
-    return { requiredOverrides: [], customStandards: [] };
-  }
+function normalizeProjectArtifactsInput(
+  input: CreateProjectWizardInput["projectArtifacts"],
+): NormalizedProjectArtifactsInput {
+  const selectedOrganizationArtifactIds = [...new Set(input?.selectedOrganizationArtifactIds ?? [])]
+    .map((id) => id.trim())
+    .filter(Boolean);
 
-  const requiredByKind = new Map<RequiredStandardKind, ProjectRequiredStandardOverrideInput>();
-  for (const override of input.requiredOverrides ?? []) {
-    const kind = override.kind;
-    if (!REQUIRED_STANDARD_KINDS.includes(kind)) {
-      throw new Error(`Unknown required standard kind: ${kind}.`);
-    }
-    const body = override.body.trim();
-    if (!body) continue;
-    requiredByKind.set(kind, {
-      kind,
-      body: override.body,
-      format: override.format ?? "markdown",
-      sourceFileName: override.sourceFileName?.trim() || undefined,
-    });
-  }
-
-  const customBySlug = new Map<string, ProjectCustomStandardInput>();
-  for (const standard of input.customStandards ?? []) {
-    const title = standard.title.trim();
-    const slug = standard.slug.trim();
-    const body = standard.body.trim();
+  const customBySlug = new Map<string, ProjectCustomArtifactInput>();
+  for (const artifact of input?.customArtifacts ?? []) {
+    const title = artifact.title.trim();
+    const slug = artifact.slug.trim();
+    const body = artifact.body.trim();
     if (!title && !slug && !body) continue;
-    if (!title) throw new Error("Project custom standard title is required.");
+    if (!title) throw new Error("Project custom artifact title is required.");
     if (!STANDARD_SLUG_PATTERN.test(slug)) {
-      throw new Error("Project custom standard slug must use lowercase letters, digits, and hyphens.");
+      throw new Error("Project custom artifact slug must use lowercase letters, digits, and hyphens.");
     }
-    if (!body) throw new Error(`Project custom standard "${title}" needs file content.`);
+    if (!body) throw new Error(`Project custom artifact "${title}" needs file content.`);
     customBySlug.set(slug, {
       title,
       slug,
-      body: standard.body,
-      format: standard.format ?? "markdown",
-      sourceFileName: standard.sourceFileName?.trim() || undefined,
+      body: artifact.body,
+      type: artifact.type ?? ".md",
+      sourceFileName: artifact.sourceFileName?.trim() || undefined,
     });
   }
 
   return {
-    requiredOverrides: [...requiredByKind.values()],
-    customStandards: [...customBySlug.values()],
+    selectedOrganizationArtifactIds,
+    customArtifacts: [...customBySlug.values()],
   };
 }
 
@@ -198,9 +169,9 @@ export async function createProjectAction(
 
   const ctx = await getActionContext();
   try {
-    await assertRequiredOrgStandardsPresent(ctx.organizationId);
+    await assertRequiredOrganizationArtifactsPresent(ctx.organizationId);
   } catch (err) {
-    if (err instanceof MissingRequiredStandardsError) {
+    if (err instanceof MissingRequiredOrganizationArtifactsError) {
       return { ok: false, error: err.message };
     }
     throw err;
@@ -215,11 +186,11 @@ export async function createProjectAction(
   if (!input.skipGovernance && !template) {
     return { ok: false, error: `Unknown governance template: ${input.templateId}.` };
   }
-  let projectStandards: NormalizedProjectStandardsInput;
+  let projectArtifacts: NormalizedProjectArtifactsInput;
   try {
-    projectStandards = normalizeProjectStandardsInput(input.projectStandards);
+    projectArtifacts = normalizeProjectArtifactsInput(input.projectArtifacts);
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Invalid project standards." };
+    return { ok: false, error: err instanceof Error ? err.message : "Invalid project artifacts." };
   }
   let normalizedRepo:
     | ReturnType<typeof normalizeRepositoryInput>
@@ -353,28 +324,21 @@ export async function createProjectAction(
             url: repositoryUrl,
           })
         : Promise.resolve(),
-      ...projectStandards.requiredOverrides.map((override) =>
-        upsertStandard({
+      projectArtifacts.selectedOrganizationArtifactIds.length > 0
+        ? cloneOrganizationArtifactsToProject(
+            projectRow.id,
+            projectArtifacts.selectedOrganizationArtifactIds,
+          )
+        : Promise.resolve([]),
+      ...projectArtifacts.customArtifacts.map((artifact) =>
+        upsertProjectArtifact({
           projectId: projectRow.id,
-          kind: override.kind,
-          slug: override.kind.replaceAll("_", "-"),
-          title: STANDARD_KIND_LABELS[override.kind],
-          body: override.body,
-          format: override.format ?? "markdown",
-          version: "1.0.0",
-          sourceFileName: override.sourceFileName,
-        }),
-      ),
-      ...projectStandards.customStandards.map((standard) =>
-        upsertStandard({
-          projectId: projectRow.id,
-          kind: "custom",
-          slug: standard.slug,
-          title: standard.title,
-          body: standard.body,
-          format: standard.format ?? "markdown",
-          version: "1.0.0",
-          sourceFileName: standard.sourceFileName,
+          slug: artifact.slug,
+          title: artifact.title,
+          name: artifact.sourceFileName ?? `${artifact.slug}${artifact.type ?? ".md"}`,
+          body: artifact.body,
+          type: artifact.type ?? ".md",
+          createdVia: "upload",
         }),
       ),
     ]);
@@ -394,13 +358,6 @@ export async function createProjectAction(
         });
       }
     }
-    await auditProjectStandardsInheritance({
-      organizationId: ctx.organizationId,
-      projectId: projectRow.id,
-      actorId: ctx.userId,
-      actorName: ctx.user.name,
-    });
-
     safeRevalidate("/projects");
     return { ok: true, id: projectRow.id };
   } catch (e) {

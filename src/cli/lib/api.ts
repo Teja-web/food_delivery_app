@@ -31,6 +31,7 @@ export interface StandardsManifestEntry {
   title: string;
   kind: string;
   scope: "org" | "project";
+  type?: ".md" | ".txt";
   format: "markdown" | "text";
   updatedAt: string;
 }

@@ -2,17 +2,20 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { listApproverEligibleMembers } from "@/operations/auth/members";
-import { listOrgStandards } from "@/operations/standards";
+import { listOrganizationArtifacts } from "@/operations/artifacts";
 
 import { NewProjectForm, type OrgStandardOption } from "./NewProjectForm";
 
-function serializeOrgStandards(rows: Awaited<ReturnType<typeof listOrgStandards>>): OrgStandardOption[] {
+function serializeOrgStandards(rows: Awaited<ReturnType<typeof listOrganizationArtifacts>>): OrgStandardOption[] {
   return rows.map((row) => ({
-    kind: row.kind,
-    slug: row.slug,
-    title: row.title,
-    format: row.format,
-    sourceFileName: row.sourceFileName,
+    id: row.id,
+    requiredKey: row.metadata.requiredKey ?? null,
+    slug: typeof row.metadata.slug === "string" ? row.metadata.slug : row.name.replace(/\.[^.]+$/, ""),
+    title: typeof row.metadata.title === "string" ? row.metadata.title : row.name,
+    type: row.type,
+    name: row.name,
+    category: row.category,
+    sourceFileName: row.name,
     updatedAt: row.updatedAt.toISOString(),
   }));
 }
@@ -20,7 +23,7 @@ function serializeOrgStandards(rows: Awaited<ReturnType<typeof listOrgStandards>
 export default async function NewProjectPage() {
   const [approverCandidates, orgStandards] = await Promise.all([
     listApproverEligibleMembers().catch(() => []),
-    listOrgStandards(),
+    listOrganizationArtifacts(),
   ]);
 
   return (

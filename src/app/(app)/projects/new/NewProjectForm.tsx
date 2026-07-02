@@ -25,12 +25,7 @@ import {
 } from "@/actions/project/projects";
 import { REPOSITORY_SOURCES, type RepositorySource } from "@/db/schema/repository";
 import { ENVIRONMENT_TIERS, type EnvironmentTier } from "@/db/schema/environment";
-import {
-  REQUIRED_STANDARD_KINDS,
-  STANDARD_KIND_LABELS,
-  type RequiredStandardKind,
-  type StandardFormat,
-} from "@/db/schema/standard";
+import { type ArtifactFileType, type RequiredOrganizationArtifactKey } from "@/db/schema/artifact";
 import {
   DEFAULT_TEMPLATE_ID,
   POLICY_TEMPLATES,
@@ -54,8 +49,6 @@ import { cn } from "@/lib/utils";
 
 type StepId = 1 | 2 | 3 | 4;
 
-type ProjectStandardsMode = "inherit" | "custom";
-
 interface EnvironmentDraft {
   enabled: boolean;
   name: string;
@@ -64,7 +57,7 @@ interface EnvironmentDraft {
 
 interface ProjectStandardUploadDraft {
   body: string;
-  format: StandardFormat;
+  type: ArtifactFileType;
   sourceFileName: string;
 }
 
@@ -75,10 +68,13 @@ interface ProjectCustomStandardDraft extends ProjectStandardUploadDraft {
 }
 
 export interface OrgStandardOption {
-  kind: RequiredStandardKind | "custom";
+  id: string;
+  requiredKey: RequiredOrganizationArtifactKey | null;
   slug: string;
   title: string;
-  format: StandardFormat;
+  type: ArtifactFileType;
+  name: string;
+  category: string | null;
   sourceFileName: string | null;
   updatedAt: string;
 }
@@ -94,8 +90,7 @@ interface FormState {
   templateId: string;
   skipGovernance: boolean;
   // Step 3
-  projectStandardsMode: ProjectStandardsMode;
-  projectStandardOverrides: Record<RequiredStandardKind, ProjectStandardUploadDraft>;
+  selectedOrganizationArtifactIds: Set<string>;
   projectCustomStandards: ProjectCustomStandardDraft[];
   // Step 4
   repoSource: RepositorySource | "none";
@@ -136,15 +131,7 @@ function splitPaths(raw: string): string[] {
 }
 
 function emptyStandardUpload(): ProjectStandardUploadDraft {
-  return { body: "", format: "markdown", sourceFileName: "" };
-}
-
-function emptyProjectStandardOverrides(): Record<RequiredStandardKind, ProjectStandardUploadDraft> {
-  return {
-    coding_standards: emptyStandardUpload(),
-    brand_guidelines: emptyStandardUpload(),
-    architecture_principles: emptyStandardUpload(),
-  };
+  return { body: "", type: ".md", sourceFileName: "" };
 }
 
 function emptyCustomProjectStandard(): ProjectCustomStandardDraft {
@@ -168,9 +155,9 @@ function isAcceptedStandardFile(file: File): boolean {
   );
 }
 
-function standardFormatFromFile(file: File): StandardFormat {
+function artifactTypeFromFile(file: File): ArtifactFileType {
   const lower = file.name.toLowerCase();
-  return lower.endsWith(".txt") || file.type === "text/plain" ? "text" : "markdown";
+  return lower.endsWith(".txt") || file.type === "text/plain" ? ".txt" : ".md";
 }
 
 async function readStandardUpload(file: File): Promise<ProjectStandardUploadDraft> {
@@ -179,7 +166,7 @@ async function readStandardUpload(file: File): Promise<ProjectStandardUploadDraf
   }
   return {
     body: await file.text(),
-    format: standardFormatFromFile(file),
+    type: artifactTypeFromFile(file),
     sourceFileName: file.name,
   };
 }
@@ -226,8 +213,7 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
     approverIds: new Set(),
     templateId: DEFAULT_TEMPLATE_ID,
     skipGovernance: false,
-    projectStandardsMode: "inherit",
-    projectStandardOverrides: emptyProjectStandardOverrides(),
+    selectedOrganizationArtifactIds: new Set(orgStandards.map((artifact) => artifact.id)),
     projectCustomStandards: [],
     repoSource: "none",
     repoIdentifier: "",
@@ -356,35 +342,22 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
         .map((e) => ({ name: e.name.trim(), tier: e.tier })),
       criticalPaths: splitPaths(form.criticalPathsText),
       productionCriticalPaths: splitPaths(form.productionCriticalPathsText),
-      projectStandards: {
-        mode: form.projectStandardsMode,
-        requiredOverrides:
-          form.projectStandardsMode === "custom"
-            ? REQUIRED_STANDARD_KINDS.map((kind) => ({
-                kind,
-                body: form.projectStandardOverrides[kind].body,
-                format: form.projectStandardOverrides[kind].format,
-                sourceFileName:
-                  form.projectStandardOverrides[kind].sourceFileName || undefined,
-              })).filter((item) => item.body.trim().length > 0)
-            : [],
-        customStandards:
-          form.projectStandardsMode === "custom"
-            ? form.projectCustomStandards
-                .map((item) => ({
-                  title: item.title.trim(),
-                  slug: item.slug.trim(),
-                  body: item.body,
-                  format: item.format,
-                  sourceFileName: item.sourceFileName || undefined,
-                }))
-                .filter(
-                  (item) =>
-                    item.title.length > 0 ||
-                    item.slug.length > 0 ||
-                    item.body.trim().length > 0,
-                )
-            : [],
+      projectArtifacts: {
+        selectedOrganizationArtifactIds: Array.from(form.selectedOrganizationArtifactIds),
+        customArtifacts: form.projectCustomStandards
+          .map((item) => ({
+            title: item.title.trim(),
+            slug: item.slug.trim(),
+            body: item.body,
+            type: item.type,
+            sourceFileName: item.sourceFileName || undefined,
+          }))
+          .filter(
+            (item) =>
+              item.title.length > 0 ||
+              item.slug.length > 0 ||
+              item.body.trim().length > 0,
+          ),
       },
     };
 
@@ -833,32 +806,6 @@ interface StandardsStepProps {
 
 function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const requiredOrgStandards = REQUIRED_STANDARD_KINDS.map((kind) => {
-    const existing = orgStandards.find((standard) => standard.kind === kind);
-    return {
-      kind,
-      title: existing?.title ?? STANDARD_KIND_LABELS[kind],
-      sourceFileName: existing?.sourceFileName,
-    };
-  });
-
-  async function applyRequiredOverride(kind: RequiredStandardKind, file: File | undefined) {
-    if (!file) return;
-    setUploadError(null);
-    try {
-      const upload = await readStandardUpload(file);
-      setForm((current) => ({
-        ...current,
-        projectStandardsMode: "custom",
-        projectStandardOverrides: {
-          ...current.projectStandardOverrides,
-          [kind]: upload,
-        },
-      }));
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Could not read file.");
-    }
-  }
 
   async function applyCustomUpload(id: string, file: File | undefined) {
     if (!file) return;
@@ -867,7 +814,6 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
       const upload = await readStandardUpload(file);
       setForm((current) => ({
         ...current,
-        projectStandardsMode: "custom",
         projectCustomStandards: current.projectCustomStandards.map((item) =>
           item.id === id ? { ...item, ...upload } : item,
         ),
@@ -880,7 +826,6 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
   function updateCustom(id: string, patch: Partial<ProjectCustomStandardDraft>) {
     setForm((current) => ({
       ...current,
-      projectStandardsMode: "custom",
       projectCustomStandards: current.projectCustomStandards.map((item) => {
         if (item.id !== id) return item;
         const next = { ...item, ...patch };
@@ -892,211 +837,143 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
     }));
   }
 
+  function toggleOrganizationArtifact(id: string, checked: boolean) {
+    setForm((current) => {
+      const next = new Set(current.selectedOrganizationArtifactIds);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return { ...current, selectedOrganizationArtifactIds: next };
+    });
+  }
+
   return (
     <div className="space-y-6">
       <section className="space-y-3">
         <div className="space-y-1">
-          <Label>Project standards</Label>
+          <Label>Project artifacts</Label>
           <p className="text-xs text-muted-foreground">
-            Projects inherit org standards by default. Add project-scoped overrides only when
-            this project needs stricter or different guidance.
+            Select the organization files to copy into this project. Copied files become
+            project-scoped snapshots.
           </p>
         </div>
 
-        <RadioGroup
-          value={form.projectStandardsMode}
-          onValueChange={(value) =>
-            setForm((current) => ({
-              ...current,
-              projectStandardsMode: value as ProjectStandardsMode,
-            }))
-          }
-          className="grid gap-3 md:grid-cols-2"
-        >
-          <Label
-            htmlFor="standards-inherit"
-            className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 hover:bg-muted/40",
-              form.projectStandardsMode === "inherit" && "border-foreground/40",
-            )}
-          >
-            <RadioGroupItem id="standards-inherit" value="inherit" className="mt-0.5" />
-            <span className="text-sm">
-              <span className="block font-medium">Inherit organization standards</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Use the current org-level documents dynamically.
-              </span>
-            </span>
-          </Label>
-          <Label
-            htmlFor="standards-custom"
-            className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 hover:bg-muted/40",
-              form.projectStandardsMode === "custom" && "border-foreground/40",
-            )}
-          >
-            <RadioGroupItem id="standards-custom" value="custom" className="mt-0.5" />
-            <span className="text-sm">
-              <span className="block font-medium">Customize for this project</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Upload project-scoped overrides or additional standards.
-              </span>
-            </span>
-          </Label>
-        </RadioGroup>
+        <div className="grid gap-3 md:grid-cols-2">
+          {orgStandards.map((artifact) => {
+            const inputId = `artifact-${artifact.id}`;
+            const checked = form.selectedOrganizationArtifactIds.has(artifact.id);
+            return (
+              <Label
+                key={artifact.id}
+                htmlFor={inputId}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 hover:bg-muted/40",
+                  checked && "border-foreground/40",
+                )}
+              >
+                <Checkbox
+                  id={inputId}
+                  checked={checked}
+                  onCheckedChange={(value) =>
+                    toggleOrganizationArtifact(artifact.id, value === true)
+                  }
+                  className="mt-0.5"
+                />
+                <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 flex-1 text-sm">
+                  <span className="block truncate font-medium">{artifact.title}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {artifact.sourceFileName ?? artifact.name}
+                  </span>
+                </span>
+              </Label>
+            );
+          })}
+        </div>
       </section>
 
-      {form.projectStandardsMode === "custom" ? (
-        <>
-          <section className="space-y-3">
-            <div className="space-y-1">
-              <Label>Override inherited standards</Label>
-              <p className="text-xs text-muted-foreground">
-                Empty rows continue inheriting the org document. Uploaded files are scoped only to
-                this project.
-              </p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {requiredOrgStandards.map((standard) => {
-                const override = form.projectStandardOverrides[standard.kind];
-                return (
-                  <div key={standard.kind} className="rounded-md border bg-card p-3">
-                    <div className="flex items-start gap-2">
-                      <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{standard.title}</div>
-                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {override.sourceFileName ||
-                            standard.sourceFileName ||
-                            "Inherited org standard"}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <Label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-xs font-medium hover:bg-secondary">
-                        <Upload className="h-3.5 w-3.5" aria-hidden />
-                        {override.body ? "Replace" : "Upload override"}
-                        <Input
-                          type="file"
-                          accept=".md,.markdown,.txt,text/markdown,text/plain"
-                          className="sr-only"
-                          onChange={(event) =>
-                            void applyRequiredOverride(standard.kind, event.target.files?.[0])
-                          }
-                        />
-                      </Label>
-                      {override.body ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`Clear ${standard.title} override`}
-                          onClick={() =>
-                            setForm((current) => ({
-                              ...current,
-                              projectStandardOverrides: {
-                                ...current.projectStandardOverrides,
-                                [standard.kind]: emptyStandardUpload(),
-                              },
-                            }))
-                          }
-                        >
-                          <Trash2 className="h-3 w-3" aria-hidden />
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1">
+            <Label>Project-only artifacts</Label>
+            <p className="text-xs text-muted-foreground">
+              Add files that should apply only to this project.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                projectCustomStandards: [
+                  ...current.projectCustomStandards,
+                  emptyCustomProjectStandard(),
+                ],
+              }))
+            }
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Add project file
+          </Button>
+        </div>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <Label>Additional project-only standards</Label>
-                <p className="text-xs text-muted-foreground">
-                  Add files that should not become organization defaults.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    projectStandardsMode: "custom",
-                    projectCustomStandards: [
-                      ...current.projectCustomStandards,
-                      emptyCustomProjectStandard(),
-                    ],
-                  }))
-                }
+        {form.projectCustomStandards.length > 0 ? (
+          <div className="space-y-3">
+            {form.projectCustomStandards.map((standard) => (
+              <div
+                key={standard.id}
+                className="grid gap-3 rounded-md border bg-card p-3 md:grid-cols-[1fr_180px_auto_auto]"
               >
-                <Plus className="h-3.5 w-3.5" aria-hidden />
-                Add project file
-              </Button>
-            </div>
-
-            {form.projectCustomStandards.length > 0 ? (
-              <div className="space-y-3">
-                {form.projectCustomStandards.map((standard) => (
-                  <div
-                    key={standard.id}
-                    className="grid gap-3 rounded-md border bg-card p-3 md:grid-cols-[1fr_180px_auto_auto]"
-                  >
-                    <Input
-                      aria-label="Project standard title"
-                      placeholder="Title"
-                      value={standard.title}
-                      onChange={(event) =>
-                        updateCustom(standard.id, { title: event.target.value })
-                      }
-                    />
-                    <Input
-                      aria-label="Project standard slug"
-                      placeholder="slug"
-                      value={standard.slug}
-                      onChange={(event) =>
-                        updateCustom(standard.id, { slug: event.target.value })
-                      }
-                    />
-                    <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium hover:bg-secondary">
-                      <Upload className="h-3.5 w-3.5" aria-hidden />
-                      {standard.sourceFileName || "Upload"}
-                      <Input
-                        type="file"
-                        accept=".md,.markdown,.txt,text/markdown,text/plain"
-                        className="sr-only"
-                        onChange={(event) =>
-                          void applyCustomUpload(standard.id, event.target.files?.[0])
-                        }
-                      />
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Remove project standard"
-                      onClick={() =>
-                        setForm((current) => ({
-                          ...current,
-                          projectCustomStandards: current.projectCustomStandards.filter(
-                            (item) => item.id !== standard.id,
-                          ),
-                        }))
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </div>
-                ))}
+                <Input
+                  aria-label="Project artifact title"
+                  placeholder="Title"
+                  value={standard.title}
+                  onChange={(event) =>
+                    updateCustom(standard.id, { title: event.target.value })
+                  }
+                />
+                <Input
+                  aria-label="Project artifact slug"
+                  placeholder="slug"
+                  value={standard.slug}
+                  onChange={(event) =>
+                    updateCustom(standard.id, { slug: event.target.value })
+                  }
+                />
+                <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium hover:bg-secondary">
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  {standard.sourceFileName || "Upload"}
+                  <Input
+                    type="file"
+                    accept=".md,.markdown,.txt,text/markdown,text/plain"
+                    className="sr-only"
+                    onChange={(event) =>
+                      void applyCustomUpload(standard.id, event.target.files?.[0])
+                    }
+                  />
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Remove project artifact"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      projectCustomStandards: current.projectCustomStandards.filter(
+                        (item) => item.id !== standard.id,
+                      ),
+                    }))
+                  }
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
               </div>
-            ) : null}
-          </section>
-        </>
-      ) : null}
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {uploadError ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

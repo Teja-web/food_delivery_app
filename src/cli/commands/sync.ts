@@ -372,16 +372,17 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   }
 
   for (const entry of standardsBundle.standards) {
-    writeLocalStandard(repoRoot, entry.slug, entry.content);
+    writeLocalStandard(repoRoot, entry.slug, entry.content, entry.type ?? ".md");
     writeStandardLock(repoRoot, entry.slug, {
       hash: entry.hash,
       version: entry.version,
       syncedAt: now,
       scope: entry.scope,
       kind: entry.kind,
+      type: entry.type,
     });
     console.log(
-      `  [write] .coznt/standards/${entry.slug}.md (v${entry.version}, scope=${entry.scope})`,
+      `  [write] .coznt/artifacts/${entry.slug}${entry.type ?? ".md"} (v${entry.version}, scope=${entry.scope})`,
     );
   }
 
@@ -441,7 +442,7 @@ function printConflictDiff(cls: Classification): void {
 function printStandardConflictDiff(cls: StandardClassification): void {
   if (cls.kind !== "conflict") return;
   const repoRoot = process.cwd();
-  const local = readLocalStandard(repoRoot, cls.slug) ?? "(missing)";
+  const local = readLocalStandard(repoRoot, cls.slug, cls.remote.type ?? ".md") ?? "(missing)";
   console.log(`\n--- standard/${cls.slug}: local edits (sha=${cls.localHash.slice(0, 8)}…) ---`);
   console.log(local.split("\n").slice(0, 30).join("\n"));
   console.log("--- (showing first 30 lines; use git diff for full) ---\n");

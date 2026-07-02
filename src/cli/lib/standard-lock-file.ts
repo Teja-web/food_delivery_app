@@ -1,8 +1,8 @@
 /**
- * Per-standard local files written by `coznt sync`.
+ * Per-artifact local files written by `coznt sync`.
  *
- * Standards are passive reference docs, so they live under
- * `.coznt/standards/` instead of `.coznt/skills/`.
+ * Artifacts are passive reference docs, so they live under
+ * `.coznt/artifacts/` instead of `.coznt/skills/`.
  */
 
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -14,14 +14,15 @@ export interface StandardLockEntry {
   syncedAt: string;
   scope: "org" | "project";
   kind: string;
+  type?: ".md" | ".txt";
 }
 
-export function standardPath(repoRoot: string, slug: string): string {
-  return join(repoRoot, ".coznt", "standards", `${slug}.md`);
+export function standardPath(repoRoot: string, slug: string, type: ".md" | ".txt" = ".md"): string {
+  return join(repoRoot, ".coznt", "artifacts", `${slug}${type}`);
 }
 
 export function standardLockPath(repoRoot: string, slug: string): string {
-  return join(repoRoot, ".coznt", "standards", `${slug}.lock`);
+  return join(repoRoot, ".coznt", "artifacts", `${slug}.lock`);
 }
 
 export function readStandardLock(repoRoot: string, slug: string): StandardLockEntry | null {
@@ -34,8 +35,8 @@ export function readStandardLock(repoRoot: string, slug: string): StandardLockEn
   return JSON.parse(readFileSync(path, "utf-8")) as StandardLockEntry;
 }
 
-export function readLocalStandard(repoRoot: string, slug: string): string | null {
-  const path = standardPath(repoRoot, slug);
+export function readLocalStandard(repoRoot: string, slug: string, type: ".md" | ".txt" = ".md"): string | null {
+  const path = standardPath(repoRoot, slug, type);
   try {
     statSync(path);
   } catch {
@@ -44,8 +45,13 @@ export function readLocalStandard(repoRoot: string, slug: string): string | null
   return readFileSync(path, "utf-8");
 }
 
-export function writeLocalStandard(repoRoot: string, slug: string, content: string): void {
-  const path = standardPath(repoRoot, slug);
+export function writeLocalStandard(
+  repoRoot: string,
+  slug: string,
+  content: string,
+  type: ".md" | ".txt" = ".md",
+): void {
+  const path = standardPath(repoRoot, slug, type);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, "utf-8");
 }

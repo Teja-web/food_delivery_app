@@ -14,14 +14,17 @@ const requiredStandardFields = [
   {
     label: "Coding Standards",
     name: "codingStandardsBodyFile",
+    fileName: "coding_instructions.md",
   },
   {
     label: "Brand Guidelines",
     name: "brandGuidelinesBodyFile",
+    fileName: "brand_guidelines.md",
   },
   {
     label: "Architecture Principles",
     name: "architecturePrinciplesBodyFile",
+    fileName: "architecture.md",
   },
 ] as const;
 
@@ -67,11 +70,13 @@ function SubmitButton() {
 function FileDropBox({
   label,
   name,
+  savedAsFileName,
   id,
   required,
 }: {
   label: string;
   name: string;
+  savedAsFileName?: string;
   id?: string;
   required?: boolean;
 }) {
@@ -88,7 +93,7 @@ function FileDropBox({
   return (
     <div className="space-y-2">
       <Label htmlFor={inputId}>{label}</Label>
-      <label
+      <Label
         htmlFor={inputId}
         onDragOver={(event) => {
           event.preventDefault();
@@ -109,7 +114,7 @@ function FileDropBox({
           dragging ? "border-primary bg-primary/5" : "hover:border-primary/60 hover:bg-secondary/40",
         )}
       >
-        <input
+        <Input
           ref={inputRef}
           id={inputId}
           name={name}
@@ -129,8 +134,10 @@ function FileDropBox({
         <span className="min-h-5 max-w-full truncate text-sm font-medium">
           {fileName || "Drop .md or .txt file"}
         </span>
-        <span className="text-xs text-muted-foreground">Markdown or plain text, 2 MB max</span>
-      </label>
+        <span className="text-xs text-muted-foreground">
+          {savedAsFileName ? `Saved as ${savedAsFileName}` : "Markdown or plain text, 2 MB max"}
+        </span>
+      </Label>
     </div>
   );
 }
@@ -195,7 +202,13 @@ export function OrgStandardsOnboardingWizard({
 
           <section className="grid gap-4 lg:grid-cols-3">
             {requiredStandardFields.map((field) => (
-              <FileDropBox key={field.name} label={field.label} name={field.name} required />
+              <FileDropBox
+                key={field.name}
+                label={field.label}
+                name={field.name}
+                savedAsFileName={field.fileName}
+                required
+              />
             ))}
           </section>
 

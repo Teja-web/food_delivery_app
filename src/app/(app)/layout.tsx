@@ -7,7 +7,10 @@ import { OrgStandardsOnboardingWizard } from "@/components/feature/standards/Org
 import { db } from "@/db/client";
 import { organization } from "@/db/schema/auth";
 import { getCurrentUser } from "@/lib/auth/actions";
-import { getOrgStandardsReadiness, STANDARD_KIND_LABELS } from "@/operations/standards";
+import {
+  getOrganizationArtifactsReadiness,
+  ORGANIZATION_ARTIFACT_LABELS,
+} from "@/operations/artifacts";
 
 async function getOrgName(organizationId: string): Promise<string> {
   const [row] = await db
@@ -25,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const [orgName, standardsReadiness] = await Promise.all([
     getOrgName(organizationId),
-    getOrgStandardsReadiness(organizationId),
+    getOrganizationArtifactsReadiness(organizationId),
   ]);
   const pathname = (await headers()).get("x-coznt-pathname") ?? "";
   const standardsManagementRoute = pathname.startsWith("/settings/standards");
@@ -35,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <OrgStandardsOnboardingWizard
         orgName={orgName}
         missingRequiredLabels={standardsReadiness.missingRequired.map(
-          (kind) => STANDARD_KIND_LABELS[kind],
+          (kind) => ORGANIZATION_ARTIFACT_LABELS[kind],
         )}
       />
     );

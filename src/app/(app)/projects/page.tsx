@@ -1,5 +1,5 @@
 import { getPortfolioData } from "@/operations/project/portfolio";
-import { getOrgStandardsReadiness } from "@/operations/standards";
+import { getOrganizationArtifactsReadiness } from "@/operations/artifacts";
 
 import { PortfolioTable } from "./PortfolioTable";
 import { serializePortfolio } from "./serialize";
@@ -7,7 +7,7 @@ import { serializePortfolio } from "./serialize";
 export default async function ProjectsPage() {
   const [data, standardsReadiness] = await Promise.all([
     getPortfolioData(),
-    getOrgStandardsReadiness(),
+    getOrganizationArtifactsReadiness(),
   ]);
   const client = serializePortfolio(data);
 

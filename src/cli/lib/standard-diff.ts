@@ -22,7 +22,7 @@ export function classifyStandards(
   const out: StandardClassification[] = [];
   for (const remote of manifestEntries) {
     const lock = readStandardLock(repoRoot, remote.slug);
-    const localContent = readLocalStandard(repoRoot, remote.slug);
+    const localContent = readLocalStandard(repoRoot, remote.slug, remote.type ?? ".md");
 
     if (!lock && !localContent) {
       out.push({ kind: "new", slug: remote.slug, remote });

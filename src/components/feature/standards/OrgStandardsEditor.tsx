@@ -77,11 +77,11 @@ type Selection =
   | { type: "custom"; index: number };
 
 const REQUIRED_DEFS: Array<Pick<RequiredStandardDraft, "kind" | "slug" | "title">> = [
-  { kind: "coding_standards", slug: "coding-standards", title: "Coding Standards" },
-  { kind: "brand_guidelines", slug: "brand-guidelines", title: "Brand Guidelines" },
+  { kind: "coding_standards", slug: "coding_instructions", title: "Coding Standards" },
+  { kind: "brand_guidelines", slug: "brand_guidelines", title: "Brand Guidelines" },
   {
     kind: "architecture_principles",
-    slug: "architecture-principles",
+    slug: "architecture",
     title: "Architecture Principles",
   },
 ];
@@ -547,7 +547,7 @@ export function OrgStandardsEditor({
             title: item.title.trim(),
             slug: item.slug.trim(),
             body: item.body,
-            format: item.format,
+            type: (item.format === "text" ? ".txt" : ".md") as ".md" | ".txt",
             sourceFileName: item.sourceFileName,
           }))
           .filter(
@@ -621,9 +621,10 @@ export function OrgStandardsEditor({
               const selectedCard =
                 selection.type === "required" && selection.kind === item.kind;
               return (
-                <button
+                <Button
                   key={item.kind}
                   type="button"
+                  variant="unstyled"
                   onClick={() => setSelection({ type: "required", kind: item.kind })}
                   className={cn(
                     "group w-full rounded-sm border bg-background px-3 py-2 text-left transition-colors hover:bg-secondary",
@@ -641,7 +642,7 @@ export function OrgStandardsEditor({
                     </div>
                     <StandardStatus body={item.body} />
                   </div>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -655,9 +656,10 @@ export function OrgStandardsEditor({
                 const selectedCard =
                   selection.type === "custom" && selection.index === index;
                 return (
-                  <button
+                  <Button
                     key={item.id ?? `${item.slug}-${index}`}
                     type="button"
+                    variant="unstyled"
                     onClick={() => setSelection({ type: "custom", index })}
                     className={cn(
                       "group w-full rounded-sm border bg-background px-3 py-2 text-left transition-colors hover:bg-secondary",
@@ -677,7 +679,7 @@ export function OrgStandardsEditor({
                       </div>
                       <StandardStatus body={item.body} />
                     </div>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -832,8 +834,9 @@ export function OrgStandardsEditor({
         </div>
 
         {!addingCustom ? (
-          <button
+          <Button
             type="button"
+            variant="unstyled"
             onClick={() => setAddingCustom(true)}
             className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed bg-background p-3 text-left transition-colors hover:bg-secondary"
           >
@@ -849,7 +852,7 @@ export function OrgStandardsEditor({
               </span>
             </span>
             <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
-          </button>
+          </Button>
         ) : (
           <div className="mt-3 rounded-sm border bg-background p-3">
             <div className="flex items-center justify-between gap-3">
