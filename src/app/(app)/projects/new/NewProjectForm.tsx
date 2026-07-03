@@ -275,34 +275,8 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
 
   const canAdvanceFromStep2 = form.skipGovernance || form.approverIds.size > 0;
 
-  function standardsValidationMessage(): string | null {
-    if (form.useOrganizationArtifacts) {
-      if (form.selectedOrganizationArtifactIds.size === 0) {
-        return "Select the default organization standards before continuing.";
-      }
-      return null;
-    }
-
-    const missing = [
-      form.projectRequirements.body.trim().length === 0 ? "Requirements" : null,
-      form.projectDesign.body.trim().length === 0 ? "Design" : null,
-    ].filter((item): item is string => Boolean(item));
-
-    if (missing.length > 0) {
-      return `Upload ${missing.join(" and ")} file${missing.length > 1 ? "s" : ""}, or select default organization standards.`;
-    }
-    return null;
-  }
 
   function goToNextStep() {
-    if (step === 3) {
-      const message = standardsValidationMessage();
-      if (message) {
-        toast.error(message);
-        setSubmitError(message);
-        return;
-      }
-    }
     setSubmitError(null);
     setStep((s) => (s + 1) as StepId);
   }
@@ -343,34 +317,10 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
       setStep(2);
       return;
     }
-    const standardsMessage = standardsValidationMessage();
-    if (standardsMessage) {
-      setStep(3);
-      setSubmitError(standardsMessage);
-      toast.error(standardsMessage);
-      return;
-    }
 
-    const projectArtifacts = form.useOrganizationArtifacts
-      ? {
-          selectedOrganizationArtifactIds: Array.from(form.selectedOrganizationArtifactIds),
-          customArtifacts: form.projectCustomStandards
-            .map((item) => ({
-              kind: "custom" as const,
-              title: item.title.trim(),
-              body: item.body,
-              type: item.type,
-              sourceFileName: item.sourceFileName || undefined,
-            }))
-            .filter(
-              (item) =>
-                item.title.length > 0 ||
-                item.body.trim().length > 0,
-            ),
-        }
-      : {
-          selectedOrganizationArtifactIds: [],
-          customArtifacts: [
+    const customArtifacts = [
+      ...(form.projectRequirements.body.trim().length > 0
+        ? [
             {
               kind: "requirements" as const,
               title: "Project Requirements",
@@ -378,6 +328,10 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
               type: form.projectRequirements.type,
               sourceFileName: form.projectRequirements.sourceFileName || undefined,
             },
+          ]
+        : []),
+      ...(form.projectDesign.body.trim().length > 0
+        ? [
             {
               kind: "design" as const,
               title: "Project Design",
@@ -385,8 +339,25 @@ export function NewProjectForm({ approverCandidates, orgStandards }: NewProjectF
               type: form.projectDesign.type,
               sourceFileName: form.projectDesign.sourceFileName || undefined,
             },
-          ],
-        };
+          ]
+        : []),
+      ...form.projectCustomStandards
+        .map((item) => ({
+          kind: "custom" as const,
+          title: item.title.trim(),
+          body: item.body,
+          type: item.type,
+          sourceFileName: item.sourceFileName || undefined,
+        }))
+        .filter((item) => item.title.length > 0 || item.body.trim().length > 0),
+    ];
+
+    const projectArtifacts = {
+      selectedOrganizationArtifactIds: form.useOrganizationArtifacts
+        ? Array.from(form.selectedOrganizationArtifactIds)
+        : [],
+      customArtifacts,
+    };
 
     const payload: CreateProjectWizardInput = {
       name: form.name,
@@ -1021,7 +992,7 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
         <div className="space-y-1">
           <Label>Project-exclusive files</Label>
           <p className="text-xs text-muted-foreground">
-            Required when default organization standards are not selected. Upload both files:
+            Optional. Upload files now, select organization standards, or create them later through Coznt MCP:
             Requirements and Design.
           </p>
         </div>
@@ -1049,7 +1020,7 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
         </div>
         {!usingDefaults && !projectFilesReady ? (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700">
-            Upload both Requirements and Design, or select default organization standards above.
+            Optional: upload Requirements/Design now, or create them later through Coznt MCP.
           </div>
         ) : null}
       </section>

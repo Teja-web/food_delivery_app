@@ -76,6 +76,19 @@ const LEVEL_LABEL: Record<LevelName, "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD"> =
   lead: "LEAD",
 };
 
+const REQUIREMENTS_STAGE_MESSAGE =
+  "The current project is in the *Requirements* phase. Please generate the requirements artifact through *Coznt* or the *MCP server* to proceed. User actions are currently restricted, and tool calls are not permitted until this phase is completed.";
+const DESIGN_STAGE_MESSAGE =
+  "The current project is in the *Design* phase. Please generate the design artifact through *Coznt* or the *MCP server* to continue. User actions are currently restricted, and tool calls are not permitted until this phase is completed.";
+const DEVELOPMENT_STAGE_MESSAGE =
+  "The current project is in the *Development* phase. You may now write code and use any tools you need to implement the approved design. Development is unlocked, and there are no restrictions on tool usage.";
+
+function resolveCurrentStageFromArtifactNames(names: string[]): string {
+  const artifactNames = new Set(names.map((name) => name.trim().toLowerCase()));
+  if (!artifactNames.has("requirements.md")) return REQUIREMENTS_STAGE_MESSAGE;
+  if (!artifactNames.has("design.md")) return DESIGN_STAGE_MESSAGE;
+  return DEVELOPMENT_STAGE_MESSAGE;
+}
 export class McpProjectAmbiguousError extends Error {
   status = 409;
   details: { candidates: Array<{ id: string; name: string; slug: string }> };
@@ -241,6 +254,9 @@ export async function buildMcpContext(args: {
     }),
   );
 
+  const currentStage = resolveCurrentStageFromArtifactNames(
+    standardsManifest.artifacts.map((artifact) => artifact.name),
+  );
   const welcome = buildWelcome({ project, recommendedKickoff, projectArtifacts });
 
   const response: McpResponse = {
@@ -261,6 +277,7 @@ export async function buildMcpContext(args: {
         }
       : null,
     recommendedKickoff,
+    currentStage,
     projectArtifacts,
     rules: activeRules.map((r) => ({
       id: r.id,
@@ -303,3 +320,4 @@ export async function buildMcpContext(args: {
   };
   return response;
 }
+
