@@ -43,6 +43,7 @@ export type PlansPageClient = {
     byStatus: Record<PlanStatus, number>;
     byKind: Record<PlanKind, number>;
     needsApproval: number;
+    jiraPushTargets: number;
   };
 };
 

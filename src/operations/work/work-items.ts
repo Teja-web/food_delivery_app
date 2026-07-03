@@ -57,9 +57,13 @@ export async function upsertWorkItem(input: z.infer<typeof workItemSchema> & { o
   });
 
   if (existing) {
+    const updateData: Record<string, unknown> = { ...validated };
+    if (!Object.hasOwn(input, "planArtifactId")) {
+      updateData.planArtifactId = existing.planArtifactId;
+    }
     await db
       .update(workItems)
-      .set({ ...validated, lastSyncedAt: new Date(), updatedAt: new Date() })
+      .set({ ...updateData, lastSyncedAt: new Date(), updatedAt: new Date() })
       .where(eq(workItems.id, existing.id));
     return existing.id;
   }

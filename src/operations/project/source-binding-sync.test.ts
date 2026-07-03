@@ -28,4 +28,15 @@ describe("normalizeRepositoryInput", () => {
       }),
     ).toThrow("Jira identifier must be a project key");
   });
+
+  it("normalizes Jira project keys with site-qualified external keys when a URL is present", () => {
+    const row = normalizeRepositoryInput({
+      source: "jira",
+      identifier: "task",
+      url: "https://acme.atlassian.net/jira/software/projects/TASK",
+    });
+
+    expect(row.identifier).toBe("TASK");
+    expect(row.externalKey).toBe("acme.atlassian.net/TASK");
+  });
 });

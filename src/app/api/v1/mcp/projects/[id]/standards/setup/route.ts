@@ -32,11 +32,13 @@ const bodySchema = z.discriminatedUnion("useOrganizationDefaults", [
   z.object({
     useOrganizationDefaults: z.literal(true),
     organizationArtifactIds: z.array(z.string().uuid()).optional(),
+    additionalArtifacts: z.array(projectUploadSchema).optional().default([]),
   }),
   z.object({
     useOrganizationDefaults: z.literal(false),
     requirements: projectUploadSchema,
     design: projectUploadSchema,
+    additionalArtifacts: z.array(projectUploadSchema).optional().default([]),
   }),
 ]);
 
@@ -44,6 +46,32 @@ function defaultTitle(kind: "requirements" | "design", inputTitle?: string): str
   const title = inputTitle?.trim();
   if (title) return title;
   return kind === "requirements" ? "Project Requirements" : "Project Design";
+}
+
+function titleFromFileName(fileName: string): string {
+  return fileName
+    .replace(/\.[^.]+$/, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase()) || "Project Artifact";
+}
+
+async function upsertAdditionalProjectArtifacts(
+  projectId: string,
+  artifacts: Array<z.infer<typeof projectUploadSchema>>,
+): Promise<void> {
+  for (const artifact of artifacts) {
+    await upsertProjectArtifact({
+      projectId,
+      title: artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
+      name: artifact.sourceFileName,
+      body: artifact.body,
+      type: artifact.type,
+      category: "project-standard",
+      createdVia: "MCP",
+    });
+  }
 }
 
 async function clearProjectArtifacts(projectId: string): Promise<void> {
@@ -87,6 +115,7 @@ export async function POST(
 
       await clearProjectArtifacts(project.id);
       await cloneOrganizationArtifactsToProject(project.id, idsToClone, "MCP");
+      await upsertAdditionalProjectArtifacts(project.id, parsed.data.additionalArtifacts);
     } else {
       await clearProjectArtifacts(project.id);
       await upsertProjectArtifact({
@@ -107,6 +136,7 @@ export async function POST(
         category: "project-exclusive",
         createdVia: "MCP",
       });
+      await upsertAdditionalProjectArtifacts(project.id, parsed.data.additionalArtifacts);
     }
 
     const manifest = await getProjectArtifactsManifest(ctx.organizationId, project.id);

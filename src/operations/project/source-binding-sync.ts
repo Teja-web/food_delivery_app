@@ -1,8 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import { adapterBindings, type AdapterProvider } from "@/db/schema/adapter-binding";
 import { repositories, type RepositorySource } from "@/db/schema/repository";
 import { canonicalizeRemote } from "@/domain/git-remote";
+import {
+  jiraExternalKeyFromParts,
+  jiraExternalKeyLookupCandidates,
+  normalizeJiraProjectKey,
+} from "@/lib/integrations/jira-keys";
 
 interface NormalizeInput {
   source: RepositorySource;
@@ -23,7 +28,6 @@ interface ParsedGitHub {
   repo: string;
 }
 
-const JIRA_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 const ADO_KEY_RE = /^[^/\s]+\/[^/\s]+$/;
 const CONFLUENCE_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 
@@ -45,11 +49,8 @@ export function normalizeRepositoryInput(input: NormalizeInput): NormalizedRepos
       return { source, identifier, url, externalKey };
     }
     case "jira": {
-      const identifier = identifierRaw.toUpperCase();
-      if (!JIRA_KEY_RE.test(identifier)) {
-        throw new Error("Jira identifier must be a project key like ACME.");
-      }
-      return { source, identifier, url, externalKey: identifier };
+      const identifier = normalizeJiraProjectKey(identifierRaw);
+      return { source, identifier, url, externalKey: jiraExternalKeyFromParts(identifier, url) };
     }
     case "ado": {
       const identifier = identifierRaw.replace(/^\/+|\/+$/g, "");
@@ -118,6 +119,19 @@ function sourceToProvider(source: RepositorySource): AdapterProvider {
   return source;
 }
 
+function externalKeyPredicate(provider: AdapterProvider, externalKey: string): SQL {
+  if (provider === "jira") {
+    const candidates = jiraExternalKeyLookupCandidates(externalKey);
+    return or(
+      ...candidates.map((candidate) => sql`lower(${adapterBindings.externalKey}) = ${candidate.toLowerCase()}`),
+    )!;
+  }
+  if (provider === "confluence") {
+    return sql`upper(${adapterBindings.externalKey}) = ${externalKey.trim().toUpperCase()}`;
+  }
+  return eq(adapterBindings.externalKey, externalKey);
+}
+
 interface SyncUpsertInput {
   organizationId: string;
   projectId: string;
@@ -127,21 +141,32 @@ interface SyncUpsertInput {
 
 export async function ensureAdapterBinding(input: SyncUpsertInput): Promise<void> {
   const provider = sourceToProvider(input.source);
-  const existing = await db.query.adapterBindings.findFirst({
-    where: and(
-      eq(adapterBindings.organizationId, input.organizationId),
-      eq(adapterBindings.provider, provider),
-      eq(adapterBindings.externalKey, input.externalKey),
-    ),
-    columns: { projectId: true },
-  });
+  const existing =
+    provider === "jira"
+      ? await findExistingJiraBinding(input.organizationId, input.externalKey)
+      : await db.query.adapterBindings.findFirst({
+          where: and(
+            eq(adapterBindings.organizationId, input.organizationId),
+            eq(adapterBindings.provider, provider),
+            externalKeyPredicate(provider, input.externalKey),
+          ),
+          columns: { id: true, projectId: true, externalKey: true },
+        });
 
   if (existing && existing.projectId !== input.projectId) {
     throw new Error(
       `This ${input.source} source is already bound to another project in this workspace.`,
     );
   }
-  if (existing) return;
+  if (existing) {
+    if (provider === "jira" && existing.externalKey !== input.externalKey) {
+      await db
+        .update(adapterBindings)
+        .set({ externalKey: input.externalKey, updatedAt: new Date() })
+        .where(eq(adapterBindings.id, existing.id));
+    }
+    return;
+  }
 
   await db.insert(adapterBindings).values({
     organizationId: input.organizationId,
@@ -197,7 +222,22 @@ export async function removeAdapterBindingIfUnused(input: SyncDeleteInput): Prom
         eq(adapterBindings.organizationId, input.organizationId),
         eq(adapterBindings.projectId, input.projectId),
         eq(adapterBindings.provider, provider),
-        eq(adapterBindings.externalKey, input.externalKey),
+        externalKeyPredicate(provider, input.externalKey),
       ),
     );
+}
+
+async function findExistingJiraBinding(organizationId: string, externalKey: string) {
+  for (const candidate of jiraExternalKeyLookupCandidates(externalKey)) {
+    const row = await db.query.adapterBindings.findFirst({
+      where: and(
+        eq(adapterBindings.organizationId, organizationId),
+        eq(adapterBindings.provider, "jira"),
+        sql`lower(${adapterBindings.externalKey}) = ${candidate.toLowerCase()}`,
+      ),
+      columns: { id: true, projectId: true, externalKey: true },
+    });
+    if (row) return row;
+  }
+  return null;
 }
