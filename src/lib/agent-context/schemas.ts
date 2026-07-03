@@ -148,6 +148,7 @@ export const McpResponseSchema = z.object({
   welcome: McpWelcomeSchema,
   workItem: McpWorkItemSchema.nullable(),
   recommendedKickoff: McpRecommendedKickoffSchema.nullable(),
+  currentStage: z.string(),
   projectArtifacts: McpProjectArtifactsSchema,
   rules: z.array(McpRuleSchema),
   skills: z.array(McpSkillSchema),
@@ -162,3 +163,4 @@ export const McpResponseSchema = z.object({
   meta: McpMetaSchema,
 });
 export type McpResponse = z.infer<typeof McpResponseSchema>;
+

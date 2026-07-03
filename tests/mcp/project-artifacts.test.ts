@@ -75,4 +75,11 @@ describe("McpProjectArtifactsSchema", () => {
       }),
     ).not.toThrow();
   });
+
+  it("McpResponseSchema includes currentStage", () => {
+    const shape = McpResponseSchema.shape;
+    expect("currentStage" in shape).toBe(true);
+    expect(() => shape.currentStage.parse("The current project is in the *Requirements* phase.")).not.toThrow();
+  });
 });
+

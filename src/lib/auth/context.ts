@@ -15,6 +15,7 @@
 import { eq, SQL } from "drizzle-orm";
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import { isElevatedApiKeyRole } from "./api-key-roles";
 import { getCurrentUser } from "./actions";
 
 export interface AuditCreateFields {
@@ -171,10 +172,10 @@ export class ForbiddenError extends Error {
  * `member.role` for human sessions and `api_keys.role` for the agent
  * surface, so the same check works on both paths.
  */
-const ELEVATED_ROLES: ReadonlySet<string> = new Set(["owner", "admin"]);
+const ELEVATED_HUMAN_ROLES: ReadonlySet<string> = new Set(["owner", "admin"]);
 
 export function hasElevatedRole(ctx: { isAdmin: boolean; role: string }): boolean {
-  return ctx.isAdmin || ELEVATED_ROLES.has(ctx.role);
+  return ctx.isAdmin || ELEVATED_HUMAN_ROLES.has(ctx.role) || isElevatedApiKeyRole(ctx.role);
 }
 
 export function assertElevatedRole(
@@ -183,7 +184,19 @@ export function assertElevatedRole(
 ): void {
   if (!hasElevatedRole(ctx)) {
     throw new ForbiddenError(
-      `${action} requires an admin or owner role (current role: ${ctx.role || "unknown"}).`,
+      `${action} requires an elevated role (owner, manager, or admin; current role: ${ctx.role || "unknown"}).`,
+    );
+  }
+}
+
+export function hasOwnerRole(ctx: { role: string }): boolean {
+  return ctx.role === "owner";
+}
+
+export function assertOwnerRole(ctx: { role: string }, action: string): void {
+  if (!hasOwnerRole(ctx)) {
+    throw new ForbiddenError(
+      `${action} requires an owner role (current role: ${ctx.role || "unknown"}).`,
     );
   }
 }
