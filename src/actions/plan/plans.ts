@@ -72,7 +72,7 @@ export async function savePlanRevision(args: {
 
   if (bodyChanged) {
     await appendPlanRevision({
-      planArtifactId: args.planId,
+      projectTaskId: args.planId,
       body: args.body,
       changeNote: args.changeNote,
     });
@@ -82,7 +82,7 @@ export async function savePlanRevision(args: {
   // revisions remain visible as pending Jira pushes.
 }
 
-export async function pushPlanArtifactToRepo(args: {
+export async function pushProjectTaskToRepo(args: {
   planId: string;
   directoryName: string;
   fileName: string;
@@ -122,13 +122,13 @@ export async function pushPlanArtifactToRepo(args: {
       summary: plan.summary ?? undefined,
       priority: plan.priority ?? undefined,
       externalRef: plan.externalRef ?? undefined,
-      details: (plan.details as Record<string, unknown> | null) ?? undefined,
+      details: (plan.metadata as Record<string, unknown> | null) ?? undefined,
     },
     plan.body?.trim() || "_No body yet._",
   );
 
   const prTitle = `coznt: push ${plan.kind} ${plan.slug || plan.id}`;
-  const prBody = `Push plan artifact from Coznt.\n\n- Plan: ${plan.title}\n- Kind: ${plan.kind}\n- File: ${path}`;
+  const prBody = `Push project task from Coznt.\n\n- Plan: ${plan.title}\n- Kind: ${plan.kind}\n- File: ${path}`;
 
   const installationId = await findInstallationForRepo(ownerRepo);
   let pr: { number: number; url: string } | null = null;

@@ -13,7 +13,7 @@
 
 import { z } from "zod/v4";
 
-import { PLAN_KINDS, type PlanArtifact, type PlanKind } from "@/db/schema/plan/plan-artifact";
+import { PLAN_KINDS, type ProjectTask, type PlanKind } from "@/db/schema/plan/project-task";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { applyActionPolicyRules, evaluatePlanAgainstRules } from "@/operations/rule-engine";
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         title: parsed.data.plan.title,
         summary: parsed.data.plan.summary,
         body: parsed.data.plan.body,
-      } as unknown as PlanArtifact;
+      } as unknown as ProjectTask;
       const violations = await evaluatePlanAgainstRules(stubPlan);
       allViolations.push(
         ...violations.map((v) => ({ ...v, validator: "keyword-presence" as const })),

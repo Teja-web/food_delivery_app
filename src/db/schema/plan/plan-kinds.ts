@@ -1,9 +1,9 @@
 /**
- * Plan Artifact enums — leaf file with no Drizzle imports.
+ * Project Task enums — leaf file with no Drizzle imports.
  *
  * Lives next to the schema so the MCP CLI bundle can import these
  * constants without dragging in `drizzle-orm/pg-core` and the rest of
- * the schema chain. The full Drizzle table definition in `plan-artifact.ts`
+ * the schema chain. The full Drizzle table definition in `project-task.ts`
  * re-exports from here.
  */
 

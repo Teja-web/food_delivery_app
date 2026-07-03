@@ -44,7 +44,7 @@ async function addComment(planId: string, formData: FormData) {
   if (!body) return;
 
   const comment = await createComment({
-    planArtifactId: planId,
+    projectTaskId: planId,
     authorId: currentUser.id,
     authorName: currentUser.name,
     body,
@@ -59,7 +59,7 @@ async function addComment(planId: string, formData: FormData) {
       where: and(
         eq(workItems.organizationId, plan.organizationId),
         eq(workItems.projectId, plan.projectId),
-        eq(workItems.planArtifactId, planId),
+        eq(workItems.projectTaskId, planId),
         eq(workItems.source, "jira"),
       ),
       columns: { externalId: true },
@@ -125,7 +125,7 @@ export default async function PlanDetailPage({
         where: and(
           eq(workItems.organizationId, plan.organizationId),
           eq(workItems.projectId, plan.projectId),
-          eq(workItems.planArtifactId, id),
+          eq(workItems.projectTaskId, id),
           eq(workItems.source, "jira"),
         ),
         columns: { externalUrl: true, externalId: true, title: true, status: true, updatedAt: true },
@@ -457,9 +457,9 @@ export default async function PlanDetailPage({
                         {r.kind}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {r.fromPlanArtifactId === id
-                          ? `→ ${r.toPlanArtifactId.slice(0, 8)}`
-                          : `← ${r.fromPlanArtifactId.slice(0, 8)}`}
+                        {r.fromProjectTasksId === id
+                          ? `→ ${r.toProjectTasksId.slice(0, 8)}`
+                          : `← ${r.fromProjectTasksId.slice(0, 8)}`}
                       </span>
                     </div>
                     {r.note ? (

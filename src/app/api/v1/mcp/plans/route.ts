@@ -14,16 +14,16 @@ import { z } from "zod/v4";
 
 import { db } from "@/db/client";
 import {
-  planArtifacts as plans,
+  projectTasks as plans,
   PLAN_KINDS,
   PLAN_STATUSES,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan-artifact";
+} from "@/db/schema/plan/project-task";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
-import { upsertPlanByKindAndSlug } from "@/operations/plan/plans";
+import { normalizeProjectTaskMetadata, upsertPlanByKindAndSlug } from "@/operations/plan/plans";
 
 const upsertBodySchema = z.object({
   projectId: z.string().min(1),
@@ -35,7 +35,7 @@ const upsertBodySchema = z.object({
   title: z.string().min(1),
   summary: z.string().optional(),
   body: z.string().min(1),
-  details: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   parentPlanId: z.string().optional().nullable(),
   changeNote: z.string().optional(),
 });
@@ -53,7 +53,8 @@ export async function POST(req: Request) {
     const { parentPlanId, ...rest } = input;
     const result = await upsertPlanByKindAndSlug({
       ...rest,
-      parentPlanArtifactId: parentPlanId ?? null,
+      metadata: normalizeProjectTaskMetadata({ metadata: rest.metadata }),
+      parentProjectTaskId: parentPlanId ?? null,
     });
     const nextAction = await computeNextAction(ctx.organizationId, project.id);
     return {
@@ -99,7 +100,7 @@ export async function GET(req: Request) {
     if (status) conditions.push(eq(plans.status, status));
     if (rawSlug) conditions.push(eq(plans.slug, rawSlug));
 
-    const rows = await db.query.planArtifacts.findMany({
+    const rows = await db.query.projectTasks.findMany({
       where: and(...conditions),
       orderBy: [desc(plans.updatedAt)],
       limit,

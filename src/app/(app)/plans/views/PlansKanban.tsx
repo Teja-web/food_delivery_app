@@ -6,7 +6,7 @@ import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { PlanStatus } from "@/db/schema/plan/plan-artifact";
+import type { PlanStatus } from "@/db/schema/plan/project-task";
 import { cn } from "@/lib/utils";
 
 import type { PlanRowClient } from "../serialize";

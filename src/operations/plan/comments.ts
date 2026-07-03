@@ -7,7 +7,7 @@ import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 
 const commentSchema = z.object({
-  planArtifactId: z.string().min(1),
+  projectTaskId: z.string().min(1),
   parentCommentId: z.string().optional().nullable(),
   authorId: z.string().min(1),
   authorName: z.string().optional(),
@@ -24,11 +24,11 @@ export const commentCrud = createEntityCrud({
   searchFields: ["body"],
 });
 
-export async function listCommentsForPlan(planArtifactId: string) {
+export async function listCommentsForPlan(projectTaskId: string) {
   const ctx = await getActionContext();
   return db.query.comments.findMany({
     where: and(
-      eq(comments.planArtifactId, planArtifactId),
+      eq(comments.projectTaskId, projectTaskId),
       eq(comments.organizationId, ctx.organizationId),
     ),
     orderBy: [asc(comments.createdAt)],
@@ -36,7 +36,7 @@ export async function listCommentsForPlan(planArtifactId: string) {
 }
 
 export async function upsertExternalCommentsForPlan(
-  planArtifactId: string,
+  projectTaskId: string,
   rows: Array<{
     id: string;
     authorId: string;
@@ -55,7 +55,7 @@ export async function upsertExternalCommentsForPlan(
       rows.map((row) => ({
         organizationId: ctx.organizationId,
         id: row.id,
-        planArtifactId,
+        projectTaskId,
         parentCommentId: null,
         authorId: row.authorId,
         authorName: row.authorName,
@@ -76,7 +76,7 @@ export async function upsertExternalCommentsForPlan(
 }
 
 export async function deleteExternalCommentsForPlan(
-  planArtifactId: string,
+  projectTaskId: string,
   commentIds: string[],
 ) {
   const ctx = await getActionContext();
@@ -87,7 +87,7 @@ export async function deleteExternalCommentsForPlan(
     .where(
       and(
         eq(comments.organizationId, ctx.organizationId),
-        eq(comments.planArtifactId, planArtifactId),
+        eq(comments.projectTaskId, projectTaskId),
         inArray(comments.id, commentIds),
       ),
     );

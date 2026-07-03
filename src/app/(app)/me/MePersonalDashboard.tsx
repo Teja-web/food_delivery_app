@@ -19,11 +19,11 @@ function detailsOf(r: GovernanceRecord): ApprovalDetails {
 
 /**
  * Destination for a "decide this governance record" affordance. Every
- * record targets a plan_artifact (no more polymorphic entity types), so
+ * record targets a project_task (no more polymorphic entity types), so
  * the canonical landing is always the plan detail page.
  */
 function recordDecisionHref(r: GovernanceRecord): string {
-  return `/plans/${r.planArtifactId}`;
+  return `/plans/${r.projectTaskId}`;
 }
 
 const LEVEL_LABEL = ["observe", "propose", "merge", "lead"];
@@ -93,7 +93,7 @@ export function MePersonalDashboard({
                 <li key={r.id} className="flex items-start gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">
-                      {r.kind} · plan {r.planArtifactId.slice(0, 12)}
+                      {r.kind} · plan {r.projectTaskId.slice(0, 12)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       requested by {d.requestedByName ?? d.requestedById ?? "—"} ·{" "}
@@ -130,7 +130,7 @@ export function MePersonalDashboard({
                 <li key={r.id} className="flex items-start gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">
-                      {r.kind} · plan {r.planArtifactId.slice(0, 12)}
+                      {r.kind} · plan {r.projectTaskId.slice(0, 12)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       open {ageLabel(r.createdAt)} · {d.approverIds?.length ?? 0} approver(s)

@@ -41,10 +41,10 @@ export const upsertPlanInput = z.object({
     ),
   summary: z.string().optional().describe("One-line summary shown in lists."),
   body: z.string().min(1).describe("Full markdown body. Treated as the new live content on revise."),
-  details: z
+  metadata: z
     .record(z.string(), z.unknown())
     .optional()
-    .describe("Optional kind-specific structured fields (validated downstream per kind)."),
+    .describe("Optional kind-specific structured fields stored on project_tasks.metadata."),
   parentPlanId: z
     .string()
     .optional()

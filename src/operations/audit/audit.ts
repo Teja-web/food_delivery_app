@@ -50,7 +50,7 @@ export type AuditQuery = {
 const SCOPE_ENTITY_FILTER: Record<AuditScope, string[] | null> = {
   all: null,
   skills: ["skill", "skill_outcome", "skill_autonomy"],
-  plans: ["plan", "plan_revision", "work_item", "comment"],
+  plans: ["plan", "project_task_revision", "work_item", "comment"],
   projects: ["project", "governance_record", "artifact"],
   approvals: ["approval"],
   deployments: ["deployment"],

@@ -2,12 +2,12 @@
  * Governance Policies — rule definitions at the Org tier, scoped to any level.
  *
  * One table with `kind` discriminator (gate | approval | review | exception)
- * and `scopeType` (organization | project | repository | environment | plan_artifact).
+ * and `scopeType` (organization | project | repository | environment | project_task).
  * Kind-specific config lives in `details` JSONB validated by Zod in
  * `lib/governance/schemas.ts`.
  *
  * When a plan transitions, the policy engine reads applicable policies and
- * materializes `governance_records` rows on the plan artifact.
+ * materializes `governance_records` rows on the project task.
  */
 
 import { boolean, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
@@ -45,7 +45,7 @@ export const governancePolicies = cozntSchema.table(
     scopeId: text("scope_id"),
 
     /**
-     * What plan-artifact transitions this policy watches. Null = applies to all
+     * What project-task transitions this policy watches. Null = applies to all
      * kinds; from/to null = unspecified.
      */
     appliesToPlanKind: text("applies_to_plan_kind").$type<PlanKind>(),

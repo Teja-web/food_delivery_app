@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { planArtifacts as plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans, PLAN_KINDS, PLAN_KIND_PARENTS, type PlanKind } from "@/db/schema/plan/project-task";
 import type { Project } from "@/db/schema/project";
 import { createPlan } from "@/actions/plan/plans";
 import { listProjects } from "@/actions/project/projects";
@@ -40,7 +40,7 @@ export default async function NewPlanPage({
 
   const { organizationId } = await getCurrentUser();
   const parentOptions = selectedProjectId && organizationId && allowedParentKinds.length
-    ? await db.query.planArtifacts.findMany({
+    ? await db.query.projectTasks.findMany({
         where: and(
           eq(plans.projectId, selectedProjectId),
           eq(plans.organizationId, organizationId),

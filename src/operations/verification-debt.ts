@@ -17,7 +17,7 @@ import { db } from "@/db/client";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
 import { skillAutonomy } from "@/db/schema/skill/skill-autonomy";
 import { governanceRecords } from "@/db/schema/governance/records";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { evidenceLinks } from "@/db/schema/evidence";
 import { workItems } from "@/db/schema/work-item";
 import {
@@ -209,7 +209,7 @@ async function snapshotUnreviewedAiChanges(
   // Reviewed = plans that have any evidence_link attached. Coarse but
   // matches the spec §5 framing: presence of evidence is the receipt.
   const evidenceRows = await db
-    .select({ planArtifactId: evidenceLinks.planArtifactId })
+    .select({ projectTaskId: evidenceLinks.projectTaskId })
     .from(evidenceLinks)
     .where(
       and(
@@ -218,7 +218,7 @@ async function snapshotUnreviewedAiChanges(
       ),
     );
   const reviewedPlanIds = new Set<string>();
-  for (const row of evidenceRows) reviewedPlanIds.add(row.planArtifactId);
+  for (const row of evidenceRows) reviewedPlanIds.add(row.projectTaskId);
 
   const now = Date.now();
   const snapshots: UnreviewedAiChangeSnapshot[] = [];

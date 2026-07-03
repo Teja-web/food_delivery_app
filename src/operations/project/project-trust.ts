@@ -101,7 +101,7 @@ function levelDisplay(level: number): PolicyMatrixCell["minLevelDisplay"] {
 
 export interface SkillApprovalRow {
   id: string;
-  planArtifactId: string;
+  projectTaskId: string;
   status: GovernanceRecordStatus;
   projectId: string;
   projectName: string | null;
@@ -125,7 +125,7 @@ export async function getRecentApprovalsForSkill(
   const rows = await db
     .select({
       id: governanceRecords.id,
-      planArtifactId: governanceRecords.planArtifactId,
+      projectTaskId: governanceRecords.projectTaskId,
       status: governanceRecords.status,
       projectId: governanceRecords.projectId,
       projectName: projects.name,

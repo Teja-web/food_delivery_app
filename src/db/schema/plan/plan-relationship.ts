@@ -1,17 +1,14 @@
 /**
- * Plan Relationship — typed link between two plan artifacts.
+ * Project Task Relationship - typed link between two project tasks.
  *
- * Replaces the privileged `parentPlanId` column with a uniform relationship
- * surface. `parent_of` is the dominant case (Epic → Feature → Story) but
- * doesn't get a special path: it's one row in this table.
- *
- * Kinds: parent_of | supersedes | derived_from | blocks | relates_to | causes | references
+ * `parent_of` is the dominant case (Epic -> Feature -> Story), but it does
+ * not get a special path; it is one row in this table.
  */
 
-import { text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { text, timestamp, index, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "../schema";
-import { planArtifacts } from "./plan-artifact";
+import { projectTasks } from "./project-task";
 import { PLAN_RELATIONSHIP_KINDS, type PlanRelationshipKind } from "./plan-kinds";
 
 export { PLAN_RELATIONSHIP_KINDS, type PlanRelationshipKind };
@@ -22,12 +19,8 @@ export const planRelationships = cozntSchema.table(
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
 
-    fromPlanArtifactId: text("from_plan_artifact_id")
-      .notNull()
-      .references(() => planArtifacts.id, { onDelete: "cascade" }),
-    toPlanArtifactId: text("to_plan_artifact_id")
-      .notNull()
-      .references(() => planArtifacts.id, { onDelete: "cascade" }),
+    fromProjectTasksId: text("from_project_tasks_id").notNull(),
+    toProjectTasksId: text("to_project_tasks_id").notNull(),
 
     kind: text().$type<PlanRelationshipKind>().notNull(),
     note: text(),
@@ -36,9 +29,19 @@ export const planRelationships = cozntSchema.table(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    index("plan_rel_from_idx").on(table.fromPlanArtifactId, table.kind),
-    index("plan_rel_to_idx").on(table.toPlanArtifactId, table.kind),
-    uniqueIndex("plan_rel_unique").on(table.fromPlanArtifactId, table.toPlanArtifactId, table.kind),
+    index("plan_rel_from_idx").on(table.fromProjectTasksId, table.kind),
+    index("plan_rel_to_idx").on(table.toProjectTasksId, table.kind),
+    uniqueIndex("plan_rel_unique").on(table.fromProjectTasksId, table.toProjectTasksId, table.kind),
+    foreignKey({
+      columns: [table.fromProjectTasksId],
+      foreignColumns: [projectTasks.id],
+      name: "plan_relationships_from_project_tasks_id_project_tasks_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.toProjectTasksId],
+      foreignColumns: [projectTasks.id],
+      name: "plan_relationships_to_project_tasks_id_project_tasks_id_fk",
+    }).onDelete("cascade"),
   ],
 );
 

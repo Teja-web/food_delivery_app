@@ -16,7 +16,7 @@ import {
   type GovernanceRecord,
 } from "@/db/schema/governance/records";
 import { skillOutcomes, type SkillOutcome } from "@/db/schema/skill/skill-outcome";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { projects } from "@/db/schema/project";
 import {
   getSkillAutonomyAcrossProjects,

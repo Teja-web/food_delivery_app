@@ -221,7 +221,7 @@ export const tools = [
   tool({
     name: "submit_plan_for_review",
     description: [
-      "Move a plan_artifact from draft → in_review. Materializes the",
+      "Move a project_task from draft → in_review. Materializes the",
       "governance records (gates / approvals / reviews) that apply to the",
       "transition, per the project's active policies. Replaces the legacy",
       "submit_phase_for_review verb — governance is plan-bound, not",
@@ -233,7 +233,7 @@ export const tools = [
   tool({
     name: "attach_evidence",
     description: [
-      "Attach proof to a plan_artifact: a deployment, test_run, metric",
+      "Attach proof to a project_task: a deployment, test_run, metric",
       "snapshot, work_item, skill_outcome, incident, or external link.",
       "One verb, type-discriminated by evidenceType — internal targets",
       "pass evidenceId; external targets pass externalUrl.",
@@ -254,7 +254,7 @@ export const tools = [
   tool({
     name: "list_governance_records",
     description: [
-      "Read governance records targeting one plan_artifact. Optional",
+      "Read governance records targeting one project_task. Optional",
       "filters by kind (gate / approval / review / exception) and status.",
     ].join(" "),
     schema: listGovernanceRecordsInput,
@@ -396,7 +396,7 @@ export const tools = [
     description: [
       "Record a test run result (status, counts, coverage). Feeds the",
       "`coverage` and `tests passing` governance-record validators, and",
-      "attaches as a `test_run` evidence link to any plan_artifact id.",
+      "attaches as a `test_run` evidence link to any project_task id.",
     ].join(" "),
     schema: updateTestResultInput,
     run: runUpdateTestResult,
@@ -498,7 +498,7 @@ export const tools = [
     name: "log_decision",
     description: [
       "Record an Architecture Decision Record. ADRs are stored as",
-      "plan_artifact rows with `kind: \"adr\"`. Governance applies via the",
+      "project_task rows with `kind: \"adr\"`. Governance applies via the",
       "policies attached to ADR transitions, not phase enforcement.",
     ].join(" "),
     schema: logDecisionInput,

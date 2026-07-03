@@ -129,7 +129,7 @@ describe("writePostureFiles — content discipline", () => {
     writePostureFiles(tmpRoot, "claude-code");
     const claude = readFileSync(join(tmpRoot, "CLAUDE.md"), "utf8");
     expect(claude).toContain("get_my_context");
-    expect(claude).toContain("plan-artifact");
+    expect(claude).toContain("project-task");
     expect(claude).toContain(".coznt");
     expect(claude).toContain(".mcp.json");
   });

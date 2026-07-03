@@ -3,7 +3,7 @@
  *
  * Multi-repo + multi-environment per project. Repo/tracker links live in
  * `repositories`; deploy targets live in `environments`. No phase column —
- * SDLC progression is expressed through plan-artifact status, not project
+ * SDLC progression is expressed through project-task status, not project
  * state.
  */
 

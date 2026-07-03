@@ -1,7 +1,7 @@
 /**
  * Deployment — a record that "version X reached environment Y at time Z".
  *
- * Distinct from `plan_artifacts.kind=release_plan` (the *plan* for a release) —
+ * Distinct from `project_tasks.kind=release_plan` (the *plan* for a release) —
  * this is the *event*. CI posts on success/failure; the row also drives
  * `deployment_frequency` and `change_failure_rate` metrics.
  */
@@ -10,7 +10,7 @@ import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { planArtifacts } from "./plan/plan-artifact";
+import { projectTasks } from "./plan/project-task";
 import { environments } from "./environment";
 
 export const DEPLOYMENT_STATUSES = [
@@ -28,8 +28,8 @@ export const deployments = cozntSchema.table(
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
     projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-    /** Optional link to the release_plan artifact. */
-    planArtifactId: text("plan_artifact_id").references(() => planArtifacts.id, {
+    /** Optional link to the release_plan project task. */
+    projectTaskId: text("project_tasks_id").references(() => projectTasks.id, {
       onDelete: "set null",
     }),
     /** Optional typed environment. Falls back to `environment` free-text if null. */
@@ -56,7 +56,7 @@ export const deployments = cozntSchema.table(
   (table) => [
     index("deployments_project_env_time_idx").on(table.projectId, table.environment, table.startedAt),
     index("deployments_project_status_idx").on(table.projectId, table.status, table.startedAt),
-    index("deployments_plan_artifact_idx").on(table.planArtifactId),
+    index("deployments_project_tasks_idx").on(table.projectTaskId),
     index("deployments_environment_idx").on(table.environmentId),
   ],
 );

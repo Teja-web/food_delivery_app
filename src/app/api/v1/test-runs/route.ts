@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const items = await listTestRuns({
       projectId: url.searchParams.get("projectId") ?? ctx.projectId ?? undefined,
-      planArtifactId: url.searchParams.get("planArtifactId") ?? undefined,
+      projectTaskId: url.searchParams.get("projectTaskId") ?? undefined,
       limit: Number(url.searchParams.get("limit") ?? 50),
     });
     return { items };

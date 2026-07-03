@@ -6,10 +6,10 @@ import { Toaster } from "@/components/ui/sonner";
 import {
   PLAN_KINDS,
   PLAN_STATUSES,
-  type PlanArtifact,
+  type ProjectTask,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan-artifact";
+} from "@/db/schema/plan/project-task";
 import type { Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { listJiraPushTargetsAction } from "@/actions/integration/jira-sync";
@@ -24,7 +24,7 @@ import {
   type PlansPageClient,
 } from "./serialize";
 
-type PlanWithProject = PlanArtifact & { project?: Project | null };
+type PlanWithProject = ProjectTask & { project?: Project | null };
 
 export default async function PlansPage() {
   const ctx = await getActionContext();
@@ -37,17 +37,17 @@ export default async function PlansPage() {
   const pendingByPlanId = new Set<string>();
   if (planIds.length > 0) {
     const pendingRows = await db
-      .select({ planArtifactId: governanceRecords.planArtifactId })
+      .select({ projectTaskId: governanceRecords.projectTaskId })
       .from(governanceRecords)
       .where(
         and(
           eq(governanceRecords.organizationId, ctx.organizationId),
           eq(governanceRecords.status, "pending"),
           eq(governanceRecords.kind, "approval"),
-          inArray(governanceRecords.planArtifactId, planIds),
+          inArray(governanceRecords.projectTaskId, planIds),
         ),
       );
-    for (const r of pendingRows) pendingByPlanId.add(r.planArtifactId);
+    for (const r of pendingRows) pendingByPlanId.add(r.projectTaskId);
   }
 
   const rows: PlanRowClient[] = planItems.map((p) =>
@@ -72,8 +72,8 @@ export default async function PlansPage() {
   const relationshipRows = await listRelationshipsForPlans(planIds, { kind: "parent_of" });
   const jiraPushTargets = await listJiraPushTargetsAction({ mode: "all", projectId: null });
   const relationships: PlanRelationshipRowClient[] = relationshipRows.map((r) => ({
-    fromPlanArtifactId: r.fromPlanArtifactId,
-    toPlanArtifactId: r.toPlanArtifactId,
+    fromProjectTasksId: r.fromProjectTasksId,
+    toProjectTasksId: r.toProjectTasksId,
     kind: r.kind,
   }));
 

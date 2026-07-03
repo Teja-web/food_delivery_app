@@ -152,7 +152,7 @@ export async function handlePreToolUse(
 
   // TODO: route to autonomy_override mechanism (spec §11.5 J10 — Skills subnav,
   // not governance_records). Autonomy-gate denials are a distinct mechanism
-  // from plan-artifact governance; they don't belong in governance_records.
+  // from project-task governance; they don't belong in governance_records.
   // For now, surface only via automationLog (recorded below) and return null.
   const approvalId: string | null = null;
 

@@ -11,7 +11,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
 import { requireProjectScope } from "@/lib/auth/scope";
@@ -27,7 +27,7 @@ export async function GET(
     const project = await requireProjectScope(ctx, id);
 
     const [adrs, activeFeatures, openWorkItems] = await Promise.all([
-      db.query.planArtifacts.findMany({
+      db.query.projectTasks.findMany({
         where: and(
           eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
@@ -44,7 +44,7 @@ export async function GET(
           updatedAt: true,
         },
       }),
-      db.query.planArtifacts.findMany({
+      db.query.projectTasks.findMany({
         where: and(
           eq(plans.organizationId, ctx.organizationId),
           eq(plans.projectId, project.id),
@@ -78,7 +78,7 @@ export async function GET(
           externalUrl: true,
           title: true,
           status: true,
-          planArtifactId: true,
+          projectTaskId: true,
           updatedAt: true,
         },
       }),
@@ -111,7 +111,7 @@ export async function GET(
         externalUrl: w.externalUrl,
         title: w.title,
         status: w.status,
-        planArtifactId: w.planArtifactId,
+        projectTaskId: w.projectTaskId,
         updatedAt: w.updatedAt.toISOString(),
       })),
     };
