@@ -42,6 +42,7 @@ export async function saveProjectStandardAction(
       createdVia: "upload",
     });
     revalidatePath(`/projects/${parsed.data.projectId}/standards`);
+    revalidatePath(`/projects/${parsed.data.projectId}/overview`);
     revalidatePath(`/projects/${parsed.data.projectId}`);
     return { ok: true };
   } catch (err) {
@@ -59,6 +60,7 @@ export async function deleteProjectStandardAction(
   try {
     await deleteProjectArtifact(artifactId);
     revalidatePath(`/projects/${projectId}/standards`);
+    revalidatePath(`/projects/${projectId}/overview`);
     revalidatePath(`/projects/${projectId}`);
     return { ok: true };
   } catch (err) {
@@ -68,3 +70,4 @@ export async function deleteProjectStandardAction(
     };
   }
 }
+

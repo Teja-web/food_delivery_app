@@ -8,11 +8,24 @@ import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/integration/api-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  API_KEY_ROLE_LABELS,
+  API_KEY_ROLE_OPTIONS,
+  type ApiKeyRole,
+} from "@/lib/auth/api-key-roles";
 
 export interface ProjectApiKeyRow {
   id: string;
   name: string;
   prefix: string;
+  role: ApiKeyRole;
   createdAt: string;
   lastUsedAt: string | null;
   expiresAt: string | null;
@@ -24,6 +37,18 @@ const STATUS_COLOR: Record<ProjectApiKeyRow["status"], string> = {
   active: "text-green-600",
   revoked: "text-muted-foreground line-through",
   expired: "text-amber-600",
+};
+
+const ROLE_COLOR: Record<ApiKeyRole, string> = {
+  member: "text-muted-foreground",
+  manager: "text-yellow-700 dark:text-yellow-300",
+  admin: "text-red-700 dark:text-red-300",
+};
+
+const ROLE_OPTION_STYLES: Record<ApiKeyRole, string> = {
+  member: "",
+  manager: "text-yellow-700 dark:text-yellow-300",
+  admin: "text-red-700 dark:text-red-300",
 };
 
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
@@ -48,12 +73,14 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
 interface Props {
   projectId: string;
   initialKeys: ProjectApiKeyRow[];
+  canCreateApiKeys: boolean;
 }
 
-export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
+export function ProjectApiKeysSection({ projectId, initialKeys, canCreateApiKeys }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
+  const [role, setRole] = useState<ApiKeyRole>("member");
   const [expiresInDays, setExpiresInDays] = useState("");
   const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,9 +107,10 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
 
     startTransition(async () => {
       try {
-        const result = await mintApiKeyAction({ name: name.trim(), projectId, expiresAt });
+        const result = await mintApiKeyAction({ name: name.trim(), projectId, role, expiresAt });
         setRevealedPlaintext(result.plaintext);
         setName("");
+        setRole("member");
         setExpiresInDays("");
         router.refresh();
       } catch (err) {
@@ -135,7 +163,7 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
 
       <form
         onSubmit={handleMint}
-        className="grid grid-cols-[1fr_140px_auto] items-end gap-3 rounded border p-4"
+        className="grid grid-cols-[1fr_150px_140px_auto] items-end gap-3 rounded border p-4"
       >
         <div className="space-y-1">
           <Label htmlFor="api-key-name" className="text-xs">
@@ -146,8 +174,33 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. cursor-laptop"
-            disabled={pending}
+            disabled={pending || !canCreateApiKeys}
           />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="api-key-role" className="text-xs">
+            Role
+          </Label>
+          <Select
+            value={role}
+            onValueChange={(value) => setRole(value as ApiKeyRole)}
+            disabled={pending || !canCreateApiKeys}
+          >
+            <SelectTrigger id="api-key-role">
+              <SelectValue placeholder="Role" />
+            </SelectTrigger>
+            <SelectContent>
+              {API_KEY_ROLE_OPTIONS.map((option) => (
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  className={ROLE_OPTION_STYLES[option.value]}
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label htmlFor="api-key-expiry" className="text-xs">
@@ -160,13 +213,18 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
             value={expiresInDays}
             onChange={(e) => setExpiresInDays(e.target.value)}
             placeholder="never"
-            disabled={pending}
+            disabled={pending || !canCreateApiKeys}
           />
         </div>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || !canCreateApiKeys}>
           {pending ? "Minting…" : "Mint key"}
         </Button>
-        {error ? <div className="col-span-3 text-sm text-destructive">{error}</div> : null}
+        {!canCreateApiKeys ? (
+          <div className="col-span-4 text-sm text-muted-foreground">
+            Only project owners can mint API keys and assign roles.
+          </div>
+        ) : null}
+        {error ? <div className="col-span-4 text-sm text-destructive">{error}</div> : null}
       </form>
 
       {initialKeys.length === 0 ? (
@@ -193,6 +251,7 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
               <tr>
                 <th className="border-b py-2 font-medium">Name</th>
                 <th className="border-b py-2 font-medium">Prefix</th>
+                <th className="border-b py-2 font-medium">Role</th>
                 <th className="border-b py-2 font-medium">Status</th>
                 <th className="border-b py-2 font-medium">Last used</th>
                 <th className="border-b py-2 font-medium">Expires</th>
@@ -204,6 +263,9 @@ export function ProjectApiKeysSection({ projectId, initialKeys }: Props) {
               <tr key={k.id} className="border-b">
                 <td className="py-2">{k.name}</td>
                 <td className="py-2 font-mono text-xs">{k.prefix}…</td>
+                <td className={`py-2 text-xs font-medium ${ROLE_COLOR[k.role]}`}>
+                  {API_KEY_ROLE_LABELS[k.role]}
+                </td>
                 <td className={`py-2 ${STATUS_COLOR[k.status]}`}>{k.status}</td>
                 <td className="py-2 text-xs text-muted-foreground">
                   {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "never"}

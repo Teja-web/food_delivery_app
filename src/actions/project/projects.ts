@@ -196,14 +196,6 @@ export async function createProjectAction(
   }
 
   const ctx = await getActionContext();
-  try {
-    await assertRequiredOrganizationArtifactsPresent(ctx.organizationId);
-  } catch (err) {
-    if (err instanceof MissingRequiredOrganizationArtifactsError) {
-      return { ok: false, error: err.message };
-    }
-    throw err;
-  }
   const dup = await db.query.projects.findFirst({
     where: and(eq(projects.organizationId, ctx.organizationId), eq(projects.slug, slug)),
     columns: { id: true },
@@ -219,16 +211,6 @@ export async function createProjectAction(
     projectArtifacts = normalizeProjectArtifactsInput(input.projectArtifacts);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Invalid project artifacts." };
-  }
-  if (
-    !projectArtifacts.usesOrganizationDefaults &&
-    !projectArtifacts.hasProjectExclusiveRequiredPair
-  ) {
-    return {
-      ok: false,
-      error:
-        "Select default organization standards, or upload both project Requirements and Design files.",
-    };
   }
   let normalizedRepo:
     | ReturnType<typeof normalizeRepositoryInput>
@@ -442,3 +424,4 @@ export async function setRequireHumanApprovalForMerge(
   safeRevalidate(`/projects/${projectId}`);
   return { projectId, requireHumanApprovalForMerge: value };
 }
+

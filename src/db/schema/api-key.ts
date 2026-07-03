@@ -11,6 +11,7 @@ import { text, timestamp, index, unique } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
+import type { ApiKeyRole } from "@/lib/auth/api-key-roles";
 
 export const apiKeys = cozntSchema.table(
   "api_keys",
@@ -26,13 +27,11 @@ export const apiKeys = cozntSchema.table(
     keyHash: text("key_hash").notNull(),
     /**
      * Authorization role for this key. `member` (default) covers normal
-     * read/write/skill traffic from IDE agents. `admin` / `owner` keys can
-     * also hit governance-sensitive routes (e.g. deciding governance_records,
-     * mutating skill_autonomy). Mint a separate admin key for CI/promotion
-     * automation; keep IDE keys at `member` so a leaked editor token can't
-     * approve its own work.
+     * read/write/skill traffic from IDE agents. `manager` / `admin` keys can
+     * also hit governance-sensitive routes. `owner` is intentionally not an
+     * API key role; owners are human users who mint and assign these keys.
      */
-    role: text().notNull().default("member"),
+    role: text().$type<ApiKeyRole>().notNull().default("member"),
 
     createdById: text("created_by_id"),
     lastUsedAt: timestamp("last_used_at"),
