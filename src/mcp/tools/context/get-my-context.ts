@@ -46,6 +46,48 @@ interface Staleness {
   message: string | null;
 }
 
+type ContextShape = {
+  project?: unknown;
+  welcome?: unknown;
+  currentStage?: unknown;
+};
+
+function isRequirementsOrDesignStage(currentStage: unknown): boolean {
+  if (typeof currentStage !== "string") return false;
+  const emphasized = currentStage.match(/\*([^*]+)\*\s*phase/i)?.[1]?.trim().toLowerCase();
+  if (emphasized) {
+    return emphasized === "requirements" || emphasized === "design";
+  }
+  const normalized = currentStage.toLowerCase();
+  return (
+    normalized.includes("in the requirements phase") ||
+    normalized.includes("in the design phase")
+  );
+}
+
+function serializeGetMyContextResponse(
+  body: unknown,
+  staleness: Staleness | null,
+): unknown {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return body;
+  }
+
+  const typed = body as ContextShape & Record<string, unknown>;
+  if (isRequirementsOrDesignStage(typed.currentStage)) {
+    return {
+      project: typed.project ?? null,
+      welcome: typed.welcome ?? null,
+      currentStage: typed.currentStage ?? null,
+    };
+  }
+
+  if (staleness) {
+    return { ...typed, staleness };
+  }
+  return typed;
+}
+
 /**
  * Minimal `.coznt/config.json` reader. Intentionally re-implemented here
  * rather than imported from `src/cli/lib/config.ts` so the MCP bundle stays
@@ -127,9 +169,5 @@ export async function runGetMyContext(client: CozntClient, input: GetMyContextIn
   const stalenessPromise = computeStaleness().catch(() => null);
   const body = await bodyPromise;
   const staleness = await stalenessPromise;
-
-  if (staleness && typeof body === "object" && body !== null && !Array.isArray(body)) {
-    return { ...(body as Record<string, unknown>), staleness };
-  }
-  return body;
+  return serializeGetMyContextResponse(body, staleness);
 }

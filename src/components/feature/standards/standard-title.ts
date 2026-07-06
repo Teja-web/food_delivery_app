@@ -1,3 +1,5 @@
+import type { ArtifactFileType } from "@/db/schema/artifact";
+
 export function titleFromFileName(fileName: string): string {
   const normalizedName = fileName.replace(/\\/g, "/").split("/").pop() ?? fileName;
   return normalizedName
@@ -7,7 +9,7 @@ export function titleFromFileName(fileName: string): string {
     .trim();
 }
 
-export function fileNameFromTitle(value: string, type: ".md" | ".txt" = ".md"): string {
+export function fileNameFromTitle(value: string, type: ArtifactFileType = ".md"): string {
   const base = value
     .toLowerCase()
     .trim()

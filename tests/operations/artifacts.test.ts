@@ -31,6 +31,22 @@ const mockArtifacts = vi.hoisted(() => ({
     createdAt: Date;
     updatedAt: Date;
   }>,
+  updatedProjectRows: [] as Array<{
+    id: string;
+    organizationId: string;
+    projectId: string;
+    name: string;
+    body: string;
+    summary: string | null;
+    type: ".md" | ".txt";
+    category: string | null;
+    createdVia: "MCP" | "upload";
+    metadata: Record<string, unknown>;
+    creatorId: string | null;
+    creatorName: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>,
 }));
 
 vi.mock("@/db/client", () => ({
@@ -41,17 +57,34 @@ vi.mock("@/db/client", () => ({
       },
       projectArtifacts: {
         findMany: vi.fn(() => Promise.resolve(mockArtifacts.projectRows)),
+        findFirst: vi.fn(() => Promise.resolve(undefined)),
+      },
+      projects: {
+        findFirst: vi.fn(() => Promise.resolve({ id: "proj_test" })),
       },
     },
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => Promise.resolve(mockArtifacts.updatedProjectRows)),
+        })),
+      })),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => Promise.resolve()),
+    })),
   },
 }));
 
 import {
+  getProjectArtifactsReadiness,
   getOrganizationArtifactsReadiness,
   getProjectArtifactsManifest,
   hashArtifactBody,
   REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES,
+  upsertProjectArtifact,
 } from "@/operations/artifacts";
+import { buildScopedContext, runWithMessageContext } from "@/lib/auth/context";
 
 const ORG = "org_test";
 const PROJECT = "proj_test";
@@ -94,10 +127,32 @@ function projectArtifact(input: { id: string; sourceOrganizationArtifactId: stri
   };
 }
 
+function projectExclusiveArtifact(input: {
+  id: string;
+  name: string;
+  title: string;
+  projectArtifactKind?: "requirements" | "design" | "custom";
+}) {
+  return {
+    ...orgArtifact({ id: input.id, name: input.name }),
+    projectId: PROJECT,
+    category: "project-exclusive",
+    createdVia: "MCP" as const,
+    metadata: {
+      title: input.title,
+      contentHash: hashArtifactBody(`# ${input.name}`),
+      ...(input.projectArtifactKind
+        ? { projectArtifactKind: input.projectArtifactKind }
+        : {}),
+    },
+  };
+}
+
 describe("artifact operations", () => {
   beforeEach(() => {
     mockArtifacts.organizationRows = [];
     mockArtifacts.projectRows = [];
+    mockArtifacts.updatedProjectRows = [];
   });
 
   it("reports missing required organization artifacts", async () => {
@@ -152,5 +207,87 @@ describe("artifact operations", () => {
       "coding_instructions.md",
     ]);
     expect(manifest.artifacts[0]?.scope).toBe("project");
+  });
+
+  it("requires both project Requirements and Design artifacts", async () => {
+    mockArtifacts.projectRows = [
+      projectExclusiveArtifact({
+        id: "art_project_requirements",
+        name: "requirements.md",
+        title: "Project Requirements",
+      }),
+    ];
+
+    const readiness = await getProjectArtifactsReadiness(ORG, PROJECT);
+
+    expect(readiness.requiredComplete).toBe(false);
+    expect(readiness.presentRequired).toEqual(["requirements"]);
+    expect(readiness.missingRequired).toEqual(["design"]);
+  });
+
+  it("recognizes explicit MCP project artifact kind metadata", async () => {
+    mockArtifacts.projectRows = [
+      projectExclusiveArtifact({
+        id: "art_project_requirements",
+        name: "prd.md",
+        title: "PRD",
+        projectArtifactKind: "requirements",
+      }),
+      projectExclusiveArtifact({
+        id: "art_project_design",
+        name: "architecture-notes.md",
+        title: "Architecture Notes",
+        projectArtifactKind: "design",
+      }),
+    ];
+
+    const readiness = await getProjectArtifactsReadiness(ORG, PROJECT);
+
+    expect(readiness.requiredComplete).toBe(true);
+    expect(readiness.presentRequired).toEqual(["requirements", "design"]);
+    expect(readiness.missingRequired).toEqual([]);
+  });
+
+  it("upserts Requirements by project artifact kind instead of creating duplicate filenames", async () => {
+    const existing = projectExclusiveArtifact({
+      id: "art_project_requirements",
+      name: "requirements-v1.md",
+      title: "Project Requirements",
+      projectArtifactKind: "requirements",
+    });
+    const updated = {
+      ...existing,
+      name: "requirements.md",
+      body: "# Updated requirements",
+      metadata: {
+        title: "Project Requirements",
+        projectArtifactKind: "requirements",
+        contentHash: hashArtifactBody("# Updated requirements"),
+      },
+      updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+    };
+    mockArtifacts.projectRows = [existing];
+    mockArtifacts.updatedProjectRows = [updated];
+
+    const ctx = buildScopedContext(
+      ORG,
+      { id: "api:key", name: "API client", email: "api@coznt" },
+      { role: "member", projectId: PROJECT },
+    );
+    const row = await runWithMessageContext(ctx, () =>
+      upsertProjectArtifact({
+        projectId: PROJECT,
+        title: "Project Requirements",
+        name: "requirements.md",
+        body: "# Updated requirements",
+        type: ".md",
+        category: "project-exclusive",
+        projectArtifactKind: "requirements",
+        createdVia: "MCP",
+      }),
+    );
+
+    expect(row.id).toBe(existing.id);
+    expect(row.name).toBe("requirements.md");
   });
 });

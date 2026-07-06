@@ -114,7 +114,7 @@ function FileDropBox({
           id={inputId}
           name={name}
           type="file"
-          accept=".md,.txt,text/markdown,text/plain"
+          accept=".md,.txt,.html,.json,text/markdown,text/plain,text/html,application/json"
           required={required}
           className="sr-only"
           onChange={(event) => setFiles(event.currentTarget.files)}
@@ -127,10 +127,12 @@ function FileDropBox({
           )}
         </span>
         <span className="min-h-5 max-w-full truncate text-sm font-medium">
-          {fileName || "Drop .md or .txt file"}
+          {fileName || "Drop .md, .txt, .html, or .json file"}
         </span>
         <span className="text-xs text-muted-foreground">
-          {savedAsFileName ? `Saved as ${savedAsFileName}` : "Markdown or plain text, 2 MB max"}
+          {savedAsFileName
+            ? `Saved as ${savedAsFileName}`
+            : "Markdown, plain text, HTML, or JSON, 2 MB max"}
         </span>
       </Label>
     </div>

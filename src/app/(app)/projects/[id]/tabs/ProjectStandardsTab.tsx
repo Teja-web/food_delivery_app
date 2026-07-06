@@ -22,16 +22,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { ArtifactFileType } from "@/db/schema/artifact";
 import { cn } from "@/lib/utils";
 
-type ArtifactType = ".md" | ".txt";
 type RequiredKey = "coding_standards" | "brand_guidelines" | "architecture_principles";
 
 export interface ProjectStandardItem {
   id: string;
   title: string;
   body: string;
-  type: ArtifactType;
+  type: ArtifactFileType;
   category: string | null;
   requiredKey: RequiredKey | null;
   sourceFileName: string;
@@ -44,11 +44,11 @@ export interface ProjectStandardItem {
 interface Draft {
   title: string;
   body: string;
-  type: ArtifactType;
+  type: ArtifactFileType;
   sourceFileName: string;
 }
 
-const FILE_ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
+const FILE_ACCEPT = ".md,.markdown,.txt,.html,.json,text/markdown,text/plain,text/html,application/json";
 
 const REQUIRED_LABELS: Record<RequiredKey, string> = {
   coding_standards: "Coding Standards",
@@ -74,8 +74,12 @@ function draftFromItem(item: ProjectStandardItem): Draft {
   };
 }
 
-function inferType(fileName: string): ArtifactType {
-  return fileName.toLowerCase().endsWith(".txt") ? ".txt" : ".md";
+function inferType(fileName: string): ArtifactFileType {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".txt")) return ".txt";
+  if (lower.endsWith(".html")) return ".html";
+  if (lower.endsWith(".json")) return ".json";
+  return ".md";
 }
 
 function titleFromFileName(fileName: string): string {
@@ -93,8 +97,12 @@ function isAcceptedFile(file: File): boolean {
     lower.endsWith(".md") ||
     lower.endsWith(".markdown") ||
     lower.endsWith(".txt") ||
+    lower.endsWith(".html") ||
+    lower.endsWith(".json") ||
     file.type === "text/plain" ||
     file.type === "text/markdown" ||
+    file.type === "text/html" ||
+    file.type === "application/json" ||
     file.type === ""
   );
 }
@@ -144,7 +152,7 @@ export function ProjectStandardsTab({
   async function applyFile(file: File | undefined) {
     if (!file) return;
     if (!isAcceptedFile(file)) {
-      setUploadError("Upload a Markdown or text file.");
+      setUploadError("Upload a Markdown, text, HTML, or JSON file.");
       return;
     }
     const body = await file.text();
@@ -336,13 +344,15 @@ export function ProjectStandardsTab({
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      type: event.target.value === ".txt" ? ".txt" : ".md",
+                      type: event.target.value as ArtifactFileType,
                     }))
                   }
                   className="h-9 w-full rounded-sm border bg-muted/40 px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
                   <option value=".md">Markdown</option>
                   <option value=".txt">Text</option>
+                  <option value=".html">HTML</option>
+                  <option value=".json">JSON</option>
                 </select>
               </div>
             </div>

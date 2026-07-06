@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 
-import { ARTIFACT_FILE_TYPES, REQUIRED_ORGANIZATION_ARTIFACT_KEYS } from "@/db/schema/artifact";
+import {
+  ARTIFACT_FILE_TYPES,
+  PROJECT_ARTIFACT_KINDS,
+  REQUIRED_ORGANIZATION_ARTIFACT_KEYS,
+} from "@/db/schema/artifact";
 import { deleteProjectArtifact, upsertProjectArtifact } from "@/operations/artifacts";
 
 const projectStandardPayloadSchema = z.object({
@@ -15,6 +19,7 @@ const projectStandardPayloadSchema = z.object({
   sourceFileName: z.string().min(1, "File name is required."),
   category: z.string().optional().nullable(),
   requiredKey: z.enum(REQUIRED_ORGANIZATION_ARTIFACT_KEYS).optional().nullable(),
+  projectArtifactKind: z.enum(PROJECT_ARTIFACT_KINDS).optional().nullable(),
 });
 
 export type SaveProjectStandardResult =
@@ -39,6 +44,7 @@ export async function saveProjectStandardAction(
       type: parsed.data.type,
       category: parsed.data.category ?? null,
       requiredKey: parsed.data.requiredKey ?? null,
+      projectArtifactKind: parsed.data.projectArtifactKind ?? null,
       createdVia: "upload",
     });
     revalidatePath(`/projects/${parsed.data.projectId}/standards`);

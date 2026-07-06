@@ -46,14 +46,18 @@ export const REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES: Record<
   coding_standards: "coding_instructions.md",
 };
 
-export const ARTIFACT_FILE_TYPES = [".md", ".txt"] as const;
+export const ARTIFACT_FILE_TYPES = [".md", ".txt", ".html", ".json"] as const;
 export type ArtifactFileType = (typeof ARTIFACT_FILE_TYPES)[number];
 
 export const PROJECT_ARTIFACT_CREATED_VIA = ["MCP", "upload"] as const;
 export type ProjectArtifactCreatedVia = (typeof PROJECT_ARTIFACT_CREATED_VIA)[number];
 
+export const PROJECT_ARTIFACT_KINDS = ["requirements", "design", "custom"] as const;
+export type ProjectArtifactKind = (typeof PROJECT_ARTIFACT_KINDS)[number];
+
 export interface ArtifactMetadata {
   requiredKey?: RequiredOrganizationArtifactKey;
+  projectArtifactKind?: ProjectArtifactKind;
   title?: string;
   contentHash?: string;
   sourceOrganizationArtifactId?: string;

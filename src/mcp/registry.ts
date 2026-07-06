@@ -34,6 +34,10 @@ import {
   setupProjectStandardsInput,
   runSetupProjectStandards,
 } from "./tools/context/setup-project-standards";
+import {
+  upsertProjectArtifactsInput,
+  runUpsertProjectArtifacts,
+} from "./tools/context/upsert-project-artifacts";
 import { setProjectInput, runSetProject } from "./tools/session/set-project";
 import { switchProjectInput, runSwitchProject } from "./tools/session/switch-project";
 import { getOutcomesInput, runGetOutcomes } from "./tools/skill/get-outcomes";
@@ -356,11 +360,24 @@ export const tools = [
       "copy existing organization standards into project_artifacts with",
       "`useOrganizationDefaults: true`, or upload project-exclusive",
       "Requirements + Design via inline bodies or local file paths with",
-      "`useOrganizationDefaults: false`. Reflected immediately in the",
-      "project Standards tab and MCP standards sync.",
+      "`useOrganizationDefaults: false`. Existing project Requirements",
+      "or Design are preserved. For custom project artifact edits, prefer",
+      "upsert_project_artifacts.",
     ].join(" "),
     schema: setupProjectStandardsInput,
     run: runSetupProjectStandards,
+  }),
+  tool({
+    name: "upsert_project_artifacts",
+    description: [
+      "Create project-level artifacts in project_artifacts. Use this when",
+      "Requirements or Design were not uploaded in the UI, or to add custom",
+      "project artifacts. Existing Requirements/Design are skipped rather",
+      "than overwritten; custom project artifacts upsert by file name.",
+      "Accepts inline bodies or local file paths.",
+    ].join(" "),
+    schema: upsertProjectArtifactsInput,
+    run: runUpsertProjectArtifacts,
   }),
   tool({
     name: "update_work_item_status",

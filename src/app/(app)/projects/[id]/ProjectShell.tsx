@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { ArtifactFileType } from "@/db/schema/artifact";
 import { cn } from "@/lib/utils";
 import type { CockpitTabCounts } from "@/operations/project/cockpit-counts";
 
@@ -46,14 +47,16 @@ interface TabDef {
 export interface StageArtifactClient {
   id: string;
   name: string;
+  sourceFileName: string;
   title: string;
   body: string;
-  type: ".md" | ".txt";
+  type: ArtifactFileType;
 }
 
 interface StageArtifactDef {
   name: "requirements.md" | "design.md";
   title: "Project Requirements" | "Project Design";
+  projectArtifactKind: "requirements" | "design";
   uploadLabel: string;
   uploadedLabel: string;
 }
@@ -62,18 +65,20 @@ const STAGE_ARTIFACTS: readonly StageArtifactDef[] = [
   {
     name: "requirements.md",
     title: "Project Requirements",
+    projectArtifactKind: "requirements",
     uploadLabel: "Upload Requirements",
     uploadedLabel: "Requirements uploaded",
   },
   {
     name: "design.md",
     title: "Project Design",
+    projectArtifactKind: "design",
     uploadLabel: "Upload Design",
     uploadedLabel: "Design uploaded",
   },
 ];
 
-const FILE_ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
+const FILE_ACCEPT = ".md,.markdown,.txt,.html,.json,text/markdown,text/plain,text/html,application/json";
 
 /**
  * Five-tab project IA per spec section 11.3. One axis: artifact type / activity area.
@@ -194,18 +199,47 @@ function StageArtifactControls({
     return byName.get(def.name) ?? null;
   }
 
-  async function readArtifactFile(file: File): Promise<string> {
+  function inferArtifactType(file: File): ArtifactFileType {
     const lower = file.name.toLowerCase();
-    const accepted = lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain" || file.type === "";
-    if (!accepted) throw new Error("Upload a Markdown or text file.");
-    const body = await file.text();
-    if (!body.trim()) throw new Error("Uploaded file cannot be empty.");
-    return body;
+    if (lower.endsWith(".txt") || file.type === "text/plain") return ".txt";
+    if (lower.endsWith(".html") || file.type === "text/html") return ".html";
+    if (lower.endsWith(".json") || file.type === "application/json") return ".json";
+    return ".md";
   }
 
-  function saveArtifact(def: StageArtifactDef, body: string) {
+  async function readArtifactFile(file: File): Promise<{
+    body: string;
+    type: ArtifactFileType;
+    sourceFileName: string;
+  }> {
+    const lower = file.name.toLowerCase();
+    const accepted =
+      lower.endsWith(".md") ||
+      lower.endsWith(".markdown") ||
+      lower.endsWith(".txt") ||
+      lower.endsWith(".html") ||
+      lower.endsWith(".json") ||
+      file.type === "text/markdown" ||
+      file.type === "text/plain" ||
+      file.type === "text/html" ||
+      file.type === "application/json" ||
+      file.type === "";
+    if (!accepted) throw new Error("Upload a Markdown, text, HTML, or JSON file.");
+    const body = await file.text();
+    if (!body.trim()) throw new Error("Uploaded file cannot be empty.");
+    return {
+      body,
+      type: inferArtifactType(file),
+      sourceFileName: file.name,
+    };
+  }
+
+  function saveArtifact(
+    def: StageArtifactDef,
+    artifact: { body: string; type?: ArtifactFileType; sourceFileName?: string },
+  ) {
     const existing = existingFor(def);
-    if (!body.trim()) {
+    if (!artifact.body.trim()) {
       setError("File content is required.");
       return;
     }
@@ -215,10 +249,11 @@ function StageArtifactControls({
         id: existing?.id,
         projectId,
         title: def.title,
-        sourceFileName: def.name,
-        body,
-        type: ".md",
+        sourceFileName: artifact.sourceFileName ?? existing?.sourceFileName ?? def.name,
+        body: artifact.body,
+        type: artifact.type ?? existing?.type ?? ".md",
         category: "project-exclusive",
+        projectArtifactKind: def.projectArtifactKind,
       });
       if (!result.ok) {
         setError(result.error);
@@ -235,8 +270,8 @@ function StageArtifactControls({
   async function uploadArtifact(def: StageArtifactDef, file: File | undefined) {
     if (!file || existingFor(def)) return;
     try {
-      const body = await readArtifactFile(file);
-      saveArtifact(def, body);
+      const artifact = await readArtifactFile(file);
+      saveArtifact(def, artifact);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not upload artifact.";
       setError(message);
@@ -332,7 +367,7 @@ function StageArtifactControls({
             </Button>
             <Button
               type="button"
-              onClick={() => editing && saveArtifact(editing, draftBody)}
+              onClick={() => editing && saveArtifact(editing, { body: draftBody })}
               disabled={pending}
             >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
