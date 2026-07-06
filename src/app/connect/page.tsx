@@ -236,10 +236,15 @@ export default function IntegrationsPage() {
               </p>
               <p className="text-foreground">
                 Outcome assessors are pure functions in{" "}
-                <code className="font-mono text-[13px]">src/domain/outcomes.ts</code>.
-                Choreography lives in{" "}
-                <code className="font-mono text-[13px]">.coznt/skills/</code>. The daemon
-                stays server-side. Push the choreography, keep the daemon.
+                <code className="font-mono text-[13px]">src/domain/outcomes.ts</code>{" "}
+                (<code className="font-mono text-[12px]">pr_merge · pr_revert · pr_abandon · deploy_clean · deploy_incident</code>).
+                Lifecycle choreography is <em>claimed</em> in{" "}
+                <code className="font-mono text-[13px]">CLAUDE.md</code> /{" "}
+                <code className="font-mono text-[13px]">AGENTS.md</code> and surfaced through MCP tool
+                descriptions &mdash; no files are pushed to your repo. Dev-authored skills, rules, and plans
+                live under <code className="font-mono text-[13px]">.agents/</code>, applied on PR merge.
+                Every governed LLM call goes through{" "}
+                <code className="font-mono text-[13px]">invoke_skill</code>: one chokepoint, one ledger row.
               </p>
               <div className="flex gap-3 pt-2">
                 <Button asChild size="sm" className="h-9">

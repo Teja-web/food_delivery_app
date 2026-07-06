@@ -152,8 +152,10 @@ export function MarketingLanding() {
             </p>
             <p className="text-foreground">
               Skill autonomy is a level, not vibes. Gate state is deterministic, not narrative.
-              DORA attribution is causal, not correlative. The audit posture is visible in the
-              UI before it&rsquo;s queryable from the database.
+              DORA attribution is causal, not correlative. Verification debt &mdash; plans marked
+              completed without the evidence they promised &mdash; is a queryable primitive, not a
+              vibes-check. The audit posture is visible in the UI before it&rsquo;s queryable from
+              the database.
             </p>
             <ul className="grid grid-cols-1 gap-3 pt-2 text-[13px] sm:grid-cols-2">
               <ThesisPoint icon={Sparkles} title="Graded skills" body="Observe → Propose → Merge → Lead, per project. Promotion carries 30 days of receipts." />
@@ -261,6 +263,7 @@ export function MarketingLanding() {
                 "Governance record passed · criteria checked",
                 "Work item closed · no revert in window",
               ]}
+              caption="Assessors · pr_merge · pr_revert · pr_abandon · deploy_clean · deploy_incident"
               tone="primary"
             />
             <ModeCard
@@ -445,7 +448,7 @@ function LiveLedgerHero() {
       kind: "gate.pass",
       icon: Milestone,
       project: "Atlas",
-      detail: "design → development",
+      detail: "ADR-0014 · in_review → approved",
     },
     {
       ts: "12m",
@@ -636,12 +639,14 @@ function ModeCard({
   body,
   points,
   tone,
+  caption,
 }: {
   tag: string;
   title: string;
   body: string;
   points: string[];
   tone: "primary" | "muted";
+  caption?: string;
 }) {
   const dotClass = tone === "primary" ? "bg-primary" : "bg-muted-foreground/50";
   return (
@@ -662,6 +667,11 @@ function ModeCard({
           </li>
         ))}
       </ul>
+      {caption ? (
+        <p className="mt-4 font-mono text-[10.5px] uppercase tracking-[0.12em] text-muted-foreground/80">
+          {caption}
+        </p>
+      ) : null}
     </div>
   );
 }
