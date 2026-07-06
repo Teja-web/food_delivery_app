@@ -49,6 +49,7 @@ import {
 } from "@/lib/integrations/jira-keys";
 import { getJiraClient } from "@/lib/integrations/clients";
 import { canonicalJiraStatus, mapCozntStatusToJira } from "@/lib/integrations/outbound";
+import { runPrSummaryReviewTask } from "./pr-summary-review";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,6 +76,41 @@ function claimedPathFromMetadata(metadata: unknown): string | null {
   const source = asObject(asObject(metadata)?.source);
   const claimedPath = asString(source?.claimedPath);
   return claimedPath && claimedPath.length > 0 ? claimedPath : null;
+}
+
+async function runPrSummaryReviewForGitHubPr(
+  evt: WebhookEvent,
+  payload: Json,
+  externalKey: string,
+  projectId: string,
+): Promise<void> {
+  if (!evt.organizationId) return;
+  const pr = asObject(payload.pull_request);
+  if (!pr) return;
+  const number = typeof pr.number === "number" ? pr.number : Number(pr.number);
+  if (!Number.isFinite(number)) return;
+
+  const installation = asObject(payload.installation);
+  const installationId =
+    asString(installation?.id) ??
+    (installation?.id != null ? String(installation.id) : null);
+  const ownerRepo = externalKey.replace(/^[^/]+\//, "");
+
+  await runPrSummaryReviewTask({
+    organizationId: evt.organizationId,
+    projectId,
+    ownerRepo,
+    installationId,
+    pullNumber: number,
+    action: asString(payload.action) ?? null,
+    draft: pr.draft === true,
+    prTitle: asString(pr.title) ?? `PR #${number}`,
+    prBody: asString(pr.body) ?? null,
+    prUrl: asString(pr.html_url) ?? null,
+    baseSha: asString(asObject(pr.base)?.sha) ?? null,
+    headSha: asString(asObject(pr.head)?.sha) ?? null,
+    webhookEventId: evt.id,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +277,9 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
     if (!action || !triggers.has(action)) {
       return markProcessed(evt.id);
     }
+    await runPrSummaryReviewForGitHubPr(evt, payload, externalKey, projectId).catch(() => {
+      /* Coznt Cat summary is observability-grade; failures are logged by the task. */
+    });
     return runChangeRiskClassifier(evt, payload, externalKey, projectId);
   }
 

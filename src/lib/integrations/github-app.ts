@@ -219,6 +219,75 @@ export async function listFilesForPr(input: {
   return out;
 }
 
+export interface PullRequestFileWithPatch {
+  sha: string | null;
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch: string | null;
+  previousFilename: string | null;
+}
+
+/**
+ * List changed PR files with patch text. Used by Coznt Cat V1 to summarize
+ * pull requests without adding a new GitHub writeback surface.
+ */
+export async function listPullRequestFilesWithPatches(input: {
+  installationId: string;
+  ownerRepo: string;
+  pullNumber: number;
+  maxPages?: number;
+}): Promise<PullRequestFileWithPatch[]> {
+  if (!isConfigured()) return [];
+  const token = await installationTokenFor(input.installationId);
+  const out: PullRequestFileWithPatch[] = [];
+  const maxPages = input.maxPages ?? 10;
+  let page = 1;
+  for (;;) {
+    const res = await fetch(
+      `https://api.github.com/repos/${input.ownerRepo}/pulls/${input.pullNumber}/files?per_page=100&page=${page}`,
+      {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`PR files fetch failed (${res.status}): ${await res.text()}`);
+    }
+    const body = (await res.json()) as Array<{
+      sha?: string;
+      filename: string;
+      status: string;
+      additions?: number;
+      deletions?: number;
+      changes?: number;
+      patch?: string;
+      previous_filename?: string;
+    }>;
+    out.push(
+      ...body.map((file) => ({
+        sha: file.sha ?? null,
+        filename: file.filename,
+        status: file.status,
+        additions: file.additions ?? 0,
+        deletions: file.deletions ?? 0,
+        changes: file.changes ?? 0,
+        patch: file.patch ?? null,
+        previousFilename: file.previous_filename ?? null,
+      })),
+    );
+    if (body.length < 100) break;
+    page += 1;
+    if (page > maxPages) break;
+  }
+  return out;
+}
+
 /**
  * List comments on a pull request. Used by the merge-webhook to find
  * `coznt:approve <slug>` pre-approval markers per spec §13.
