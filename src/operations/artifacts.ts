@@ -34,6 +34,11 @@ export {
 
 export type ArtifactScope = "org" | "project";
 export type ArtifactFormat = "markdown" | "text";
+type LifecycleArtifactKey = "requirements" | "design" | "development";
+const REQUIREMENTS_EXISTS_MESSAGE = "requirements.md already exists.\nNo changes were made.";
+const DESIGN_EXISTS_MESSAGE = "design.md already exists.\n\nNo changes were made.";
+const REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE =
+  "Cannot create design.md because requirements.md does not exist.\n\nPlease create requirements.md first.";
 
 export interface ArtifactManifestEntry {
   id: string;
@@ -79,6 +84,14 @@ export class MissingRequiredOrganizationArtifactsError extends Error {
         .join(", ")}.`,
     );
     this.name = "MissingRequiredOrganizationArtifactsError";
+  }
+}
+
+export class ProjectArtifactDependencyError extends Error {
+  status = 409;
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectArtifactDependencyError";
   }
 }
 
@@ -129,6 +142,87 @@ function artifactHash(row: Pick<OrganizationArtifact | ProjectArtifact, "metadat
 
 function artifactFormat(type: ArtifactFileType): ArtifactFormat {
   return type === ".txt" ? "text" : "markdown";
+}
+
+function normalizeLifecycleArtifactName(name: string): string {
+  const normalized = name.trim().toLowerCase();
+  if (normalized.endsWith(".md")) return normalized.slice(0, -3);
+  if (normalized.endsWith(".txt")) return normalized.slice(0, -4);
+  return normalized;
+}
+
+function resolveLifecycleArtifactKey(input: {
+  name: string;
+  type: ArtifactFileType;
+}): LifecycleArtifactKey | null {
+  if (input.type !== ".md") return null;
+  const normalized = normalizeLifecycleArtifactName(input.name);
+  if (normalized === "requirements" || normalized === "design" || normalized === "development") {
+    return normalized;
+  }
+  return null;
+}
+
+export function resolveProjectLifecycleArtifactValidation(input: {
+  target: LifecycleArtifactKey | null;
+  isCreate: boolean;
+  hasRequirements: boolean;
+  hasDesign: boolean;
+}): string | null {
+  if (!input.target || !input.isCreate) return null;
+
+  if (input.target === "requirements" && input.hasRequirements) {
+    return REQUIREMENTS_EXISTS_MESSAGE;
+  }
+  if (input.target === "design") {
+    if (!input.hasRequirements) {
+      return REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE;
+    }
+    if (input.hasDesign) {
+      return DESIGN_EXISTS_MESSAGE;
+    }
+  }
+  if (input.target === "development") {
+    const missing: string[] = [];
+    if (!input.hasRequirements) missing.push("Requirements");
+    if (!input.hasDesign) missing.push("Design");
+    if (missing.length > 0) {
+      return `Development artifact requires prerequisite artifact(s): ${missing.join(", ")}.`;
+    }
+  }
+  return null;
+}
+
+export async function hasExistingRequirementsMarkdownArtifact(
+  organizationId: string,
+  projectId: string,
+): Promise<boolean> {
+  const requirementsArtifact = await db.query.projectArtifacts.findFirst({
+    where: and(
+      eq(projectArtifacts.organizationId, organizationId),
+      eq(projectArtifacts.projectId, projectId),
+      eq(projectArtifacts.name, "requirements.md"),
+      eq(projectArtifacts.type, ".md"),
+    ),
+    columns: { id: true },
+  });
+  return Boolean(requirementsArtifact);
+}
+
+export async function hasExistingDesignMarkdownArtifact(
+  organizationId: string,
+  projectId: string,
+): Promise<boolean> {
+  const designArtifact = await db.query.projectArtifacts.findFirst({
+    where: and(
+      eq(projectArtifacts.organizationId, organizationId),
+      eq(projectArtifacts.projectId, projectId),
+      eq(projectArtifacts.name, "design.md"),
+      eq(projectArtifacts.type, ".md"),
+    ),
+    columns: { id: true },
+  });
+  return Boolean(designArtifact);
 }
 
 function toMetadata(input: {
@@ -470,6 +564,47 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
     columns: { id: true },
   });
   if (!project) throw new Error(`Project ${parsed.projectId} not found in this organization.`);
+
+  const targetLifecycleArtifact = resolveLifecycleArtifactKey({
+    name: parsed.name,
+    type: parsed.type,
+  });
+  if (targetLifecycleArtifact) {
+    if (targetLifecycleArtifact === "requirements" && !parsed.id) {
+      const alreadyExists = await hasExistingRequirementsMarkdownArtifact(
+        ctx.organizationId,
+        parsed.projectId,
+      );
+      if (alreadyExists) {
+        throw new ProjectArtifactDependencyError(
+          REQUIREMENTS_EXISTS_MESSAGE,
+        );
+      }
+    }
+    const lifecycleArtifacts = await db.query.projectArtifacts.findMany({
+      where: and(
+        eq(projectArtifacts.organizationId, ctx.organizationId),
+        eq(projectArtifacts.projectId, parsed.projectId),
+        eq(projectArtifacts.type, ".md"),
+      ),
+      columns: {
+        id: true,
+        name: true,
+      },
+    });
+    const byLifecycleName = new Set(
+      lifecycleArtifacts
+        .filter((row) => row.id !== parsed.id)
+        .map((row) => normalizeLifecycleArtifactName(row.name)),
+    );
+    const validationError = resolveProjectLifecycleArtifactValidation({
+      target: targetLifecycleArtifact,
+      isCreate: !parsed.id,
+      hasRequirements: byLifecycleName.has("requirements"),
+      hasDesign: byLifecycleName.has("design"),
+    });
+    if (validationError) throw new ProjectArtifactDependencyError(validationError);
+  }
 
   const metadata = toMetadata({
     title: parsed.title,

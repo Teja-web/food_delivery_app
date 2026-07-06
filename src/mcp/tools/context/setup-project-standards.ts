@@ -6,7 +6,7 @@
  * Requirements + Design files/bodies for this project.
  */
 
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 import { z } from "zod";
@@ -43,9 +43,22 @@ export const setupProjectStandardsInput = z.object({
 });
 
 export type SetupProjectStandardsInput = z.infer<typeof setupProjectStandardsInput>;
+const REQUIREMENTS_EXISTS_MESSAGE = "requirements.md already exists.\nNo changes were made.";
+const DESIGN_EXISTS_MESSAGE = "design.md already exists.\n\nNo changes were made.";
+const REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE =
+  "Cannot create design.md because requirements.md does not exist.\n\nPlease create requirements.md first.";
 
 function inferType(fileName: string): ".md" | ".txt" {
   return fileName.toLowerCase().endsWith(".txt") ? ".txt" : ".md";
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function defaultFileName(
@@ -105,6 +118,53 @@ export async function runSetupProjectStandards(
     throw new Error(
       "No active project. API key resolution failed - verify COZNT_API_KEY is valid, or pass `projectId` explicitly.",
     );
+  }
+
+  if (!input.useOrganizationDefaults) {
+    const requestedRequirementsFileName =
+      input.requirements?.sourceFileName?.trim() ||
+      (input.requirements?.filePath ? basename(input.requirements.filePath) : "requirements.md");
+    const requestedRequirementsType = inferType(requestedRequirementsFileName);
+    const requestedDesignFileName =
+      input.design?.sourceFileName?.trim() ||
+      (input.design?.filePath ? basename(input.design.filePath) : "design.md");
+    const requestedDesignType = inferType(requestedDesignFileName);
+
+    const [repoHasRequirements, repoHasDesign, manifest] = await Promise.all([
+      fileExists("requirements.md"),
+      fileExists("design.md"),
+      client.get<{
+        artifacts?: Array<{ name?: string; type?: string }>;
+        standards?: Array<{ name?: string; type?: string }>;
+      }>(`/api/v1/mcp/standards?projectId=${encodeURIComponent(projectId)}`),
+    ]);
+    const entries = [...(manifest.artifacts ?? []), ...(manifest.standards ?? [])];
+    const tableHasRequirements = entries.some(
+      (entry) =>
+        entry.name?.toLowerCase() === "requirements.md" && entry.type?.toLowerCase() === ".md",
+    );
+    const tableHasDesign = entries.some(
+      (entry) => entry.name?.toLowerCase() === "design.md" && entry.type?.toLowerCase() === ".md",
+    );
+    const hasRequirements = repoHasRequirements || tableHasRequirements;
+    const hasDesign = repoHasDesign || tableHasDesign;
+
+    if (requestedDesignFileName.toLowerCase() === "design.md" && requestedDesignType === ".md") {
+      if (!hasRequirements) {
+        return { message: REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE };
+      }
+      if (hasDesign) {
+        return { message: DESIGN_EXISTS_MESSAGE };
+      }
+    }
+
+    if (
+      requestedRequirementsFileName.toLowerCase() === "requirements.md" &&
+      requestedRequirementsType === ".md" &&
+      hasRequirements
+    ) {
+      return { message: REQUIREMENTS_EXISTS_MESSAGE };
+    }
   }
 
   if (input.useOrganizationDefaults) {
