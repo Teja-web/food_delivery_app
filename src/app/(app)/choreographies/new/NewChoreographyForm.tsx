@@ -109,7 +109,8 @@ export function NewChoreographyForm({ projects }: Props) {
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Becomes <code>.coznt/skills/custom/{slug || "<slug>"}/SKILL.md</code>.
+                  Becomes <code>.agents/skills/custom/{slug || "<slug>"}/SKILL.md</code> in your repo
+                  (applied on PR merge).
                 </p>
               )}
             </div>

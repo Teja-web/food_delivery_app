@@ -37,10 +37,10 @@ export default async function NewChoreographyPage() {
       <header>
         <h1 className="font-display text-2xl font-semibold">New choreography</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Workflow guide your developers will see in their AI editor after the next{" "}
-          <code>coznt sync</code>. Body is YAML frontmatter + Markdown — the{" "}
-          <code>name</code>, <code>description</code>, <code>coznt.version</code>, and{" "}
-          <code>coznt.required_verbs</code> fields are required.
+          Workflow guide your developers will see in their AI editor. Checked in to{" "}
+          <code>.agents/skills/custom/</code> in your repo and applied on PR merge. Body is
+          YAML frontmatter + Markdown — the <code>name</code>, <code>description</code>,{" "}
+          <code>coznt.version</code>, and <code>coznt.required_verbs</code> fields are required.
         </p>
       </header>
 
