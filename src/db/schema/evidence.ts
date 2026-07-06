@@ -1,5 +1,5 @@
 /**
- * Evidence Link — uniform traceability from a plan_artifact to a proof artifact.
+ * Evidence Link — uniform traceability from a project_task to a proof artifact.
  *
  * Polymorphic pointer. `evidenceType` selects the target table; `evidenceId`
  * is the foreign key (resolved at query time per type). `external_link` uses
@@ -13,7 +13,7 @@ import { text, timestamp, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { planArtifacts } from "./plan/plan-artifact";
+import { projectTasks } from "./plan/project-task";
 import {
   EVIDENCE_TYPES,
   EVIDENCE_ROLES,
@@ -36,9 +36,9 @@ export const evidenceLinks = cozntSchema.table(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    planArtifactId: text("plan_artifact_id")
+    projectTaskId: text("project_tasks_id")
       .notNull()
-      .references(() => planArtifacts.id, { onDelete: "cascade" }),
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
 
     evidenceType: text("evidence_type").$type<EvidenceType>().notNull(),
     /** Target row id; null for `external_link`. */
@@ -54,7 +54,7 @@ export const evidenceLinks = cozntSchema.table(
     attachedAt: timestamp("attached_at").defaultNow().notNull(),
   },
   (table) => [
-    index("evidence_plan_idx").on(table.planArtifactId, table.evidenceType),
+    index("evidence_plan_idx").on(table.projectTaskId, table.evidenceType),
     index("evidence_target_idx").on(table.evidenceType, table.evidenceId),
     index("evidence_project_idx").on(table.projectId, table.evidenceType),
   ],

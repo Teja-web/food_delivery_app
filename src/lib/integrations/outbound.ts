@@ -15,7 +15,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans, type PlanArtifact } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans, type ProjectTask } from "@/db/schema/plan/project-task";
 import { auditLogs } from "@/db/schema/audit/audit-log";
 import { workItems } from "@/db/schema/work-item";
 import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
@@ -38,7 +38,7 @@ type JiraTaskAuditShape = {
   externalId: string;
   externalUrl?: string | null;
   projectId?: string | null;
-  planArtifactId?: string | null;
+  projectTaskId?: string | null;
   kind?: string | null;
   title: string;
   description?: string | null;
@@ -126,23 +126,23 @@ function formatPlanDetailsForJira(value: unknown, indent = 0): string[] {
 
 export function buildJiraPlanDescription(
   plan: Pick<
-    PlanArtifact,
+    ProjectTask,
     | "id"
     | "kind"
     | "slug"
     | "summary"
     | "body"
-    | "details"
+    | "metadata"
     | "status"
     | "priority"
-    | "effortEstimate"
     | "dueDate"
     | "assigneeName"
     | "assigneeId"
   >,
 ): string {
+  const metadata = (plan.metadata ?? {}) as Record<string, unknown>;
   const lines: string[] = [
-    "Coznt plan artifact",
+    "Coznt project task",
     "",
     "Metadata",
     `- Plan ID: ${plan.id}`,
@@ -152,7 +152,7 @@ export function buildJiraPlanDescription(
   ];
 
   appendLine(lines, "Priority", plan.priority);
-  appendLine(lines, "Effort estimate", plan.effortEstimate);
+  appendLine(lines, "Effort estimate", metadata.effortEstimate);
   appendLine(lines, "Due date", plan.dueDate);
   appendLine(lines, "Assignee", plan.assigneeName ?? plan.assigneeId);
 
@@ -160,7 +160,7 @@ export function buildJiraPlanDescription(
     lines.push("", "Summary", plan.summary);
   }
 
-  const detailLines = formatPlanDetailsForJira(plan.details);
+  const detailLines = formatPlanDetailsForJira(metadata);
   if (detailLines.length > 0) {
     lines.push("", "Plan details", ...detailLines);
   }
@@ -186,7 +186,7 @@ function jiraTaskAuditShape(row: JiraTaskAuditShape): Record<string, unknown> {
     externalId: row.externalId,
     externalUrl: row.externalUrl ?? null,
     projectId: row.projectId ?? null,
-    planArtifactId: row.planArtifactId ?? null,
+    projectTaskId: row.projectTaskId ?? null,
     kind: row.kind ?? null,
     title: row.title,
     description: row.description ?? null,
@@ -254,7 +254,7 @@ export async function pushPlanToJira(
   options: { throwOnError?: boolean } = {},
 ): Promise<{ key: string; url: string } | null> {
   try {
-    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.projectTasks.findFirst({ where: eq(plans.id, planId) });
     if (!plan) throw new Error("Plan not found");
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "jira");
@@ -296,7 +296,7 @@ export async function pushPlanToJira(
           externalId: issueKey,
           externalUrl: url,
           projectId: plan.projectId,
-          planArtifactId: plan.id,
+          projectTaskId: plan.id,
           kind: workItemKind,
           title: plan.title,
           description,
@@ -333,7 +333,7 @@ export async function pushPlanToJira(
         externalId: created.key,
         externalUrl: url,
         projectId: plan.projectId,
-        planArtifactId: plan.id,
+        projectTaskId: plan.id,
         kind: workItemKind,
         title: plan.title,
         description,
@@ -390,7 +390,7 @@ export function canonicalJiraStatus(status: string | null | undefined): string |
 }
 
 export function jiraPlanMirrorNeedsPush(
-  plan: Pick<PlanArtifact, "title" | "status" | "updatedAt">,
+  plan: Pick<ProjectTask, "title" | "status" | "updatedAt">,
   mirror: { title?: string | null; status?: string | null; updatedAt?: Date | null } | null | undefined,
 ): boolean {
   if (!mirror?.updatedAt) return true;
@@ -403,7 +403,7 @@ export function jiraPlanMirrorNeedsPush(
 }
 
 export function jiraPlanNeedsPush(
-  plan: Pick<PlanArtifact, "externalRef" | "updatedAt" | "updatedById">,
+  plan: Pick<ProjectTask, "externalRef" | "updatedAt" | "updatedById">,
   sync: { lastPushedAt?: Date | null },
 ): boolean {
   if (!plan.externalRef?.startsWith("jira:")) return true;
@@ -433,7 +433,7 @@ export async function transitionJiraIssueForPlan(
   targetStatus: string,
 ): Promise<{ name: string } | null> {
   try {
-    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.projectTasks.findFirst({ where: eq(plans.id, planId) });
     if (!plan || !plan.externalRef?.startsWith("jira:")) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "jira");
@@ -509,7 +509,7 @@ export async function syncWorkItemStatusToJira(
  */
 export async function pushPlanToConfluence(planId: string): Promise<{ pageId: string; url: string } | null> {
   try {
-    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.projectTasks.findFirst({ where: eq(plans.id, planId) });
     if (!plan) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "confluence");
@@ -538,7 +538,7 @@ export async function pushPlanToConfluence(planId: string): Promise<{ pageId: st
     await upsertWorkItem({
       organizationId: plan.organizationId,
       projectId: plan.projectId,
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       source: "confluence",
       externalId: created.id,
       externalUrl: created.url,
@@ -646,7 +646,7 @@ export async function triggerPipelineForProject(args: {
  */
 export async function pushPlanToAdo(planId: string): Promise<{ id: number; url: string } | null> {
   try {
-    const plan = await db.query.planArtifacts.findFirst({ where: eq(plans.id, planId) });
+    const plan = await db.query.projectTasks.findFirst({ where: eq(plans.id, planId) });
     if (!plan) return null;
 
     const binding = await getOutboundBinding(plan.organizationId, plan.projectId, "ado");
@@ -677,7 +677,7 @@ export async function pushPlanToAdo(planId: string): Promise<{ id: number; url: 
     await upsertWorkItem({
       organizationId: plan.organizationId,
       projectId: plan.projectId,
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       source: "ado",
       externalId: String(created.id),
       externalUrl: created.url,

@@ -1,14 +1,14 @@
 /**
  * GET /api/v1/mcp/governance/list-governance-records
  *
- * Read governance records for one plan_artifact. Backs the
+ * Read governance records for one project_task. Backs the
  * `list_governance_records` MCP verb.
  */
 
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { GOVERNANCE_KINDS, type GovernanceKind } from "@/db/schema/governance/policies";
 import {
   GOVERNANCE_RECORD_STATUSES,
@@ -21,13 +21,13 @@ import { listRecordsForPlan } from "@/operations/governance/records";
 export async function GET(req: Request) {
   return handleApi(req, async (ctx) => {
     const url = new URL(req.url);
-    const planArtifactId = url.searchParams.get("planArtifactId");
-    if (!planArtifactId) throw httpError(400, "`planArtifactId` is required");
+    const projectTaskId = url.searchParams.get("projectTaskId");
+    if (!projectTaskId) throw httpError(400, "`projectTaskId` is required");
 
-    const plan = await db.query.planArtifacts.findFirst({
+    const plan = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.id, planArtifactId),
-        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(projectTasks.id, projectTaskId),
+        eq(projectTasks.organizationId, ctx.organizationId),
       ),
     });
     if (!plan) throw httpError(404, "Plan not found");
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
         ? (statusParam as GovernanceRecordStatus)
         : undefined;
 
-    const items = await listRecordsForPlan(planArtifactId, { kind, status });
-    return { planArtifactId, kind: kind ?? null, status: status ?? null, items };
+    const items = await listRecordsForPlan(projectTaskId, { kind, status });
+    return { projectTaskId, kind: kind ?? null, status: status ?? null, items };
   });
 }

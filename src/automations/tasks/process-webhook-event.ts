@@ -24,7 +24,7 @@ import { db } from "@/db/client";
 import { deployments } from "@/db/schema/deployment";
 import { projects } from "@/db/schema/project";
 import { skills } from "@/db/schema/skill/skill";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { planRevisions } from "@/db/schema/plan/plan-revision";
 import { comments } from "@/db/schema/plan/comment";
 import { workItems } from "@/db/schema/work-item";
@@ -43,7 +43,10 @@ import {
   recomputeSkillAutonomy,
 } from "@/operations/skill/skill-autonomy";
 import { upsertWorkItem } from "@/operations/work/work-items";
-import { jiraExternalKeyFromParts } from "@/lib/integrations/jira-keys";
+import {
+  jiraBrowseUrlFromIssueSelf,
+  jiraExternalKeyFromParts,
+} from "@/lib/integrations/jira-keys";
 import { getJiraClient } from "@/lib/integrations/clients";
 import { canonicalJiraStatus, mapCozntStatusToJira } from "@/lib/integrations/outbound";
 
@@ -66,6 +69,12 @@ function asObject(value: unknown): Json | null {
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function claimedPathFromMetadata(metadata: unknown): string | null {
+  const source = asObject(asObject(metadata)?.source);
+  const claimedPath = asString(source?.claimedPath);
+  return claimedPath && claimedPath.length > 0 ? claimedPath : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +222,7 @@ async function handleGitHub(evt: WebhookEvent): Promise<void> {
 
     const action = asString(payload.action);
 
-    // PR-lifecycle status derivation for file-claimed plan artifacts per
+    // PR-lifecycle status derivation for file-claimed project tasks per
     // docs/spec/dev-authoring-surface.md §9. open/synchronize/labeled trigger
     // status transitions on plans touched by the PR; closed-unmerged → cancelled
     // (or rejected per repo config); merged is handled by the push path.
@@ -544,14 +553,16 @@ async function runPrLifecycleForPlans(
 
   // Find file-claimed plans matching paths in this PR.
   const { listFilesForPr } = await import("@/lib/integrations/github-app");
-  const candidates = await db.query.planArtifacts.findMany({
+  const candidates = await db.query.projectTasks.findMany({
     where: and(
-      eq(planArtifacts.organizationId, evt.organizationId),
-      eq(planArtifacts.projectId, projectId),
+      eq(projectTasks.organizationId, evt.organizationId),
+      eq(projectTasks.projectId, projectId),
     ),
-    columns: { id: true, status: true, claimedPath: true, kind: true, slug: true },
+    columns: { id: true, status: true, metadata: true, kind: true, slug: true },
   });
-  const claimed = candidates.filter((p) => p.claimedPath);
+  const claimed = candidates
+    .map((p) => ({ ...p, claimedPath: claimedPathFromMetadata(p.metadata) }))
+    .filter((p) => p.claimedPath);
   if (claimed.length === 0) return;
 
   let paths: Set<string> | null = null;
@@ -573,16 +584,16 @@ async function runPrLifecycleForPlans(
     const allowed = nextStatusAllowed(plan.status, target);
     if (!allowed) continue;
     await db
-      .update(planArtifacts)
+      .update(projectTasks)
       .set({ status: target, updatedAt: new Date() })
-      .where(eq(planArtifacts.id, plan.id));
+      .where(eq(projectTasks.id, plan.id));
     // Materialize governance_records on the transition.
     try {
       const { materializeGovernanceRecords } = await import(
         "@/operations/governance/records"
       );
       await materializeGovernanceRecords({
-        planArtifactId: plan.id,
+        projectTaskId: plan.id,
         transitionFrom: plan.status,
         transitionTo: target,
       });
@@ -847,8 +858,8 @@ function parseJiraPlanDescription(description: string | null | undefined): {
   };
 }
 
-function jiraCommentDbId(planArtifactId: string, jiraCommentId: string): string {
-  return `jira:${planArtifactId}:${jiraCommentId}`;
+function jiraCommentDbId(projectTaskId: string, jiraCommentId: string): string {
+  return `jira:${projectTaskId}:${jiraCommentId}`;
 }
 
 function extractJiraText(value: unknown): string {
@@ -884,7 +895,7 @@ function workItemAuditShape(row: {
   externalId: string;
   externalUrl?: string | null;
   projectId?: string | null;
-  planArtifactId?: string | null;
+  projectTaskId?: string | null;
   kind?: string | null;
   title: string;
   description?: string | null;
@@ -897,7 +908,7 @@ function workItemAuditShape(row: {
     externalId: row.externalId,
     externalUrl: row.externalUrl ?? null,
     projectId: row.projectId ?? null,
-    planArtifactId: row.planArtifactId ?? null,
+    projectTaskId: row.projectTaskId ?? null,
     kind: row.kind ?? null,
     title: row.title,
     description: row.description ?? null,
@@ -1034,7 +1045,7 @@ async function blockJiraStatusChangeAndRestore(input: {
 
 function commentAuditShape(row: {
   id: string;
-  planArtifactId: string;
+  projectTaskId: string;
   authorId: string;
   authorName?: string | null;
   body: string;
@@ -1044,7 +1055,7 @@ function commentAuditShape(row: {
 }) {
   return {
     id: row.id,
-    planArtifactId: row.planArtifactId,
+    projectTaskId: row.projectTaskId,
     authorId: row.authorId,
     authorName: row.authorName ?? null,
     body: row.body,
@@ -1056,15 +1067,15 @@ function commentAuditShape(row: {
 
 async function appendJiraPlanRevision(input: {
   organizationId: string;
-  planArtifactId: string;
+  projectTaskId: string;
   body: string;
-  details?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
   issueKey: string;
 }) {
   const last = await db.query.planRevisions.findFirst({
     where: and(
       eq(planRevisions.organizationId, input.organizationId),
-      eq(planRevisions.planArtifactId, input.planArtifactId),
+      eq(planRevisions.projectTasksId, input.projectTaskId),
     ),
     orderBy: [desc(planRevisions.revisionNumber)],
     columns: { revisionNumber: true },
@@ -1072,24 +1083,24 @@ async function appendJiraPlanRevision(input: {
 
   await db.insert(planRevisions).values({
     organizationId: input.organizationId,
-    planArtifactId: input.planArtifactId,
+    projectTasksId: input.projectTaskId,
     revisionNumber: (last?.revisionNumber ?? 0) + 1,
     body: input.body,
-    details: input.details ?? undefined,
+    details: input.metadata ?? undefined,
     changeNote: `Synced from Jira ${input.issueKey}`,
     createdById: `jira:${input.issueKey}`,
     createdByName: "Jira",
   });
 }
 
-type LinkedJiraWorkItem = { id: string; planArtifactId: string | null };
+type LinkedJiraWorkItem = { id: string; projectTaskId: string | null };
 
 async function resolveLinkedJiraPlan(input: {
   organizationId: string;
   projectId: string;
   issueKey: string;
   linkedWorkItem?: LinkedJiraWorkItem | null;
-}): Promise<{ planArtifactId: string | null; linkedWorkItem: LinkedJiraWorkItem | null }> {
+}): Promise<{ projectTaskId: string | null; linkedWorkItem: LinkedJiraWorkItem | null }> {
   const linkedWorkItem =
     input.linkedWorkItem === undefined
       ? await db.query.workItems.findFirst({
@@ -1099,30 +1110,30 @@ async function resolveLinkedJiraPlan(input: {
             eq(workItems.source, "jira"),
             eq(workItems.externalId, input.issueKey),
           ),
-          columns: { id: true, planArtifactId: true },
+          columns: { id: true, projectTaskId: true },
         })
       : input.linkedWorkItem;
 
-  let planArtifactId = linkedWorkItem?.planArtifactId ?? null;
-  if (!planArtifactId) {
-    const linkedPlan = await db.query.planArtifacts.findFirst({
+  let projectTaskId = linkedWorkItem?.projectTaskId ?? null;
+  if (!projectTaskId) {
+    const linkedPlan = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.organizationId, input.organizationId),
-        eq(planArtifacts.projectId, input.projectId),
-        eq(planArtifacts.externalRef, `jira:${input.issueKey}`),
+        eq(projectTasks.organizationId, input.organizationId),
+        eq(projectTasks.projectId, input.projectId),
+        eq(projectTasks.externalRef, `jira:${input.issueKey}`),
       ),
       columns: { id: true },
     });
-    planArtifactId = linkedPlan?.id ?? null;
-    if (planArtifactId && linkedWorkItem) {
+    projectTaskId = linkedPlan?.id ?? null;
+    if (projectTaskId && linkedWorkItem) {
       await db
         .update(workItems)
-        .set({ planArtifactId, updatedAt: new Date() })
+        .set({ projectTaskId, updatedAt: new Date() })
         .where(eq(workItems.id, linkedWorkItem.id));
     }
   }
 
-  return { planArtifactId, linkedWorkItem: linkedWorkItem ?? null };
+  return { projectTaskId, linkedWorkItem: linkedWorkItem ?? null };
 }
 
 async function syncLinkedPlanFromJiraIssue(input: {
@@ -1137,22 +1148,22 @@ async function syncLinkedPlanFromJiraIssue(input: {
   linked: boolean;
   mirrorWorkItem: boolean;
   mirrorStatus?: string | null;
-  planArtifactId?: string | null;
+  projectTaskId?: string | null;
 }> {
-  const { planArtifactId, linkedWorkItem } = await resolveLinkedJiraPlan(input);
-  if (!planArtifactId) return { linked: false, mirrorWorkItem: true };
+  const { projectTaskId, linkedWorkItem } = await resolveLinkedJiraPlan(input);
+  if (!projectTaskId) return { linked: false, mirrorWorkItem: true };
 
-  const plan = await db.query.planArtifacts.findFirst({
+  const plan = await db.query.projectTasks.findFirst({
     where: and(
-      eq(planArtifacts.organizationId, input.organizationId),
-      eq(planArtifacts.projectId, input.projectId),
-      eq(planArtifacts.id, planArtifactId),
+      eq(projectTasks.organizationId, input.organizationId),
+      eq(projectTasks.projectId, input.projectId),
+      eq(projectTasks.id, projectTaskId),
     ),
   });
   if (!plan) return { linked: false, mirrorWorkItem: true };
 
   const parsedDescription = parseJiraPlanDescription(input.description);
-  const update: Partial<typeof planArtifacts.$inferInsert> = {};
+  const update: Partial<typeof projectTasks.$inferInsert> = {};
   const editableFromJira = plan.status === "draft" || plan.status === "in_review";
   let mirrorStatus = input.status;
   const statusDrifted = jiraStatusDiffersFromPlan(plan.status, input.status);
@@ -1176,7 +1187,7 @@ async function syncLinkedPlanFromJiraIssue(input: {
   }
 
   if (Object.keys(update).length === 0) {
-    return { linked: true, mirrorWorkItem: statusDrifted, mirrorStatus, planArtifactId };
+    return { linked: true, mirrorWorkItem: statusDrifted, mirrorStatus, projectTaskId };
   }
 
   if (!editableFromJira) {
@@ -1194,20 +1205,20 @@ async function syncLinkedPlanFromJiraIssue(input: {
         attemptedChanges: update,
       },
     });
-    return { linked: true, mirrorWorkItem: false, mirrorStatus, planArtifactId };
+    return { linked: true, mirrorWorkItem: false, mirrorStatus, projectTaskId };
   }
 
   const before = planAuditShape(plan);
   const now = new Date();
   const [updated] = await db
-    .update(planArtifacts)
+    .update(projectTasks)
     .set({
       ...update,
       updatedAt: now,
       updatedById: `jira:${input.issueKey}`,
       updatedByName: "Jira",
     })
-    .where(eq(planArtifacts.id, plan.id))
+    .where(eq(projectTasks.id, plan.id))
     .returning();
 
   if (linkedWorkItem) {
@@ -1220,9 +1231,9 @@ async function syncLinkedPlanFromJiraIssue(input: {
   if (update.body !== undefined) {
     await appendJiraPlanRevision({
       organizationId: input.organizationId,
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       body: update.body,
-      details: plan.details,
+      metadata: plan.metadata,
       issueKey: input.issueKey,
     });
   }
@@ -1236,7 +1247,7 @@ async function syncLinkedPlanFromJiraIssue(input: {
     before,
     after: planAuditShape(updated),
   });
-  return { linked: true, mirrorWorkItem: true, mirrorStatus, planArtifactId };
+  return { linked: true, mirrorWorkItem: true, mirrorStatus, projectTaskId };
 }
 
 async function auditJiraWorkItemSync(input: {
@@ -1270,16 +1281,16 @@ async function mirrorJiraCommentToPlan(input: {
   const commentId = asIdString(input.comment.id);
   if (!commentId) return false;
 
-  const { planArtifactId } = await resolveLinkedJiraPlan(input);
-  if (!planArtifactId) return false;
+  const { projectTaskId } = await resolveLinkedJiraPlan(input);
+  if (!projectTaskId) return false;
 
-  const mirrorId = jiraCommentDbId(planArtifactId, commentId);
+  const mirrorId = jiraCommentDbId(projectTaskId, commentId);
   const cozntOriginCommentId = jiraCommentCozntCommentId(input.comment);
   const isDelete = input.eventName.includes("comment_deleted");
   const existingComment = await db.query.comments.findFirst({
     where: and(
       eq(comments.organizationId, input.organizationId),
-      eq(comments.planArtifactId, planArtifactId),
+      eq(comments.projectTaskId, projectTaskId),
       eq(comments.id, mirrorId),
     ),
   });
@@ -1291,7 +1302,7 @@ async function mirrorJiraCommentToPlan(input: {
         .where(
           and(
             eq(comments.organizationId, input.organizationId),
-            eq(comments.planArtifactId, planArtifactId),
+            eq(comments.projectTaskId, projectTaskId),
             eq(comments.id, mirrorId),
           ),
         );
@@ -1317,7 +1328,7 @@ async function mirrorJiraCommentToPlan(input: {
   const body = extractJiraText(input.comment.body).trim() || "No comment body.";
   const nextComment = {
     id: mirrorId,
-    planArtifactId,
+    projectTaskId,
     authorId: `jira:${commentId}`,
     authorName,
     body,
@@ -1331,7 +1342,7 @@ async function mirrorJiraCommentToPlan(input: {
     .values({
       organizationId: input.organizationId,
       id: nextComment.id,
-      planArtifactId: nextComment.planArtifactId,
+      projectTaskId: nextComment.projectTaskId,
       parentCommentId: null,
       authorId: nextComment.authorId,
       authorName: nextComment.authorName,
@@ -1429,10 +1440,7 @@ async function handleJira(evt: WebhookEvent): Promise<void> {
         ? "story"
         : "task";
 
-  const externalUrl =
-    asString(asObject(issue.self) as unknown) ??
-    asString(issue.self) ??
-    undefined;
+  const externalUrl = jiraBrowseUrlFromIssueSelf(asString(issue.self), issueKey) ?? undefined;
 
   const existingWorkItem = await db.query.workItems.findFirst({
     where: and(
@@ -1452,7 +1460,7 @@ async function handleJira(evt: WebhookEvent): Promise<void> {
     description,
     status,
     linkedWorkItem: existingWorkItem
-      ? { id: existingWorkItem.id, planArtifactId: existingWorkItem.planArtifactId }
+      ? { id: existingWorkItem.id, projectTaskId: existingWorkItem.projectTaskId }
       : null,
   });
   if (planSync.linked && !planSync.mirrorWorkItem && !mirroredJiraComment) {
@@ -1470,7 +1478,7 @@ async function handleJira(evt: WebhookEvent): Promise<void> {
     description: description ?? undefined,
     status: planSync.mirrorStatus ?? status ?? undefined,
     assigneeEmail,
-    planArtifactId: planSync.planArtifactId ?? undefined,
+    projectTaskId: planSync.projectTaskId ?? undefined,
     raw: payload,
   });
 

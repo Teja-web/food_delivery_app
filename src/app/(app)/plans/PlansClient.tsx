@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan-artifact";
+import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan/project-task";
 import { cn } from "@/lib/utils";
 
 import type { PlansPageClient } from "./serialize";

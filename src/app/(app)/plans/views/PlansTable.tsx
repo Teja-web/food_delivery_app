@@ -27,10 +27,10 @@ export function PlansTable({
     const map = new Map<string, PlanRowClient>();
     for (const rel of relationships) {
       if (rel.kind !== "parent_of") continue;
-      const parent = byId.get(rel.fromPlanArtifactId);
+      const parent = byId.get(rel.fromProjectTasksId);
       if (!parent) continue;
       // First parent wins; multi-parent plans surface only one in the table.
-      if (!map.has(rel.toPlanArtifactId)) map.set(rel.toPlanArtifactId, parent);
+      if (!map.has(rel.toProjectTasksId)) map.set(rel.toProjectTasksId, parent);
     }
     return map;
   }, [rows, relationships]);

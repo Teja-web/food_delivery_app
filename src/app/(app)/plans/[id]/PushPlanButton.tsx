@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { pushPlanArtifactToRepo } from "@/actions/plan/plans";
+import { pushProjectTaskToRepo } from "@/actions/plan/plans";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -135,7 +135,7 @@ export function PushPlanButton({
                 }
 
                 try {
-                  const result = await pushPlanArtifactToRepo({
+                  const result = await pushProjectTaskToRepo({
                     planId,
                     directoryName,
                     fileName,

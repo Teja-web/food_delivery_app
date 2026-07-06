@@ -12,17 +12,17 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
-  planArtifacts as plans,
+  projectTasks as plans,
   PLAN_KINDS,
   PLAN_PRIORITIES,
   PLAN_STATUSES,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan-artifact";
+} from "@/db/schema/plan/project-task";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import { computeNextAction } from "@/lib/agent-context/next-action";
-import { createPlan } from "@/operations/plan/plans";
+import { createPlan, normalizeProjectTaskMetadata } from "@/operations/plan/plans";
 
 const DEFAULT_KIND: PlanKind = "story";
 
@@ -77,7 +77,7 @@ export async function GET(
           eq(plans.kind, kind),
         );
 
-    const rows = await db.query.planArtifacts.findMany({
+    const rows = await db.query.projectTasks.findMany({
       where,
       orderBy: [desc(plans.updatedAt)],
       limit,
@@ -139,7 +139,7 @@ export async function POST(
         summary: item.summary,
         body: item.body ?? "",
         priority: item.priority,
-        effortEstimate: item.effortEstimate,
+        metadata: normalizeProjectTaskMetadata({ effortEstimate: item.effortEstimate }),
         assigneeId: item.assigneeId,
         assigneeName: item.assigneeName,
       });

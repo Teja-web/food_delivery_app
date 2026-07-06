@@ -23,6 +23,6 @@ export async function listPendingRecordsForUser(userId: string) {
   return listPendingOp(userId);
 }
 
-export async function listRecordsForPlan(planArtifactId: string) {
-  return listForPlanOp(planArtifactId);
+export async function listRecordsForPlan(projectTaskId: string) {
+  return listForPlanOp(projectTaskId);
 }

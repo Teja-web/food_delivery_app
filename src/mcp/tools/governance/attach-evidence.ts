@@ -1,7 +1,7 @@
 /**
  * MCP tool: attach_evidence
  *
- * Attach proof to a plan_artifact (deployment, test_run, metric snapshot,
+ * Attach proof to a project_task (deployment, test_run, metric snapshot,
  * work_item, skill_outcome, incident, or external link). One verb,
  * type-discriminated by `evidenceType`.
  */
@@ -16,10 +16,10 @@ import {
 } from "../../../db/schema/evidence-kinds";
 
 export const attachEvidenceInput = z.object({
-  planArtifactId: z
+  projectTaskId: z
     .string()
     .min(1)
-    .describe("Plan artifact to attach evidence to."),
+    .describe("Project task to attach evidence to."),
   evidenceType: z
     .enum(EVIDENCE_TYPES)
     .describe(

@@ -8,7 +8,7 @@ import { recordMttrForRollback, recordMttrForSuccess } from "@/operations/dora/m
 
 const deploymentSchema = z.object({
   projectId: z.string().min(1),
-  planArtifactId: z.string().optional().nullable(),
+  projectTaskId: z.string().optional().nullable(),
   environment: z.string().min(1),
   version: z.string().min(1),
   commitSha: z.string().optional(),
@@ -56,7 +56,7 @@ export async function recordDeployment(input: z.infer<typeof deploymentSchema>):
     .values({
       organizationId: ctx.organizationId,
       projectId: validated.projectId,
-      planArtifactId: validated.planArtifactId ?? null,
+      projectTaskId: validated.projectTaskId ?? null,
       environment: validated.environment,
       version: validated.version,
       commitSha: validated.commitSha,

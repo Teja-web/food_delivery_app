@@ -30,6 +30,19 @@ export function jiraExternalKeyFromParts(projectKey: string, siteUrl?: string | 
   return siteKey ? `${siteKey}/${key}` : key;
 }
 
+export function jiraBrowseUrlFromIssueSelf(
+  issueSelfUrl: string | null | undefined,
+  issueKey: string,
+): string | null {
+  const value = issueSelfUrl?.trim();
+  if (!value) return null;
+  try {
+    return `${new URL(value).origin}/browse/${issueKey}`;
+  } catch {
+    return null;
+  }
+}
+
 export function normalizeJiraExternalKey(
   externalKeyOrProjectKey: string,
   siteUrl?: string | null,

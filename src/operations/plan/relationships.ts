@@ -1,5 +1,5 @@
 /**
- * Plan Relationship CRUD — typed links between plan_artifacts.
+ * Plan Relationship CRUD — typed links between project_tasks.
  *
  * Kinds: parent_of | supersedes | derived_from | blocks | relates_to | causes | references.
  * `parent_of` is dominant but doesn't get a special path — one relationship surface.
@@ -18,8 +18,8 @@ import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 
 const relSchema = z.object({
-  fromPlanArtifactId: z.string().min(1),
-  toPlanArtifactId: z.string().min(1),
+  fromProjectTasksId: z.string().min(1),
+  toProjectTasksId: z.string().min(1),
   kind: z.enum(PLAN_RELATIONSHIP_KINDS),
   note: z.string().nullable().optional(),
 });
@@ -35,15 +35,15 @@ export const planRelationshipCrud = createEntityCrud({
 });
 
 export async function listRelationshipsForPlan(
-  planArtifactId: string,
+  projectTaskId: string,
   opts: { kind?: PlanRelationshipKind } = {},
 ) {
   const ctx = await getActionContext();
   const conditions = [
     eq(planRelationships.organizationId, ctx.organizationId),
     or(
-      eq(planRelationships.fromPlanArtifactId, planArtifactId),
-      eq(planRelationships.toPlanArtifactId, planArtifactId),
+      eq(planRelationships.fromProjectTasksId, projectTaskId),
+      eq(planRelationships.toProjectTasksId, projectTaskId),
     ),
   ];
   if (opts.kind) conditions.push(eq(planRelationships.kind, opts.kind));
@@ -65,8 +65,8 @@ export async function listRelationshipsForPlans(
   const conditions = [
     eq(planRelationships.organizationId, ctx.organizationId),
     or(
-      inArray(planRelationships.fromPlanArtifactId, planIds),
-      inArray(planRelationships.toPlanArtifactId, planIds),
+      inArray(planRelationships.fromProjectTasksId, planIds),
+      inArray(planRelationships.toProjectTasksId, planIds),
     ),
   ];
   if (opts.kind) conditions.push(eq(planRelationships.kind, opts.kind));

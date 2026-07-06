@@ -2,7 +2,7 @@
  * Resolves the `recommendedKickoff` field on `get_my_context`.
  *
  * Project phase has been removed — SDLC progression is expressed via
- * plan-artifact status. The kickoff state is now derived from the mix of
+ * project-task status. The kickoff state is now derived from the mix of
  * plan kinds and statuses on the project:
  *
  *   - empty                 — no plans
@@ -22,7 +22,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import type { Project } from "@/db/schema/project";
 import { getRoutingRulesForSlug } from "@/operations/choreography/choreographies";
 

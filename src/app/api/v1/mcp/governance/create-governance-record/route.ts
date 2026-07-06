@@ -8,7 +8,7 @@ import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { GOVERNANCE_KINDS } from "@/db/schema/governance/policies";
 import { PLAN_STATUSES } from "@/db/schema/plan/plan-kinds";
 import { handleApi } from "@/lib/auth/api-key";
@@ -16,7 +16,7 @@ import { httpError } from "@/lib/auth/scope";
 import { governanceRecordCrud } from "@/operations/governance/records";
 
 const bodySchema = z.object({
-  planArtifactId: z.string().min(1),
+  projectTaskId: z.string().min(1),
   kind: z.enum(GOVERNANCE_KINDS),
   policyId: z.string().optional(),
   transitionFrom: z.enum(PLAN_STATUSES).optional(),
@@ -31,10 +31,10 @@ export async function POST(req: Request) {
       throw httpError(400, "Invalid body", parsed.error.issues);
     }
 
-    const plan = await db.query.planArtifacts.findFirst({
+    const plan = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.id, parsed.data.planArtifactId),
-        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(projectTasks.id, parsed.data.projectTaskId),
+        eq(projectTasks.organizationId, ctx.organizationId),
       ),
     });
     if (!plan) throw httpError(404, "Plan not found");
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     const row = await governanceRecordCrud.create({
       projectId: plan.projectId,
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       kind: parsed.data.kind,
       policyId: parsed.data.policyId ?? null,
       transitionFrom: parsed.data.transitionFrom ?? null,

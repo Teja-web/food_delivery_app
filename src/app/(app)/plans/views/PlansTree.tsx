@@ -37,11 +37,11 @@ function buildForest(
   const childIdsByParent = new Map<string, string[]>();
   const childIdsWithParent = new Set<string>();
   for (const rel of parentOf) {
-    if (!byId.has(rel.fromPlanArtifactId) || !byId.has(rel.toPlanArtifactId)) continue;
-    const list = childIdsByParent.get(rel.fromPlanArtifactId) ?? [];
-    list.push(rel.toPlanArtifactId);
-    childIdsByParent.set(rel.fromPlanArtifactId, list);
-    childIdsWithParent.add(rel.toPlanArtifactId);
+    if (!byId.has(rel.fromProjectTasksId) || !byId.has(rel.toProjectTasksId)) continue;
+    const list = childIdsByParent.get(rel.fromProjectTasksId) ?? [];
+    list.push(rel.toProjectTasksId);
+    childIdsByParent.set(rel.fromProjectTasksId, list);
+    childIdsWithParent.add(rel.toProjectTasksId);
   }
 
   const buildSubtree = (id: string, ancestors: Set<string>): TreeNode | null => {

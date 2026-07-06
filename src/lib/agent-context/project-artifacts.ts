@@ -13,12 +13,12 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { governanceRecords } from "@/db/schema/governance/records";
 import {
-  planArtifacts as plans,
+  projectTasks as plans,
   PLAN_KINDS,
   PLAN_STATUSES,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan-artifact";
+} from "@/db/schema/plan/project-task";
 import { computeProjectDebt } from "@/operations/verification-debt";
 
 export interface PlansArtifact {

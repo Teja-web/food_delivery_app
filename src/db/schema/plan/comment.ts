@@ -1,21 +1,21 @@
 /**
- * Comment — threaded review discussion on a plan_artifact.
+ * Comment — threaded review discussion on a project_task.
  */
 
 import { text, timestamp, boolean, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "../schema";
-import { planArtifacts } from "./plan-artifact";
+import { projectTasks } from "./project-task";
 
 export const comments = cozntSchema.table(
   "comments",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
-    planArtifactId: text("plan_artifact_id")
+    projectTaskId: text("project_tasks_id")
       .notNull()
-      .references(() => planArtifacts.id, { onDelete: "cascade" }),
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
     parentCommentId: text("parent_comment_id"),
 
     authorId: text("author_id").notNull(),
@@ -27,7 +27,7 @@ export const comments = cozntSchema.table(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    index("comments_plan_artifact_idx").on(table.planArtifactId, table.createdAt),
+    index("comments_project_tasks_idx").on(table.projectTaskId, table.createdAt),
     index("comments_org_idx").on(table.organizationId),
     index("comments_fts_idx").using("gin", sql`coznt.fts_vector(${table.body})`),
   ],

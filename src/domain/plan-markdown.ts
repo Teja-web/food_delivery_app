@@ -26,7 +26,7 @@
  * project, and a CI job in the consumer's repo mirrors them.
  */
 
-import type { PlanArtifact as Plan } from "@/db/schema/plan/plan-artifact";
+import type { ProjectTask as Plan } from "@/db/schema/plan/project-task";
 import type { Project } from "@/db/schema/project";
 
 function yamlEscape(value: string): string {
@@ -50,6 +50,7 @@ export interface PlanMarkdownContext {
 }
 
 export function serializePlanToMarkdown(plan: Plan, ctx: PlanMarkdownContext = {}): string {
+  const metadata = (plan.metadata ?? {}) as Record<string, unknown>;
   const frontmatter: string[] = ["---"];
   appendField(frontmatter, "id", plan.id);
   appendField(frontmatter, "kind", plan.kind);
@@ -58,7 +59,7 @@ export function serializePlanToMarkdown(plan: Plan, ctx: PlanMarkdownContext = {
   // Parent linkage moved to plan_relationships (kind=parent_of); caller
   // may inject `parent` via ctx if it's needed in the markdown frontmatter.
   appendField(frontmatter, "priority", plan.priority);
-  appendField(frontmatter, "effortEstimate", plan.effortEstimate);
+  appendField(frontmatter, "effortEstimate", metadata.effortEstimate);
   appendField(frontmatter, "externalRef", plan.externalRef);
   appendField(frontmatter, "assignee", plan.assigneeName ?? plan.assigneeId);
   appendField(frontmatter, "updatedAt", plan.updatedAt);

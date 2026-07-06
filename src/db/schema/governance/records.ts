@@ -1,5 +1,5 @@
 /**
- * Governance Records — rule applications, always targeted at a plan_artifact.
+ * Governance Records — rule applications, always targeted at a project_task.
  *
  * One table for all four kinds (gate | approval | review | exception). Status
  * state machine is unified: pending → passed | failed | skipped | expired.
@@ -14,7 +14,7 @@ import { text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "../schema";
 import { projects } from "../project";
-import { planArtifacts } from "../plan/plan-artifact";
+import { projectTasks } from "../plan/project-task";
 import { governancePolicies } from "./policies";
 import { type PlanStatus } from "../plan/plan-kinds";
 import {
@@ -36,9 +36,9 @@ export const governanceRecords = cozntSchema.table(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    planArtifactId: text("plan_artifact_id")
+    projectTaskId: text("project_tasks_id")
       .notNull()
-      .references(() => planArtifacts.id, { onDelete: "cascade" }),
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
     policyId: text("policy_id").references(() => governancePolicies.id, { onDelete: "set null" }),
 
     kind: text().$type<GovernanceKind>().notNull(),
@@ -87,7 +87,7 @@ export const governanceRecords = cozntSchema.table(
   },
   (table) => [
     index("gov_records_org_idx").on(table.organizationId),
-    index("gov_records_plan_idx").on(table.planArtifactId, table.kind, table.status),
+    index("gov_records_plan_idx").on(table.projectTaskId, table.kind, table.status),
     index("gov_records_project_status_idx").on(table.projectId, table.status, table.kind),
     index("gov_records_policy_idx").on(table.policyId),
   ],

@@ -5,7 +5,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { adapterBindings } from "@/db/schema/adapter-binding";
 import { auditLogs } from "@/db/schema/audit/audit-log";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { getActionContext } from "@/lib/auth/context";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import {
@@ -22,8 +22,8 @@ import { jiraProjectKeyFromExternalKey } from "@/lib/integrations/jira-keys";
 
 export async function pushPlanToJiraAction(planId: string) {
   const ctx = await getActionContext();
-  const plan = await db.query.planArtifacts.findFirst({
-    where: and(eq(planArtifacts.id, planId), eq(planArtifacts.organizationId, ctx.organizationId)),
+  const plan = await db.query.projectTasks.findFirst({
+    where: and(eq(projectTasks.id, planId), eq(projectTasks.organizationId, ctx.organizationId)),
     columns: { id: true },
   });
   if (!plan) throw new Error("Plan not found.");
@@ -41,22 +41,22 @@ export async function listJiraPushTargetsAction(input: {
     input.mode === "approved"
       ? input.projectId
         ? and(
-            eq(planArtifacts.organizationId, ctx.organizationId),
-            eq(planArtifacts.projectId, input.projectId),
-            eq(planArtifacts.status, "approved"),
+            eq(projectTasks.organizationId, ctx.organizationId),
+            eq(projectTasks.projectId, input.projectId),
+            eq(projectTasks.status, "approved"),
           )
         : and(
-            eq(planArtifacts.organizationId, ctx.organizationId),
-            eq(planArtifacts.status, "approved"),
+            eq(projectTasks.organizationId, ctx.organizationId),
+            eq(projectTasks.status, "approved"),
           )
       : input.projectId
         ? and(
-            eq(planArtifacts.organizationId, ctx.organizationId),
-            eq(planArtifacts.projectId, input.projectId),
+            eq(projectTasks.organizationId, ctx.organizationId),
+            eq(projectTasks.projectId, input.projectId),
           )
-        : eq(planArtifacts.organizationId, ctx.organizationId);
+        : eq(projectTasks.organizationId, ctx.organizationId);
 
-  const plans = await db.query.planArtifacts.findMany({
+  const plans = await db.query.projectTasks.findMany({
     where,
     columns: {
       id: true,

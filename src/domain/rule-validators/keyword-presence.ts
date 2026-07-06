@@ -1,5 +1,5 @@
 /**
- * Keyword-presence validator — checks plan-artifact body text for
+ * Keyword-presence validator — checks project-task body text for
  * required / forbidden tokens.
  *
  * Promoted from `src/operations/rule-engine.ts` per
