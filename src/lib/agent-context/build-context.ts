@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { projectLearnings } from "@/db/schema/plan/project-learning";
 import { projects, type Project } from "@/db/schema/project";
 import { repositories } from "@/db/schema/repository";
@@ -218,7 +218,7 @@ export async function buildMcpContext(args: {
       ),
       limit: 25,
     }),
-    db.query.planArtifacts.findMany({
+    db.query.projectTasks.findMany({
       where: and(
         eq(plans.organizationId, project.organizationId),
         eq(plans.projectId, project.id),

@@ -21,7 +21,7 @@ import type { CockpitBindingClient } from "../serialize";
 export interface PendingGovernanceRow {
   id: string;
   kind: string;
-  planArtifactId: string;
+  projectTaskId: string;
   planTitle: string | null;
   createdAtIso: string;
 }
@@ -96,7 +96,7 @@ const PULSE_GUIDE: { pillar: string; items: PulseItem[] }[] = [
       {
         Icon: ScrollText,
         label: "Plans",
-        desc: "Every plan artifact authored against this project — epics, features, ADRs, specs, incidents.",
+        desc: "Every project task authored against this project - epics, features, ADRs, specs, incidents.",
       },
       {
         Icon: Workflow,
@@ -334,13 +334,13 @@ export function OverviewTab({
                 {pendingGovernance.slice(0, 8).map((r) => (
                   <li key={r.id} className="flex items-center justify-between px-3 py-2">
                     <Link
-                      href={`/plans/${r.planArtifactId}`}
+                      href={`/plans/${r.projectTaskId}`}
                       className="min-w-0 truncate hover:underline"
                     >
                       <span className="mr-2 font-mono text-[10px] uppercase text-muted-foreground">
                         {r.kind}
                       </span>
-                      {r.planTitle ?? r.planArtifactId.slice(0, 8)}
+                      {r.planTitle ?? r.projectTaskId.slice(0, 8)}
                     </Link>
                     <span className="text-xs text-muted-foreground">
                       {new Date(r.createdAtIso).toLocaleDateString()}

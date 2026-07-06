@@ -51,7 +51,7 @@ export async function GET(
           id: true,
           kind: true,
           status: true,
-          planArtifactId: true,
+          projectTaskId: true,
         },
       }),
       db.query.deployments.findFirst({
@@ -83,7 +83,7 @@ export async function GET(
         skipped,
         pendingByKind: records
           .filter((g) => g.status === "pending")
-          .map((g) => ({ id: g.id, kind: g.kind, planArtifactId: g.planArtifactId })),
+          .map((g) => ({ id: g.id, kind: g.kind, projectTaskId: g.projectTaskId })),
       },
       openApprovals,
       lastDeploy: lastDeploy

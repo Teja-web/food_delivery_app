@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError } from "@/lib/auth/scope";
 import { pushPlanToJira } from "@/lib/integrations/outbound";
@@ -19,10 +19,10 @@ export async function POST(req: Request) {
       throw httpError(400, "Invalid body", parsed.error.issues);
     }
 
-    const plan = await db.query.planArtifacts.findFirst({
+    const plan = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.id, parsed.data.planId),
-        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(projectTasks.id, parsed.data.planId),
+        eq(projectTasks.organizationId, ctx.organizationId),
       ),
       columns: { id: true, projectId: true },
     });

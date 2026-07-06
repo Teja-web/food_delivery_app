@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/db/client";
 import { governanceRecords } from "@/db/schema/governance/records";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { getActionContext } from "@/lib/auth/context";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { listPendingRecordsForUser } from "@/operations/governance/records";
@@ -35,17 +35,17 @@ export default async function GovernanceInboxPage({
       ),
     );
 
-  const planIds = Array.from(new Set(allPending.map((r) => r.planArtifactId)));
+  const planIds = Array.from(new Set(allPending.map((r) => r.projectTaskId)));
   const planTitles = new Map<string, { title: string; kind: string }>();
   if (planIds.length > 0) {
     const rows = await db
       .select({
-        id: planArtifacts.id,
-        title: planArtifacts.title,
-        kind: planArtifacts.kind,
+        id: projectTasks.id,
+        title: projectTasks.title,
+        kind: projectTasks.kind,
       })
-      .from(planArtifacts)
-      .where(inArray(planArtifacts.id, planIds));
+      .from(projectTasks)
+      .where(inArray(projectTasks.id, planIds));
     for (const r of rows) planTitles.set(r.id, { title: r.title, kind: r.kind });
   }
 
@@ -65,7 +65,7 @@ export default async function GovernanceInboxPage({
       ) : (
         <ul className="divide-y rounded border text-sm">
           {allPending.map((r) => {
-            const plan = planTitles.get(r.planArtifactId);
+            const plan = planTitles.get(r.projectTaskId);
             const youDecide = mineSet.has(r.id);
             return (
               <li
@@ -90,10 +90,10 @@ export default async function GovernanceInboxPage({
                   </div>
                   <div className="mt-0.5 truncate">
                     <a
-                      href={`/plans/${r.planArtifactId}`}
+                      href={`/plans/${r.projectTaskId}`}
                       className="hover:underline"
                     >
-                      {plan?.title ?? r.planArtifactId.slice(0, 12)}
+                      {plan?.title ?? r.projectTaskId.slice(0, 12)}
                     </a>
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">

@@ -3,7 +3,7 @@
  *
  * `source` says which system (`github`, `jira`, `ado`, `confluence`).
  * `externalId` uniquely identifies the artifact in that system. Optional
- * `planArtifactId` links the work item back to the plan it implements;
+ * `projectTaskId` links the work item back to the plan it implements;
  * going forward the canonical traceability surface is `evidence_links`,
  * but this column stays as a fast lookup (one work-item → one plan).
  */
@@ -13,7 +13,7 @@ import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cozntSchema } from "./schema";
 import { projects } from "./project";
-import { planArtifacts } from "./plan/plan-artifact";
+import { projectTasks } from "./plan/project-task";
 import { repositories } from "./repository";
 import { skills } from "./skill/skill";
 
@@ -37,7 +37,7 @@ export const workItems = cozntSchema.table(
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
     projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
-    planArtifactId: text("plan_artifact_id").references(() => planArtifacts.id, {
+    projectTaskId: text("project_tasks_id").references(() => projectTasks.id, {
       onDelete: "set null",
     }),
     repositoryId: text("repository_id").references(() => repositories.id, {
@@ -73,7 +73,7 @@ export const workItems = cozntSchema.table(
   (table) => [
     index("work_items_org_idx").on(table.organizationId),
     index("work_items_project_idx").on(table.projectId),
-    index("work_items_plan_artifact_idx").on(table.planArtifactId),
+    index("work_items_project_tasks_idx").on(table.projectTaskId),
     index("work_items_repository_idx").on(table.repositoryId),
     index("work_items_generated_by_skill_idx").on(table.generatedBySkillId),
     unique("work_items_source_external_unique").on(table.source, table.externalId),

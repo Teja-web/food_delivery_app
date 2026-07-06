@@ -10,7 +10,7 @@ export * from "./project";
 export * from "./repository";
 export * from "./environment";
 export * from "./artifact";
-export * from "./plan/plan-artifact";
+export * from "./plan/project-task";
 export * from "./plan/plan-relationship";
 export * from "./plan/plan-revision";
 export * from "./plan/comment";

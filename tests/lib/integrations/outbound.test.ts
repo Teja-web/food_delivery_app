@@ -14,13 +14,13 @@ describe("buildJiraPlanDescription", () => {
       slug: "checkout-idempotency",
       status: "approved",
       priority: "p1",
-      effortEstimate: "3d",
       dueDate: new Date("2026-07-15T00:00:00.000Z"),
       assigneeName: "Sam Rivera",
       assigneeId: null,
       summary: "Make checkout retries safe.",
       body: "Implementation notes live here.",
-      details: {
+      metadata: {
+        effortEstimate: "3d",
         asA: "shopper",
         iWant: "safe checkout retries",
         soThat: "I do not get double charged",
@@ -28,7 +28,7 @@ describe("buildJiraPlanDescription", () => {
       },
     });
 
-    expect(description).toContain("Coznt plan artifact");
+    expect(description).toContain("Coznt project task");
     expect(description).toContain("- Kind: Story");
     expect(description).toContain("- Status: Approved");
     expect(description).toContain("- Due date: 2026-07-15");

@@ -4,7 +4,7 @@ import { CozntClient } from "../../client";
 import { bumpToolCall } from "../../session";
 
 export const pushPlanToJiraInput = z.object({
-  planId: z.string().min(1).describe("The Coznt plan_artifact id to push into Jira."),
+  planId: z.string().min(1).describe("The Coznt project_task id to push into Jira."),
 });
 
 export type PushPlanToJiraInput = z.infer<typeof pushPlanToJiraInput>;

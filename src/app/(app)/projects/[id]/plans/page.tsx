@@ -6,10 +6,10 @@ import { Toaster } from "@/components/ui/sonner";
 import {
   PLAN_KINDS,
   PLAN_STATUSES,
-  type PlanArtifact,
+  type ProjectTask,
   type PlanKind,
   type PlanStatus,
-} from "@/db/schema/plan/plan-artifact";
+} from "@/db/schema/plan/project-task";
 import type { Project } from "@/db/schema/project";
 import { getActionContext } from "@/lib/auth/context";
 import { listJiraPushTargetsAction } from "@/actions/integration/jira-sync";
@@ -24,7 +24,7 @@ import {
   type PlansPageClient,
 } from "@/app/(app)/plans/serialize";
 
-type PlanWithProject = PlanArtifact & { project?: Project | null };
+type PlanWithProject = ProjectTask & { project?: Project | null };
 
 /**
  * Project-scoped plans tab. Re-uses the global PlansClient with a server-side
@@ -45,7 +45,7 @@ export default async function ProjectPlansPage({
   const pendingByPlanId = new Set<string>();
   if (planItems.length > 0) {
     const pendingRows = await db
-      .select({ planArtifactId: governanceRecords.planArtifactId })
+      .select({ projectTaskId: governanceRecords.projectTaskId })
       .from(governanceRecords)
       .where(
         and(
@@ -55,7 +55,7 @@ export default async function ProjectPlansPage({
           eq(governanceRecords.status, "pending"),
         ),
       );
-    for (const r of pendingRows) pendingByPlanId.add(r.planArtifactId);
+    for (const r of pendingRows) pendingByPlanId.add(r.projectTaskId);
   }
 
   const rows: PlanRowClient[] = planItems.map((p) =>
@@ -83,8 +83,8 @@ export default async function ProjectPlansPage({
   );
   const jiraPushTargets = await listJiraPushTargetsAction({ mode: "all", projectId: id });
   const relationships: PlanRelationshipRowClient[] = relationshipRows.map((r) => ({
-    fromPlanArtifactId: r.fromPlanArtifactId,
-    toPlanArtifactId: r.toPlanArtifactId,
+    fromProjectTasksId: r.fromProjectTasksId,
+    toProjectTasksId: r.toProjectTasksId,
     kind: r.kind,
   }));
 

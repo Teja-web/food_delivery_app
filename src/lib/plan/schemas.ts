@@ -1,9 +1,9 @@
 /**
- * Per-kind Zod schemas for the `plan_artifacts.details` JSONB column.
+ * Per-kind Zod schemas for the `project_tasks.metadata` JSONB column.
  *
  * Nine kinds: epic | feature | story | spec | adr | test_plan | release_plan
  * | risk_register | incident. The schema for each kind is the contract for
- * what's queryable inside `details` without per-kind columns.
+ * what's queryable inside `metadata` without per-kind columns.
  */
 
 import { z } from "zod/v4";

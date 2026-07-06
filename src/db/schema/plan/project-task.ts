@@ -1,12 +1,12 @@
 /**
- * Plan Artifact — the universal governance subject.
+ * Project Task - the universal governance subject.
  *
  * One table for all nine kinds: epic, feature, story, spec, adr, test_plan,
  * release_plan, risk_register, incident. Per-kind structured fields live in
- * `details` JSONB (validated by Zod schemas in `lib/plan/schemas.ts`).
+ * `metadata` JSONB (validated by Zod schemas in `lib/plan/schemas.ts`).
  *
- * Hierarchy (Epic → Feature → Story, ADR supersession, etc.) lives in
- * `plan_relationships` — there is no privileged `parentPlanId` column.
+ * Hierarchy (Epic -> Feature -> Story, ADR supersession, etc.) lives in
+ * `plan_relationships`; there is no privileged `parentPlanId` column.
  */
 
 import { text, timestamp, jsonb, boolean, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
@@ -43,8 +43,8 @@ export {
   type PlanRelationshipKind,
 };
 
-export const planArtifacts = cozntSchema.table(
-  "plan_artifacts",
+export const projectTasks = cozntSchema.table(
+  "project_tasks",
   {
     id: text().primaryKey().$defaultFn(() => nanoid()),
     organizationId: text("organization_id").notNull(),
@@ -57,15 +57,12 @@ export const planArtifacts = cozntSchema.table(
     summary: text(),
     body: text().notNull().default(""),
 
-    /** Per-kind structured fields. Shape per `kind`; see `lib/plan/schemas.ts`. */
-    details: jsonb().$type<Record<string, unknown>>(),
+    /** Per-kind structured fields and migrated legacy metadata. */
+    metadata: jsonb().$type<Record<string, unknown>>(),
 
     status: text().$type<PlanStatus>().notNull().default("draft"),
     priority: text().$type<PlanPriority>(),
-    effortEstimate: text("effort_estimate"),
     dueDate: timestamp("due_date"),
-
-    classifications: text().array().$type<PlanClassification[]>(),
 
     /** External link (Jira issue, GitHub PR, ADO work item, Confluence page). */
     externalRef: text("external_ref"),
@@ -89,31 +86,21 @@ export const planArtifacts = cozntSchema.table(
     promptHash: text("prompt_hash"),
     generatedAt: timestamp("generated_at"),
 
-    /**
-     * File-canonical authoring path per docs/spec/dev-authoring-surface.md §19.
-     * Non-null = the artifact is the import of a .agents/plans/<kind>/*.md (or
-     * well-known path) file; definition fields (title, summary, body, details,
-     * relationships) are only writable by the merge webhook. Runtime state
-     * (status, assigneeId, governance_records) stays editable.
-     */
-    claimedPath: text("claimed_path"),
-
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    index("plan_artifacts_org_idx").on(table.organizationId),
-    index("plan_artifacts_project_status_idx").on(table.projectId, table.status),
-    index("plan_artifacts_kind_status_idx").on(table.kind, table.status),
-    index("plan_artifacts_generated_by_skill_idx").on(table.generatedBySkillId),
-    index("plan_artifacts_claimed_path_idx").on(table.projectId, table.claimedPath),
-    uniqueIndex("plan_artifacts_project_kind_slug_idx").on(table.projectId, table.kind, table.slug),
-    index("plan_artifacts_fts_idx").using(
+    index("project_tasks_org_idx").on(table.organizationId),
+    index("project_tasks_project_status_idx").on(table.projectId, table.status),
+    index("project_tasks_kind_status_idx").on(table.kind, table.status),
+    index("project_tasks_generated_by_skill_idx").on(table.generatedBySkillId),
+    uniqueIndex("project_tasks_project_kind_slug_idx").on(table.projectId, table.kind, table.slug),
+    index("project_tasks_fts_idx").using(
       "gin",
       sql`coznt.fts_vector(${table.title}, ${table.summary}, ${table.body})`,
     ),
   ],
 );
 
-export type PlanArtifact = typeof planArtifacts.$inferSelect;
-export type NewPlanArtifact = typeof planArtifacts.$inferInsert;
+export type ProjectTask = typeof projectTasks.$inferSelect;
+export type NewProjectTask = typeof projectTasks.$inferInsert;

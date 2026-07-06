@@ -310,11 +310,11 @@ async function openGovernanceRecord(
   diff: SkillSyncDiff,
   kind: "review" | "approval",
 ): Promise<void> {
-  // Skill changes don't have a plan_artifactId. We create a record attached
-  // to a sentinel plan_artifact representing the skill change — or, simpler
+  // Skill changes don't have a project_taskId. We create a record attached
+  // to a sentinel project_task representing the skill change — or, simpler
   // for MVP, write an audit entry that surfaces in the inbox via the
   // existing skill-changes view. The governance_records table requires
-  // planArtifactId NOT NULL, so for skill/rule definition changes we use the
+  // projectTaskId NOT NULL, so for skill/rule definition changes we use the
   // audit_logs path only and the web app surfaces these under
   // /governance/inbox?artifact=skill via a dedicated query.
   //

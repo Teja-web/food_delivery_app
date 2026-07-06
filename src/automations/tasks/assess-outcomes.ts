@@ -10,7 +10,7 @@
  * to scan in the new schema.
  *
  * TODO (spec §5): replace with an evidence-link walk —
- *   - pr_merge: find plan_artifacts in status=completed with an
+ *   - pr_merge: find project_tasks in status=completed with an
  *     evidence_link of evidenceType=work_item older than 7d that has no
  *     follow-up evidence_link of role=causes (i.e. no revert recorded).
  *   - deploy_clean: same idea, anchored on evidenceType=deployment with
