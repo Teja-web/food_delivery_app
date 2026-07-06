@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     const row = await governanceRecordCrud.create({
       projectId: supersedes.projectId,
-      planArtifactId: supersedes.planArtifactId,
+      projectTaskId: supersedes.projectTaskId,
       kind: "exception",
       status: "pending",
       details: {

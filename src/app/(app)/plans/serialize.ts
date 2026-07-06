@@ -1,10 +1,10 @@
-import type { PlanArtifact, PlanKind, PlanStatus } from "@/db/schema/plan/plan-artifact";
+import type { ProjectTask, PlanKind, PlanStatus } from "@/db/schema/plan/project-task";
 import type { PlanRelationshipKind } from "@/db/schema/plan/plan-relationship";
 import type { Project } from "@/db/schema/project";
 
 export type PlanRelationshipRowClient = {
-  fromPlanArtifactId: string;
-  toPlanArtifactId: string;
+  fromProjectTasksId: string;
+  toProjectTasksId: string;
   kind: PlanRelationshipKind;
 };
 
@@ -43,6 +43,7 @@ export type PlansPageClient = {
     byStatus: Record<PlanStatus, number>;
     byKind: Record<PlanKind, number>;
     needsApproval: number;
+    jiraPushTargets: number;
   };
 };
 
@@ -94,7 +95,7 @@ function formatRelative(date: Date): string {
 }
 
 export function serializePlanRow(
-  plan: PlanArtifact & { project?: Project | null },
+  plan: ProjectTask & { project?: Project | null },
   opts: { needsApproval?: boolean } = {},
 ): PlanRowClient {
   const proj = plan.project;

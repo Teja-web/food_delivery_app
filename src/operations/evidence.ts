@@ -1,9 +1,9 @@
 /**
- * Evidence Links — attach/list/dereference proof artifacts on a plan_artifact.
+ * Evidence Links — attach/list/dereference proof artifacts on a project_task.
  *
  * One attach op regardless of evidenceType. Type-specific resolution at
  * dereference time only. The single canonical attachment surface; legacy
- * `work_items.planArtifactId` is a fast lookup but evidence flows through here.
+ * `work_items.projectTaskId` is a fast lookup but evidence flows through here.
  */
 
 import { z } from "zod/v4";
@@ -21,14 +21,14 @@ import { testRuns } from "@/db/schema/test-run";
 import { workItems } from "@/db/schema/work-item";
 import { metrics } from "@/db/schema/metric";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import type { PlanKind } from "@/db/schema/plan/plan-kinds";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 
 const evidenceSchema = z.object({
   projectId: z.string().min(1),
-  planArtifactId: z.string().min(1),
+  projectTaskId: z.string().min(1),
   evidenceType: z.enum(EVIDENCE_TYPES),
   evidenceId: z.string().nullable().optional(),
   externalUrl: z.string().url().nullable().optional(),
@@ -57,12 +57,12 @@ export async function attachEvidence(args: z.input<typeof evidenceSchema>) {
   });
 }
 
-export async function listEvidenceForPlan(planArtifactId: string) {
+export async function listEvidenceForPlan(projectTaskId: string) {
   const ctx = await getActionContext();
   return db.query.evidenceLinks.findMany({
     where: and(
       eq(evidenceLinks.organizationId, ctx.organizationId),
-      eq(evidenceLinks.planArtifactId, planArtifactId),
+      eq(evidenceLinks.projectTaskId, projectTaskId),
     ),
     orderBy: [desc(evidenceLinks.attachedAt)],
   });
@@ -80,7 +80,7 @@ export async function listEvidenceForProject(projectId: string) {
 }
 
 /**
- * Verification debt — plan artifacts that crossed into `completed` within
+ * Verification debt — project tasks that crossed into `completed` within
  * the trailing window but carry no `evidence_links` row of any of the
  * expected types for their kind. Load-bearing read for the Trust pillar:
  * a non-zero count means promises made (plan completed) are not yet
@@ -101,7 +101,7 @@ export const PLAN_EXPECTED_EVIDENCE: Partial<Record<PlanKind, EvidenceType[]>> =
 };
 
 export type StaleEvidenceRow = {
-  planArtifactId: string;
+  projectTaskId: string;
   planKind: PlanKind;
   planTitle: string;
   completedAt: Date;
@@ -117,20 +117,20 @@ export async function getStaleEvidence(args: {
   const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
   const conditions = [
-    eq(planArtifacts.organizationId, ctx.organizationId),
-    eq(planArtifacts.status, "completed"),
-    gte(planArtifacts.updatedAt, since),
+    eq(projectTasks.organizationId, ctx.organizationId),
+    eq(projectTasks.status, "completed"),
+    gte(projectTasks.updatedAt, since),
   ];
-  if (args.projectId) conditions.push(eq(planArtifacts.projectId, args.projectId));
+  if (args.projectId) conditions.push(eq(projectTasks.projectId, args.projectId));
 
   const plans = await db
     .select({
-      id: planArtifacts.id,
-      kind: planArtifacts.kind,
-      title: planArtifacts.title,
-      updatedAt: planArtifacts.updatedAt,
+      id: projectTasks.id,
+      kind: projectTasks.kind,
+      title: projectTasks.title,
+      updatedAt: projectTasks.updatedAt,
     })
-    .from(planArtifacts)
+    .from(projectTasks)
     .where(and(...conditions));
 
   if (plans.length === 0) return [];
@@ -138,23 +138,23 @@ export async function getStaleEvidence(args: {
   const planIds = plans.map((p) => p.id);
   const attached = await db
     .select({
-      planArtifactId: evidenceLinks.planArtifactId,
+      projectTaskId: evidenceLinks.projectTaskId,
       evidenceType: evidenceLinks.evidenceType,
     })
     .from(evidenceLinks)
     .where(
       and(
         eq(evidenceLinks.organizationId, ctx.organizationId),
-        sql`${evidenceLinks.planArtifactId} = ANY(${planIds})`,
+        sql`${evidenceLinks.projectTaskId} = ANY(${planIds})`,
       ),
     );
 
   const attachedByPlan = new Map<string, Set<EvidenceType>>();
   for (const row of attached) {
-    let set = attachedByPlan.get(row.planArtifactId);
+    let set = attachedByPlan.get(row.projectTaskId);
     if (!set) {
       set = new Set();
-      attachedByPlan.set(row.planArtifactId, set);
+      attachedByPlan.set(row.projectTaskId, set);
     }
     set.add(row.evidenceType);
   }
@@ -167,7 +167,7 @@ export async function getStaleEvidence(args: {
     const allMissing = expected.every((t) => !have.has(t));
     if (!allMissing) continue;
     stale.push({
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       planKind: plan.kind,
       planTitle: plan.title,
       completedAt: plan.updatedAt,
@@ -184,7 +184,7 @@ type DereferenceResult =
   | { type: "metric_snapshot"; target: typeof metrics.$inferSelect | null }
   | { type: "work_item"; target: typeof workItems.$inferSelect | null }
   | { type: "skill_outcome"; target: typeof skillOutcomes.$inferSelect | null }
-  | { type: "incident"; target: typeof planArtifacts.$inferSelect | null }
+  | { type: "incident"; target: typeof projectTasks.$inferSelect | null }
   | { type: "external_link"; target: { url: string | null } };
 
 /** Resolve a single evidence link to its typed target. */
@@ -226,8 +226,8 @@ export async function dereferenceEvidence(link: typeof evidenceLinks.$inferSelec
     }
     case "incident": {
       const target = link.evidenceId
-        ? ((await db.query.planArtifacts.findFirst({
-            where: eq(planArtifacts.id, link.evidenceId),
+        ? ((await db.query.projectTasks.findFirst({
+            where: eq(projectTasks.id, link.evidenceId),
           })) ?? null)
         : null;
       return { type: "incident", target };

@@ -44,6 +44,23 @@ export const McpAdrSchema = z.object({
   url: z.string(),
 });
 
+export const McpStandardsSchema = z.object({
+  requiredComplete: z.boolean(),
+  missingRequired: z.array(z.string()),
+  resourceUri: z.literal("coznt://standards"),
+  items: z.array(
+    z.object({
+      kind: z.string(),
+      name: z.string(),
+      title: z.string(),
+      scope: z.enum(["org", "project"]),
+      version: z.string(),
+      hash: z.string(),
+      updatedAt: z.string(),
+    }),
+  ),
+});
+
 export const McpMetaSchema = z.object({
   responseTimeMs: z.number(),
   cacheStatus: z.enum(["fresh", "stale", "miss"]),
@@ -131,10 +148,12 @@ export const McpResponseSchema = z.object({
   welcome: McpWelcomeSchema,
   workItem: McpWorkItemSchema.nullable(),
   recommendedKickoff: McpRecommendedKickoffSchema.nullable(),
+  currentStage: z.string(),
   projectArtifacts: McpProjectArtifactsSchema,
   rules: z.array(McpRuleSchema),
   skills: z.array(McpSkillSchema),
   adrs: z.array(McpAdrSchema),
+  standards: McpStandardsSchema,
   /**
    * Pinned + recent learnings for this project. Empty when no learnings
    * have been authored. Surfaces on every `get_my_context` call so the
@@ -144,3 +163,4 @@ export const McpResponseSchema = z.object({
   meta: McpMetaSchema,
 });
 export type McpResponse = z.infer<typeof McpResponseSchema>;
+

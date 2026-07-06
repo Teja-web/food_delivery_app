@@ -1,6 +1,6 @@
 /**
  * Sync `.agents/plans/<kind>/*.md` and well-known plan paths into the
- * `plan_artifacts` table on default-branch push, per
+ * `project_tasks` table on default-branch push, per
  * docs/spec/dev-authoring-surface.md §10 / §12 / §7.1.
  *
  * Path resolution (in precedence order):
@@ -11,9 +11,9 @@
  *   3. Custom paths declared in .agents/coznt.yaml (resolveAuthoringPaths)
  *
  * Routing per §12:
- *   Added / Modified plan-artifact → direct DB write + audit. Status
+ *   Added / Modified project-task → direct DB write + audit. Status
  *     transitions happen separately, via the PR lifecycle handler.
- *   Removed plan-artifact          → soft-delete (status=cancelled) + audit
+ *   Removed project-task          → soft-delete (status=cancelled) + audit
  *
  * `plan_relationships` rows are upserted from frontmatter `relationships`
  * (and shorthand `parent` / `supersedes` / `derivedFrom` / `relatesTo`).
@@ -23,9 +23,9 @@
  * batch — see "Open questions §21").
  */
 
-import { and, eq, isNotNull, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { planArtifacts, type PlanArtifact } from "@/db/schema/plan/plan-artifact";
+import { projectTasks, type ProjectTask } from "@/db/schema/plan/project-task";
 import { planRelationships } from "@/db/schema/plan/plan-relationship";
 import {
   planFileFrontmatterSchema,
@@ -48,7 +48,7 @@ export interface PlanSyncDiff {
   path: string | null;
   fm: PlanFileFrontmatter | null;
   body: string;
-  existing: PlanArtifact | null;
+  existing: ProjectTask | null;
   relationships: Array<{ kind: string; target: string }>;
 }
 
@@ -56,6 +56,46 @@ export interface PlanSyncResult {
   applied: PlanSyncDiff[];
   parseErrors: Array<{ path: string; message: string }>;
   unresolvedRelationships: Array<{ from: string; to: string; kind: string }>;
+}
+
+function claimedPathOf(row: Pick<ProjectTask, "metadata">): string | null {
+  const metadata = row.metadata ?? {};
+  const source = metadata.source;
+  if (typeof source !== "object" || source === null || Array.isArray(source)) return null;
+  const claimedPath = (source as Record<string, unknown>).claimedPath;
+  return typeof claimedPath === "string" && claimedPath.length > 0 ? claimedPath : null;
+}
+
+function metadataForFileClaimedPlan(
+  fm: PlanFileFrontmatter,
+  path: string | null,
+  existing?: ProjectTask | null,
+): Record<string, unknown> | null {
+  const metadata: Record<string, unknown> = {
+    ...(((fm as { details?: Record<string, unknown> }).details ?? {}) as Record<string, unknown>),
+  };
+
+  const existingMetadata = existing?.metadata ?? {};
+  if (fm.classifications) {
+    metadata.classifications = fm.classifications;
+  } else if (Array.isArray(existingMetadata.classifications)) {
+    metadata.classifications = existingMetadata.classifications;
+  }
+  if (typeof existingMetadata.effortEstimate === "string") {
+    metadata.effortEstimate = existingMetadata.effortEstimate;
+  }
+  if (path) {
+    metadata.source = {
+      ...(typeof existingMetadata.source === "object" &&
+      existingMetadata.source !== null &&
+      !Array.isArray(existingMetadata.source)
+        ? (existingMetadata.source as Record<string, unknown>)
+        : {}),
+      claimedPath: path,
+    };
+  }
+
+  return Object.keys(metadata).length > 0 ? metadata : null;
 }
 
 export async function syncPlansFromMerge(ctx: MergeSyncContext): Promise<PlanSyncResult> {
@@ -130,11 +170,11 @@ export async function syncPlansFromMerge(ctx: MergeSyncContext): Promise<PlanSyn
   }
 
   // Existing file-claimed plans for this project.
-  const existing = await db.query.planArtifacts.findMany({
+  const existing = await db.query.projectTasks.findMany({
     where: and(
-      eq(planArtifacts.organizationId, ctx.organizationId),
-      eq(planArtifacts.projectId, ctx.projectId),
-      isNotNull(planArtifacts.claimedPath),
+      eq(projectTasks.organizationId, ctx.organizationId),
+      eq(projectTasks.projectId, ctx.projectId),
+      sql`${projectTasks.metadata}->'source'->>'claimedPath' is not null`,
     ),
   });
   const existingByKey = new Map(existing.map((p) => [`${p.kind}:${p.slug}`, p]));
@@ -148,7 +188,7 @@ export async function syncPlansFromMerge(ctx: MergeSyncContext): Promise<PlanSyn
       op: "removed",
       slug: row.slug,
       kind: row.kind,
-      path: row.claimedPath,
+      path: claimedPathOf(row),
       fm: null,
       body: "",
       existing: row,
@@ -175,10 +215,10 @@ export async function syncPlansFromMerge(ctx: MergeSyncContext): Promise<PlanSyn
     const bodyChanged = (existingRow.body ?? "").trim() !== item.body;
     const titleChanged = existingRow.title !== item.fm.title;
     const summaryChanged = (existingRow.summary ?? "") !== (item.fm.summary ?? "");
-    const detailsChanged =
-      JSON.stringify(existingRow.details ?? {}) !==
-      JSON.stringify((item.fm as { details?: unknown }).details ?? {});
-    if (!bodyChanged && !titleChanged && !summaryChanged && !detailsChanged) continue;
+    const metadataChanged =
+      JSON.stringify(existingRow.metadata ?? {}) !==
+      JSON.stringify(metadataForFileClaimedPlan(item.fm, item.path, existingRow) ?? {});
+    if (!bodyChanged && !titleChanged && !summaryChanged && !metadataChanged) continue;
 
     diffs.push({
       op: "modified",
@@ -223,16 +263,16 @@ async function applyOne(
   if (diff.op === "removed" && diff.existing) {
     // Soft-delete: status → cancelled, leave the row for audit lookups.
     await db
-      .update(planArtifacts)
+      .update(projectTasks)
       .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(planArtifacts.id, diff.existing.id));
+      .where(eq(projectTasks.id, diff.existing.id));
     await writeMergeAudit({
       organizationId: ctx.organizationId,
       action: "plan.removed-soft",
-      entityType: "plan_artifact",
+      entityType: "project_task",
       entityId: diff.existing.id,
       summary: `file removed; status → cancelled (${diff.kind}:${diff.slug})`,
-      before: { status: diff.existing.status, claimedPath: diff.existing.claimedPath },
+      before: { status: diff.existing.status, claimedPath: claimedPathOf(diff.existing) },
       after: { status: "cancelled" },
       invokedVia,
     });
@@ -247,7 +287,7 @@ async function applyOne(
     // Default status on add is `draft` — PR lifecycle handler bumps to
     // `in_review` when the file's PR is open / `approved` on merge.
     const inserted = await db
-      .insert(planArtifacts)
+      .insert(projectTasks)
       .values({
         organizationId: ctx.organizationId,
         projectId: ctx.projectId,
@@ -256,22 +296,18 @@ async function applyOne(
         title: diff.fm.title,
         summary: diff.fm.summary ?? null,
         body: diff.body,
-        details: ((diff.fm as { details?: Record<string, unknown> }).details ?? null) as
-          | Record<string, unknown>
-          | null,
+        metadata: metadataForFileClaimedPlan(diff.fm, diff.path),
         status: "draft",
         priority: diff.fm.priority ?? null,
-        classifications: diff.fm.classifications ?? null,
         externalRef: diff.fm.externalRef ?? null,
         assigneeName: diff.fm.assignee ?? null,
-        claimedPath: diff.path,
       })
-      .returning({ id: planArtifacts.id });
+      .returning({ id: projectTasks.id });
     planId = inserted[0].id;
     await writeMergeAudit({
       organizationId: ctx.organizationId,
       action: "plan.create",
-      entityType: "plan_artifact",
+      entityType: "project_task",
       entityId: planId,
       summary: `created file-claimed plan ${diff.kind}:${diff.slug}`,
       after: { fm: diff.fm, claimedPath: diff.path },
@@ -283,28 +319,25 @@ async function applyOne(
       title: diff.existing.title,
       summary: diff.existing.summary,
       body: diff.existing.body,
-      details: diff.existing.details,
+      metadata: diff.existing.metadata,
     };
     await db
-      .update(planArtifacts)
+      .update(projectTasks)
       .set({
         title: diff.fm.title,
         summary: diff.fm.summary ?? null,
         body: diff.body,
-        details: ((diff.fm as { details?: Record<string, unknown> }).details ?? null) as
-          | Record<string, unknown>
-          | null,
+        metadata: metadataForFileClaimedPlan(diff.fm, diff.path, diff.existing),
         priority: diff.fm.priority ?? diff.existing.priority,
-        classifications: diff.fm.classifications ?? diff.existing.classifications,
         externalRef: diff.fm.externalRef ?? diff.existing.externalRef,
         assigneeName: diff.fm.assignee ?? diff.existing.assigneeName,
         updatedAt: new Date(),
       })
-      .where(eq(planArtifacts.id, planId));
+      .where(eq(projectTasks.id, planId));
     await writeMergeAudit({
       organizationId: ctx.organizationId,
       action: "plan.update",
-      entityType: "plan_artifact",
+      entityType: "project_task",
       entityId: planId,
       summary: `updated file-claimed plan ${diff.kind}:${diff.slug}`,
       before: beforeSnapshot,
@@ -329,12 +362,12 @@ async function reconcileRelationships(
   // Resolve slug targets to IDs. A slug can be ambiguous across kinds —
   // first-match wins; devs can use frontmatter `relationships: [{kind, target}]`
   // with a kind-qualified slug if needed (out of MVP scope to enforce).
-  const targets = await db.query.planArtifacts.findMany({
+  const targets = await db.query.projectTasks.findMany({
     where: and(
-      eq(planArtifacts.organizationId, ctx.organizationId),
-      eq(planArtifacts.projectId, ctx.projectId),
+      eq(projectTasks.organizationId, ctx.organizationId),
+      eq(projectTasks.projectId, ctx.projectId),
       inArray(
-        planArtifacts.slug,
+        projectTasks.slug,
         desired.map((d) => d.target),
       ),
     ),
@@ -343,7 +376,7 @@ async function reconcileRelationships(
 
   // Read existing relationships for `planId` to compute the diff.
   const existing = await db.query.planRelationships.findMany({
-    where: eq(planRelationships.fromPlanArtifactId, planId),
+    where: eq(planRelationships.fromProjectTasksId, planId),
   });
 
   const desiredKeys = new Set<string>();
@@ -360,7 +393,7 @@ async function reconcileRelationships(
 
   // Delete existing rels not in desired
   for (const e of existing) {
-    if (!desiredKeys.has(`${e.kind}:${e.toPlanArtifactId}`)) {
+    if (!desiredKeys.has(`${e.kind}:${e.toProjectTasksId}`)) {
       await db
         .delete(planRelationships)
         .where(eq(planRelationships.id, e.id));
@@ -368,7 +401,7 @@ async function reconcileRelationships(
   }
 
   // Insert desired rels not in existing
-  const existingKeys = new Set(existing.map((e) => `${e.kind}:${e.toPlanArtifactId}`));
+  const existingKeys = new Set(existing.map((e) => `${e.kind}:${e.toProjectTasksId}`));
   for (const d of desired) {
     const target = targetBySlug.get(d.target);
     if (!target) continue;
@@ -378,8 +411,8 @@ async function reconcileRelationships(
       .insert(planRelationships)
       .values({
         organizationId: ctx.organizationId,
-        fromPlanArtifactId: planId,
-        toPlanArtifactId: target.id,
+        fromProjectTasksId: planId,
+        toProjectTasksId: target.id,
         kind: d.kind as "parent_of",
       })
       .onConflictDoNothing();

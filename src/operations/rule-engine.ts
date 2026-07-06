@@ -32,7 +32,7 @@ import { db } from "@/db/client";
 import { rules, type Rule, type RuleSeverity } from "@/db/schema/rule";
 import { auditLogs } from "@/db/schema/audit/audit-log";
 import { getActionContext } from "@/lib/auth/context";
-import type { PlanArtifact as Plan } from "@/db/schema/plan/plan-artifact";
+import type { ProjectTask as Plan } from "@/db/schema/plan/project-task";
 import {
   evaluateActionPolicy,
   type ActionPolicyAppliesTo,

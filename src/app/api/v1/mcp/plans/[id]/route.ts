@@ -1,12 +1,12 @@
 /**
- * GET /api/v1/mcp/plans/:id — fetch one plan_artifact with body, revisions,
+ * GET /api/v1/mcp/plans/:id — fetch one project_task with body, revisions,
  * and the governance records currently targeting it.
  */
 
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { planRevisions } from "@/db/schema/plan/plan-revision";
 import { governanceRecords } from "@/db/schema/governance/records";
 import { handleApi } from "@/lib/auth/api-key";
@@ -15,7 +15,7 @@ import { httpError } from "@/lib/auth/scope";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return handleApi(req, async (ctx) => {
-    const plan = await db.query.planArtifacts.findFirst({
+    const plan = await db.query.projectTasks.findFirst({
       where: and(eq(plans.id, id), eq(plans.organizationId, ctx.organizationId)),
     });
     if (!plan) throw httpError(404, "Plan not found");
@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const [revisions, records] = await Promise.all([
       db.query.planRevisions.findMany({
         where: and(
-          eq(planRevisions.planArtifactId, plan.id),
+          eq(planRevisions.projectTasksId, plan.id),
           eq(planRevisions.organizationId, ctx.organizationId),
         ),
         orderBy: [desc(planRevisions.revisionNumber)],
@@ -39,7 +39,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       }),
       db.query.governanceRecords.findMany({
         where: and(
-          eq(governanceRecords.planArtifactId, plan.id),
+          eq(governanceRecords.projectTaskId, plan.id),
           eq(governanceRecords.organizationId, ctx.organizationId),
         ),
         orderBy: [desc(governanceRecords.createdAt)],

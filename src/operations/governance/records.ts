@@ -22,11 +22,12 @@ import {
   type GovernancePolicy,
 } from "@/db/schema/governance/policies";
 import { PLAN_STATUSES, type PlanStatus } from "@/db/schema/plan/plan-kinds";
-import { planArtifacts, type PlanArtifact } from "@/db/schema/plan/plan-artifact";
+import { projectTasks, type ProjectTask } from "@/db/schema/plan/project-task";
 import { projects, type Project } from "@/db/schema/project";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 import { getActionContext } from "@/lib/auth/context";
 import { approvalPolicyDetails } from "@/lib/governance/schemas";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { listPoliciesForTransition } from "./policies";
 
 const policySnapshotSchema = z.object({
@@ -40,7 +41,7 @@ const policySnapshotSchema = z.object({
 
 const recordSchema = z.object({
   projectId: z.string().min(1),
-  planArtifactId: z.string().min(1),
+  projectTaskId: z.string().min(1),
   policyId: z.string().nullable().optional(),
   kind: z.enum(GOVERNANCE_KINDS),
   transitionFrom: z.enum(PLAN_STATUSES).nullable().optional(),
@@ -93,13 +94,13 @@ export const governanceRecordCrud = createEntityCrud({
 });
 
 export async function listRecordsForPlan(
-  planArtifactId: string,
+  projectTaskId: string,
   opts: { kind?: GovernanceKind; status?: GovernanceRecordStatus } = {},
 ) {
   const ctx = await getActionContext();
   const conditions = [
     eq(governanceRecords.organizationId, ctx.organizationId),
-    eq(governanceRecords.planArtifactId, planArtifactId),
+    eq(governanceRecords.projectTaskId, projectTaskId),
   ];
   if (opts.kind) conditions.push(eq(governanceRecords.kind, opts.kind));
   if (opts.status) conditions.push(eq(governanceRecords.status, opts.status));
@@ -122,7 +123,7 @@ export async function listRecordsForPlan(
 function policyDetailsToRecordDetails(args: {
   policy: GovernancePolicy;
   project: Project;
-  plan: PlanArtifact;
+  plan: ProjectTask;
 }): Record<string, unknown> | undefined {
   const { policy, project, plan } = args;
   if (policy.kind !== "approval") {
@@ -157,18 +158,18 @@ function policyDetailsToRecordDetails(args: {
  * `policyDetailsToRecordDetails`, which is data shaping (no decisions).
  */
 export async function materializeGovernanceRecords(args: {
-  planArtifactId: string;
+  projectTaskId: string;
   transitionFrom: PlanStatus;
   transitionTo: PlanStatus;
 }) {
   const ctx = await getActionContext();
-  const plan = await db.query.planArtifacts.findFirst({
+  const plan = await db.query.projectTasks.findFirst({
     where: and(
-      eq(planArtifacts.id, args.planArtifactId),
-      eq(planArtifacts.organizationId, ctx.organizationId),
+      eq(projectTasks.id, args.projectTaskId),
+      eq(projectTasks.organizationId, ctx.organizationId),
     ),
   });
-  if (!plan) throw new Error(`plan_artifact ${args.planArtifactId} not found`);
+  if (!plan) throw new Error(`project_task ${args.projectTaskId} not found`);
 
   const [project, policies] = await Promise.all([
     db.query.projects.findFirst({
@@ -191,7 +192,7 @@ export async function materializeGovernanceRecords(args: {
     const recordDetails = policyDetailsToRecordDetails({ policy, project, plan });
     const row = await governanceRecordCrud.create({
       projectId: plan.projectId,
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       policyId: policy.id,
       kind: policy.kind,
       transitionFrom: args.transitionFrom,
@@ -210,14 +211,14 @@ export async function materializeGovernanceRecords(args: {
  * terminal-pass state (`passed` | `skipped` | `expired`).
  */
 export async function allRequiredRecordsSatisfied(
-  planArtifactId: string,
+  projectTaskId: string,
   transitionTo: PlanStatus,
 ): Promise<boolean> {
   const ctx = await getActionContext();
   const rows = await db.query.governanceRecords.findMany({
     where: and(
       eq(governanceRecords.organizationId, ctx.organizationId),
-      eq(governanceRecords.planArtifactId, planArtifactId),
+      eq(governanceRecords.projectTaskId, projectTaskId),
       eq(governanceRecords.transitionTo, transitionTo),
     ),
   });
@@ -264,8 +265,72 @@ export async function decideGovernanceRecord(args: {
       and(eq(governanceRecords.id, args.id), eq(governanceRecords.organizationId, ctx.organizationId)),
     );
 
+  // Plan status progression is governed by the transition-bound records.
+  // When all in_review guards pass, promote plan -> approved. Any failed
+  // guard during in_review sends it back to changes_requested.
+  if (existing.transitionTo === "in_review") {
+    const plan = await db.query.projectTasks.findFirst({
+      where: and(
+        eq(projectTasks.id, existing.projectTaskId),
+        eq(projectTasks.organizationId, ctx.organizationId),
+      ),
+      columns: { id: true, status: true },
+    });
+
+    if (plan) {
+      const siblings = await db.query.governanceRecords.findMany({
+        where: and(
+          eq(governanceRecords.organizationId, ctx.organizationId),
+          eq(governanceRecords.projectTaskId, existing.projectTaskId),
+          eq(governanceRecords.transitionTo, "in_review"),
+        ),
+        columns: { status: true },
+      });
+
+      const hasFailed = siblings.some((r) => r.status === "failed");
+      const allPassed = siblings.length > 0
+        && siblings.every((r) =>
+          r.status === "passed" || r.status === "skipped" || r.status === "expired");
+
+      if (hasFailed && plan.status === "in_review") {
+        await db
+          .update(projectTasks)
+          .set({
+            status: "changes_requested",
+            approvedById: null,
+            approvedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(projectTasks.id, existing.projectTaskId),
+              eq(projectTasks.organizationId, ctx.organizationId),
+            ),
+          );
+        await transitionJiraIssueForPlan(existing.projectTaskId, "changes_requested");
+      } else if (allPassed) {
+        await db
+          .update(projectTasks)
+          .set({
+            status: "approved",
+            approvedById: ctx.userId,
+            approvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(projectTasks.id, existing.projectTaskId),
+              eq(projectTasks.organizationId, ctx.organizationId),
+            ),
+          );
+        await transitionJiraIssueForPlan(existing.projectTaskId, "approved");
+      }
+    }
+  }
+
   safeRevalidate(`/governance`);
-  safeRevalidate(`/plans/${existing.planArtifactId}`);
+  safeRevalidate(`/plans/${existing.projectTaskId}`);
+  safeRevalidate("/plans");
 }
 
 /** Returns all records the given user is listed as approver/reviewer for. */

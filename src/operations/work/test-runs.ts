@@ -7,7 +7,7 @@ import { getActionContext } from "@/lib/auth/context";
 
 const testRunSchema = z.object({
   projectId: z.string().min(1),
-  planArtifactId: z.string().optional().nullable(),
+  projectTaskId: z.string().optional().nullable(),
   suite: z.string().optional(),
   commitSha: z.string().optional(),
   branch: z.string().optional(),
@@ -31,7 +31,7 @@ export async function recordTestRun(input: z.infer<typeof testRunSchema>): Promi
     .values({
       organizationId: ctx.organizationId,
       ...validated,
-      planArtifactId: validated.planArtifactId ?? null,
+      projectTaskId: validated.projectTaskId ?? null,
       ranAt: validated.ranAt ?? new Date(),
     })
     .returning();
@@ -51,11 +51,11 @@ export async function recordTestRun(input: z.infer<typeof testRunSchema>): Promi
   return row;
 }
 
-export async function listTestRuns(opts: { projectId?: string; planArtifactId?: string; limit?: number }) {
+export async function listTestRuns(opts: { projectId?: string; projectTaskId?: string; limit?: number }) {
   const ctx = await getActionContext();
   const conditions = [eq(testRuns.organizationId, ctx.organizationId)];
   if (opts.projectId) conditions.push(eq(testRuns.projectId, opts.projectId));
-  if (opts.planArtifactId) conditions.push(eq(testRuns.planArtifactId, opts.planArtifactId));
+  if (opts.projectTaskId) conditions.push(eq(testRuns.projectTaskId, opts.projectTaskId));
   return db.query.testRuns.findMany({
     where: and(...conditions),
     orderBy: [desc(testRuns.ranAt)],

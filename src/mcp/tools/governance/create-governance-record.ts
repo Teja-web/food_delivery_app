@@ -14,7 +14,7 @@ import { GOVERNANCE_KINDS } from "../../../db/schema/governance/governance-kinds
 import { PLAN_STATUSES } from "../../../db/schema/plan/plan-kinds";
 
 export const createGovernanceRecordInput = z.object({
-  planArtifactId: z.string().min(1),
+  projectTaskId: z.string().min(1),
   kind: z.enum(GOVERNANCE_KINDS).describe("Record kind."),
   policyId: z.string().optional().describe("Policy that generated this record (if any)."),
   transitionFrom: z.enum(PLAN_STATUSES).optional(),

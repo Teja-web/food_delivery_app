@@ -80,13 +80,13 @@ export default async function WorkItemDetailPage({
         </div>
 
         <aside className="space-y-3 text-xs">
-          {item.planArtifactId && (
+          {item.projectTaskId && (
             <RailSection title="Linked plan">
               <Link
-                href={`/plans/${item.planArtifactId}`}
+                href={`/plans/${item.projectTaskId}`}
                 className="hover:underline"
               >
-                {item.planArtifactId}
+                {item.projectTaskId}
               </Link>
             </RailSection>
           )}

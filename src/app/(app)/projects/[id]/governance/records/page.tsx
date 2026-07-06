@@ -3,7 +3,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/db/client";
 import { governanceRecords } from "@/db/schema/governance/records";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { getActionContext } from "@/lib/auth/context";
 
 export default async function GovernanceRecordsPage({
@@ -26,13 +26,13 @@ export default async function GovernanceRecordsPage({
     .orderBy(desc(governanceRecords.createdAt))
     .limit(200);
 
-  const planIds = Array.from(new Set(records.map((r) => r.planArtifactId)));
+  const planIds = Array.from(new Set(records.map((r) => r.projectTaskId)));
   const planTitles = new Map<string, string>();
   if (planIds.length > 0) {
     const rows = await db
-      .select({ id: planArtifacts.id, title: planArtifacts.title })
-      .from(planArtifacts)
-      .where(inArray(planArtifacts.id, planIds));
+      .select({ id: projectTasks.id, title: projectTasks.title })
+      .from(projectTasks)
+      .where(inArray(projectTasks.id, planIds));
     for (const r of rows) planTitles.set(r.id, r.title);
   }
 
@@ -63,10 +63,10 @@ export default async function GovernanceRecordsPage({
               <tr key={r.id} className="border-b hover:bg-muted/30">
                 <td className="px-3 py-2">
                   <a
-                    href={`/plans/${r.planArtifactId}`}
+                    href={`/plans/${r.projectTaskId}`}
                     className="hover:underline"
                   >
-                    {planTitles.get(r.planArtifactId) ?? r.planArtifactId.slice(0, 12)}
+                    {planTitles.get(r.projectTaskId) ?? r.projectTaskId.slice(0, 12)}
                   </a>
                 </td>
                 <td className="px-3 py-2">

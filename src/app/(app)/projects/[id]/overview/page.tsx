@@ -5,7 +5,7 @@ import { getProject } from "@/actions/project/projects";
 import { Toaster } from "@/components/ui/sonner";
 import { db } from "@/db/client";
 import { governanceRecords } from "@/db/schema/governance/records";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import type { Project } from "@/db/schema/project";
 import { skillOutcomes } from "@/db/schema/skill/skill-outcome";
 import { getActionContext } from "@/lib/auth/context";
@@ -32,22 +32,22 @@ export default async function ProjectOverviewPage({
   const [allPlans, pendingRows, outcomes30dRows, incidents7dRows, bindings, staleEvidence] = await Promise.all([
     db
       .select({
-        id: planArtifacts.id,
-        title: planArtifacts.title,
-        status: planArtifacts.status,
+        id: projectTasks.id,
+        title: projectTasks.title,
+        status: projectTasks.status,
       })
-      .from(planArtifacts)
+      .from(projectTasks)
       .where(
         and(
-          eq(planArtifacts.organizationId, ctx.organizationId),
-          eq(planArtifacts.projectId, id),
+          eq(projectTasks.organizationId, ctx.organizationId),
+          eq(projectTasks.projectId, id),
         ),
       ),
     db
       .select({
         id: governanceRecords.id,
         kind: governanceRecords.kind,
-        planArtifactId: governanceRecords.planArtifactId,
+        projectTaskId: governanceRecords.projectTaskId,
         createdAt: governanceRecords.createdAt,
       })
       .from(governanceRecords)
@@ -104,8 +104,8 @@ export default async function ProjectOverviewPage({
     .map((r) => ({
       id: r.id,
       kind: r.kind,
-      planArtifactId: r.planArtifactId,
-      planTitle: planTitleById.get(r.planArtifactId) ?? null,
+      projectTaskId: r.projectTaskId,
+      planTitle: planTitleById.get(r.projectTaskId) ?? null,
       createdAtIso: r.createdAt.toISOString(),
     }));
 

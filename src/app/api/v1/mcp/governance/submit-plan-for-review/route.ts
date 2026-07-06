@@ -1,7 +1,7 @@
 /**
  * POST /api/v1/mcp/governance/submit-plan-for-review
  *
- * Move a plan_artifact draft → in_review and materialize the governance
+ * Move a project_task draft → in_review and materialize the governance
  * records that gate the transition. Backs the `submit_plan_for_review`
  * MCP verb.
  */
@@ -10,14 +10,15 @@ import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts } from "@/db/schema/plan/plan-artifact";
+import { projectTasks } from "@/db/schema/plan/project-task";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError } from "@/lib/auth/scope";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { planCrud } from "@/operations/plan/plans";
 import { materializeGovernanceRecords } from "@/operations/governance/records";
 
 const bodySchema = z.object({
-  planArtifactId: z.string().min(1),
+  projectTaskId: z.string().min(1),
 });
 
 export async function POST(req: Request) {
@@ -27,10 +28,10 @@ export async function POST(req: Request) {
       throw httpError(400, "Invalid body", parsed.error.issues);
     }
 
-    const plan = await db.query.planArtifacts.findFirst({
+    const plan = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.id, parsed.data.planArtifactId),
-        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(projectTasks.id, parsed.data.projectTaskId),
+        eq(projectTasks.organizationId, ctx.organizationId),
       ),
     });
     if (!plan) throw httpError(404, "Plan not found");
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
 
     await planCrud.update(plan.id, { status: "in_review" });
     const records = await materializeGovernanceRecords({
-      planArtifactId: plan.id,
+      projectTaskId: plan.id,
       transitionFrom: "draft",
       transitionTo: "in_review",
     });
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       await planCrud.update(plan.id, {
         status: "approved",
       });
+      await transitionJiraIssueForPlan(plan.id, "approved");
       autoApproved = true;
     }
 

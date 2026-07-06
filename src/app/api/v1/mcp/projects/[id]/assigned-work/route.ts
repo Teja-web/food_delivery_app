@@ -13,10 +13,11 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
-import { requireProjectScope } from "@/lib/auth/scope";
+import { httpError, requireProjectScope } from "@/lib/auth/scope";
+import { listProjectArtifacts } from "@/operations/artifacts";
 
 const OPEN_PLAN_STATUSES = ["in_review", "approved", "in_progress"] as const;
 const CLOSED_WORK_ITEM_STATUSES = [
@@ -34,6 +35,17 @@ export async function GET(
   const { id } = await params;
   return handleApi(req, async (ctx) => {
     const project = await requireProjectScope(ctx, id);
+    const configuredArtifacts = await listProjectArtifacts(project.id);
+    if (configuredArtifacts.length === 0) {
+      throw httpError(
+        409,
+        "Project standards are not configured. Run setup_project_standards first: choose organization defaults, or upload both Requirements and Design for this project.",
+        {
+          requiredAction: "setup_project_standards",
+          options: ["useOrganizationDefaults=true", "requirements+design uploads"],
+        },
+      );
+    }
 
     const url = new URL(req.url);
     const assigneeEmail = url.searchParams.get("assigneeEmail");
@@ -83,7 +95,7 @@ export async function GET(
         );
 
     const [openPlans, openWorkItems] = await Promise.all([
-      db.query.planArtifacts.findMany({
+      db.query.projectTasks.findMany({
         where: planWhere,
         columns: {
           id: true,

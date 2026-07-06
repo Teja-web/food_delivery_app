@@ -6,7 +6,7 @@ import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { PlanStatus } from "@/db/schema/plan/plan-artifact";
+import type { PlanStatus } from "@/db/schema/plan/project-task";
 import { cn } from "@/lib/utils";
 
 import type { PlanRowClient } from "../serialize";
@@ -89,39 +89,40 @@ export function PlansKanban({ rows, query, filtered }: { rows: PlanRowClient[]; 
 
 function KanbanCard({ row }: { row: PlanRowClient }) {
   return (
-    <Link
-      href={`/plans/${row.id}`}
-      className="group block rounded-md border border-border/60 bg-card p-3 hover:border-foreground/30 hover:bg-muted/30"
-    >
+    <div className="group rounded-md border border-border/60 bg-card p-3 hover:border-foreground/30 hover:bg-muted/30">
       <div className="flex items-start gap-1.5">
-        <span className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", KIND_DOT_CLASS[row.kind])} aria-hidden />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            {row.needsApproval ? (
-              <CircleAlert className="h-3.5 w-3.5 shrink-0 text-state-pending" aria-label="Needs approval" />
+        <Link href={`/plans/${row.id}`} className="flex min-w-0 flex-1 items-start gap-1.5">
+          <span
+            className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", KIND_DOT_CLASS[row.kind])}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              {row.needsApproval ? (
+                <CircleAlert className="h-3.5 w-3.5 shrink-0 text-state-pending" aria-label="Needs approval" />
+              ) : null}
+              <span className="line-clamp-2 text-sm font-medium group-hover:underline">{row.title}</span>
+            </span>
+            {row.status === "changes_requested" ? (
+              <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-autonomy-propose">
+                Changes requested
+              </span>
             ) : null}
-            <span className="line-clamp-2 text-sm font-medium group-hover:underline">{row.title}</span>
-          </div>
-          {row.status === "changes_requested" ? (
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-autonomy-propose">
-              Changes requested
-            </div>
-          ) : null}
-        </div>
+          </span>
+        </Link>
         {row.externalRef ? (
           <a
             href={row.externalRef}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-muted-foreground hover:text-foreground"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
             title="Open external reference"
           >
             <ExternalLink className="h-3 w-3" aria-hidden />
           </a>
         ) : null}
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+      <Link href={`/plans/${row.id}`} className="mt-2 flex items-center justify-between gap-2 text-[11px]">
         <Badge
           variant="outline"
           className="bg-transparent px-1.5 py-0 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground"
@@ -134,7 +135,7 @@ function KanbanCard({ row }: { row: PlanRowClient }) {
           ) : null}
           <span className="tabular-nums">{row.updatedAtLabel}</span>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }

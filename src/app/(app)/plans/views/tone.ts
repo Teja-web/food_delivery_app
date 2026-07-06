@@ -1,4 +1,4 @@
-import type { PlanKind, PlanStatus } from "@/db/schema/plan/plan-artifact";
+import type { PlanKind, PlanStatus } from "@/db/schema/plan/project-task";
 
 import type { PlanRowClient } from "../serialize";
 

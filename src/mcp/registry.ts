@@ -13,6 +13,7 @@ import { CozntClient } from "./client";
 import { readConventions } from "./resources/conventions";
 import { readHistory } from "./resources/history";
 import { readMyTasks } from "./resources/my-tasks";
+import { readStandards } from "./resources/standards";
 import { checkStandardsInput, runCheckStandards } from "./tools/system/check-standards";
 import { createRequirementInput, runCreateRequirement } from "./tools/requirement/create-requirement";
 import {
@@ -25,6 +26,14 @@ import { generateTestsInput, runGenerateTests } from "./tools/pipeline/generate-
 import { getAssignedWorkInput, runGetAssignedWork } from "./tools/context/get-assigned-work";
 import { getDesignContextInput, runGetDesignContext } from "./tools/context/get-design-context";
 import { getMyContextInput, runGetMyContext } from "./tools/context/get-my-context";
+import {
+  getProjectStandardsInput,
+  runGetProjectStandards,
+} from "./tools/context/get-project-standards";
+import {
+  setupProjectStandardsInput,
+  runSetupProjectStandards,
+} from "./tools/context/setup-project-standards";
 import { setProjectInput, runSetProject } from "./tools/session/set-project";
 import { switchProjectInput, runSwitchProject } from "./tools/session/switch-project";
 import { getOutcomesInput, runGetOutcomes } from "./tools/skill/get-outcomes";
@@ -105,6 +114,14 @@ import {
   decideGovernanceRecordInput,
   runDecideGovernanceRecord,
 } from "./tools/governance/decide-governance-record";
+import {
+  pushPlanToJiraInput,
+  runPushPlanToJira,
+} from "./tools/integration/push-plan-to-jira";
+import {
+  syncJiraWorkItemsInput,
+  runSyncJiraWorkItems,
+} from "./tools/integration/sync-jira-work-items";
 
 export interface ToolDef<T extends ZodTypeAny> {
   name: string;
@@ -147,7 +164,7 @@ export const tools = [
       "Orient at session start. Returns the active project (id, name,",
       "description), a `welcome` block (headline, summary, nextActions) for",
       "first-message greeting, active rules, available skills with their",
-      "per-project autonomy levels, recent ADRs, pinned learnings, and a",
+      "per-project autonomy levels, standards metadata, recent ADRs, pinned learnings, and a",
       "recommendedKickoff when one applies. Call this FIRST in any session —",
       "every other tool's behavior depends on what's in the response.",
     ].join(" "),
@@ -204,7 +221,7 @@ export const tools = [
   tool({
     name: "submit_plan_for_review",
     description: [
-      "Move a plan_artifact from draft → in_review. Materializes the",
+      "Move a project_task from draft → in_review. Materializes the",
       "governance records (gates / approvals / reviews) that apply to the",
       "transition, per the project's active policies. Replaces the legacy",
       "submit_phase_for_review verb — governance is plan-bound, not",
@@ -216,7 +233,7 @@ export const tools = [
   tool({
     name: "attach_evidence",
     description: [
-      "Attach proof to a plan_artifact: a deployment, test_run, metric",
+      "Attach proof to a project_task: a deployment, test_run, metric",
       "snapshot, work_item, skill_outcome, incident, or external link.",
       "One verb, type-discriminated by evidenceType — internal targets",
       "pass evidenceId; external targets pass externalUrl.",
@@ -237,7 +254,7 @@ export const tools = [
   tool({
     name: "list_governance_records",
     description: [
-      "Read governance records targeting one plan_artifact. Optional",
+      "Read governance records targeting one project_task. Optional",
       "filters by kind (gate / approval / review / exception) and status.",
     ].join(" "),
     schema: listGovernanceRecordsInput,
@@ -322,21 +339,64 @@ export const tools = [
     run: runGetDesignContext,
   }),
   tool({
+    name: "get_project_standards",
+    description: [
+      "Return exact effective organization/project standards for the bound",
+      "project. Use before coding, UI design, architecture decisions, or",
+      "brand-sensitive work. `get_my_context` returns only compact metadata;",
+      "this returns the full bodies verbatim.",
+    ].join(" "),
+    schema: getProjectStandardsInput,
+    run: runGetProjectStandards,
+  }),
+  tool({
+    name: "setup_project_standards",
+    description: [
+      "Project setup gate for standards before assigned work starts. Either",
+      "copy existing organization standards into project_artifacts with",
+      "`useOrganizationDefaults: true`, or upload project-exclusive",
+      "Requirements + Design via inline bodies or local file paths with",
+      "`useOrganizationDefaults: false`. Reflected immediately in the",
+      "project Standards tab and MCP standards sync.",
+    ].join(" "),
+    schema: setupProjectStandardsInput,
+    run: runSetupProjectStandards,
+  }),
+  tool({
     name: "update_work_item_status",
     description: [
-      "Update a coznt work_item's status and/or assignee. Does NOT sync",
-      "the change upstream (GitHub / Jira / ADO) — that's push_to_external's",
-      "job.",
+      "Update a coznt work_item's status and/or assignee. For Jira-sourced",
+      "work_items, the platform also attempts to transition the linked Jira",
+      "issue to the matching workflow status.",
     ].join(" "),
     schema: updateWorkItemStatusInput,
     run: runUpdateWorkItemStatus,
+  }),
+  tool({
+    name: "push_plan_to_jira",
+    description: [
+      "Manually push one Coznt plan into the project's bound Jira project.",
+      "Creates a Jira issue on first push and updates the existing issue when",
+      "the plan already has a jira externalRef.",
+    ].join(" "),
+    schema: pushPlanToJiraInput,
+    run: runPushPlanToJira,
+  }),
+  tool({
+    name: "sync_jira_work_items",
+    description: [
+      "Manually pull the bound Jira project's current issues into Coznt",
+      "work_items. Use this when Jira webhooks are not configured yet.",
+    ].join(" "),
+    schema: syncJiraWorkItemsInput,
+    run: runSyncJiraWorkItems,
   }),
   tool({
     name: "update_test_result",
     description: [
       "Record a test run result (status, counts, coverage). Feeds the",
       "`coverage` and `tests passing` governance-record validators, and",
-      "attaches as a `test_run` evidence link to any plan_artifact id.",
+      "attaches as a `test_run` evidence link to any project_task id.",
     ].join(" "),
     schema: updateTestResultInput,
     run: runUpdateTestResult,
@@ -438,7 +498,7 @@ export const tools = [
     name: "log_decision",
     description: [
       "Record an Architecture Decision Record. ADRs are stored as",
-      "plan_artifact rows with `kind: \"adr\"`. Governance applies via the",
+      "project_task rows with `kind: \"adr\"`. Governance applies via the",
       "policies attached to ADR transitions, not phase enforcement.",
     ].join(" "),
     schema: logDecisionInput,
@@ -637,6 +697,13 @@ export const RESOURCES = [
     description: "The rules coznt enforces for this project (severity, scope, body).",
     mimeType: "application/json",
     read: readConventions,
+  },
+  {
+    uri: "coznt://standards",
+    name: "Effective organization standards",
+    description: "Exact org/project coding, brand, architecture, and custom standards.",
+    mimeType: "application/json",
+    read: readStandards,
   },
   {
     uri: "coznt://my-tasks",

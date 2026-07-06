@@ -1,4 +1,5 @@
 import type { ApiKeyWithContext } from "@/operations/integration/api-keys";
+import type { ApiKeyRole } from "@/lib/auth/api-key-roles";
 
 export type ApiKeyStatus = "active" | "revoked" | "expired";
 
@@ -6,7 +7,7 @@ export interface ApiKeyRow {
   id: string;
   name: string;
   prefix: string;
-  role: string;
+  role: ApiKeyRole;
   projectId: string | null;
   projectName: string;
   projectSlug: string;

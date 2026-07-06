@@ -177,7 +177,7 @@ const commonPlanFields = {
 };
 
 // Per-kind details schemas. These match the dev-authoring-surface spec §7.3
-// shapes; on import they're persisted to plan_artifacts.details JSONB and
+// shapes; on import they're persisted to project_tasks.metadata JSONB and
 // re-validated by src/lib/plan/schemas.ts.
 
 const specDetailsSchema = z

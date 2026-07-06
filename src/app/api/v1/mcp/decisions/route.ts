@@ -1,5 +1,5 @@
 /**
- * POST /api/v1/mcp/decisions — create an ADR (plan_artifact with kind=adr).
+ * POST /api/v1/mcp/decisions — create an ADR (project_task with kind=adr).
  *
  * Phase discipline is gone. ADR creation is now governed by plan-level
  * rules (keyword-presence / action-policy) on the project — see

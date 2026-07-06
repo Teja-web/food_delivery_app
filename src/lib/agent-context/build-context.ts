@@ -1,13 +1,14 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { projectLearnings } from "@/db/schema/plan/project-learning";
 import { projects, type Project } from "@/db/schema/project";
 import { repositories } from "@/db/schema/repository";
 import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill/skill";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill/skill-autonomy";
+import { getProjectArtifactsManifest } from "@/operations/artifacts";
 
 import type {
   McpProjectArtifacts,
@@ -75,6 +76,19 @@ const LEVEL_LABEL: Record<LevelName, "OBSERVE" | "PROPOSE" | "MERGE" | "LEAD"> =
   lead: "LEAD",
 };
 
+const REQUIREMENTS_STAGE_MESSAGE =
+  "The current project is in the *Requirements* phase. Please generate the requirements artifact through *Coznt* or the *MCP server* to proceed. User actions are currently restricted, and tool calls are not permitted until this phase is completed.";
+const DESIGN_STAGE_MESSAGE =
+  "The current project is in the *Design* phase. Please generate the design artifact through *Coznt* or the *MCP server* to continue. User actions are currently restricted, and tool calls are not permitted until this phase is completed.";
+const DEVELOPMENT_STAGE_MESSAGE =
+  "The current project is in the *Development* phase. You may now write code and use any tools you need to implement the approved design. Development is unlocked, and there are no restrictions on tool usage.";
+
+function resolveCurrentStageFromArtifactNames(names: string[]): string {
+  const artifactNames = new Set(names.map((name) => name.trim().toLowerCase()));
+  if (!artifactNames.has("requirements.md")) return REQUIREMENTS_STAGE_MESSAGE;
+  if (!artifactNames.has("design.md")) return DESIGN_STAGE_MESSAGE;
+  return DEVELOPMENT_STAGE_MESSAGE;
+}
 export class McpProjectAmbiguousError extends Error {
   status = 409;
   details: { candidates: Array<{ id: string; name: string; slug: string }> };
@@ -187,6 +201,7 @@ export async function buildMcpContext(args: {
     primaryRepoUrl,
     recommendedKickoff,
     projectArtifacts,
+    standardsManifest,
   ] = await Promise.all([
     db.query.rules.findMany({
       where: and(
@@ -203,7 +218,7 @@ export async function buildMcpContext(args: {
       ),
       limit: 25,
     }),
-    db.query.planArtifacts.findMany({
+    db.query.projectTasks.findMany({
       where: and(
         eq(plans.organizationId, project.organizationId),
         eq(plans.projectId, project.id),
@@ -224,6 +239,7 @@ export async function buildMcpContext(args: {
     getPrimaryRepoUrlForProject(project.id),
     resolveRecommendedKickoff(project.organizationId, project),
     gatherProjectArtifacts(project.organizationId, project.id),
+    getProjectArtifactsManifest(project.organizationId, project.id),
   ]);
 
   const skillsWithAutonomy = await Promise.all(
@@ -238,6 +254,9 @@ export async function buildMcpContext(args: {
     }),
   );
 
+  const currentStage = resolveCurrentStageFromArtifactNames(
+    standardsManifest.artifacts.map((artifact) => artifact.name),
+  );
   const welcome = buildWelcome({ project, recommendedKickoff, projectArtifacts });
 
   const response: McpResponse = {
@@ -258,6 +277,7 @@ export async function buildMcpContext(args: {
         }
       : null,
     recommendedKickoff,
+    currentStage,
     projectArtifacts,
     rules: activeRules.map((r) => ({
       id: r.id,
@@ -271,6 +291,20 @@ export async function buildMcpContext(args: {
       title: p.title,
       url: appUrl(`/plans/${p.id}`),
     })),
+    standards: {
+      requiredComplete: standardsManifest.requiredComplete,
+      missingRequired: standardsManifest.missingRequired,
+      resourceUri: "coznt://standards",
+      items: standardsManifest.standards.map((standard) => ({
+        kind: standard.kind,
+        name: standard.name,
+        title: standard.title,
+        scope: standard.scope,
+        version: standard.version,
+        hash: standard.hash,
+        updatedAt: standard.updatedAt,
+      })),
+    },
     learnings: learnings.map((l) => ({
       id: l.id,
       body: l.body,
@@ -286,3 +320,4 @@ export async function buildMcpContext(args: {
   };
   return response;
 }
+

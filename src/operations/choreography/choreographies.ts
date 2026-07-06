@@ -91,6 +91,7 @@ interface ParsedFrontmatter {
 }
 
 const STRIP_QUOTES = (s: string) => s.trim().replace(/^["']|["']$/g, "");
+const normalizeNewlines = (s: string) => s.replace(/\r\n?/g, "\n");
 
 /**
  * Parse the body of a markdown YAML frontmatter block. Hand-rolled to
@@ -107,6 +108,8 @@ const STRIP_QUOTES = (s: string) => s.trim().replace(/^["']|["']$/g, "");
  *         rationale: <string>
  */
 function parseFrontmatter(yaml: string): ParsedFrontmatter {
+  yaml = normalizeNewlines(yaml);
+
   let description = "";
   let version = "0.0.0";
   let minAutonomy: AutonomyLabel | null = null;
@@ -213,7 +216,8 @@ function readChoreographyFile(slug: string): { content: string; parsed: ParsedFr
 export function readChoreographyContent(
   content: string,
 ): { content: string; parsed: ParsedFrontmatter } | null {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  const normalizedContent = normalizeNewlines(content);
+  const fmMatch = normalizedContent.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!fmMatch) return null;
   return { content, parsed: parseFrontmatter(fmMatch[1]) };
 }

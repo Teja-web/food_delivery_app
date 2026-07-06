@@ -25,6 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  API_KEY_ROLE_LABELS,
+  API_KEY_ROLE_OPTIONS,
+  type ApiKeyRole,
+} from "@/lib/auth/api-key-roles";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -49,8 +54,14 @@ const STATUS_LABEL: Record<ApiKeyStatus, string> = {
 
 const ROLE_STYLES: Record<string, string> = {
   member: "border-border/50 text-muted-foreground",
-  admin: "border-amber-500/50 text-amber-600",
-  owner: "border-amber-600/60 text-amber-700",
+  manager: "border-yellow-400/50 bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-300",
+  admin: "border-red-400/50 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300",
+};
+
+const ROLE_OPTION_STYLES: Record<ApiKeyRole, string> = {
+  member: "",
+  manager: "text-yellow-700 dark:text-yellow-300",
+  admin: "text-red-700 dark:text-red-300",
 };
 
 function CopyButton({ text }: { text: string }) {
@@ -125,11 +136,12 @@ interface Props {
   groups: ProjectGroup[];
   rows: ApiKeyRow[];
   projects: ProjectOption[];
+  canCreateApiKeys: boolean;
 }
 
 type StatusFilter = "all" | ApiKeyStatus;
 
-export function ApiKeysAuditClient({ kpis, groups, rows, projects }: Props) {
+export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiKeys }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -234,7 +246,7 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects }: Props) {
           <Button
             size="sm"
             onClick={() => setMintOpen(true)}
-            disabled={projects.length === 0}
+            disabled={projects.length === 0 || !canCreateApiKeys}
             className="gap-1.5"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden /> Mint key
@@ -326,7 +338,7 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects }: Props) {
                                 ROLE_STYLES[k.role] ?? ROLE_STYLES.member,
                               )}
                             >
-                              {k.role}
+                              {API_KEY_ROLE_LABELS[k.role as ApiKeyRole] ?? k.role}
                             </Badge>
                           </td>
                           <td className={cn("px-2 py-2 text-xs", STATUS_STYLES[k.status])}>
@@ -375,6 +387,7 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects }: Props) {
         onOpenChange={setMintOpen}
         projects={projects}
         defaultProjectId={projectFilter !== "all" ? projectFilter : projects[0]?.id ?? ""}
+        canCreateApiKeys={canCreateApiKeys}
       />
     </div>
   );
@@ -385,22 +398,26 @@ function MintKeyDialog({
   onOpenChange,
   projects,
   defaultProjectId,
+  canCreateApiKeys,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   projects: ProjectOption[];
   defaultProjectId: string;
+  canCreateApiKeys: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId);
+  const [role, setRole] = useState<ApiKeyRole>("member");
   const [expiresInDays, setExpiresInDays] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
 
   function reset() {
     setName("");
+    setRole("member");
     setExpiresInDays("");
     setError(null);
     setRevealedPlaintext(null);
@@ -425,9 +442,10 @@ function MintKeyDialog({
     const expiresAt = days ? new Date(Date.now() + days * 86_400_000) : null;
     startTransition(async () => {
       try {
-        const result = await mintApiKeyAction({ name: name.trim(), projectId, expiresAt });
+        const result = await mintApiKeyAction({ name: name.trim(), projectId, role, expiresAt });
         setRevealedPlaintext(result.plaintext);
         setName("");
+        setRole("member");
         setExpiresInDays("");
         router.refresh();
       } catch (err) {
@@ -448,7 +466,7 @@ function MintKeyDialog({
         <DialogHeader>
           <DialogTitle>Mint API key</DialogTitle>
           <DialogDescription>
-            Org-admin minting. For day-to-day key creation, prefer the project&apos;s Settings
+            Owner-controlled minting. For day-to-day key creation, prefer the project&apos;s Settings
             tab — that&apos;s also where developers will look.
           </DialogDescription>
         </DialogHeader>
@@ -463,6 +481,19 @@ function MintKeyDialog({
             </pre>
             <div className="flex items-center justify-end gap-2">
               <CopyButton text={revealedPlaintext} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRevealedPlaintext(null);
+                  setName("");
+                  setRole("member");
+                  setExpiresInDays("");
+                  setError(null);
+                }}
+              >
+                Mint another
+              </Button>
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                 Done
               </Button>
@@ -477,12 +508,16 @@ function MintKeyDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. cursor-laptop"
-                disabled={pending}
+                disabled={pending || !canCreateApiKeys}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="mint-project">Project</Label>
-              <Select value={projectId} onValueChange={setProjectId}>
+              <Select
+                value={projectId}
+                onValueChange={setProjectId}
+                disabled={pending || !canCreateApiKeys}
+              >
                 <SelectTrigger id="mint-project">
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
@@ -507,9 +542,37 @@ function MintKeyDialog({
                 value={expiresInDays}
                 onChange={(e) => setExpiresInDays(e.target.value)}
                 placeholder="never"
-                disabled={pending}
+                disabled={pending || !canCreateApiKeys}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mint-role">Role</Label>
+              <Select
+                value={role}
+                onValueChange={(value) => setRole(value as ApiKeyRole)}
+                disabled={pending || !canCreateApiKeys}
+              >
+                <SelectTrigger id="mint-role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {API_KEY_ROLE_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={ROLE_OPTION_STYLES[option.value]}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {!canCreateApiKeys ? (
+              <div className="text-sm text-muted-foreground">
+                Only project owners can mint API keys and assign roles.
+              </div>
+            ) : null}
             {error ? <div className="text-sm text-destructive">{error}</div> : null}
             <DialogFooter>
               <Button
@@ -520,7 +583,7 @@ function MintKeyDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
+              <Button type="submit" disabled={pending || !canCreateApiKeys}>
                 {pending ? "Minting…" : "Mint key"}
               </Button>
             </DialogFooter>

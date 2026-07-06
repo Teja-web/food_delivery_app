@@ -3,7 +3,7 @@ import type { AdapterBinding } from "@/db/schema/adapter-binding";
 // instead. Sync history will be added when integrations expose it.
 import type { Deployment, DeploymentStatus } from "@/db/schema/deployment";
 import type { Environment } from "@/db/schema/environment";
-import type { PlanArtifact } from "@/db/schema/plan/plan-artifact";
+import type { ProjectTask } from "@/db/schema/plan/project-task";
 import type { Project, ProjectStatus } from "@/db/schema/project";
 import type { Repository } from "@/db/schema/repository";
 import type { Rule, RuleSeverity } from "@/db/schema/rule";
@@ -66,7 +66,7 @@ export interface CockpitWorkItemClient {
   title: string;
   status: string | null;
   assigneeEmail: string | null;
-  planArtifactId: string | null;
+  projectTaskId: string | null;
   lastSyncedAt: string | null;
   updatedAt: string;
 }
@@ -124,7 +124,7 @@ export function serializeCockpitBinding(b: AdapterBinding): CockpitBindingClient
   };
 }
 
-export function serializeCockpitPlan(p: PlanArtifact): CockpitPlanClient {
+export function serializeCockpitPlan(p: ProjectTask): CockpitPlanClient {
   return {
     id: p.id,
     title: p.title,
@@ -166,7 +166,7 @@ export function serializeCockpitWorkItem(w: WorkItem): CockpitWorkItemClient {
     title: w.title,
     status: w.status,
     assigneeEmail: w.assigneeEmail,
-    planArtifactId: w.planArtifactId,
+    projectTaskId: w.projectTaskId,
     lastSyncedAt: w.lastSyncedAt?.toISOString() ?? null,
     updatedAt: w.updatedAt.toISOString(),
   };

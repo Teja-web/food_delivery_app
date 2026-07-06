@@ -13,7 +13,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { marked } from "marked";
 
 import { db } from "@/db/client";
-import { planArtifacts as plans } from "@/db/schema/plan/plan-artifact";
+import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { projects } from "@/db/schema/project";
 import { authenticate, UnauthorizedError } from "@/lib/auth/api-key";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
   const conditions = [inArray(plans.id, ids), eq(plans.organizationId, auth.organizationId)];
   if (auth.projectId) conditions.push(eq(plans.projectId, auth.projectId));
 
-  const rows = await db.query.planArtifacts.findMany({
+  const rows = await db.query.projectTasks.findMany({
     where: and(...conditions),
   });
 

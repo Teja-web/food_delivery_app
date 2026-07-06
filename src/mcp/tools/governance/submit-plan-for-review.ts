@@ -1,7 +1,7 @@
 /**
  * MCP tool: submit_plan_for_review
  *
- * Move a plan_artifact from `draft` → `in_review` and materialize the
+ * Move a project_task from `draft` → `in_review` and materialize the
  * governance records that gate the transition. Replaces the legacy
  * `submit_phase_for_review` verb — governance is now plan-bound, not
  * phase-bound.
@@ -13,10 +13,10 @@ import { CozntClient } from "../../client";
 import { bumpToolCall } from "../../session";
 
 export const submitPlanForReviewInput = z.object({
-  planArtifactId: z
+  projectTaskId: z
     .string()
     .min(1)
-    .describe("Id of the plan_artifact to move into review."),
+    .describe("Id of the project_task to move into review."),
 });
 
 export type SubmitPlanForReviewInput = z.infer<typeof submitPlanForReviewInput>;

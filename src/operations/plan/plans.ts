@@ -1,8 +1,8 @@
 /**
- * Plan Artifact CRUD + revision/upsert helpers.
+ * Project Task CRUD + revision/upsert helpers.
  *
  * File name preserved as `plans.ts` for import stability; the table is now
- * `plan_artifacts` and exports use `planArtifacts` / `planCrud` (the latter
+ * `project_tasks` and exports use `projectTasks` / `planCrud` (the latter
  * kept as an alias for callers).
  */
 
@@ -12,14 +12,13 @@ import { customAlphabet } from "nanoid";
 import { db } from "@/db/client";
 import { createEntityCrud } from "@/lib/crud";
 import {
-  planArtifacts,
+  projectTasks,
   PLAN_KINDS,
   PLAN_KIND_PARENTS,
   PLAN_PRIORITIES,
   PLAN_STATUSES,
-  PLAN_CLASSIFICATIONS,
   type PlanKind,
-} from "@/db/schema/plan/plan-artifact";
+} from "@/db/schema/plan/project-task";
 import { planRevisions } from "@/db/schema/plan/plan-revision";
 import { planRelationships } from "@/db/schema/plan/plan-relationship";
 import { safeRevalidate } from "@/lib/safe-revalidate";
@@ -44,12 +43,10 @@ const planSchema = z.object({
   title: z.string().min(1),
   summary: z.string().optional(),
   body: z.string().default(""),
-  details: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   status: z.enum(PLAN_STATUSES).default("draft"),
   priority: z.enum(PLAN_PRIORITIES).optional(),
-  effortEstimate: z.string().optional(),
   dueDate: z.date().optional(),
-  classifications: z.array(z.enum(PLAN_CLASSIFICATIONS)).optional(),
   externalRef: z.string().optional(),
   assigneeId: z.string().optional(),
   assigneeName: z.string().optional(),
@@ -57,8 +54,8 @@ const planSchema = z.object({
 
 export const planCrud = createEntityCrud({
   db,
-  table: planArtifacts,
-  queryKey: "planArtifacts",
+  table: projectTasks,
+  queryKey: "projectTasks",
   idField: "id",
   schema: planSchema,
   searchFields: ["title", "summary", "body"],
@@ -76,6 +73,31 @@ export const planCrud = createEntityCrud({
 
 type PlanCreateInput = Omit<z.input<typeof planSchema>, "slug"> & { slug?: string };
 
+export function normalizeProjectTaskMetadata(input: {
+  metadata?: Record<string, unknown>;
+  details?: Record<string, unknown>;
+  effortEstimate?: string | null;
+  classifications?: string[] | null;
+  claimedPath?: string | null;
+}): Record<string, unknown> | undefined {
+  const metadata: Record<string, unknown> = {
+    ...(input.details ?? {}),
+    ...(input.metadata ?? {}),
+  };
+
+  if (input.effortEstimate != null) metadata.effortEstimate = input.effortEstimate;
+  if (input.classifications != null) metadata.classifications = input.classifications;
+  if (input.claimedPath != null) {
+    const source =
+      typeof metadata.source === "object" && metadata.source !== null && !Array.isArray(metadata.source)
+        ? (metadata.source as Record<string, unknown>)
+        : {};
+    metadata.source = { ...source, claimedPath: input.claimedPath };
+  }
+
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
 export async function createPlan(input: PlanCreateInput) {
   const slug = input.slug ?? slugify(input.title);
   return planCrud.create({ ...input, slug });
@@ -86,12 +108,12 @@ export async function listPlansByProject(
   opts: { limit?: number; offset?: number } = {},
 ) {
   const ctx = await getActionContext();
-  return db.query.planArtifacts.findMany({
+  return db.query.projectTasks.findMany({
     where: and(
-      eq(planArtifacts.organizationId, ctx.organizationId),
-      eq(planArtifacts.projectId, projectId),
+      eq(projectTasks.organizationId, ctx.organizationId),
+      eq(projectTasks.projectId, projectId),
     ),
-    orderBy: [desc(planArtifacts.updatedAt)],
+    orderBy: [desc(projectTasks.updatedAt)],
     limit: opts.limit ?? 50,
     offset: opts.offset ?? 0,
   });
@@ -99,52 +121,52 @@ export async function listPlansByProject(
 
 export async function listPlansByKind(kind: PlanKind, opts: { limit?: number } = {}) {
   const ctx = await getActionContext();
-  return db.query.planArtifacts.findMany({
-    where: and(eq(planArtifacts.organizationId, ctx.organizationId), eq(planArtifacts.kind, kind)),
-    orderBy: [desc(planArtifacts.updatedAt)],
+  return db.query.projectTasks.findMany({
+    where: and(eq(projectTasks.organizationId, ctx.organizationId), eq(projectTasks.kind, kind)),
+    orderBy: [desc(projectTasks.updatedAt)],
     limit: opts.limit ?? 100,
     with: { project: true },
   });
 }
 
 export async function appendPlanRevision(args: {
-  planArtifactId: string;
+  projectTaskId: string;
   body: string;
-  details?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   changeNote?: string;
 }): Promise<number> {
   const ctx = await getActionContext();
   const last = await db.query.planRevisions.findFirst({
-    where: eq(planRevisions.planArtifactId, args.planArtifactId),
+    where: eq(planRevisions.projectTasksId, args.projectTaskId),
     orderBy: [desc(planRevisions.revisionNumber)],
   });
   const next = (last?.revisionNumber ?? 0) + 1;
 
   await db.insert(planRevisions).values({
     organizationId: ctx.organizationId,
-    planArtifactId: args.planArtifactId,
+    projectTasksId: args.projectTaskId,
     revisionNumber: next,
     body: args.body,
-    details: args.details,
+    details: args.metadata,
     changeNote: args.changeNote,
     createdById: ctx.userId,
     createdByName: ctx.user.name,
   });
 
   await db
-    .update(planArtifacts)
+    .update(projectTasks)
     .set({
       body: args.body,
-      details: args.details,
+      metadata: args.metadata,
       updatedAt: new Date(),
       updatedById: ctx.userId,
       updatedByName: ctx.user.name,
     })
     .where(
-      and(eq(planArtifacts.id, args.planArtifactId), eq(planArtifacts.organizationId, ctx.organizationId)),
+      and(eq(projectTasks.id, args.projectTaskId), eq(projectTasks.organizationId, ctx.organizationId)),
     );
 
-  safeRevalidate(`/plans/${args.planArtifactId}`);
+  safeRevalidate(`/plans/${args.projectTaskId}`);
   return next;
 }
 
@@ -155,34 +177,34 @@ export async function upsertPlanByKindAndSlug(args: {
   title: string;
   summary?: string;
   body: string;
-  details?: Record<string, unknown>;
-  parentPlanArtifactId?: string | null;
+  metadata?: Record<string, unknown>;
+  parentProjectTaskId?: string | null;
   changeNote?: string;
 }): Promise<{
-  plan: typeof planArtifacts.$inferSelect;
+  plan: typeof projectTasks.$inferSelect;
   revisionNumber: number;
   created: boolean;
 }> {
   const ctx = await getActionContext();
 
-  const existing = await db.query.planArtifacts.findFirst({
+  const existing = await db.query.projectTasks.findFirst({
     where: and(
-      eq(planArtifacts.organizationId, ctx.organizationId),
-      eq(planArtifacts.projectId, args.projectId),
-      eq(planArtifacts.kind, args.kind),
-      eq(planArtifacts.slug, args.slug),
+      eq(projectTasks.organizationId, ctx.organizationId),
+      eq(projectTasks.projectId, args.projectId),
+      eq(projectTasks.kind, args.kind),
+      eq(projectTasks.slug, args.slug),
     ),
   });
 
   if (existing) {
     const revisionNumber = await appendPlanRevision({
-      planArtifactId: existing.id,
+      projectTaskId: existing.id,
       body: args.body,
-      details: args.details,
+      metadata: args.metadata,
       changeNote: args.changeNote,
     });
     await db
-      .update(planArtifacts)
+      .update(projectTasks)
       .set({
         title: args.title,
         summary: args.summary,
@@ -191,17 +213,17 @@ export async function upsertPlanByKindAndSlug(args: {
         updatedByName: ctx.user.name,
       })
       .where(
-        and(eq(planArtifacts.id, existing.id), eq(planArtifacts.organizationId, ctx.organizationId)),
+        and(eq(projectTasks.id, existing.id), eq(projectTasks.organizationId, ctx.organizationId)),
       );
 
-    if (args.parentPlanArtifactId) {
-      await upsertParentOf(existing.id, args.parentPlanArtifactId);
+    if (args.parentProjectTaskId) {
+      await upsertParentOf(existing.id, args.parentProjectTaskId);
     }
 
-    const refreshed = await db.query.planArtifacts.findFirst({
+    const refreshed = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.id, existing.id),
-        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(projectTasks.id, existing.id),
+        eq(projectTasks.organizationId, ctx.organizationId),
       ),
     });
     return { plan: refreshed!, revisionNumber, created: false };
@@ -214,12 +236,12 @@ export async function upsertPlanByKindAndSlug(args: {
     title: args.title,
     summary: args.summary,
     body: args.body,
-    details: args.details,
+    metadata: args.metadata,
     status: "draft",
   });
 
-  if (args.parentPlanArtifactId) {
-    await upsertParentOf(created.id, args.parentPlanArtifactId);
+  if (args.parentProjectTaskId) {
+    await upsertParentOf(created.id, args.parentProjectTaskId);
   }
 
   return { plan: created, revisionNumber: 0, created: true };
@@ -230,26 +252,26 @@ async function upsertParentOf(childId: string, parentId: string) {
   const existing = await db.query.planRelationships.findFirst({
     where: and(
       eq(planRelationships.organizationId, ctx.organizationId),
-      eq(planRelationships.fromPlanArtifactId, parentId),
-      eq(planRelationships.toPlanArtifactId, childId),
+      eq(planRelationships.fromProjectTasksId, parentId),
+      eq(planRelationships.toProjectTasksId, childId),
       eq(planRelationships.kind, "parent_of"),
     ),
   });
   if (existing) return;
   await db.insert(planRelationships).values({
     organizationId: ctx.organizationId,
-    fromPlanArtifactId: parentId,
-    toPlanArtifactId: childId,
+    fromProjectTasksId: parentId,
+    toProjectTasksId: childId,
     kind: "parent_of",
     createdById: ctx.userId,
   });
 }
 
-export async function listPlanRevisions(planArtifactId: string) {
+export async function listPlanRevisions(projectTaskId: string) {
   const ctx = await getActionContext();
   return db.query.planRevisions.findMany({
     where: and(
-      eq(planRevisions.planArtifactId, planArtifactId),
+      eq(planRevisions.projectTasksId, projectTaskId),
       eq(planRevisions.organizationId, ctx.organizationId),
     ),
     orderBy: [desc(planRevisions.revisionNumber)],
@@ -257,42 +279,42 @@ export async function listPlanRevisions(planArtifactId: string) {
 }
 
 /** Children rolled up under this plan via `parent_of` relationships. */
-export async function listChildPlans(parentPlanArtifactId: string) {
+export async function listChildPlans(parentProjectTaskId: string) {
   const ctx = await getActionContext();
   const rels = await db.query.planRelationships.findMany({
     where: and(
-      eq(planRelationships.fromPlanArtifactId, parentPlanArtifactId),
+      eq(planRelationships.fromProjectTasksId, parentProjectTaskId),
       eq(planRelationships.kind, "parent_of"),
       eq(planRelationships.organizationId, ctx.organizationId),
     ),
   });
   if (rels.length === 0) return [];
-  return db.query.planArtifacts.findMany({
+  return db.query.projectTasks.findMany({
     where: and(
       inArray(
-        planArtifacts.id,
-        rels.map((r) => r.toPlanArtifactId),
+        projectTasks.id,
+        rels.map((r) => r.toProjectTasksId),
       ),
-      eq(planArtifacts.organizationId, ctx.organizationId),
+      eq(projectTasks.organizationId, ctx.organizationId),
     ),
-    orderBy: [desc(planArtifacts.updatedAt)],
+    orderBy: [desc(projectTasks.updatedAt)],
   });
 }
 
 /** Walks up `parent_of` relationships. Returns root-first, exclusive of the plan itself. */
 export async function getPlanAncestry(
-  planArtifactId: string,
+  projectTaskId: string,
 ): Promise<Array<{ id: string; title: string; kind: PlanKind }>> {
   const ctx = await getActionContext();
   const chain: Array<{ id: string; title: string; kind: PlanKind }> = [];
-  let cursor: string | null = planArtifactId;
+  let cursor: string | null = projectTaskId;
   const seen = new Set<string>();
   while (cursor && !seen.has(cursor)) {
     seen.add(cursor);
     const rel: typeof planRelationships.$inferSelect | undefined =
       await db.query.planRelationships.findFirst({
         where: and(
-          eq(planRelationships.toPlanArtifactId, cursor),
+          eq(planRelationships.toProjectTasksId, cursor),
           eq(planRelationships.kind, "parent_of"),
           eq(planRelationships.organizationId, ctx.organizationId),
         ),
@@ -300,10 +322,10 @@ export async function getPlanAncestry(
     if (!rel) break;
     const parent:
       | { id: string; title: string; kind: PlanKind }
-      | undefined = await db.query.planArtifacts.findFirst({
+      | undefined = await db.query.projectTasks.findFirst({
       where: and(
-        eq(planArtifacts.id, rel.fromPlanArtifactId),
-        eq(planArtifacts.organizationId, ctx.organizationId),
+        eq(projectTasks.id, rel.fromProjectTasksId),
+        eq(projectTasks.organizationId, ctx.organizationId),
       ),
       columns: { id: true, title: true, kind: true },
     });

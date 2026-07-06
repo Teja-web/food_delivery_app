@@ -28,6 +28,7 @@ const publicInstallDir = join(repoRoot, "public", "install");
 
 function run(cmd: string, args: string[], cwd: string): void {
   const r = spawnSync(cmd, args, { cwd, stdio: "inherit" });
+  if (r.error) throw new Error(`${cmd} ${args.join(" ")} failed to start: ${r.error.message}`);
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed`);
 }
 
@@ -63,7 +64,9 @@ writeFileSync(
   ) + "\n",
 );
 
-run("chmod", ["+x", "coznt-capture-prompt-hook.mjs"], distDir);
+if (process.platform !== "win32") {
+  run("chmod", ["+x", "coznt-capture-prompt-hook.mjs"], distDir);
+}
 
 const tarballName = `coznt-prompt-hook-${version}.tgz`;
 const tarballDst = join(publicInstallDir, tarballName);

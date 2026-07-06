@@ -15,7 +15,7 @@ export const GOVERNANCE_SCOPES = [
   "project",
   "repository",
   "environment",
-  "plan_artifact",
+  "project_task",
 ] as const;
 export type GovernanceScope = (typeof GOVERNANCE_SCOPES)[number];
 

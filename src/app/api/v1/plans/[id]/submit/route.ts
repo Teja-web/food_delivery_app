@@ -1,10 +1,11 @@
 /**
- * POST /api/v1/plans/:id/submit — move a plan_artifact draft → in_review
+ * POST /api/v1/plans/:id/submit — move a project_task draft → in_review
  * and materialize governance records for the transition. Replaces the
  * legacy `requestPlanApproval` op (approvals table is gone).
  */
 
 import { handleApi } from "@/lib/auth/api-key";
+import { transitionJiraIssueForPlan } from "@/lib/integrations/outbound";
 import { planCrud } from "@/operations/plan/plans";
 import { materializeGovernanceRecords } from "@/operations/governance/records";
 
@@ -26,10 +27,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     await planCrud.update(id, { status: "in_review" });
     const records = await materializeGovernanceRecords({
-      planArtifactId: id,
+      projectTaskId: id,
       transitionFrom: "draft",
       transitionTo: "in_review",
     });
-    return { plan: await planCrud.get(id), governanceRecords: records };
+
+    let autoApproved = false;
+    if (records.length === 0) {
+      await planCrud.update(id, { status: "approved" });
+      await transitionJiraIssueForPlan(id, "approved");
+      autoApproved = true;
+    }
+
+    return {
+      plan: await planCrud.get(id),
+      governanceRecords: records,
+      autoApproved,
+      note: autoApproved
+        ? "No governance policy applied to this transition; plan auto-approved."
+        : undefined,
+    };
   });
 }

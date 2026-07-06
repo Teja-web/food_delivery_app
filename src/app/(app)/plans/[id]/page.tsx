@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
+import { db } from "@/db/client";
+import { auditLogs } from "@/db/schema/audit/audit-log";
+import { workItems } from "@/db/schema/work-item";
 import { listCommentsForPlan, createComment } from "@/actions/plan/comments";
 import { getPlan } from "@/actions/plan/plans";
 import { Badge } from "@/components/ui/badge";
@@ -11,28 +15,78 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { DEFAULT_AUTHORING_PATHS } from "@/lib/authoring/coznt-config";
+import { getJiraClient } from "@/lib/integrations/clients";
+import { jiraIssueBelongsToExternalKey } from "@/lib/integrations/jira-keys";
+import { JIRA_PLAN_PUSH_ACTIONS, jiraPlanNeedsPush } from "@/lib/integrations/outbound";
 import { listEvidenceForPlan } from "@/operations/evidence";
 import { listRecordsForPlan } from "@/operations/governance/records";
+import { getOutboundBinding } from "@/operations/choreography/adapter-bindings";
 import {
   getPlanAncestry,
   listChildPlans,
   listPlanRevisions,
 } from "@/operations/plan/plans";
 import { listRelationshipsForPlan } from "@/operations/plan/relationships";
+import { listRepositoriesForProject } from "@/operations/project/repositories";
 
 import { ApprovalActions } from "./ApprovalActions";
 import { PlanEditor } from "./PlanEditor";
+import { PushPlansToJiraButton } from "../PushPlansToJiraButton";
+import { PushPlanButton } from "./PushPlanButton";
+import { PlanActionsMenu } from "./PlanActionsMenu";
 
 async function addComment(planId: string, formData: FormData) {
   "use server";
   const { currentUser } = await getCurrentUser();
   if (!currentUser) return;
-  await createComment({
-    planId,
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return;
+
+  const comment = await createComment({
+    projectTaskId: planId,
     authorId: currentUser.id,
     authorName: currentUser.name,
-    body: String(formData.get("body") ?? "").trim(),
+    body,
   });
+
+  const plan = await getPlan(planId);
+  if (!plan) return;
+
+  const [jiraBinding, jiraWorkItem] = await Promise.all([
+    getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
+    db.query.workItems.findFirst({
+      where: and(
+        eq(workItems.organizationId, plan.organizationId),
+        eq(workItems.projectId, plan.projectId),
+        eq(workItems.projectTaskId, planId),
+        eq(workItems.source, "jira"),
+      ),
+      columns: { externalId: true },
+    }),
+  ]);
+
+  const issueKey = jiraWorkItem?.externalId ?? jiraIssueKeyFromExternalRef(plan.externalRef);
+  if (!jiraIssueBelongsToExternalKey(issueKey, jiraBinding?.externalKey)) return;
+
+  try {
+    const client = await getJiraClient(plan.organizationId);
+    const author = currentUser.name ?? "Coznt user";
+    await client.createIssueComment(issueKey, {
+      body: `${author} via Coznt:\n${body}`,
+      cozntCommentId: comment.id,
+    });
+  } catch {
+    /* Keep the Coznt comment even when Jira sync is temporarily unavailable. */
+  }
+}
+
+function jiraIssueKeyFromExternalRef(externalRef: string | null | undefined): string | null {
+  return externalRef?.startsWith("jira:") ? externalRef.slice("jira:".length) : null;
+}
+
+function isJiraStoredComment(commentId: string, authorId: string): boolean {
+  return commentId.startsWith("jira:") || authorId.startsWith("jira:");
 }
 
 export default async function PlanDetailPage({
@@ -44,9 +98,19 @@ export default async function PlanDetailPage({
   const plan = await getPlan(id);
   if (!plan) notFound();
 
-  const [comments, records, evidence, relationships, revisions, children, ancestry, bodyHtml] =
+  const [
+    records,
+    evidence,
+    relationships,
+    revisions,
+    children,
+    ancestry,
+    bodyHtml,
+    jiraBinding,
+    jiraWorkItem,
+    jiraLastPushAudit,
+  ] =
     await Promise.all([
-      listCommentsForPlan(id),
       listRecordsForPlan(id),
       listEvidenceForPlan(id),
       listRelationshipsForPlan(id),
@@ -56,12 +120,49 @@ export default async function PlanDetailPage({
       plan.body
         ? (marked.parse(plan.body, { gfm: true, breaks: false }) as Promise<string>)
         : Promise.resolve(""),
+      getOutboundBinding(plan.organizationId, plan.projectId, "jira"),
+      db.query.workItems.findFirst({
+        where: and(
+          eq(workItems.organizationId, plan.organizationId),
+          eq(workItems.projectId, plan.projectId),
+          eq(workItems.projectTaskId, id),
+          eq(workItems.source, "jira"),
+        ),
+        columns: { externalUrl: true, externalId: true, title: true, status: true, updatedAt: true },
+      }),
+      db.query.auditLogs.findFirst({
+        where: and(
+          eq(auditLogs.organizationId, plan.organizationId),
+          eq(auditLogs.entityType, "plan"),
+          eq(auditLogs.entityId, id),
+          inArray(auditLogs.action, [...JIRA_PLAN_PUSH_ACTIONS]),
+        ),
+        orderBy: [desc(auditLogs.createdAt)],
+        columns: { createdAt: true },
+      }),
     ]);
+  const jiraPushNeedsSync =
+    Boolean(jiraBinding) &&
+    jiraPlanNeedsPush(plan, { lastPushedAt: jiraLastPushAudit?.createdAt ?? null });
+  const comments = await listCommentsForPlan(id);
+  const projectRepos = await listRepositoriesForProject(plan.projectId);
 
   const pendingApprovals = records.filter(
     (r) => r.kind === "approval" && r.status === "pending",
   );
   const editable = plan.status === "draft" || plan.status === "in_review";
+  const allComments = comments.map((comment) => ({
+    id: comment.id,
+    source: isJiraStoredComment(comment.id, comment.authorId) ? "Jira" : "Coznt",
+    author: comment.authorName ?? comment.authorId,
+    body: comment.body,
+    createdAt: comment.createdAt,
+  }));
+  const githubRepos = projectRepos.filter((r) => r.source === "github");
+  const planKind = plan.kind as keyof typeof DEFAULT_AUTHORING_PATHS.plans;
+  const defaultPlanDir = DEFAULT_AUTHORING_PATHS.plans[planKind]?.[0] ?? ".agents/plans/";
+  const planFileName = `${(plan.slug || plan.id).trim()}.md`;
+  const pushBranchName = `coznt/plan-push/${plan.kind}-${(plan.slug || plan.id).slice(0, 24)}`;
 
   return (
     <>
@@ -111,15 +212,17 @@ export default async function PlanDetailPage({
               <Badge variant="outline" className="font-mono text-[10px] uppercase">
                 {plan.status.replace("_", " ")}
               </Badge>
-              {plan.externalRef ? (
+              {plan.externalRef && jiraWorkItem?.externalUrl ? (
                 <a
-                  href={plan.externalRef}
+                  href={jiraWorkItem.externalUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {plan.externalRef}
+                  {jiraWorkItem.externalId}
                 </a>
+              ) : plan.externalRef ? (
+                <span className="text-xs text-muted-foreground">{plan.externalRef}</span>
               ) : null}
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">{plan.title}</h1>
@@ -128,12 +231,28 @@ export default async function PlanDetailPage({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <a href={`/api/v1/plans/${id}/export?format=md`}>Export .md</a>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <a href={`/api/v1/plans/${id}/export?format=html`}>Export .html</a>
-            </Button>
+            {jiraBinding ? (
+              <PushPlansToJiraButton mode="single" planId={id} needsPush={jiraPushNeedsSync} />
+            ) : null}
+            {githubRepos.length > 0 ? (
+              <PushPlanButton
+                planId={id}
+                repositories={githubRepos.map((repo) => ({
+                  identifier: repo.identifier,
+                  defaultBranch: repo.defaultBranch,
+                }))}
+                initialDirectoryName={defaultPlanDir}
+                initialFileName={planFileName}
+                initialBranchName={pushBranchName}
+                initialRepositoryIdentifier={githubRepos[0].identifier}
+              />
+            ) : null}
+            <PlanActionsMenu
+              planId={id}
+              projectId={plan.projectId}
+              body={plan.body ?? ""}
+              bodyHtml={bodyHtml}
+            />
           </div>
         </div>
 
@@ -144,7 +263,7 @@ export default async function PlanDetailPage({
               Revisions{revisions.length ? ` · ${revisions.length}` : ""}
             </TabsTrigger>
             <TabsTrigger value="comments">
-              Comments{comments.length ? ` · ${comments.length}` : ""}
+              Comments{allComments.length ? ` · ${allComments.length}` : ""}
             </TabsTrigger>
             <TabsTrigger value="governance">
               Governance{records.length ? ` · ${records.length}` : ""}
@@ -229,14 +348,21 @@ export default async function PlanDetailPage({
                 Comment
               </Button>
             </form>
-            {comments.length > 0 ? (
+            {allComments.length > 0 ? (
               <ul className="space-y-2 text-sm">
-                {comments.map((c) => (
+                {allComments.map((c) => (
                   <li key={c.id} className="rounded border bg-muted/20 p-3">
-                    <div className="text-xs text-muted-foreground">
-                      {c.authorName ?? c.authorId} · {new Date(c.createdAt).toLocaleString()}
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{c.author}</span>
+                      <span>·</span>
+                      <span>{c.createdAt.toLocaleString()}</span>
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                        Source: {c.source}
+                      </Badge>
                     </div>
-                    <div className="whitespace-pre-wrap">{c.body}</div>
+                    <div className="whitespace-pre-wrap">
+                      {c.body || <em className="text-muted-foreground">No comment body.</em>}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -331,9 +457,9 @@ export default async function PlanDetailPage({
                         {r.kind}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {r.fromPlanArtifactId === id
-                          ? `→ ${r.toPlanArtifactId.slice(0, 8)}`
-                          : `← ${r.fromPlanArtifactId.slice(0, 8)}`}
+                        {r.fromProjectTasksId === id
+                          ? `→ ${r.toProjectTasksId.slice(0, 8)}`
+                          : `← ${r.fromProjectTasksId.slice(0, 8)}`}
                       </span>
                     </div>
                     {r.note ? (

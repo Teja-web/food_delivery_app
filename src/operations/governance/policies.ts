@@ -2,7 +2,7 @@
  * Governance Policies — CRUD on rule definitions.
  *
  * Kind discriminator: gate | approval | review | exception.
- * Scope discriminator: organization | project | repository | environment | plan_artifact.
+ * Scope discriminator: organization | project | repository | environment | project_task.
  * Per-kind config validated by Zod in `lib/governance/schemas.ts`.
  */
 

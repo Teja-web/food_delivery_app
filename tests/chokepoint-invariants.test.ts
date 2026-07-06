@@ -46,7 +46,7 @@ function walk(dir: string, out: string[] = []): string[] {
 function readSourceTree(): { path: string; rel: string; content: string }[] {
   return walk(SRC_DIR).map((path) => ({
     path,
-    rel: relative(REPO_ROOT, path),
+    rel: relative(REPO_ROOT, path).replaceAll("\\", "/"),
     content: readFileSync(path, "utf-8"),
   }));
 }
@@ -160,12 +160,32 @@ const AUDIT_LOGS_ALLOWED: { path: string; reason: string }[] = [
     reason: "rule violations recorded at write time",
   },
   {
+    path: "src/operations/artifacts.ts",
+    reason: "artifact create/update/delete/clone events are governance-domain mutations",
+  },
+  {
+    path: "src/automations/tasks/process-webhook-event.ts",
+    reason: "integration-origin Jira webhook mutations mirror external state into plans, work items, and comments",
+  },
+  {
+    path: "src/lib/integrations/outbound.ts",
+    reason: "Coznt-to-Jira pushes audit plan sync/update rows after successful outbound issue writes",
+  },
+  {
     path: "src/app/api/v1/mcp/sessions/route.ts",
     reason: "mcp.session_start — first audit row of every MCP session",
   },
   {
     path: "src/app/api/v1/mcp/sessions/[id]/end/route.ts",
     reason: "mcp.session_end — closes the session span in the audit log",
+  },
+  {
+    path: "src/app/api/v1/projects/[id]/propose-artifact/route.ts",
+    reason: "artifact proposal endpoint records project-scoped artifact proposal events",
+  },
+  {
+    path: "src/automations/tasks/sync-shared.ts",
+    reason: "shared sync task records automation-side audit entries for external synchronization",
   },
 ];
 

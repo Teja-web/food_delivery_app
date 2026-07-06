@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan/plan-artifact";
+import { PLAN_KINDS, type PlanKind, type PlanStatus } from "@/db/schema/plan/project-task";
 import { cn } from "@/lib/utils";
 
 import type { PlansPageClient } from "./serialize";
@@ -14,6 +14,7 @@ import { PlansTable } from "./views/PlansTable";
 import { PlansTree } from "./views/PlansTree";
 import { KIND_DOT_CLASS, STATUS_FILTER_TONE } from "./views/tone";
 import { isPlanViewKind, ViewToggle, type PlanViewKind } from "./views/ViewToggle";
+import { PushPlansToJiraButton } from "./PushPlansToJiraButton";
 
 type Filter =
   | { kind: "all" }
@@ -194,6 +195,11 @@ export function PlansClient({ data }: { data: PlansPageClient }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="ml-auto h-7 w-44 rounded-md px-2.5 py-1 text-xs"
+          />
+          <PushPlansToJiraButton
+            mode="all"
+            projectId={data.projectId}
+            totalCount={data.counts.jiraPushTargets}
           />
           <ViewToggle value={view} onChange={setView} />
         </div>

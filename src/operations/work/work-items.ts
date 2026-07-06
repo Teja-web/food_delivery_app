@@ -8,7 +8,7 @@ import { getActionContext } from "@/lib/auth/context";
 
 const workItemSchema = z.object({
   projectId: z.string().optional().nullable(),
-  planArtifactId: z.string().optional().nullable(),
+  projectTaskId: z.string().optional().nullable(),
   source: z.enum(WORK_ITEM_SOURCES),
   externalId: z.string().min(1),
   externalUrl: z.string().url().optional(),
@@ -30,10 +30,10 @@ export const workItemCrud = createEntityCrud({
   onMutate: () => safeRevalidate("/work-items"),
 });
 
-export async function listWorkItemsForPlan(planArtifactId: string) {
+export async function listWorkItemsForPlan(projectTaskId: string) {
   const ctx = await getActionContext();
   return db.query.workItems.findMany({
-    where: and(eq(workItems.planArtifactId, planArtifactId), eq(workItems.organizationId, ctx.organizationId)),
+    where: and(eq(workItems.projectTaskId, projectTaskId), eq(workItems.organizationId, ctx.organizationId)),
     orderBy: [desc(workItems.lastSyncedAt), desc(workItems.createdAt)],
   });
 }
@@ -57,9 +57,13 @@ export async function upsertWorkItem(input: z.infer<typeof workItemSchema> & { o
   });
 
   if (existing) {
+    const updateData: Record<string, unknown> = { ...validated };
+    if (!Object.hasOwn(input, "projectTaskId")) {
+      updateData.projectTaskId = existing.projectTaskId;
+    }
     await db
       .update(workItems)
-      .set({ ...validated, lastSyncedAt: new Date(), updatedAt: new Date() })
+      .set({ ...updateData, lastSyncedAt: new Date(), updatedAt: new Date() })
       .where(eq(workItems.id, existing.id));
     return existing.id;
   }
