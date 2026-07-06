@@ -149,15 +149,22 @@ function isAcceptedStandardFile(file: File): boolean {
     lower.endsWith(".md") ||
     lower.endsWith(".markdown") ||
     lower.endsWith(".txt") ||
+    lower.endsWith(".html") ||
+    lower.endsWith(".json") ||
     file.type === "text/markdown" ||
     file.type === "text/plain" ||
+    file.type === "text/html" ||
+    file.type === "application/json" ||
     file.type === ""
   );
 }
 
 function artifactTypeFromFile(file: File): ArtifactFileType {
   const lower = file.name.toLowerCase();
-  return lower.endsWith(".txt") || file.type === "text/plain" ? ".txt" : ".md";
+  if (lower.endsWith(".txt") || file.type === "text/plain") return ".txt";
+  if (lower.endsWith(".html") || file.type === "text/html") return ".html";
+  if (lower.endsWith(".json") || file.type === "application/json") return ".json";
+  return ".md";
 }
 
 function titleFromFileName(fileName: string): string {
@@ -169,7 +176,7 @@ function titleFromFileName(fileName: string): string {
 
 async function readStandardUpload(file: File): Promise<ProjectStandardUploadDraft> {
   if (!isAcceptedStandardFile(file)) {
-    throw new Error("Upload a Markdown or text file.");
+    throw new Error("Upload a Markdown, text, HTML, or JSON file.");
   }
   return {
     body: await file.text(),
@@ -916,8 +923,6 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
       selectedOrganizationArtifactIds: checked
         ? new Set(orgStandards.map((artifact) => artifact.id))
         : new Set(),
-      projectRequirements: checked ? emptyStandardUpload() : current.projectRequirements,
-      projectDesign: checked ? emptyStandardUpload() : current.projectDesign,
     }));
   }
 
@@ -983,12 +988,7 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
         ) : null}
       </section>
 
-      <section
-        className={cn(
-          "space-y-3 rounded-md border p-4",
-          usingDefaults ? "bg-muted/30 opacity-60" : "bg-card",
-        )}
-      >
+      <section className="space-y-3 rounded-md border bg-card p-4">
         <div className="space-y-1">
           <Label>Project-exclusive files</Label>
           <p className="text-xs text-muted-foreground">
@@ -1001,7 +1001,7 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
             label="Requirements"
             description="Project-specific requirements file."
             value={form.projectRequirements}
-            disabled={usingDefaults}
+            disabled={false}
             onUpload={(file) => applyProjectUpload("requirements", file)}
             onClear={() =>
               setForm((current) => ({ ...current, projectRequirements: emptyStandardUpload() }))
@@ -1011,97 +1011,95 @@ function StandardsStep({ form, setForm, orgStandards }: StandardsStepProps) {
             label="Design"
             description="Project-specific design or architecture file."
             value={form.projectDesign}
-            disabled={usingDefaults}
+            disabled={false}
             onUpload={(file) => applyProjectUpload("design", file)}
             onClear={() =>
               setForm((current) => ({ ...current, projectDesign: emptyStandardUpload() }))
             }
           />
         </div>
-        {!usingDefaults && !projectFilesReady ? (
+        {!projectFilesReady ? (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700">
-            Optional: upload Requirements/Design now, or create them later through Coznt MCP.
+            Requirements and Design are required before assigned work can start. Upload them now, or create them later through Coznt MCP.
           </div>
         ) : null}
       </section>
 
-      {usingDefaults ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-1">
-              <Label>Extra project files</Label>
-              <p className="text-xs text-muted-foreground">
-                Optional files to add on top of the copied default standards.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setForm((current) => ({
-                  ...current,
-                  projectCustomStandards: [
-                    ...current.projectCustomStandards,
-                    emptyCustomProjectStandard(),
-                  ],
-                }))
-              }
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Add extra file
-            </Button>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1">
+            <Label>Extra project files</Label>
+            <p className="text-xs text-muted-foreground">
+              Optional project-owned standards or guidance files.
+            </p>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                projectCustomStandards: [
+                  ...current.projectCustomStandards,
+                  emptyCustomProjectStandard(),
+                ],
+              }))
+            }
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Add extra file
+          </Button>
+        </div>
 
-          {form.projectCustomStandards.length > 0 ? (
-            <div className="space-y-3">
-              {form.projectCustomStandards.map((standard) => (
-                <div
-                  key={standard.id}
-                  className="grid gap-3 rounded-md border bg-card p-3 md:grid-cols-[1fr_auto_auto]"
-                >
+        {form.projectCustomStandards.length > 0 ? (
+          <div className="space-y-3">
+            {form.projectCustomStandards.map((standard) => (
+              <div
+                key={standard.id}
+                className="grid gap-3 rounded-md border bg-card p-3 md:grid-cols-[1fr_auto_auto]"
+              >
+                <Input
+                  aria-label="Project artifact title"
+                  placeholder="Title"
+                  value={standard.title}
+                  onChange={(event) =>
+                    updateCustom(standard.id, { title: event.target.value })
+                  }
+                />
+                <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium hover:bg-secondary">
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  {standard.sourceFileName || "Upload"}
                   <Input
-                    aria-label="Project artifact title"
-                    placeholder="Title"
-                    value={standard.title}
+                    type="file"
+                    accept=".md,.markdown,.txt,.html,.json,text/markdown,text/plain,text/html,application/json"
+                    className="sr-only"
                     onChange={(event) =>
-                      updateCustom(standard.id, { title: event.target.value })
+                      void applyCustomUpload(standard.id, event.target.files?.[0])
                     }
                   />
-                  <Label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium hover:bg-secondary">
-                    <Upload className="h-3.5 w-3.5" aria-hidden />
-                    {standard.sourceFileName || "Upload"}
-                    <Input
-                      type="file"
-                      accept=".md,.markdown,.txt,text/markdown,text/plain"
-                      className="sr-only"
-                      onChange={(event) =>
-                        void applyCustomUpload(standard.id, event.target.files?.[0])
-                      }
-                    />
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Remove project artifact"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        projectCustomStandards: current.projectCustomStandards.filter(
-                          (item) => item.id !== standard.id,
-                        ),
-                      }))
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Remove project artifact"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      projectCustomStandards: current.projectCustomStandards.filter(
+                        (item) => item.id !== standard.id,
+                      ),
+                    }))
+                  }
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {uploadError ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -1148,7 +1146,13 @@ function ProjectRequiredUpload({
             <div className="mt-2 rounded-md bg-muted/40 px-2.5 py-2 text-xs">
               <div className="truncate font-medium">{value.sourceFileName}</div>
               <div className="mt-0.5 text-muted-foreground">
-                {value.type === ".txt" ? "Text" : "Markdown"} -{" "}
+                {value.type === ".txt"
+                  ? "Text"
+                  : value.type === ".html"
+                    ? "HTML"
+                    : value.type === ".json"
+                      ? "JSON"
+                      : "Markdown"} -{" "}
                 {value.body.length.toLocaleString()} chars
               </div>
             </div>
@@ -1162,7 +1166,7 @@ function ProjectRequiredUpload({
           <Input
             id={inputId}
             type="file"
-            accept=".md,.markdown,.txt,text/markdown,text/plain"
+            accept=".md,.markdown,.txt,.html,.json,text/markdown,text/plain,text/html,application/json"
             className="sr-only"
             disabled={disabled}
             onChange={(event) => void onUpload(event.target.files?.[0])}

@@ -14,7 +14,7 @@ export interface StandardLockEntry {
   syncedAt: string;
   scope: "org" | "project";
   kind: string;
-  type?: ".md" | ".txt";
+  type?: ".md" | ".txt" | ".html" | ".json";
 }
 
 function safeArtifactName(name: string): string {

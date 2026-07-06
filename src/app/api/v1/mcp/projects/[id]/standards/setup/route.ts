@@ -13,11 +13,12 @@ import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import {
   cloneOrganizationArtifactsToProject,
-  deleteProjectArtifact,
+  hasExistingDesignMarkdownArtifact,
+  hasExistingRequirementsMarkdownArtifact,
   getOrganizationArtifactsReadiness,
   getProjectArtifactsManifest,
+  getProjectRequiredArtifactRows,
   listOrganizationArtifacts,
-  listProjectArtifacts,
   upsertProjectArtifact,
 } from "@/operations/artifacts";
 
@@ -42,11 +43,19 @@ const bodySchema = z.discriminatedUnion("useOrganizationDefaults", [
   }),
 ]);
 
+type ProjectUpload = z.infer<typeof projectUploadSchema>;
+type ProjectRequiredRows = Awaited<ReturnType<typeof getProjectRequiredArtifactRows>>;
+
 function defaultTitle(kind: "requirements" | "design", inputTitle?: string): string {
   const title = inputTitle?.trim();
   if (title) return title;
   return kind === "requirements" ? "Project Requirements" : "Project Design";
 }
+
+const REQUIREMENTS_EXISTS_MESSAGE = "requirements.md already exists.\nNo changes were made.";
+const DESIGN_EXISTS_MESSAGE = "design.md already exists.\n\nNo changes were made.";
+const REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE =
+  "Cannot create design.md because requirements.md does not exist.\n\nPlease create requirements.md first.";
 
 function titleFromFileName(fileName: string): string {
   return fileName
@@ -59,7 +68,7 @@ function titleFromFileName(fileName: string): string {
 
 async function upsertAdditionalProjectArtifacts(
   projectId: string,
-  artifacts: Array<z.infer<typeof projectUploadSchema>>,
+  artifacts: ProjectUpload[],
 ): Promise<void> {
   for (const artifact of artifacts) {
     await upsertProjectArtifact({
@@ -69,16 +78,33 @@ async function upsertAdditionalProjectArtifacts(
       body: artifact.body,
       type: artifact.type,
       category: "project-standard",
+      projectArtifactKind: "custom",
       createdVia: "MCP",
     });
   }
 }
 
-async function clearProjectArtifacts(projectId: string): Promise<void> {
-  const existing = await listProjectArtifacts(projectId);
-  for (const artifact of existing) {
-    await deleteProjectArtifact(artifact.id);
+async function upsertRequiredProjectArtifactIfMissing(
+  projectId: string,
+  kind: "requirements" | "design",
+  artifact: ProjectUpload,
+  existingRequired: ProjectRequiredRows,
+): Promise<void> {
+  if (existingRequired[kind]) {
+    return;
   }
+
+  const row = await upsertProjectArtifact({
+    projectId,
+    title: defaultTitle(kind, artifact.title),
+    name: artifact.sourceFileName,
+    body: artifact.body,
+    type: artifact.type,
+    category: "project-exclusive",
+    projectArtifactKind: kind,
+    createdVia: "MCP",
+  });
+  existingRequired[kind] = row;
 }
 
 export async function POST(
@@ -91,6 +117,32 @@ export async function POST(
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       throw httpError(400, "Invalid body", parsed.error.issues);
+    }
+
+    if (!parsed.data.useOrganizationDefaults) {
+      const requestedDesignName = parsed.data.design.sourceFileName.trim().toLowerCase();
+      const requestedDesignType = parsed.data.design.type.toLowerCase();
+      const requestedRequirementsName = parsed.data.requirements.sourceFileName.trim().toLowerCase();
+      const requestedRequirementsType = parsed.data.requirements.type.toLowerCase();
+      const [hasRequirements, hasDesign] = await Promise.all([
+        hasExistingRequirementsMarkdownArtifact(ctx.organizationId, project.id),
+        hasExistingDesignMarkdownArtifact(ctx.organizationId, project.id),
+      ]);
+
+      if (requestedDesignName === "design.md" && requestedDesignType === ".md") {
+        if (!hasRequirements) {
+          throw httpError(409, REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE);
+        }
+        if (hasDesign) {
+          throw httpError(409, DESIGN_EXISTS_MESSAGE);
+        }
+      }
+
+      if (requestedRequirementsName === "requirements.md" && requestedRequirementsType === ".md") {
+        if (hasRequirements) {
+          throw httpError(409, REQUIREMENTS_EXISTS_MESSAGE);
+        }
+      }
     }
 
     if (parsed.data.useOrganizationDefaults) {
@@ -113,29 +165,22 @@ export async function POST(
         throw httpError(409, "No organization standards are available to copy.");
       }
 
-      await clearProjectArtifacts(project.id);
       await cloneOrganizationArtifactsToProject(project.id, idsToClone, "MCP");
       await upsertAdditionalProjectArtifacts(project.id, parsed.data.additionalArtifacts);
     } else {
-      await clearProjectArtifacts(project.id);
-      await upsertProjectArtifact({
-        projectId: project.id,
-        title: defaultTitle("requirements", parsed.data.requirements.title),
-        name: parsed.data.requirements.sourceFileName,
-        body: parsed.data.requirements.body,
-        type: parsed.data.requirements.type,
-        category: "project-exclusive",
-        createdVia: "MCP",
-      });
-      await upsertProjectArtifact({
-        projectId: project.id,
-        title: defaultTitle("design", parsed.data.design.title),
-        name: parsed.data.design.sourceFileName,
-        body: parsed.data.design.body,
-        type: parsed.data.design.type,
-        category: "project-exclusive",
-        createdVia: "MCP",
-      });
+      const existingRequired = await getProjectRequiredArtifactRows(ctx.organizationId, project.id);
+      await upsertRequiredProjectArtifactIfMissing(
+        project.id,
+        "requirements",
+        parsed.data.requirements,
+        existingRequired,
+      );
+      await upsertRequiredProjectArtifactIfMissing(
+        project.id,
+        "design",
+        parsed.data.design,
+        existingRequired,
+      );
       await upsertAdditionalProjectArtifacts(project.id, parsed.data.additionalArtifacts);
     }
 
