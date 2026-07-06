@@ -83,10 +83,35 @@ const DESIGN_STAGE_MESSAGE =
 const DEVELOPMENT_STAGE_MESSAGE =
   "The current project is in the *Development* phase. You may now write code and use any tools you need to implement the approved design. Development is unlocked, and there are no restrictions on tool usage.";
 
-function resolveCurrentStageFromArtifactNames(names: string[]): string {
-  const artifactNames = new Set(names.map((name) => name.trim().toLowerCase()));
-  if (!artifactNames.has("requirements.md")) return REQUIREMENTS_STAGE_MESSAGE;
-  if (!artifactNames.has("design.md")) return DESIGN_STAGE_MESSAGE;
+function resolveCurrentStageFromArtifacts(
+  artifacts: Array<{
+    name: string;
+    title: string;
+    category: string | null;
+    projectArtifactKind?: string | null;
+  }>,
+): string {
+  const hasRequirements = artifacts.some((artifact) => {
+    const title = artifact.title.toLowerCase();
+    const name = artifact.name.toLowerCase();
+    return (
+      artifact.projectArtifactKind === "requirements" ||
+      (artifact.category === "project-exclusive" &&
+        (title.includes("requirement") || name.includes("requirement")))
+    );
+  });
+  if (!hasRequirements) return REQUIREMENTS_STAGE_MESSAGE;
+
+  const hasDesign = artifacts.some((artifact) => {
+    const title = artifact.title.toLowerCase();
+    const name = artifact.name.toLowerCase();
+    return (
+      artifact.projectArtifactKind === "design" ||
+      (artifact.category === "project-exclusive" &&
+        (title.includes("design") || name.includes("design")))
+    );
+  });
+  if (!hasDesign) return DESIGN_STAGE_MESSAGE;
   return DEVELOPMENT_STAGE_MESSAGE;
 }
 export class McpProjectAmbiguousError extends Error {
@@ -254,9 +279,7 @@ export async function buildMcpContext(args: {
     }),
   );
 
-  const currentStage = resolveCurrentStageFromArtifactNames(
-    standardsManifest.artifacts.map((artifact) => artifact.name),
-  );
+  const currentStage = resolveCurrentStageFromArtifacts(standardsManifest.artifacts);
   const welcome = buildWelcome({ project, recommendedKickoff, projectArtifacts });
 
   const response: McpResponse = {
@@ -299,6 +322,7 @@ export async function buildMcpContext(args: {
         kind: standard.kind,
         name: standard.name,
         title: standard.title,
+        projectArtifactKind: standard.projectArtifactKind,
         scope: standard.scope,
         version: standard.version,
         hash: standard.hash,

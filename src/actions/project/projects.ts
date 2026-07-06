@@ -363,6 +363,7 @@ export async function createProjectAction(
           body: artifact.body,
           type: artifact.type ?? ".md",
           category: artifact.category ?? null,
+          projectArtifactKind: artifact.kind,
           createdVia: "upload",
         }),
       ),

@@ -17,7 +17,7 @@ import { projectTasks as plans } from "@/db/schema/plan/project-task";
 import { workItems } from "@/db/schema/work-item";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
-import { listProjectArtifacts } from "@/operations/artifacts";
+import { getProjectArtifactsReadiness } from "@/operations/artifacts";
 
 const OPEN_PLAN_STATUSES = ["in_review", "approved", "in_progress"] as const;
 const CLOSED_WORK_ITEM_STATUSES = [
@@ -35,14 +35,18 @@ export async function GET(
   const { id } = await params;
   return handleApi(req, async (ctx) => {
     const project = await requireProjectScope(ctx, id);
-    const configuredArtifacts = await listProjectArtifacts(project.id);
-    if (configuredArtifacts.length === 0) {
+    const artifactReadiness = await getProjectArtifactsReadiness(ctx.organizationId, project.id);
+    if (!artifactReadiness.requiredComplete) {
       throw httpError(
         409,
-        "Project standards are not configured. Run setup_project_standards first: choose organization defaults, or upload both Requirements and Design for this project.",
+        "Required project artifacts are not configured. Add Requirements and Design before starting assigned work.",
         {
-          requiredAction: "setup_project_standards",
-          options: ["useOrganizationDefaults=true", "requirements+design uploads"],
+          requiredAction: "upsert_project_artifacts",
+          missingRequired: artifactReadiness.missingRequired,
+          options: [
+            "Upload Requirements and Design in the project UI",
+            "Call upsert_project_artifacts with requirements and design bodies or file paths",
+          ],
         },
       );
     }

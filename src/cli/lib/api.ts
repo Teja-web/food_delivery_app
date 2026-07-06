@@ -25,14 +25,18 @@ export interface Manifest {
 }
 
 export interface StandardsManifestEntry {
-  name: string;
+  name?: string | null;
+  sourceFileName?: string | null;
+  fileName?: string | null;
+  slug?: string | null;
   version: string;
   hash: string;
   title: string;
   kind: string;
+  projectArtifactKind?: "requirements" | "design" | "custom" | null;
   scope: "org" | "project";
-  type?: ".md" | ".txt";
-  format: "markdown" | "text";
+  type?: ".md" | ".txt" | ".html" | ".json";
+  format: "markdown" | "text" | "html" | "json";
   updatedAt: string;
 }
 
