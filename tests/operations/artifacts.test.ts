@@ -25,6 +25,7 @@ const mockArtifacts = vi.hoisted(() => ({
     type: ".md" | ".txt";
     category: string | null;
     createdVia: "MCP" | "upload";
+    status: "pending" | "approved" | "rejected";
     metadata: Record<string, unknown>;
     creatorId: string | null;
     creatorName: string | null;
@@ -41,6 +42,7 @@ const mockArtifacts = vi.hoisted(() => ({
     type: ".md" | ".txt";
     category: string | null;
     createdVia: "MCP" | "upload";
+    status: "pending" | "approved" | "rejected";
     metadata: Record<string, unknown>;
     creatorId: string | null;
     creatorName: string | null;
@@ -119,6 +121,7 @@ function projectArtifact(input: { id: string; sourceOrganizationArtifactId: stri
     ...orgArtifact({ id: input.id, name: input.name }),
     projectId: PROJECT,
     createdVia: "upload" as const,
+    status: "approved" as const,
     metadata: {
       title: input.name.replace(/\.md$/, ""),
       sourceOrganizationArtifactId: input.sourceOrganizationArtifactId,
@@ -138,6 +141,7 @@ function projectExclusiveArtifact(input: {
     projectId: PROJECT,
     category: "project-exclusive",
     createdVia: "MCP" as const,
+    status: "approved" as const,
     metadata: {
       title: input.title,
       contentHash: hashArtifactBody(`# ${input.name}`),
@@ -246,6 +250,29 @@ describe("artifact operations", () => {
     expect(readiness.requiredComplete).toBe(true);
     expect(readiness.presentRequired).toEqual(["requirements", "design"]);
     expect(readiness.missingRequired).toEqual([]);
+  });
+
+  it("treats reserved requirements filename as required even if an old MCP row marked it custom", async () => {
+    mockArtifacts.projectRows = [
+      {
+        ...projectExclusiveArtifact({
+          id: "art_project_requirements",
+          name: "requirements.md",
+          title: "Requirements",
+          projectArtifactKind: "custom",
+        }),
+        category: "project-standard",
+      },
+    ];
+
+    const readiness = await getProjectArtifactsReadiness(ORG, PROJECT);
+    const manifest = await getProjectArtifactsManifest(ORG, PROJECT);
+
+    expect(readiness.requiredComplete).toBe(false);
+    expect(readiness.presentRequired).toEqual(["requirements"]);
+    expect(readiness.missingRequired).toEqual(["design"]);
+    expect(manifest.artifacts[0]?.projectArtifactKind).toBe("requirements");
+    expect(manifest.artifacts[0]?.kind).toBe("requirements");
   });
 
   it("upserts Requirements by project artifact kind instead of creating duplicate filenames", async () => {

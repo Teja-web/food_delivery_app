@@ -71,6 +71,15 @@ function typeFromFileName(fileName: string): ArtifactFileType | null {
   return ARTIFACT_FILE_TYPES.find((type) => lower.endsWith(type)) ?? null;
 }
 
+function reservedRequiredKindFromName(fileName: string): "requirements" | "design" | null {
+  const base = fileName
+    .trim()
+    .toLowerCase()
+    .replace(/\.[^.]+$/, "");
+  if (base === "requirements" || base === "design") return base;
+  return null;
+}
+
 function resolveUploadType(artifact: ProjectUpload): ArtifactFileType {
   return typeFromFileName(artifact.sourceFileName) ?? artifact.type;
 }
@@ -81,15 +90,20 @@ async function upsertAdditionalProjectArtifacts(
 ): Promise<void> {
   for (const artifact of artifacts) {
     const type = resolveUploadType(artifact);
+    const requiredKind = reservedRequiredKindFromName(artifact.sourceFileName);
     await upsertProjectArtifact({
       projectId,
-      title: artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
+      title:
+        requiredKind
+          ? defaultTitle(requiredKind, artifact.title)
+          : artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
       name: artifact.sourceFileName,
       body: artifact.body,
       type,
-      category: "project-standard",
-      projectArtifactKind: "custom",
+      category: requiredKind ? "project-exclusive" : "project-standard",
+      projectArtifactKind: requiredKind ?? "custom",
       createdVia: "MCP",
+      status: "pending",
     });
   }
 }
@@ -114,6 +128,7 @@ async function upsertRequiredProjectArtifactIfMissing(
     category: "project-exclusive",
     projectArtifactKind: kind,
     createdVia: "MCP",
+    status: "pending",
   });
   existingRequired[kind] = row;
 }
@@ -202,7 +217,7 @@ export async function POST(
       standards: manifest.standards,
       total: manifest.standards.length,
       manifestHash: manifest.manifestHash,
-      next: "Run get_project_standards or coznt sync before starting assigned work.",
+      next: "Artifacts submitted for approval. After approval, run get_project_standards or coznt sync before starting assigned work.",
     };
   });
 }

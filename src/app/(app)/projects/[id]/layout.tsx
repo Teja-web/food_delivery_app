@@ -3,25 +3,11 @@ import type { ReactNode } from "react";
 
 import { getProject } from "@/actions/project/projects";
 import type { Project } from "@/db/schema/project";
-import { listProjectArtifacts } from "@/operations/artifacts";
+import { listProjectArtifacts, resolveProjectArtifactKind } from "@/operations/artifacts";
 import { getProjectCockpitCounts } from "@/operations/project/cockpit-counts";
 
 import { ProjectShell } from "./ProjectShell";
 import { serializeCockpitProject } from "./serialize";
-
-function stageArtifactKind(row: Awaited<ReturnType<typeof listProjectArtifacts>>[number]) {
-  const explicit = row.metadata.projectArtifactKind;
-  if (explicit === "requirements" || explicit === "design") return explicit;
-
-  const title =
-    typeof row.metadata.title === "string" ? row.metadata.title.toLowerCase() : "";
-  const name = row.name.toLowerCase();
-  if (row.category === "project-exclusive") {
-    if (title.includes("requirement") || name.includes("requirement")) return "requirements";
-    if (title.includes("design") || name.includes("design")) return "design";
-  }
-  return null;
-}
 
 export default async function ProjectLayout({
   params,
@@ -40,8 +26,8 @@ export default async function ProjectLayout({
   ]);
 
   const stageArtifacts = artifactRows.flatMap((artifact) => {
-    const kind = stageArtifactKind(artifact);
-    if (!kind) return [];
+    const kind = resolveProjectArtifactKind(artifact);
+    if (kind !== "requirements" && kind !== "design") return [];
     return [
       {
         id: artifact.id,

@@ -23,7 +23,7 @@ const projectArtifactInput = z.object({
   filePath: z.string().optional().describe("Local file path to read. Provide filePath or body."),
   sourceFileName: z.string().optional().describe("Stored file name in project_artifacts. Defaults from filePath or title."),
   type: z.enum(ARTIFACT_FILE_TYPES).optional().describe("Stored file type. Defaults from sourceFileName/filePath."),
-  category: z.string().optional().describe("Custom artifact category. Defaults to project-standard."),
+  category: z.string().optional().describe("Custom artifact category. Requirements/Design always use project-exclusive; custom artifacts default to project-standard."),
 });
 
 export const upsertProjectArtifactsInput = z
@@ -70,7 +70,7 @@ async function resolveArtifactBody(
   body: string;
   type: ArtifactFileType;
   sourceFileName?: string;
-  category?: string;
+  category: string;
 }> {
   const fileNameFromPath = input.filePath ? basename(input.filePath) : undefined;
   const sourceFileName = input.sourceFileName?.trim() || fileNameFromPath;
@@ -88,7 +88,10 @@ async function resolveArtifactBody(
     type,
     sourceFileName:
       sourceFileName || (kind === "custom" ? undefined : defaultFileName(kind, type)),
-    category: input.category,
+    category:
+      kind === "custom"
+        ? input.category?.trim() || "project-standard"
+        : "project-exclusive",
   };
 }
 
