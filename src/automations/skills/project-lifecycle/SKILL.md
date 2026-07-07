@@ -20,7 +20,7 @@ coznt:
       kickoff: "invoke_skill: epic-decomposer"
       rationale: "Stories or specs exist with no epic/feature anchoring them — author the missing epic so the work nests under it."
     - state: ready_for_advance
-      kickoff: "invoke_skill: requirements-document"
+      kickoff: "follow_skill: requirements-document"
       rationale: "Approved plans ready for end-of-cycle consolidation."
 ---
 
