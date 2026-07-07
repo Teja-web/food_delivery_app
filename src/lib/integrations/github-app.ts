@@ -24,10 +24,19 @@ export function isConfigured(): boolean {
   return Boolean(process.env.COZNT_GITHUB_APP_ID) && Boolean(process.env.COZNT_GITHUB_APP_PRIVATE_KEY);
 }
 
+export function normalizeGitHubPrivateKey(raw: string): string {
+  // Allow "\n" literals so the key fits in a single env var. Also tolerate
+  // pasted env values where the header/footer are glued to key material.
+  return raw
+    .replace(/\\n/g, "\n")
+    .trim()
+    .replace(/-----BEGIN ([^-]+)-----([^\r\n])/g, "-----BEGIN $1-----\n$2")
+    .replace(/([^\r\n])-----END ([^-]+)-----/g, "$1\n-----END $2-----");
+}
+
 function privateKey(): string {
   const raw = process.env.COZNT_GITHUB_APP_PRIVATE_KEY ?? "";
-  // Allow "\n" literals so the key fits in a single env var.
-  return raw.replace(/\\n/g, "\n");
+  return normalizeGitHubPrivateKey(raw);
 }
 
 /** App-level JWT, valid 10 minutes. Used to mint installation tokens. */
@@ -230,6 +239,30 @@ export interface PullRequestFileWithPatch {
   previousFilename: string | null;
 }
 
+export interface PullRequestIssueComment {
+  id: number;
+  author: string;
+  body: string;
+  url: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface PullRequestReviewComment {
+  id: number;
+  author: string;
+  body: string;
+  url: string | null;
+  path: string | null;
+  line: number | null;
+  position: number | null;
+  diffHunk: string | null;
+  inReplyToId: number | null;
+  pullRequestReviewId: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 /**
  * List changed PR files with patch text. Used by Coznt Cat V1 to summarize
  * pull requests without adding a new GitHub writeback surface.
@@ -296,24 +329,173 @@ export async function listPullRequestComments(input: {
   installationId: string;
   ownerRepo: string;
   pullNumber: number;
-}): Promise<Array<{ author: string; body: string }>> {
+  maxPages?: number;
+}): Promise<PullRequestIssueComment[]> {
   if (!isConfigured()) return [];
   const token = await installationTokenFor(input.installationId);
+  const out: PullRequestIssueComment[] = [];
+  const maxPages = input.maxPages ?? 3;
+  let page = 1;
+  for (;;) {
+    const res = await fetch(
+      `https://api.github.com/repos/${input.ownerRepo}/issues/${input.pullNumber}/comments?per_page=100&page=${page}`,
+      {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`PR comment fetch failed (${res.status}): ${await res.text()}`);
+    }
+    const body = (await res.json()) as Array<{
+      id: number;
+      user?: { login?: string };
+      body?: string;
+      html_url?: string;
+      created_at?: string;
+      updated_at?: string;
+    }>;
+    out.push(
+      ...body.map((comment) => ({
+        id: comment.id,
+        author: comment.user?.login ?? "unknown",
+        body: comment.body ?? "",
+        url: comment.html_url ?? null,
+        createdAt: comment.created_at ?? null,
+        updatedAt: comment.updated_at ?? null,
+      })),
+    );
+    if (body.length < 100) break;
+    page += 1;
+    if (page > maxPages) break;
+  }
+  return out;
+}
+
+/**
+ * List pull request review comments. GitHub represents review threads as
+ * individual comments linked by `in_reply_to_id`; callers can group them when
+ * they need thread-level context.
+ */
+export async function listPullRequestReviewComments(input: {
+  installationId: string;
+  ownerRepo: string;
+  pullNumber: number;
+  maxPages?: number;
+}): Promise<PullRequestReviewComment[]> {
+  if (!isConfigured()) return [];
+  const token = await installationTokenFor(input.installationId);
+  const out: PullRequestReviewComment[] = [];
+  const maxPages = input.maxPages ?? 3;
+  let page = 1;
+  for (;;) {
+    const res = await fetch(
+      `https://api.github.com/repos/${input.ownerRepo}/pulls/${input.pullNumber}/comments?per_page=100&page=${page}`,
+      {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`PR review comment fetch failed (${res.status}): ${await res.text()}`);
+    }
+    const body = (await res.json()) as Array<{
+      id: number;
+      user?: { login?: string };
+      body?: string;
+      html_url?: string;
+      path?: string;
+      line?: number;
+      position?: number;
+      diff_hunk?: string;
+      in_reply_to_id?: number;
+      pull_request_review_id?: number;
+      created_at?: string;
+      updated_at?: string;
+    }>;
+    out.push(
+      ...body.map((comment) => ({
+        id: comment.id,
+        author: comment.user?.login ?? "unknown",
+        body: comment.body ?? "",
+        url: comment.html_url ?? null,
+        path: comment.path ?? null,
+        line: comment.line ?? null,
+        position: comment.position ?? null,
+        diffHunk: comment.diff_hunk ?? null,
+        inReplyToId: comment.in_reply_to_id ?? null,
+        pullRequestReviewId: comment.pull_request_review_id ?? null,
+        createdAt: comment.created_at ?? null,
+        updatedAt: comment.updated_at ?? null,
+      })),
+    );
+    if (body.length < 100) break;
+    page += 1;
+    if (page > maxPages) break;
+  }
+  return out;
+}
+
+export async function createIssueComment(input: {
+  installationId: string;
+  ownerRepo: string;
+  issueNumber: number;
+  body: string;
+}): Promise<{ id: number; url: string | null } | null> {
+  if (!isConfigured()) return null;
+  const token = await installationTokenFor(input.installationId);
   const res = await fetch(
-    `https://api.github.com/repos/${input.ownerRepo}/issues/${input.pullNumber}/comments?per_page=100`,
+    `https://api.github.com/repos/${input.ownerRepo}/issues/${input.issueNumber}/comments`,
     {
+      method: "POST",
       headers: {
         Authorization: `token ${token}`,
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ body: input.body }),
     },
   );
   if (!res.ok) {
-    throw new Error(`PR comment fetch failed (${res.status}): ${await res.text()}`);
+    throw new Error(`PR comment POST failed (${res.status}): ${await res.text()}`);
   }
-  const body = (await res.json()) as Array<{ user: { login: string }; body: string }>;
-  return body.map((c) => ({ author: c.user?.login ?? "unknown", body: c.body ?? "" }));
+  const body = (await res.json()) as { id: number; html_url?: string };
+  return { id: body.id, url: body.html_url ?? null };
+}
+
+export async function updateIssueComment(input: {
+  installationId: string;
+  ownerRepo: string;
+  commentId: number;
+  body: string;
+}): Promise<{ id: number; url: string | null } | null> {
+  if (!isConfigured()) return null;
+  const token = await installationTokenFor(input.installationId);
+  const res = await fetch(
+    `https://api.github.com/repos/${input.ownerRepo}/issues/comments/${input.commentId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body: input.body }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`PR comment PATCH failed (${res.status}): ${await res.text()}`);
+  }
+  const body = (await res.json()) as { id: number; html_url?: string };
+  return { id: body.id, url: body.html_url ?? null };
 }
 
 /**

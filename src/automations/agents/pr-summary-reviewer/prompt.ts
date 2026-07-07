@@ -37,11 +37,21 @@ export interface PrSummaryPromptInput {
   totalFiles: number;
   includedFiles: number;
   totalPatchChars: number;
+  issueComments?: Array<{ author: string; body: string }>;
+  reviewComments?: Array<{
+    author: string;
+    body: string;
+    path?: string | null;
+    line?: number | null;
+    inReplyToId?: number | null;
+  }>;
 }
 
 export function prSummaryPromptWithContext(input: PrSummaryPromptInput): string {
   const prBody = (input.prBody ?? "").slice(0, 4000);
   const files = input.files.map(formatFile).join("\n\n");
+  const issueComments = formatIssueComments(input.issueComments ?? []);
+  const reviewComments = formatReviewComments(input.reviewComments ?? []);
   const truncationNotes: string[] = [];
   if (input.truncatedFiles) {
     truncationNotes.push(
@@ -60,6 +70,8 @@ export function prSummaryPromptWithContext(input: PrSummaryPromptInput): string 
     `## BASE / HEAD\nbase: ${input.baseSha ?? "(unknown)"}\nhead: ${input.headSha ?? "(unknown)"}`,
     `## DIFF INPUT LIMITS\nfiles included: ${input.includedFiles}/${input.totalFiles}\npatch characters included: ${input.totalPatchChars}`,
     truncationNotes.length > 0 ? `## LIMITATIONS TO PRESERVE\n${truncationNotes.join("\n")}` : "",
+    issueComments ? `## EXISTING PR CONVERSATION COMMENTS\n${issueComments}` : "",
+    reviewComments ? `## EXISTING INLINE REVIEW COMMENTS\n${reviewComments}` : "",
     `## FILES\n${files || "(no file diffs available)"}`,
     "Return JSON now.",
   ]
@@ -82,4 +94,32 @@ function formatFile(file: PrSummaryPromptFile): string {
     patch,
     "```",
   ].join("\n");
+}
+
+function formatIssueComments(comments: Array<{ author: string; body: string }>): string {
+  return comments
+    .slice(0, 20)
+    .map((comment) => `- @${comment.author}: ${comment.body.replace(/\s+/g, " ").slice(0, 500)}`)
+    .join("\n");
+}
+
+function formatReviewComments(
+  comments: Array<{
+    author: string;
+    body: string;
+    path?: string | null;
+    line?: number | null;
+    inReplyToId?: number | null;
+  }>,
+): string {
+  return comments
+    .slice(0, 40)
+    .map((comment) => {
+      const location = comment.path
+        ? `${comment.path}${comment.line ? `:${comment.line}` : ""}`
+        : "unknown location";
+      const reply = comment.inReplyToId ? ` reply_to=${comment.inReplyToId}` : "";
+      return `- @${comment.author} on ${location}${reply}: ${comment.body.replace(/\s+/g, " ").slice(0, 500)}`;
+    })
+    .join("\n");
 }

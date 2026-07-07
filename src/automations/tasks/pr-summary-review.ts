@@ -2,7 +2,8 @@
  * Coznt Cat PR summary review task.
  *
  * Triggered from GitHub pull_request webhooks. V1 stores structured PR
- * summaries in `intelligence` and does not write back to GitHub.
+ * summaries in `intelligence`, writes audit rows, and posts/updates a
+ * GitHub PR conversation comment when the GitHub App installation can write.
  */
 
 import { and, eq } from "drizzle-orm";
@@ -26,11 +27,24 @@ import {
 } from "@/automations/agents/pr-summary-reviewer/prompt";
 import { generate, DEFAULT_MODEL } from "@/lib/ai";
 import {
+  createIssueComment,
+  findInstallationForRepo,
+  isConfigured as isGithubAppConfigured,
+  listPullRequestComments,
   listPullRequestFilesWithPatches,
+  listPullRequestReviewComments,
+  postCheckRun,
   type PullRequestFileWithPatch,
+  type PullRequestIssueComment,
+  type PullRequestReviewComment,
+  updateIssueComment,
 } from "@/lib/integrations/github-app";
 import { buildProjectArtifactsPromptBlock } from "@/operations/artifacts";
 import { recordSkillOutcome } from "@/operations/skill/skill-autonomy";
+import {
+  COZNT_CAT_SUMMARY_MARKER,
+  renderPrSummaryMarkdown,
+} from "./pr-summary-markdown";
 
 const TRIGGER_ACTIONS = new Set(["opened", "synchronize", "reopened", "edited", "ready_for_review"]);
 const MAX_FILES = 80;
@@ -101,6 +115,44 @@ export function preparePrSummaryDiff(files: PullRequestFileWithPatch[]): Prepare
   };
 }
 
+async function resolvePrSummaryInstallation(input: {
+  payloadInstallationId: string | null;
+  ownerRepo: string;
+}): Promise<{ installationId: string | null; skipReason: string }> {
+  if (!isGithubAppConfigured()) {
+    return {
+      installationId: null,
+      skipReason: "GitHub App credentials are not configured",
+    };
+  }
+  if (input.payloadInstallationId) {
+    return {
+      installationId: input.payloadInstallationId,
+      skipReason: "",
+    };
+  }
+
+  try {
+    const installationId = await findInstallationForRepo(input.ownerRepo);
+    if (installationId) {
+      return {
+        installationId,
+        skipReason: "",
+      };
+    }
+    return {
+      installationId: null,
+      skipReason: `webhook payload did not include a GitHub App installation id and no installed Coznt GitHub App was found for ${input.ownerRepo}`,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      installationId: null,
+      skipReason: `webhook payload did not include a GitHub App installation id and installation lookup failed for ${input.ownerRepo}: ${message}`,
+    };
+  }
+}
+
 async function ensureSkillRow(organizationId: string): Promise<string> {
   const existing = await db.query.skills.findFirst({
     where: and(eq(skills.organizationId, organizationId), eq(skills.slug, PR_SUMMARY_REVIEWER_SLUG)),
@@ -142,13 +194,24 @@ export async function runPrSummaryReviewTask(
     });
     if (!project) throw new Error("project not found");
 
-    const rawFiles = input.installationId
+    const installation = await resolvePrSummaryInstallation({
+      payloadInstallationId: input.installationId,
+      ownerRepo: input.ownerRepo,
+    });
+    const rawFiles = installation.installationId
       ? await listPullRequestFilesWithPatches({
-          installationId: input.installationId,
+          installationId: installation.installationId,
           ownerRepo: input.ownerRepo,
           pullNumber: input.pullNumber,
         })
       : [];
+    const { issueComments, reviewComments } = installation.installationId
+      ? await readPrDiscussionContext({
+          installationId: installation.installationId,
+          ownerRepo: input.ownerRepo,
+          pullNumber: input.pullNumber,
+        })
+      : { issueComments: [], reviewComments: [] };
     const diff = preparePrSummaryDiff(rawFiles);
     const artifactsPromptBlock = await buildProjectArtifactsPromptBlock(input.organizationId, input.projectId);
     const prompt = prSummaryPromptWithContext({
@@ -159,6 +222,8 @@ export async function runPrSummaryReviewTask(
       prBody: input.prBody,
       baseSha: input.baseSha,
       headSha: input.headSha,
+      issueComments: issueComments.filter((comment) => !isCozntCatSummaryComment(comment.body)),
+      reviewComments,
       ...diff,
     });
 
@@ -175,6 +240,28 @@ export async function runPrSummaryReviewTask(
 
     const completedAt = new Date();
     const durationMs = completedAt.getTime() - startedAt.getTime();
+    const githubWriteback = installation.installationId
+      ? await writeGithubSummaryArtifacts({
+          organizationId: input.organizationId,
+          installationId: installation.installationId,
+          ownerRepo: input.ownerRepo,
+          pullNumber: input.pullNumber,
+          prTitle: input.prTitle,
+          prBody: input.prBody,
+          prUrl: input.prUrl,
+          headSha: input.headSha,
+          review: object,
+          diff,
+          issueComments,
+          reviewComments,
+          generatedAt: completedAt,
+          webhookEventId: input.webhookEventId,
+          prRef,
+        })
+      : {
+          skipped: true as const,
+          reason: installation.skipReason,
+        };
     const data = {
       ...object,
       pr: {
@@ -186,6 +273,8 @@ export async function runPrSummaryReviewTask(
         baseSha: input.baseSha ?? null,
         headSha: input.headSha ?? null,
         action: input.action,
+        payloadInstallationId: input.installationId,
+        resolvedInstallationId: installation.installationId,
       },
       diff: {
         totalFiles: diff.totalFiles,
@@ -194,6 +283,7 @@ export async function runPrSummaryReviewTask(
         totalPatchChars: diff.totalPatchChars,
         truncatedPatches: diff.files.filter((file) => file.truncatedPatch).map((file) => file.filename),
       },
+      githubWriteback,
       generatedAt: completedAt.toISOString(),
     };
 
@@ -253,12 +343,13 @@ export async function runPrSummaryReviewTask(
       organizationId: input.organizationId,
       action: "github.pr_summary.generated",
       entityId: prRef,
-      summary: `Coznt Cat summarized ${prRef}.`,
+      summary: writebackSummary(prRef, githubWriteback),
       after: {
         webhookEventId: input.webhookEventId,
         intelligenceId: intel.id,
         pr: data.pr,
         diff: data.diff,
+        githubWriteback,
       },
     });
 
@@ -317,6 +408,149 @@ export async function runPrSummaryReviewTask(
   }
 }
 
+async function readPrDiscussionContext(input: {
+  installationId: string;
+  ownerRepo: string;
+  pullNumber: number;
+}): Promise<{
+  issueComments: PullRequestIssueComment[];
+  reviewComments: PullRequestReviewComment[];
+}> {
+  const [issueResult, reviewResult] = await Promise.allSettled([
+    listPullRequestComments(input),
+    listPullRequestReviewComments(input),
+  ]);
+  return {
+    issueComments: issueResult.status === "fulfilled" ? issueResult.value : [],
+    reviewComments: reviewResult.status === "fulfilled" ? reviewResult.value : [],
+  };
+}
+
+function isCozntCatSummaryComment(body: string): boolean {
+  return body.trimStart().startsWith(COZNT_CAT_SUMMARY_MARKER);
+}
+
+async function writeGithubSummaryArtifacts(input: {
+  organizationId: string;
+  installationId: string;
+  ownerRepo: string;
+  pullNumber: number;
+  prTitle: string;
+  prBody?: string | null;
+  prUrl?: string | null;
+  headSha?: string | null;
+  review: PrSummaryReview;
+  diff: PreparedPrSummaryDiff;
+  issueComments: PullRequestIssueComment[];
+  reviewComments: PullRequestReviewComment[];
+  generatedAt: Date;
+  webhookEventId: string;
+  prRef: string;
+}): Promise<
+  | {
+      skipped: false;
+      commentId: number | null;
+      commentUrl: string | null;
+      action: "created" | "updated" | "none";
+      checkRunId: number | null;
+    }
+  | { skipped: false; error: string }
+> {
+  try {
+    const body = renderPrSummaryMarkdown(input);
+    const existing = input.issueComments.find((comment) => isCozntCatSummaryComment(comment.body));
+    const comment = existing
+      ? await updateIssueComment({
+          installationId: input.installationId,
+          ownerRepo: input.ownerRepo,
+          commentId: existing.id,
+          body,
+        })
+      : await createIssueComment({
+          installationId: input.installationId,
+          ownerRepo: input.ownerRepo,
+          issueNumber: input.pullNumber,
+          body,
+        });
+    if (!comment) {
+      throw new Error(
+        "GitHub PR comment write returned no comment. Check GitHub App credentials and Issues write permission.",
+      );
+    }
+    const checkRun = input.headSha
+      ? await postCheckRun({
+          installationId: input.installationId,
+          ownerRepo: input.ownerRepo,
+          headSha: input.headSha,
+          name: "coznt cat",
+          conclusion: "success",
+          title: "Coznt Cat PR summary ready",
+          summary: input.review.summary.slice(0, 600),
+          text: body.slice(0, 60_000),
+        })
+      : null;
+
+    await writePrSummaryAudit({
+      organizationId: input.organizationId,
+      action: "github.pr_summary.commented",
+      entityId: input.prRef,
+      summary: `Coznt Cat ${existing ? "updated" : "posted"} a GitHub PR summary comment for ${input.prRef}.`,
+      after: {
+        webhookEventId: input.webhookEventId,
+        ownerRepo: input.ownerRepo,
+        pullNumber: input.pullNumber,
+        commentId: comment?.id ?? null,
+        commentUrl: comment?.url ?? null,
+        checkRunId: checkRun?.id ?? null,
+      },
+    });
+
+    return {
+      skipped: false,
+      commentId: comment.id,
+      commentUrl: comment.url,
+      action: existing ? "updated" : "created",
+      checkRunId: checkRun?.id ?? null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await writePrSummaryAudit({
+      organizationId: input.organizationId,
+      action: "github.pr_summary.comment_failed",
+      entityId: input.prRef,
+      summary: `Coznt Cat generated ${input.prRef} but could not write the GitHub PR comment.`,
+      after: {
+        webhookEventId: input.webhookEventId,
+        ownerRepo: input.ownerRepo,
+        pullNumber: input.pullNumber,
+        error: message,
+      },
+    });
+    return { skipped: false, error: message };
+  }
+}
+
+function writebackSummary(
+  prRef: string,
+  writeback:
+    | { skipped: true; reason: string }
+    | {
+        skipped: false;
+        commentId: number | null;
+        action: "created" | "updated" | "none";
+        checkRunId: number | null;
+      }
+    | { skipped: false; error: string },
+): string {
+  if ("reason" in writeback) {
+    return `Coznt Cat summarized ${prRef}; GitHub comment writeback was skipped (${writeback.reason}).`;
+  }
+  if ("error" in writeback) {
+    return `Coznt Cat summarized ${prRef}; GitHub comment writeback failed.`;
+  }
+  return `Coznt Cat completed PR summary for ${prRef} and ${writeback.action} the GitHub PR comment.`;
+}
+
 function normalizeFileStatus(status: string): PrSummaryFileStatus {
   if (status === "added" || status === "modified" || status === "removed" || status === "renamed") {
     return status;
@@ -326,7 +560,11 @@ function normalizeFileStatus(status: string): PrSummaryFileStatus {
 
 async function writePrSummaryAudit(input: {
   organizationId: string;
-  action: "github.pr_summary.generated" | "github.pr_summary.failed";
+  action:
+    | "github.pr_summary.generated"
+    | "github.pr_summary.failed"
+    | "github.pr_summary.commented"
+    | "github.pr_summary.comment_failed";
   entityId: string;
   summary: string;
   after: Record<string, unknown>;

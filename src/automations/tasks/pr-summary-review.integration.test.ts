@@ -27,6 +27,13 @@ const dbMock = {
 
 const generateMock = vi.fn();
 const listFilesMock = vi.fn();
+const listCommentsMock = vi.fn();
+const listReviewCommentsMock = vi.fn();
+const createIssueCommentMock = vi.fn();
+const updateIssueCommentMock = vi.fn();
+const postCheckRunMock = vi.fn();
+const isGithubAppConfiguredMock = vi.fn();
+const findInstallationForRepoMock = vi.fn();
 const artifactsPromptMock = vi.fn();
 const recordSkillOutcomeMock = vi.fn();
 
@@ -37,6 +44,13 @@ vi.mock("@/lib/ai", () => ({
 }));
 vi.mock("@/lib/integrations/github-app", () => ({
   listPullRequestFilesWithPatches: listFilesMock,
+  listPullRequestComments: listCommentsMock,
+  listPullRequestReviewComments: listReviewCommentsMock,
+  createIssueComment: createIssueCommentMock,
+  updateIssueComment: updateIssueCommentMock,
+  postCheckRun: postCheckRunMock,
+  isConfigured: isGithubAppConfiguredMock,
+  findInstallationForRepo: findInstallationForRepoMock,
 }));
 vi.mock("@/operations/artifacts", () => ({
   buildProjectArtifactsPromptBlock: artifactsPromptMock,
@@ -85,6 +99,43 @@ describe("runPrSummaryReviewTask", () => {
     ]);
     artifactsPromptMock.mockResolvedValue("# Effective Project Artifacts\nFollow the rules.");
     recordSkillOutcomeMock.mockResolvedValue({ id: "outcome-1" });
+    isGithubAppConfiguredMock.mockReturnValue(true);
+    findInstallationForRepoMock.mockResolvedValue(null);
+    listCommentsMock.mockResolvedValue([
+      {
+        id: 10,
+        author: "reviewer",
+        body: "Please cover inventory edge cases.",
+        url: "https://github.com/acme/scm/pull/42#issuecomment-10",
+        createdAt: "2026-07-06T10:00:00Z",
+        updatedAt: "2026-07-06T10:00:00Z",
+      },
+    ]);
+    listReviewCommentsMock.mockResolvedValue([
+      {
+        id: 20,
+        author: "reviewer",
+        body: "This branch needs a null check.",
+        url: "https://github.com/acme/scm/pull/42#discussion_r20",
+        path: "src/inventory.ts",
+        line: 12,
+        position: 4,
+        diffHunk: "@@ -1 +1 @@",
+        inReplyToId: null,
+        pullRequestReviewId: 7,
+        createdAt: "2026-07-06T10:01:00Z",
+        updatedAt: "2026-07-06T10:01:00Z",
+      },
+    ]);
+    createIssueCommentMock.mockResolvedValue({
+      id: 99,
+      url: "https://github.com/acme/scm/pull/42#issuecomment-99",
+    });
+    updateIssueCommentMock.mockResolvedValue({
+      id: 98,
+      url: "https://github.com/acme/scm/pull/42#issuecomment-98",
+    });
+    postCheckRunMock.mockResolvedValue({ id: 77 });
   });
 
   it("stores and audits a generated PR summary", async () => {
@@ -114,9 +165,38 @@ describe("runPrSummaryReviewTask", () => {
       ownerRepo: "acme/scm",
       pullNumber: 42,
     });
+    expect(listCommentsMock).toHaveBeenCalledWith({
+      installationId: "123",
+      ownerRepo: "acme/scm",
+      pullNumber: 42,
+    });
+    expect(listReviewCommentsMock).toHaveBeenCalledWith({
+      installationId: "123",
+      ownerRepo: "acme/scm",
+      pullNumber: 42,
+    });
+    expect(generateMock.mock.calls[0][0].prompt).toContain("Please cover inventory edge cases.");
+    expect(generateMock.mock.calls[0][0].prompt).toContain("src/inventory.ts:12");
     expect(generateMock.mock.calls[0][0].agent.systemPrompt).toContain(
       "# Effective Project Artifacts",
     );
+    expect(createIssueCommentMock).toHaveBeenCalledWith({
+      installationId: "123",
+      ownerRepo: "acme/scm",
+      issueNumber: 42,
+      body: expect.stringContaining("## Coznt Cat-generated Summary"),
+    });
+    expect(updateIssueCommentMock).not.toHaveBeenCalled();
+    expect(postCheckRunMock).toHaveBeenCalledWith({
+      installationId: "123",
+      ownerRepo: "acme/scm",
+      headSha: "head",
+      name: "coznt cat",
+      conclusion: "success",
+      title: "Coznt Cat PR summary ready",
+      summary: "Inventory workflow added for review.",
+      text: expect.stringContaining("## Coznt Cat-generated Summary"),
+    });
     expect(insertValues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ status: "succeeded", taskId: "agent:coznt-cat-pr-summary" }),
@@ -126,11 +206,21 @@ describe("runPrSummaryReviewTask", () => {
           data: expect.objectContaining({
             pr: expect.objectContaining({ title: "Add inventory workflow" }),
             diff: expect.objectContaining({ totalFiles: 1, includedFiles: 1 }),
+            githubWriteback: expect.objectContaining({
+              action: "created",
+              commentId: 99,
+              checkRunId: 77,
+            }),
           }),
+        }),
+        expect.objectContaining({
+          action: "github.pr_summary.commented",
+          entityId: "github:acme/scm#42",
         }),
         expect.objectContaining({
           action: "github.pr_summary.generated",
           entityId: "github:acme/scm#42",
+          summary: expect.stringContaining("created the GitHub PR comment"),
         }),
       ]),
     );
@@ -140,6 +230,201 @@ describe("runPrSummaryReviewTask", () => {
       invocationId: expect.any(String),
       verdict: "success",
     });
+  });
+
+  it("updates the existing Coznt Cat summary comment when the marker is present", async () => {
+    listCommentsMock.mockResolvedValue([
+      {
+        id: 1234,
+        author: "coznt-cat",
+        body: "<!-- coznt-cat-summary:v1 ownerRepo=acme/scm pull=42 sha=old -->\nold summary",
+        url: "https://github.com/acme/scm/pull/42#issuecomment-1234",
+        createdAt: "2026-07-06T10:00:00Z",
+        updatedAt: "2026-07-06T10:00:00Z",
+      },
+    ]);
+    generateMock.mockResolvedValue({
+      text: '{"summary":"Inventory workflow refreshed for review."}',
+      object: {
+        summary: "Inventory workflow refreshed for review.",
+        files: [
+          {
+            path: "src/inventory.ts",
+            status: "modified",
+            additions: 12,
+            deletions: 2,
+            changeSummary: "Updates inventory behavior.",
+          },
+        ],
+        notableChanges: ["Refreshes inventory workflow."],
+        limitations: [],
+      },
+    });
+
+    const result = await runPrSummaryReviewTask(baseInput);
+
+    expect(result?.intelligenceId).toBe("intel-1");
+    expect(createIssueCommentMock).not.toHaveBeenCalled();
+    expect(updateIssueCommentMock).toHaveBeenCalledWith({
+      installationId: "123",
+      ownerRepo: "acme/scm",
+      commentId: 1234,
+      body: expect.stringContaining("Inventory workflow refreshed for review."),
+    });
+  });
+
+  it("resolves the GitHub App installation from the repo when webhook payload omits it", async () => {
+    findInstallationForRepoMock.mockResolvedValue("456");
+    generateMock.mockResolvedValue({
+      text: '{"summary":"Inventory workflow added for review."}',
+      object: {
+        summary: "Inventory workflow added for review.",
+        files: [
+          {
+            path: "src/inventory.ts",
+            status: "modified",
+            additions: 12,
+            deletions: 2,
+            changeSummary: "Updates inventory behavior.",
+          },
+        ],
+        notableChanges: ["Adds inventory workflow."],
+        limitations: [],
+      },
+    });
+
+    const result = await runPrSummaryReviewTask({
+      ...baseInput,
+      installationId: null,
+    });
+
+    expect(result?.intelligenceId).toBe("intel-1");
+    expect(findInstallationForRepoMock).toHaveBeenCalledWith("acme/scm");
+    expect(listFilesMock).toHaveBeenCalledWith({
+      installationId: "456",
+      ownerRepo: "acme/scm",
+      pullNumber: 42,
+    });
+    expect(createIssueCommentMock).toHaveBeenCalledWith({
+      installationId: "456",
+      ownerRepo: "acme/scm",
+      issueNumber: 42,
+      body: expect.stringContaining("## Coznt Cat-generated Summary"),
+    });
+    expect(postCheckRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installationId: "456",
+        name: "coznt cat",
+      }),
+    );
+    expect(insertValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "pr-summary-review",
+          data: expect.objectContaining({
+            pr: expect.objectContaining({
+              payloadInstallationId: null,
+              resolvedInstallationId: "456",
+            }),
+            githubWriteback: expect.objectContaining({
+              action: "created",
+              commentId: 99,
+            }),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("skips GitHub UI writeback when the GitHub App credentials are missing", async () => {
+    isGithubAppConfiguredMock.mockReturnValue(false);
+    generateMock.mockResolvedValue({
+      text: '{"summary":"Inventory workflow added for review."}',
+      object: {
+        summary: "Inventory workflow added for review.",
+        files: [
+          {
+            path: "src/inventory.ts",
+            status: "modified",
+            additions: 12,
+            deletions: 2,
+            changeSummary: "Updates inventory behavior.",
+          },
+        ],
+        notableChanges: ["Adds inventory workflow."],
+        limitations: [],
+      },
+    });
+
+    const result = await runPrSummaryReviewTask(baseInput);
+
+    expect(result?.intelligenceId).toBe("intel-1");
+    expect(listCommentsMock).not.toHaveBeenCalled();
+    expect(listReviewCommentsMock).not.toHaveBeenCalled();
+    expect(createIssueCommentMock).not.toHaveBeenCalled();
+    expect(updateIssueCommentMock).not.toHaveBeenCalled();
+    expect(postCheckRunMock).not.toHaveBeenCalled();
+    expect(insertValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "pr-summary-review",
+          data: expect.objectContaining({
+            githubWriteback: expect.objectContaining({
+              skipped: true,
+              reason: "GitHub App credentials are not configured",
+            }),
+          }),
+        }),
+        expect.objectContaining({
+          action: "github.pr_summary.generated",
+          summary: expect.stringContaining("writeback was skipped"),
+        }),
+      ]),
+    );
+  });
+
+  it("skips GitHub UI writeback when no app installation can be found for the repo", async () => {
+    findInstallationForRepoMock.mockResolvedValue(null);
+    generateMock.mockResolvedValue({
+      text: '{"summary":"Inventory workflow added for review."}',
+      object: {
+        summary: "Inventory workflow added for review.",
+        files: [
+          {
+            path: "src/inventory.ts",
+            status: "modified",
+            additions: 12,
+            deletions: 2,
+            changeSummary: "Updates inventory behavior.",
+          },
+        ],
+        notableChanges: ["Adds inventory workflow."],
+        limitations: [],
+      },
+    });
+
+    const result = await runPrSummaryReviewTask({
+      ...baseInput,
+      installationId: null,
+    });
+
+    expect(result?.intelligenceId).toBe("intel-1");
+    expect(findInstallationForRepoMock).toHaveBeenCalledWith("acme/scm");
+    expect(createIssueCommentMock).not.toHaveBeenCalled();
+    expect(postCheckRunMock).not.toHaveBeenCalled();
+    expect(insertValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "pr-summary-review",
+          data: expect.objectContaining({
+            githubWriteback: expect.objectContaining({
+              skipped: true,
+              reason: expect.stringContaining("no installed Coznt GitHub App was found for acme/scm"),
+            }),
+          }),
+        }),
+      ]),
+    );
   });
 
   it("records failed automation and audit rows when generation fails", async () => {
