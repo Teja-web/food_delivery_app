@@ -90,6 +90,36 @@ import { buildScopedContext, runWithMessageContext } from "@/lib/auth/context";
 
 const ORG = "org_test";
 const PROJECT = "proj_test";
+const VALID_REQUIREMENTS_BODY = `# Requirements Document
+
+## 1. Project Overview
+### 1.1 Purpose
+Purpose
+### 1.2 Problem Statement
+Problem
+### 1.3 Goals
+Goals
+
+## 2. Scope
+### 2.1 In Scope
+In scope
+### 2.2 Out of Scope
+Out of scope
+
+## 3. Users and Roles
+Users
+
+## 4. Functional Requirements
+Functional requirements
+
+## 5. Non-Functional Requirements and Acceptance Criteria
+Non-functional requirements
+
+## 6. Open Questions
+### 6.1 What file format should be used for the requirements document (.md, .html, .txt, or .json)?
+Open question one
+### 6.2 What font, heading sizes, and content text size should be used in the Word version?
+Open question two`;
 
 function orgArtifact(input: {
   id: string;
@@ -275,6 +305,22 @@ describe("artifact operations", () => {
     expect(manifest.artifacts[0]?.kind).toBe("requirements");
   });
 
+  it("does not treat loose requirement substrings as lifecycle artifacts", async () => {
+    mockArtifacts.projectRows = [
+      projectExclusiveArtifact({
+        id: "art_project_notes",
+        name: "requirements-workshop-notes.md",
+        title: "Requirements Workshop Notes",
+      }),
+    ];
+
+    const readiness = await getProjectArtifactsReadiness(ORG, PROJECT);
+
+    expect(readiness.requiredComplete).toBe(false);
+    expect(readiness.presentRequired).toEqual([]);
+    expect(readiness.missingRequired).toEqual(["requirements", "design"]);
+  });
+
   it("upserts Requirements by project artifact kind instead of creating duplicate filenames", async () => {
     const existing = projectExclusiveArtifact({
       id: "art_project_requirements",
@@ -285,11 +331,11 @@ describe("artifact operations", () => {
     const updated = {
       ...existing,
       name: "requirements.md",
-      body: "# Updated requirements",
+      body: VALID_REQUIREMENTS_BODY,
       metadata: {
         title: "Project Requirements",
         projectArtifactKind: "requirements",
-        contentHash: hashArtifactBody("# Updated requirements"),
+        contentHash: hashArtifactBody(VALID_REQUIREMENTS_BODY),
       },
       updatedAt: new Date("2026-01-02T00:00:00.000Z"),
     };
@@ -306,7 +352,7 @@ describe("artifact operations", () => {
         projectId: PROJECT,
         title: "Project Requirements",
         name: "requirements.md",
-        body: "# Updated requirements",
+        body: VALID_REQUIREMENTS_BODY,
         type: ".md",
         category: "project-exclusive",
         projectArtifactKind: "requirements",

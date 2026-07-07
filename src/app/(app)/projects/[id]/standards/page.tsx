@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/actions/project/projects";
 import { Toaster } from "@/components/ui/sonner";
 import type { Project } from "@/db/schema/project";
+import { resolveProjectArtifactKind } from "@/lib/artifacts/project-artifact-templates";
 import {
   hashArtifactBody,
   listProjectArtifacts,
-  resolveProjectArtifactKind,
 } from "@/operations/artifacts";
 
 import {

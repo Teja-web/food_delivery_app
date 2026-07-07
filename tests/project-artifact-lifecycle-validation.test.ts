@@ -10,7 +10,7 @@ describe("resolveProjectLifecycleArtifactValidation", () => {
       hasRequirements: true,
       hasDesign: false,
     });
-    expect(err).toBe("requirements.md already exists.\nNo changes were made.");
+    expect(err).toBe("requirements already exists.\nNo changes were made.");
   });
 
   it("blocks design creation when requirements is missing", () => {
@@ -21,7 +21,7 @@ describe("resolveProjectLifecycleArtifactValidation", () => {
       hasDesign: false,
     });
     expect(err).toBe(
-      "Cannot create design.md because requirements.md does not exist.\n\nPlease create requirements.md first.",
+      "Cannot create design because requirements does not exist.\n\nPlease create requirements first.",
     );
   });
 
@@ -32,7 +32,7 @@ describe("resolveProjectLifecycleArtifactValidation", () => {
       hasRequirements: true,
       hasDesign: true,
     });
-    expect(err).toBe("design.md already exists.\n\nNo changes were made.");
+    expect(err).toBe("design already exists.\nNo changes were made.");
   });
 
   it("reports all missing prerequisites for development creation", () => {

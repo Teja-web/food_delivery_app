@@ -1,25 +1,13 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/integration/api-keys";
+import { revokeApiKeyAction } from "@/actions/integration/api-keys";
+import { MintApiKeyDialog } from "@/components/api-keys/MintApiKeyDialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  API_KEY_ROLE_LABELS,
-  API_KEY_ROLE_OPTIONS,
-  type ApiKeyRole,
-} from "@/lib/auth/api-key-roles";
+import { API_KEY_ROLE_LABELS, type ApiKeyRole } from "@/lib/auth/api-key-roles";
 
 export interface ProjectApiKeyRow {
   id: string;
@@ -45,79 +33,30 @@ const ROLE_COLOR: Record<ApiKeyRole, string> = {
   admin: "text-red-700 dark:text-red-300",
 };
 
-const ROLE_OPTION_STYLES: Record<ApiKeyRole, string> = {
-  member: "",
-  manager: "text-yellow-700 dark:text-yellow-300",
-  admin: "text-red-700 dark:text-red-300",
-};
-
-function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-      className="inline-flex items-center gap-1 rounded border border-border/60 bg-background px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
-    >
-      {copied ? <Check className="h-3 w-3 text-trend-up" /> : <Copy className="h-3 w-3" />}
-      {copied ? "Copied" : label}
-    </button>
-  );
-}
-
 interface Props {
   projectId: string;
+  projectName: string;
+  projectSlug: string;
   initialKeys: ProjectApiKeyRow[];
   canCreateApiKeys: boolean;
 }
 
-export function ProjectApiKeysSection({ projectId, initialKeys, canCreateApiKeys }: Props) {
+export function ProjectApiKeysSection({
+  projectId,
+  projectName,
+  projectSlug,
+  initialKeys,
+  canCreateApiKeys,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<ApiKeyRole>("member");
-  const [expiresInDays, setExpiresInDays] = useState("");
-  const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [showRevoked, setShowRevoked] = useState(false);
+  const [mintOpen, setMintOpen] = useState(false);
 
-  const revokedCount = initialKeys.filter((k) => k.status === "revoked").length;
+  const revokedCount = initialKeys.filter((key) => key.status === "revoked").length;
   const visibleKeys = showRevoked
     ? initialKeys
-    : initialKeys.filter((k) => k.status !== "revoked");
-
-  function handleMint(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    if (!name.trim()) {
-      setError("Name is required");
-      return;
-    }
-    const days = expiresInDays.trim() ? Number(expiresInDays) : null;
-    if (days !== null && (!Number.isFinite(days) || days <= 0)) {
-      setError("Expiration must be a positive number of days");
-      return;
-    }
-    const expiresAt = days ? new Date(Date.now() + days * 86_400_000) : null;
-
-    startTransition(async () => {
-      try {
-        const result = await mintApiKeyAction({ name: name.trim(), projectId, role, expiresAt });
-        setRevealedPlaintext(result.plaintext);
-        setName("");
-        setRole("member");
-        setExpiresInDays("");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to mint key");
-      }
-    });
-  }
+    : initialKeys.filter((key) => key.status !== "revoked");
 
   function handleRevoke(id: string) {
     if (!confirm("Revoke this API key? Future requests will be rejected.")) return;
@@ -129,107 +68,37 @@ export function ProjectApiKeysSection({ projectId, initialKeys, canCreateApiKeys
 
   return (
     <section id="api-keys" className="space-y-4">
-      <header className="space-y-1">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          API keys
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Bearer tokens for the <code className="font-mono">/api/v1</code> agent surface. Every
-          key is bound to this project — the IDE session auto-binds from the key at handshake.
-          The plaintext is shown once on creation.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            API keys
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Bearer tokens for the <code className="font-mono">/api/v1</code> agent surface. Every
+            key is bound to this project - the IDE session auto-binds from the key at handshake.
+            The plaintext is shown once on creation.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setMintOpen(true)}
+          disabled={!canCreateApiKeys}
+          className="gap-1.5"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden /> Mint key
+        </Button>
       </header>
 
-      {revealedPlaintext ? (
-        <div className="rounded border border-amber-300 bg-amber-50 p-4 text-sm dark:bg-amber-950/40">
-          <div className="font-medium text-amber-900 dark:text-amber-200">
-            Save this key now — it will not be shown again.
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <pre className="flex-1 overflow-x-auto rounded bg-white p-2 font-mono text-xs dark:bg-background">
-              {revealedPlaintext}
-            </pre>
-            <CopyButton text={revealedPlaintext} label="Copy key" />
-          </div>
-          <button
-            type="button"
-            onClick={() => setRevealedPlaintext(null)}
-            className="mt-2 text-xs text-amber-900 underline dark:text-amber-200"
-          >
-            Dismiss
-          </button>
+      {!canCreateApiKeys ? (
+        <div className="rounded border bg-muted/30 p-3 text-sm text-muted-foreground">
+          Only project owners can mint API keys and assign roles.
         </div>
       ) : null}
 
-      <form
-        onSubmit={handleMint}
-        className="grid grid-cols-[1fr_150px_140px_auto] items-end gap-3 rounded border p-4"
-      >
-        <div className="space-y-1">
-          <Label htmlFor="api-key-name" className="text-xs">
-            Name
-          </Label>
-          <Input
-            id="api-key-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. cursor-laptop"
-            disabled={pending || !canCreateApiKeys}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="api-key-role" className="text-xs">
-            Role
-          </Label>
-          <Select
-            value={role}
-            onValueChange={(value) => setRole(value as ApiKeyRole)}
-            disabled={pending || !canCreateApiKeys}
-          >
-            <SelectTrigger id="api-key-role">
-              <SelectValue placeholder="Role" />
-            </SelectTrigger>
-            <SelectContent>
-              {API_KEY_ROLE_OPTIONS.map((option) => (
-                <SelectItem
-                  key={option.value}
-                  value={option.value}
-                  className={ROLE_OPTION_STYLES[option.value]}
-                >
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="api-key-expiry" className="text-xs">
-            Expires in (days)
-          </Label>
-          <Input
-            id="api-key-expiry"
-            type="number"
-            min="1"
-            value={expiresInDays}
-            onChange={(e) => setExpiresInDays(e.target.value)}
-            placeholder="never"
-            disabled={pending || !canCreateApiKeys}
-          />
-        </div>
-        <Button type="submit" disabled={pending || !canCreateApiKeys}>
-          {pending ? "Minting…" : "Mint key"}
-        </Button>
-        {!canCreateApiKeys ? (
-          <div className="col-span-4 text-sm text-muted-foreground">
-            Only project owners can mint API keys and assign roles.
-          </div>
-        ) : null}
-        {error ? <div className="col-span-4 text-sm text-destructive">{error}</div> : null}
-      </form>
-
       {initialKeys.length === 0 ? (
         <div className="rounded border bg-muted/30 p-6 text-sm text-muted-foreground">
-          No API keys yet. Mint one above to call <code>/api/v1</code> from agents or CI.
+          No API keys yet. Mint one to call <code>/api/v1</code> from agents or CI.
         </div>
       ) : (
         <>
@@ -237,12 +106,10 @@ export function ProjectApiKeysSection({ projectId, initialKeys, canCreateApiKeys
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => setShowRevoked((v) => !v)}
+                onClick={() => setShowRevoked((value) => !value)}
                 className="text-xs text-muted-foreground underline-offset-2 hover:underline"
               >
-                {showRevoked
-                  ? `Hide revoked (${revokedCount})`
-                  : `Show revoked (${revokedCount})`}
+                {showRevoked ? `Hide revoked (${revokedCount})` : `Show revoked (${revokedCount})`}
               </button>
             </div>
           ) : null}
@@ -259,38 +126,48 @@ export function ProjectApiKeysSection({ projectId, initialKeys, canCreateApiKeys
               </tr>
             </thead>
             <tbody>
-              {visibleKeys.map((k) => (
-              <tr key={k.id} className="border-b">
-                <td className="py-2">{k.name}</td>
-                <td className="py-2 font-mono text-xs">{k.prefix}…</td>
-                <td className={`py-2 text-xs font-medium ${ROLE_COLOR[k.role]}`}>
-                  {API_KEY_ROLE_LABELS[k.role]}
-                </td>
-                <td className={`py-2 ${STATUS_COLOR[k.status]}`}>{k.status}</td>
-                <td className="py-2 text-xs text-muted-foreground">
-                  {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "never"}
-                </td>
-                <td className="py-2 text-xs text-muted-foreground">
-                  {k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : "never"}
-                </td>
-                <td className="py-2 text-right">
-                  {k.status === "active" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRevoke(k.id)}
-                      disabled={pending}
-                    >
-                      Revoke
-                    </Button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
+              {visibleKeys.map((key) => (
+                <tr key={key.id} className="border-b">
+                  <td className="py-2">{key.name}</td>
+                  <td className="py-2 font-mono text-xs">{key.prefix}...</td>
+                  <td className={`py-2 text-xs font-medium ${ROLE_COLOR[key.role]}`}>
+                    {API_KEY_ROLE_LABELS[key.role]}
+                  </td>
+                  <td className={`py-2 ${STATUS_COLOR[key.status]}`}>{key.status}</td>
+                  <td className="py-2 text-xs text-muted-foreground">
+                    {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleString() : "never"}
+                  </td>
+                  <td className="py-2 text-xs text-muted-foreground">
+                    {key.expiresAt ? new Date(key.expiresAt).toLocaleDateString() : "never"}
+                  </td>
+                  <td className="py-2 text-right">
+                    {key.status === "active" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRevoke(key.id)}
+                        disabled={pending}
+                      >
+                        Revoke
+                      </Button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </>
       )}
+
+      <MintApiKeyDialog
+        open={mintOpen}
+        onOpenChange={setMintOpen}
+        projects={[{ id: projectId, name: projectName, slug: projectSlug }]}
+        defaultProjectId={projectId}
+        lockedProjectId={projectId}
+        canCreateApiKeys={canCreateApiKeys}
+        description="Create a project-scoped bearer token for this project's agents, IDE integrations, or CI jobs."
+      />
     </section>
   );
 }

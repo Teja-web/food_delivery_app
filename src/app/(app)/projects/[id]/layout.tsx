@@ -3,11 +3,17 @@ import type { ReactNode } from "react";
 
 import { getProject } from "@/actions/project/projects";
 import type { Project } from "@/db/schema/project";
-import { listProjectArtifacts, resolveProjectArtifactKind } from "@/operations/artifacts";
+import { resolveProjectArtifactKind } from "@/lib/artifacts/project-artifact-templates";
+import { listProjectArtifacts } from "@/operations/artifacts";
 import { getProjectCockpitCounts } from "@/operations/project/cockpit-counts";
 
 import { ProjectShell } from "./ProjectShell";
 import { serializeCockpitProject } from "./serialize";
+
+function stageArtifactKind(row: Awaited<ReturnType<typeof listProjectArtifacts>>[number]) {
+  const kind = resolveProjectArtifactKind(row);
+  return kind === "requirements" || kind === "design" ? kind : null;
+}
 
 export default async function ProjectLayout({
   params,
@@ -26,17 +32,22 @@ export default async function ProjectLayout({
   ]);
 
   const stageArtifacts = artifactRows.flatMap((artifact) => {
-    const kind = resolveProjectArtifactKind(artifact);
-    if (kind !== "requirements" && kind !== "design") return [];
+    const kind = stageArtifactKind(artifact);
+    if (!kind) return [];
     return [
       {
         id: artifact.id,
-        name: kind === "requirements" ? "requirements.md" : "design.md",
+        name: artifact.name,
         sourceFileName: artifact.name,
         title:
-          kind === "requirements" ? "Project Requirements" : "Project Design",
+          typeof artifact.metadata.title === "string" && artifact.metadata.title.trim()
+            ? artifact.metadata.title
+            : kind === "requirements"
+              ? "Project Requirements"
+              : "Project Design",
         body: artifact.body,
         type: artifact.type,
+        projectArtifactKind: kind,
       },
     ];
   });

@@ -31,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ArtifactFileType } from "@/db/schema/artifact";
+import type { ArtifactFileType, ProjectArtifactKind } from "@/db/schema/artifact";
 import { cn } from "@/lib/utils";
 import type { CockpitTabCounts } from "@/operations/project/cockpit-counts";
 
@@ -51,10 +51,12 @@ export interface StageArtifactClient {
   title: string;
   body: string;
   type: ArtifactFileType;
+  projectArtifactKind: "requirements" | "design";
 }
 
 interface StageArtifactDef {
-  name: "requirements.md" | "design.md";
+  key: Extract<ProjectArtifactKind, "requirements" | "design">;
+  defaultFileName: string;
   title: "Project Requirements" | "Project Design";
   projectArtifactKind: "requirements" | "design";
   uploadLabel: string;
@@ -63,14 +65,16 @@ interface StageArtifactDef {
 
 const STAGE_ARTIFACTS: readonly StageArtifactDef[] = [
   {
-    name: "requirements.md",
+    key: "requirements",
+    defaultFileName: "requirements.md",
     title: "Project Requirements",
     projectArtifactKind: "requirements",
     uploadLabel: "Upload Requirements",
     uploadedLabel: "Requirements uploaded",
   },
   {
-    name: "design.md",
+    key: "design",
+    defaultFileName: "design.md",
     title: "Project Design",
     projectArtifactKind: "design",
     uploadLabel: "Upload Design",
@@ -190,13 +194,15 @@ function StageArtifactControls({
   const [error, setError] = useState<string | null>(null);
 
   const byName = useMemo(() => {
-    const map = new Map<string, StageArtifactClient>();
-    for (const artifact of artifacts) map.set(artifact.name.toLowerCase(), artifact);
+    const map = new Map<StageArtifactDef["key"], StageArtifactClient>();
+    for (const artifact of artifacts) {
+      map.set(artifact.projectArtifactKind, artifact);
+    }
     return map;
   }, [artifacts]);
 
   function existingFor(def: StageArtifactDef): StageArtifactClient | null {
-    return byName.get(def.name) ?? null;
+    return byName.get(def.key) ?? null;
   }
 
   function inferArtifactType(file: File): ArtifactFileType {
@@ -249,7 +255,8 @@ function StageArtifactControls({
         id: existing?.id,
         projectId,
         title: def.title,
-        sourceFileName: artifact.sourceFileName ?? existing?.sourceFileName ?? def.name,
+        sourceFileName:
+          artifact.sourceFileName ?? existing?.sourceFileName ?? def.defaultFileName,
         body: artifact.body,
         type: artifact.type ?? existing?.type ?? ".md",
         category: "project-exclusive",
@@ -291,9 +298,9 @@ function StageArtifactControls({
     <div className="flex flex-wrap justify-end gap-2">
       {STAGE_ARTIFACTS.map((def) => {
         const existing = existingFor(def);
-        const inputId = `stage-artifact-${def.name}`;
+        const inputId = `stage-artifact-${def.key}`;
         return (
-          <div key={def.name} className="flex items-center gap-1.5">
+          <div key={def.key} className="flex items-center gap-1.5">
             <Button
               type="button"
               size="sm"
@@ -343,7 +350,7 @@ function StageArtifactControls({
           <DialogHeader>
             <DialogTitle>Edit {editing?.title}</DialogTitle>
             <DialogDescription>
-              Saving updates the existing {editing?.name} project artifact. No duplicate artifact is created.
+              Saving updates the existing project artifact. No duplicate artifact is created.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

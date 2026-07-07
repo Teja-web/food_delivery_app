@@ -26,10 +26,7 @@ import { generate, DEFAULT_MODEL, type ModelId } from "@/lib/ai";
 import { getActionContext } from "@/lib/auth/context";
 import { applyActionPolicyRules } from "@/operations/rule-engine";
 import { recordSkillOutcome } from "@/operations/skill/skill-autonomy";
-import {
-  buildProjectArtifactsPromptBlock,
-  hasExistingRequirementsMarkdownArtifact,
-} from "@/operations/artifacts";
+import { buildProjectArtifactsPromptBlock } from "@/operations/artifacts";
 
 export interface SkillInvocationRequest {
   slug: string;
@@ -68,20 +65,6 @@ function tryParseJson(text: string): unknown {
 
 export async function invokeSkill(req: SkillInvocationRequest): Promise<SkillInvocationResult> {
   const ctx = await getActionContext();
-
-  if (req.slug === "requirements-document" && ctx.projectId) {
-    const alreadyExists = await hasExistingRequirementsMarkdownArtifact(
-      ctx.organizationId,
-      ctx.projectId,
-    );
-    if (alreadyExists) {
-      const err = new Error("requirements.md already exists.\nNo changes were made.") as Error & {
-        status?: number;
-      };
-      err.status = 409;
-      throw err;
-    }
-  }
 
   const projectFilter = ctx.projectId
     ? or(isNull(skills.projectId), eq(skills.projectId, ctx.projectId))
