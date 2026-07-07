@@ -31,7 +31,6 @@ const listCommentsMock = vi.fn();
 const listReviewCommentsMock = vi.fn();
 const createIssueCommentMock = vi.fn();
 const updateIssueCommentMock = vi.fn();
-const postCheckRunMock = vi.fn();
 const isGithubAppConfiguredMock = vi.fn();
 const findInstallationForRepoMock = vi.fn();
 const artifactsPromptMock = vi.fn();
@@ -48,7 +47,6 @@ vi.mock("@/lib/integrations/github-app", () => ({
   listPullRequestReviewComments: listReviewCommentsMock,
   createIssueComment: createIssueCommentMock,
   updateIssueComment: updateIssueCommentMock,
-  postCheckRun: postCheckRunMock,
   isConfigured: isGithubAppConfiguredMock,
   findInstallationForRepo: findInstallationForRepoMock,
 }));
@@ -135,7 +133,6 @@ describe("runPrSummaryReviewTask", () => {
       id: 98,
       url: "https://github.com/acme/scm/pull/42#issuecomment-98",
     });
-    postCheckRunMock.mockResolvedValue({ id: 77 });
   });
 
   it("stores and audits a generated PR summary", async () => {
@@ -187,16 +184,6 @@ describe("runPrSummaryReviewTask", () => {
       body: expect.stringContaining("## Coznt Cat-generated Summary"),
     });
     expect(updateIssueCommentMock).not.toHaveBeenCalled();
-    expect(postCheckRunMock).toHaveBeenCalledWith({
-      installationId: "123",
-      ownerRepo: "acme/scm",
-      headSha: "head",
-      name: "coznt cat",
-      conclusion: "success",
-      title: "Coznt Cat PR summary ready",
-      summary: "Inventory workflow added for review.",
-      text: expect.stringContaining("## Coznt Cat-generated Summary"),
-    });
     expect(insertValues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ status: "succeeded", taskId: "agent:coznt-cat-pr-summary" }),
@@ -209,7 +196,6 @@ describe("runPrSummaryReviewTask", () => {
             githubWriteback: expect.objectContaining({
               action: "created",
               commentId: 99,
-              checkRunId: 77,
             }),
           }),
         }),
@@ -311,12 +297,6 @@ describe("runPrSummaryReviewTask", () => {
       issueNumber: 42,
       body: expect.stringContaining("## Coznt Cat-generated Summary"),
     });
-    expect(postCheckRunMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        installationId: "456",
-        name: "coznt cat",
-      }),
-    );
     expect(insertValues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -363,7 +343,6 @@ describe("runPrSummaryReviewTask", () => {
     expect(listReviewCommentsMock).not.toHaveBeenCalled();
     expect(createIssueCommentMock).not.toHaveBeenCalled();
     expect(updateIssueCommentMock).not.toHaveBeenCalled();
-    expect(postCheckRunMock).not.toHaveBeenCalled();
     expect(insertValues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -411,7 +390,6 @@ describe("runPrSummaryReviewTask", () => {
     expect(result?.intelligenceId).toBe("intel-1");
     expect(findInstallationForRepoMock).toHaveBeenCalledWith("acme/scm");
     expect(createIssueCommentMock).not.toHaveBeenCalled();
-    expect(postCheckRunMock).not.toHaveBeenCalled();
     expect(insertValues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

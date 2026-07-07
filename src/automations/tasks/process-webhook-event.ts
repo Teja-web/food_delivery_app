@@ -441,23 +441,8 @@ async function runMergeSyncPreviewForPr(
     syncPlansFromMerge(ctx),
   ]);
 
-  try {
-    const { postCheckRun } = await import("@/lib/integrations/github-app");
-    const summary = formatMergeSummary({ skillResult, ruleResult, planResult, preview: true });
-    if (summary) {
-      await postCheckRun({
-        installationId,
-        ownerRepo,
-        headSha,
-        name: "coznt / authoring preview",
-        conclusion: hasErrors(skillResult, ruleResult, planResult) ? "failure" : "success",
-        title: "Coznt — preview",
-        summary,
-      });
-    }
-  } catch {
-    /* observability path */
-  }
+  // PR authoring preview is intentionally internal-only. Do not publish a
+  // GitHub Check Run for it; Coznt Cat summaries are posted as PR comments.
 }
 
 interface MergeSummaryInputs {

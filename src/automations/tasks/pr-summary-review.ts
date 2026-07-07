@@ -33,7 +33,6 @@ import {
   listPullRequestComments,
   listPullRequestFilesWithPatches,
   listPullRequestReviewComments,
-  postCheckRun,
   type PullRequestFileWithPatch,
   type PullRequestIssueComment,
   type PullRequestReviewComment,
@@ -452,7 +451,6 @@ async function writeGithubSummaryArtifacts(input: {
       commentId: number | null;
       commentUrl: string | null;
       action: "created" | "updated" | "none";
-      checkRunId: number | null;
     }
   | { skipped: false; error: string }
 > {
@@ -477,18 +475,6 @@ async function writeGithubSummaryArtifacts(input: {
         "GitHub PR comment write returned no comment. Check GitHub App credentials and Issues write permission.",
       );
     }
-    const checkRun = input.headSha
-      ? await postCheckRun({
-          installationId: input.installationId,
-          ownerRepo: input.ownerRepo,
-          headSha: input.headSha,
-          name: "coznt cat",
-          conclusion: "success",
-          title: "Coznt Cat PR summary ready",
-          summary: input.review.summary.slice(0, 600),
-          text: body.slice(0, 60_000),
-        })
-      : null;
 
     await writePrSummaryAudit({
       organizationId: input.organizationId,
@@ -501,7 +487,6 @@ async function writeGithubSummaryArtifacts(input: {
         pullNumber: input.pullNumber,
         commentId: comment?.id ?? null,
         commentUrl: comment?.url ?? null,
-        checkRunId: checkRun?.id ?? null,
       },
     });
 
@@ -510,7 +495,6 @@ async function writeGithubSummaryArtifacts(input: {
       commentId: comment.id,
       commentUrl: comment.url,
       action: existing ? "updated" : "created",
-      checkRunId: checkRun?.id ?? null,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -538,7 +522,6 @@ function writebackSummary(
         skipped: false;
         commentId: number | null;
         action: "created" | "updated" | "none";
-        checkRunId: number | null;
       }
     | { skipped: false; error: string },
 ): string {
