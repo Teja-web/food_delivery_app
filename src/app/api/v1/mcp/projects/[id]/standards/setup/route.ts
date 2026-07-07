@@ -8,7 +8,7 @@
 
 import { z } from "zod/v4";
 
-import { ARTIFACT_FILE_TYPES } from "@/db/schema/artifact";
+import { ARTIFACT_FILE_TYPES, type ArtifactFileType } from "@/db/schema/artifact";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import {
@@ -66,17 +66,27 @@ function titleFromFileName(fileName: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase()) || "Project Artifact";
 }
 
+function typeFromFileName(fileName: string): ArtifactFileType | null {
+  const lower = fileName.trim().toLowerCase();
+  return ARTIFACT_FILE_TYPES.find((type) => lower.endsWith(type)) ?? null;
+}
+
+function resolveUploadType(artifact: ProjectUpload): ArtifactFileType {
+  return typeFromFileName(artifact.sourceFileName) ?? artifact.type;
+}
+
 async function upsertAdditionalProjectArtifacts(
   projectId: string,
   artifacts: ProjectUpload[],
 ): Promise<void> {
   for (const artifact of artifacts) {
+    const type = resolveUploadType(artifact);
     await upsertProjectArtifact({
       projectId,
       title: artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
       name: artifact.sourceFileName,
       body: artifact.body,
-      type: artifact.type,
+      type,
       category: "project-standard",
       projectArtifactKind: "custom",
       createdVia: "MCP",
@@ -94,12 +104,13 @@ async function upsertRequiredProjectArtifactIfMissing(
     return;
   }
 
+  const type = resolveUploadType(artifact);
   const row = await upsertProjectArtifact({
     projectId,
     title: defaultTitle(kind, artifact.title),
     name: artifact.sourceFileName,
     body: artifact.body,
-    type: artifact.type,
+    type,
     category: "project-exclusive",
     projectArtifactKind: kind,
     createdVia: "MCP",

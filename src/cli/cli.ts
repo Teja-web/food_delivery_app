@@ -64,7 +64,7 @@ function printUsage(): void {
       "Usage:",
       "  coznt sync [--force] [--dry-run]",
       "      Pull the current project's choreographies into <repo>/.coznt/skills/",
-      "      and effective standards into <repo>/.coznt/standards/.",
+      "      and effective artifacts into <repo>/.coznt/artifacts/.",
       "",
       "  coznt connect [--editor=<name>] [--project=<slug>] [--server=<url>]",
       "                 [--api-key-env=<NAME>] [--mcp-launcher=<cmd>]",

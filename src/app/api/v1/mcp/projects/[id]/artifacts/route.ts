@@ -48,6 +48,17 @@ function fileNameFromTitle(value: string, type: ArtifactFileType): string {
   return `${base || "artifact"}${type}`;
 }
 
+function typeFromFileName(fileName: string | null | undefined): ArtifactFileType | null {
+  const lower = fileName?.trim().toLowerCase() ?? "";
+  return ARTIFACT_FILE_TYPES.find((type) => lower.endsWith(type)) ?? null;
+}
+
+function resolveArtifactType(
+  artifact: z.infer<typeof projectArtifactUploadSchema>,
+): ArtifactFileType {
+  return typeFromFileName(artifact.sourceFileName) ?? artifact.type;
+}
+
 function titleFromFileName(fileName: string): string {
   return fileName
     .replace(/\.[^.]+$/, "")
@@ -65,33 +76,35 @@ function normalizeRequiredArtifact(
   kind: "requirements" | "design",
   artifact: z.infer<typeof projectArtifactUploadSchema>,
 ) {
+  const type = resolveArtifactType(artifact);
   const title =
     artifact.title?.trim() ||
     (kind === "requirements" ? "Project Requirements" : "Project Design");
-  const name = artifact.sourceFileName?.trim() || defaultRequiredFileName(kind, artifact.type);
+  const name = artifact.sourceFileName?.trim() || defaultRequiredFileName(kind, type);
   return {
     title,
     name,
     body: artifact.body,
-    type: artifact.type,
+    type,
     category: "project-exclusive",
     projectArtifactKind: kind,
   } as const;
 }
 
 function normalizeCustomArtifact(artifact: z.infer<typeof projectArtifactUploadSchema>) {
+  const type = resolveArtifactType(artifact);
   const title =
     artifact.title?.trim() ||
     (artifact.sourceFileName ? titleFromFileName(artifact.sourceFileName) : "");
   if (!title) {
     throw httpError(400, "Custom project artifacts require a title or sourceFileName.");
   }
-  const name = artifact.sourceFileName?.trim() || fileNameFromTitle(title, artifact.type);
+  const name = artifact.sourceFileName?.trim() || fileNameFromTitle(title, type);
   return {
     title,
     name,
     body: artifact.body,
-    type: artifact.type,
+    type,
     category: artifact.category ?? "project-standard",
     projectArtifactKind: "custom",
   } as const;
