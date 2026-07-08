@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/actions/project/projects";
 import { Toaster } from "@/components/ui/sonner";
 import type { Project } from "@/db/schema/project";
-import { hashArtifactBody, listProjectArtifacts } from "@/operations/artifacts";
+import { resolveProjectArtifactKind } from "@/lib/artifacts/project-artifact-templates";
+import {
+  hashArtifactBody,
+  listProjectArtifacts,
+} from "@/operations/artifacts";
 
 import {
   ProjectStandardsTab,
@@ -22,6 +26,7 @@ function serializeProjectStandard(
     type: row.type,
     category: row.category,
     requiredKey: row.metadata.requiredKey ?? null,
+    projectArtifactKind: resolveProjectArtifactKind(row),
     sourceFileName: row.name,
     sourceOrganizationArtifactId:
       typeof row.metadata.sourceOrganizationArtifactId === "string"
@@ -33,6 +38,7 @@ function serializeProjectStandard(
         : hashArtifactBody(row.body),
     updatedAt: row.updatedAt.toISOString(),
     createdVia: row.createdVia,
+    status: row.status,
   };
 }
 

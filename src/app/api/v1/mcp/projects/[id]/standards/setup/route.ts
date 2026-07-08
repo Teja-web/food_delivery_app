@@ -8,16 +8,15 @@
 
 import { z } from "zod/v4";
 
-import { ARTIFACT_FILE_TYPES } from "@/db/schema/artifact";
+import { ARTIFACT_FILE_TYPES, type ArtifactFileType } from "@/db/schema/artifact";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import {
   cloneOrganizationArtifactsToProject,
-  deleteProjectArtifact,
   getOrganizationArtifactsReadiness,
   getProjectArtifactsManifest,
+  getProjectRequiredArtifactRows,
   listOrganizationArtifacts,
-  listProjectArtifacts,
   upsertProjectArtifact,
 } from "@/operations/artifacts";
 
@@ -42,6 +41,9 @@ const bodySchema = z.discriminatedUnion("useOrganizationDefaults", [
   }),
 ]);
 
+type ProjectUpload = z.infer<typeof projectUploadSchema>;
+type ProjectRequiredRows = Awaited<ReturnType<typeof getProjectRequiredArtifactRows>>;
+
 function defaultTitle(kind: "requirements" | "design", inputTitle?: string): string {
   const title = inputTitle?.trim();
   if (title) return title;
@@ -57,28 +59,71 @@ function titleFromFileName(fileName: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase()) || "Project Artifact";
 }
 
+function typeFromFileName(fileName: string): ArtifactFileType | null {
+  const lower = fileName.trim().toLowerCase();
+  return ARTIFACT_FILE_TYPES.find((type) => lower.endsWith(type)) ?? null;
+}
+
+function reservedRequiredKindFromName(fileName: string): "requirements" | "design" | null {
+  const base = fileName
+    .trim()
+    .toLowerCase()
+    .replace(/\.[^.]+$/, "");
+  if (base === "requirements" || base === "design") return base;
+  return null;
+}
+
+function resolveUploadType(artifact: ProjectUpload): ArtifactFileType {
+  return typeFromFileName(artifact.sourceFileName) ?? artifact.type;
+}
+
 async function upsertAdditionalProjectArtifacts(
   projectId: string,
-  artifacts: Array<z.infer<typeof projectUploadSchema>>,
+  artifacts: ProjectUpload[],
 ): Promise<void> {
   for (const artifact of artifacts) {
+    const type = resolveUploadType(artifact);
+    const requiredKind = reservedRequiredKindFromName(artifact.sourceFileName);
     await upsertProjectArtifact({
       projectId,
-      title: artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
+      title:
+        requiredKind
+          ? defaultTitle(requiredKind, artifact.title)
+          : artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
       name: artifact.sourceFileName,
       body: artifact.body,
-      type: artifact.type,
-      category: "project-standard",
+      type,
+      category: requiredKind ? "project-exclusive" : "project-standard",
+      projectArtifactKind: requiredKind ?? "custom",
       createdVia: "MCP",
+      status: "pending",
     });
   }
 }
 
-async function clearProjectArtifacts(projectId: string): Promise<void> {
-  const existing = await listProjectArtifacts(projectId);
-  for (const artifact of existing) {
-    await deleteProjectArtifact(artifact.id);
+async function upsertRequiredProjectArtifactIfMissing(
+  projectId: string,
+  kind: "requirements" | "design",
+  artifact: ProjectUpload,
+  existingRequired: ProjectRequiredRows,
+): Promise<void> {
+  if (existingRequired[kind]) {
+    return;
   }
+
+  const type = resolveUploadType(artifact);
+  const row = await upsertProjectArtifact({
+    projectId,
+    title: defaultTitle(kind, artifact.title),
+    name: artifact.sourceFileName,
+    body: artifact.body,
+    type,
+    category: "project-exclusive",
+    projectArtifactKind: kind,
+    createdVia: "MCP",
+    status: "pending",
+  });
+  existingRequired[kind] = row;
 }
 
 export async function POST(
@@ -113,29 +158,22 @@ export async function POST(
         throw httpError(409, "No organization standards are available to copy.");
       }
 
-      await clearProjectArtifacts(project.id);
       await cloneOrganizationArtifactsToProject(project.id, idsToClone, "MCP");
       await upsertAdditionalProjectArtifacts(project.id, parsed.data.additionalArtifacts);
     } else {
-      await clearProjectArtifacts(project.id);
-      await upsertProjectArtifact({
-        projectId: project.id,
-        title: defaultTitle("requirements", parsed.data.requirements.title),
-        name: parsed.data.requirements.sourceFileName,
-        body: parsed.data.requirements.body,
-        type: parsed.data.requirements.type,
-        category: "project-exclusive",
-        createdVia: "MCP",
-      });
-      await upsertProjectArtifact({
-        projectId: project.id,
-        title: defaultTitle("design", parsed.data.design.title),
-        name: parsed.data.design.sourceFileName,
-        body: parsed.data.design.body,
-        type: parsed.data.design.type,
-        category: "project-exclusive",
-        createdVia: "MCP",
-      });
+      const existingRequired = await getProjectRequiredArtifactRows(ctx.organizationId, project.id);
+      await upsertRequiredProjectArtifactIfMissing(
+        project.id,
+        "requirements",
+        parsed.data.requirements,
+        existingRequired,
+      );
+      await upsertRequiredProjectArtifactIfMissing(
+        project.id,
+        "design",
+        parsed.data.design,
+        existingRequired,
+      );
       await upsertAdditionalProjectArtifacts(project.id, parsed.data.additionalArtifacts);
     }
 
@@ -146,7 +184,7 @@ export async function POST(
       standards: manifest.standards,
       total: manifest.standards.length,
       manifestHash: manifest.manifestHash,
-      next: "Run get_project_standards or coznt sync before starting assigned work.",
+      next: "Artifacts submitted for approval. After approval, run get_project_standards or coznt sync before starting assigned work.",
     };
   });
 }

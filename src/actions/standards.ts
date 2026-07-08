@@ -14,6 +14,7 @@ import {
 } from "@/operations/artifacts";
 import {
   ARTIFACT_FILE_TYPES,
+  type ArtifactFileType,
   type OrganizationArtifact,
   type RequiredOrganizationArtifactKey,
 } from "@/db/schema/artifact";
@@ -31,8 +32,10 @@ const customStandardSchema = z.object({
         value.length === 0 ||
         value.toLowerCase().endsWith(".md") ||
         value.toLowerCase().endsWith(".markdown") ||
-        value.toLowerCase().endsWith(".txt"),
-      "Additional standard file name must end with .md, .markdown, or .txt.",
+        value.toLowerCase().endsWith(".txt") ||
+        value.toLowerCase().endsWith(".html") ||
+        value.toLowerCase().endsWith(".json"),
+      "Additional standard file name must end with .md, .markdown, .txt, .html, or .json.",
     )
     .optional()
     .nullable(),
@@ -42,17 +45,17 @@ const requiredPayloadSchema = z.object({
   codingStandardsBody: z
     .string()
     .refine((value) => value.trim().length > 0, "Coding Standards is required."),
-  codingStandardsFormat: z.enum(["markdown", "text"]).optional().default("markdown"),
+  codingStandardsFormat: z.enum(["markdown", "text", "html", "json"]).optional().default("markdown"),
   codingStandardsSourceFileName: z.string().optional().nullable(),
   brandGuidelinesBody: z
     .string()
     .refine((value) => value.trim().length > 0, "Brand Guidelines is required."),
-  brandGuidelinesFormat: z.enum(["markdown", "text"]).optional().default("markdown"),
+  brandGuidelinesFormat: z.enum(["markdown", "text", "html", "json"]).optional().default("markdown"),
   brandGuidelinesSourceFileName: z.string().optional().nullable(),
   architecturePrinciplesBody: z
     .string()
     .refine((value) => value.trim().length > 0, "Architecture Principles is required."),
-  architecturePrinciplesFormat: z.enum(["markdown", "text"]).optional().default("markdown"),
+  architecturePrinciplesFormat: z.enum(["markdown", "text", "html", "json"]).optional().default("markdown"),
   architecturePrinciplesSourceFileName: z.string().optional().nullable(),
   customStandards: z.array(customStandardSchema).optional().default([]),
 });
@@ -66,7 +69,7 @@ export interface SavedOrgStandard {
   kind: RequiredOrganizationArtifactKey | "custom";
   title: string;
   body: string;
-  format: "markdown" | "text";
+  format: "markdown" | "text" | "html" | "json";
   version: string;
   hash: string;
   sourceFileName: string | null;
@@ -78,7 +81,7 @@ export type SaveOrgStandardsSetupResult =
   | { ok: false; errors: string[] };
 
 const MAX_STANDARD_FILE_BYTES = 2 * 1024 * 1024;
-const acceptedStandardExtensions = [".md", ".txt"] as const;
+const acceptedStandardExtensions = [...ARTIFACT_FILE_TYPES, ".markdown"] as const;
 
 function rowRequiredKey(row: OrganizationArtifact): SavedOrgStandard["kind"] {
   const key = row.metadata.requiredKey;
@@ -97,8 +100,11 @@ function rowTitle(row: OrganizationArtifact): string {
   return key === "custom" ? row.name : ORGANIZATION_ARTIFACT_LABELS[key];
 }
 
-function rowFormat(row: OrganizationArtifact): "markdown" | "text" {
-  return row.type === ".txt" ? "text" : "markdown";
+function rowFormat(row: OrganizationArtifact): SavedOrgStandard["format"] {
+  if (row.type === ".txt") return "text";
+  if (row.type === ".html") return "html";
+  if (row.type === ".json") return "json";
+  return "markdown";
 }
 
 function serializeSavedStandard(row: OrganizationArtifact): SavedOrgStandard {
@@ -118,7 +124,7 @@ function serializeSavedStandard(row: OrganizationArtifact): SavedOrgStandard {
 function requiredInputForKind(
   data: z.infer<typeof requiredPayloadSchema>,
   kind: RequiredOrganizationArtifactKey,
-): { body: string; format: "markdown" | "text"; sourceFileName: string | null } {
+): { body: string; format: SavedOrgStandard["format"]; sourceFileName: string | null } {
   switch (kind) {
     case "coding_standards":
       return {
@@ -141,7 +147,7 @@ function requiredInputForKind(
   }
 }
 
-function fileNameFromTitle(value: string, type: ".md" | ".txt"): string {
+function fileNameFromTitle(value: string, type: ArtifactFileType): string {
   const base = value
     .toLowerCase()
     .trim()
@@ -150,9 +156,24 @@ function fileNameFromTitle(value: string, type: ".md" | ".txt"): string {
   return `${base || "artifact"}${type}`;
 }
 
+function artifactTypeFromFormat(format: SavedOrgStandard["format"]): ArtifactFileType {
+  if (format === "text") return ".txt";
+  if (format === "html") return ".html";
+  if (format === "json") return ".json";
+  return ".md";
+}
+
 function extensionFor(fileName: string): string {
   const dotIndex = fileName.lastIndexOf(".");
   return dotIndex >= 0 ? fileName.slice(dotIndex).toLowerCase() : "";
+}
+
+function artifactTypeForFileName(fileName: string): ArtifactFileType {
+  const extension = extensionFor(fileName);
+  if (extension === ".txt") return ".txt";
+  if (extension === ".html") return ".html";
+  if (extension === ".json") return ".json";
+  return ".md";
 }
 
 function isAcceptedStandardFile(file: File): boolean {
@@ -171,7 +192,7 @@ async function readUploadedStandardFile(input: {
   label: string;
   required: boolean;
   errors: string[];
-}): Promise<{ body: string; sourceFileName: string; type: ".md" | ".txt" } | null> {
+}): Promise<{ body: string; sourceFileName: string; type: ArtifactFileType } | null> {
   const value = input.formData.get(input.fieldName);
   if (!(value instanceof File) || value.name.trim().length === 0) {
     if (input.required) input.errors.push(`${input.label} file is required.`);
@@ -179,7 +200,7 @@ async function readUploadedStandardFile(input: {
   }
 
   if (!isAcceptedStandardFile(value)) {
-    input.errors.push(`${input.label} must be a .md or .txt file.`);
+    input.errors.push(`${input.label} must be a .md, .txt, .html, or .json file.`);
     return null;
   }
 
@@ -197,7 +218,7 @@ async function readUploadedStandardFile(input: {
   return {
     body,
     sourceFileName: value.name,
-    type: extensionFor(value.name) === ".txt" ? ".txt" : ".md",
+    type: artifactTypeForFileName(value.name),
   };
 }
 
@@ -216,9 +237,9 @@ export async function saveOrgStandardsSetupAction(
       const row = await upsertOrganizationArtifact({
         requiredKey: kind,
         title: ORGANIZATION_ARTIFACT_LABELS[kind],
-        name: REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[kind],
+        name: standard.sourceFileName?.trim() || REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[kind],
         body: standard.body,
-        type: ".md",
+        type: artifactTypeFromFormat(standard.format),
       });
       saved.push(serializeSavedStandard(row));
     }
@@ -282,7 +303,7 @@ export async function completeOrgStandardsOnboardingAction(
   const customStandards: Array<{
     title: string;
     body: string;
-    type: ".md" | ".txt";
+    type: ArtifactFileType;
     sourceFileName: string;
   }> = [];
   const seenCustomFileNames = new Set<string>();
@@ -295,7 +316,7 @@ export async function completeOrgStandardsOnboardingAction(
 
     if (!hasFile && !hasText) continue;
     if (!(file instanceof File) || file.name.trim().length === 0) {
-      errors.push(`Additional standard ${index + 1} needs a .md or .txt file.`);
+      errors.push(`Additional standard ${index + 1} needs a .md, .txt, .html, or .json file.`);
       continue;
     }
 
@@ -347,9 +368,11 @@ export async function completeOrgStandardsOnboardingAction(
       await upsertOrganizationArtifact({
         requiredKey: entry.kind,
         title: ORGANIZATION_ARTIFACT_LABELS[entry.kind],
-        name: REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[entry.kind],
+        name:
+          entry.upload.sourceFileName.trim() ||
+          REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES[entry.kind],
         body: entry.upload.body,
-        type: ".md",
+        type: entry.upload.type,
       });
     }
     for (const custom of customStandards) {

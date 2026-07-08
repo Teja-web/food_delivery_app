@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { ArtifactFileType, ProjectArtifactKind } from "@/db/schema/artifact";
 import { cn } from "@/lib/utils";
 import type { CockpitTabCounts } from "@/operations/project/cockpit-counts";
 
@@ -46,34 +47,42 @@ interface TabDef {
 export interface StageArtifactClient {
   id: string;
   name: string;
+  sourceFileName: string;
   title: string;
   body: string;
-  type: ".md" | ".txt";
+  type: ArtifactFileType;
+  projectArtifactKind: "requirements" | "design";
 }
 
 interface StageArtifactDef {
-  name: "requirements.md" | "design.md";
+  key: Extract<ProjectArtifactKind, "requirements" | "design">;
+  defaultFileName: string;
   title: "Project Requirements" | "Project Design";
+  projectArtifactKind: "requirements" | "design";
   uploadLabel: string;
   uploadedLabel: string;
 }
 
 const STAGE_ARTIFACTS: readonly StageArtifactDef[] = [
   {
-    name: "requirements.md",
+    key: "requirements",
+    defaultFileName: "requirements.md",
     title: "Project Requirements",
+    projectArtifactKind: "requirements",
     uploadLabel: "Upload Requirements",
     uploadedLabel: "Requirements uploaded",
   },
   {
-    name: "design.md",
+    key: "design",
+    defaultFileName: "design.md",
     title: "Project Design",
+    projectArtifactKind: "design",
     uploadLabel: "Upload Design",
     uploadedLabel: "Design uploaded",
   },
 ];
 
-const FILE_ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
+const FILE_ACCEPT = ".md,.markdown,.txt,.html,.json,text/markdown,text/plain,text/html,application/json";
 
 /**
  * Five-tab project IA per spec section 11.3. One axis: artifact type / activity area.
@@ -185,27 +194,58 @@ function StageArtifactControls({
   const [error, setError] = useState<string | null>(null);
 
   const byName = useMemo(() => {
-    const map = new Map<string, StageArtifactClient>();
-    for (const artifact of artifacts) map.set(artifact.name.toLowerCase(), artifact);
+    const map = new Map<StageArtifactDef["key"], StageArtifactClient>();
+    for (const artifact of artifacts) {
+      map.set(artifact.projectArtifactKind, artifact);
+    }
     return map;
   }, [artifacts]);
 
   function existingFor(def: StageArtifactDef): StageArtifactClient | null {
-    return byName.get(def.name) ?? null;
+    return byName.get(def.key) ?? null;
   }
 
-  async function readArtifactFile(file: File): Promise<string> {
+  function inferArtifactType(file: File): ArtifactFileType {
     const lower = file.name.toLowerCase();
-    const accepted = lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain" || file.type === "";
-    if (!accepted) throw new Error("Upload a Markdown or text file.");
+    if (lower.endsWith(".txt") || file.type === "text/plain") return ".txt";
+    if (lower.endsWith(".html") || file.type === "text/html") return ".html";
+    if (lower.endsWith(".json") || file.type === "application/json") return ".json";
+    return ".md";
+  }
+
+  async function readArtifactFile(file: File): Promise<{
+    body: string;
+    type: ArtifactFileType;
+    sourceFileName: string;
+  }> {
+    const lower = file.name.toLowerCase();
+    const accepted =
+      lower.endsWith(".md") ||
+      lower.endsWith(".markdown") ||
+      lower.endsWith(".txt") ||
+      lower.endsWith(".html") ||
+      lower.endsWith(".json") ||
+      file.type === "text/markdown" ||
+      file.type === "text/plain" ||
+      file.type === "text/html" ||
+      file.type === "application/json" ||
+      file.type === "";
+    if (!accepted) throw new Error("Upload a Markdown, text, HTML, or JSON file.");
     const body = await file.text();
     if (!body.trim()) throw new Error("Uploaded file cannot be empty.");
-    return body;
+    return {
+      body,
+      type: inferArtifactType(file),
+      sourceFileName: file.name,
+    };
   }
 
-  function saveArtifact(def: StageArtifactDef, body: string) {
+  function saveArtifact(
+    def: StageArtifactDef,
+    artifact: { body: string; type?: ArtifactFileType; sourceFileName?: string },
+  ) {
     const existing = existingFor(def);
-    if (!body.trim()) {
+    if (!artifact.body.trim()) {
       setError("File content is required.");
       return;
     }
@@ -215,10 +255,12 @@ function StageArtifactControls({
         id: existing?.id,
         projectId,
         title: def.title,
-        sourceFileName: def.name,
-        body,
-        type: ".md",
+        sourceFileName:
+          artifact.sourceFileName ?? existing?.sourceFileName ?? def.defaultFileName,
+        body: artifact.body,
+        type: artifact.type ?? existing?.type ?? ".md",
         category: "project-exclusive",
+        projectArtifactKind: def.projectArtifactKind,
       });
       if (!result.ok) {
         setError(result.error);
@@ -235,8 +277,8 @@ function StageArtifactControls({
   async function uploadArtifact(def: StageArtifactDef, file: File | undefined) {
     if (!file || existingFor(def)) return;
     try {
-      const body = await readArtifactFile(file);
-      saveArtifact(def, body);
+      const artifact = await readArtifactFile(file);
+      saveArtifact(def, artifact);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not upload artifact.";
       setError(message);
@@ -256,9 +298,9 @@ function StageArtifactControls({
     <div className="flex flex-wrap justify-end gap-2">
       {STAGE_ARTIFACTS.map((def) => {
         const existing = existingFor(def);
-        const inputId = `stage-artifact-${def.name}`;
+        const inputId = `stage-artifact-${def.key}`;
         return (
-          <div key={def.name} className="flex items-center gap-1.5">
+          <div key={def.key} className="flex items-center gap-1.5">
             <Button
               type="button"
               size="sm"
@@ -308,7 +350,7 @@ function StageArtifactControls({
           <DialogHeader>
             <DialogTitle>Edit {editing?.title}</DialogTitle>
             <DialogDescription>
-              Saving updates the existing {editing?.name} project artifact. No duplicate artifact is created.
+              Saving updates the existing project artifact. No duplicate artifact is created.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -332,7 +374,7 @@ function StageArtifactControls({
             </Button>
             <Button
               type="button"
-              onClick={() => editing && saveArtifact(editing, draftBody)}
+              onClick={() => editing && saveArtifact(editing, { body: draftBody })}
               disabled={pending}
             >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}

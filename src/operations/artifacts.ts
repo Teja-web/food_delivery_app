@@ -10,7 +10,9 @@ import {
   ORGANIZATION_ARTIFACT_LABELS,
   REQUIRED_ORGANIZATION_ARTIFACT_FILE_NAMES,
   ORGANIZATION_ARTIFACT_UPLOAD_FIELDS,
+  PROJECT_ARTIFACT_KINDS,
   PROJECT_ARTIFACT_CREATED_VIA,
+  PROJECT_ARTIFACT_STATUSES,
   REQUIRED_ORGANIZATION_ARTIFACT_KEYS,
   organizationArtifacts,
   projectArtifacts,
@@ -19,10 +21,19 @@ import {
   type OrganizationArtifact,
   type ProjectArtifact,
   type ProjectArtifactCreatedVia,
+  type ProjectArtifactStatus,
+  type ProjectArtifactKind,
   type RequiredOrganizationArtifactKey,
 } from "@/db/schema/artifact";
 import { projects } from "@/db/schema/project";
 import { assertElevatedRole, getActionContext, hasElevatedRole, type ScopedActionContext } from "@/lib/auth/context";
+import {
+  resolveLifecycleArtifactKey,
+  resolveProjectArtifactKind,
+  type LifecycleArtifactKey,
+  validateProjectArtifactBody,
+} from "@/lib/artifacts/project-artifact-templates";
+import { createLogger } from "@/lib/logger";
 import { safeRevalidate } from "@/lib/safe-revalidate";
 
 export {
@@ -33,17 +44,20 @@ export {
 } from "@/db/schema/artifact";
 
 export type ArtifactScope = "org" | "project";
-export type ArtifactFormat = "markdown" | "text";
+export type ArtifactFormat = "markdown" | "text" | "html" | "json";
+
+const artifactLog = createLogger("operations:artifacts");
 
 export interface ArtifactManifestEntry {
   id: string;
-  kind: RequiredOrganizationArtifactKey | "custom";
+  kind: RequiredOrganizationArtifactKey | ProjectArtifactKind | "custom";
   title: string;
   name: string;
   type: ArtifactFileType;
   format: ArtifactFormat;
   category: string | null;
   requiredKey: RequiredOrganizationArtifactKey | null;
+  projectArtifactKind: ProjectArtifactKind | null;
   version: string;
   hash: string;
   scope: ArtifactScope;
@@ -51,6 +65,10 @@ export interface ArtifactManifestEntry {
   sourceFileName: string | null;
   updatedAt: string;
   resourceUri: string;
+  /** Back-compat alias for older sync clients. Prefer `name`/`sourceFileName`. */
+  fileName: string;
+  /** Back-compat alias for older sync clients that wrote `.coznt/standards/<slug>.md`. */
+  slug: string;
 }
 
 export interface ArtifactBundleEntry extends ArtifactManifestEntry {
@@ -82,6 +100,14 @@ export class MissingRequiredOrganizationArtifactsError extends Error {
   }
 }
 
+export class ProjectArtifactDependencyError extends Error {
+  status = 409;
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectArtifactDependencyError";
+  }
+}
+
 const artifactInputSchema = z.object({
   id: z.string().uuid().optional(),
   projectId: z.string().optional(),
@@ -92,7 +118,9 @@ const artifactInputSchema = z.object({
   category: z.string().optional().nullable(),
   title: z.string().min(1),
   requiredKey: z.enum(REQUIRED_ORGANIZATION_ARTIFACT_KEYS).optional().nullable(),
+  projectArtifactKind: z.enum(PROJECT_ARTIFACT_KINDS).optional().nullable(),
   createdVia: z.enum(PROJECT_ARTIFACT_CREATED_VIA).optional().default("upload"),
+  status: z.enum(PROJECT_ARTIFACT_STATUSES).optional().default("approved"),
 });
 
 export type UpsertOrganizationArtifactInput = z.input<typeof artifactInputSchema>;
@@ -115,6 +143,14 @@ function metadataRequiredKeyPredicate(
   return sql`${table.metadata}->>'requiredKey' = ${key}`;
 }
 
+function effectiveProjectArtifactWhere(organizationId: string, projectId: string) {
+  return and(
+    eq(projectArtifacts.organizationId, organizationId),
+    eq(projectArtifacts.projectId, projectId),
+    eq(projectArtifacts.status, "approved"),
+  );
+}
+
 function artifactTitle(row: Pick<OrganizationArtifact | ProjectArtifact, "metadata" | "name">): string {
   return typeof row.metadata.title === "string" && row.metadata.title.trim()
     ? row.metadata.title
@@ -128,12 +164,72 @@ function artifactHash(row: Pick<OrganizationArtifact | ProjectArtifact, "metadat
 }
 
 function artifactFormat(type: ArtifactFileType): ArtifactFormat {
-  return type === ".txt" ? "text" : "markdown";
+  if (type === ".txt") return "text";
+  if (type === ".html") return "html";
+  if (type === ".json") return "json";
+  return "markdown";
+}
+
+function artifactSlug(name: string): string {
+  return name
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "artifact";
+}
+
+function isRequiredProjectArtifactKind(
+  kind: ProjectArtifactKind | null | undefined,
+): kind is "requirements" | "design" {
+  return kind === "requirements" || kind === "design";
+}
+
+function buildArtifactExistsMessage(name: string): string {
+  return `${name} already exists.\nNo changes were made.`;
+}
+
+function buildMissingPrerequisiteMessage(targetName: string, prerequisiteName: string): string {
+  return `Cannot create ${targetName} because ${prerequisiteName} does not exist.\n\nPlease create ${prerequisiteName} first.`;
+}
+
+export function resolveProjectLifecycleArtifactValidation(input: {
+  target: LifecycleArtifactKey | null;
+  isCreate: boolean;
+  hasRequirements: boolean;
+  hasDesign: boolean;
+  targetArtifactName?: string;
+}): string | null {
+  if (!input.target || !input.isCreate) return null;
+
+  const targetArtifactName = input.targetArtifactName ?? input.target;
+
+  if (input.target === "requirements" && input.hasRequirements) {
+    return buildArtifactExistsMessage(targetArtifactName);
+  }
+  if (input.target === "design") {
+    if (!input.hasRequirements) {
+      return buildMissingPrerequisiteMessage(targetArtifactName, "requirements");
+    }
+    if (input.hasDesign) {
+      return buildArtifactExistsMessage(targetArtifactName);
+    }
+  }
+  if (input.target === "development") {
+    const missing: string[] = [];
+    if (!input.hasRequirements) missing.push("Requirements");
+    if (!input.hasDesign) missing.push("Design");
+    if (missing.length > 0) {
+      return `Development artifact requires prerequisite artifact(s): ${missing.join(", ")}.`;
+    }
+  }
+  return null;
 }
 
 function toMetadata(input: {
   title: string;
   requiredKey?: RequiredOrganizationArtifactKey | null;
+  projectArtifactKind?: ProjectArtifactKind | null;
   body: string;
   extra?: ArtifactMetadata;
 }): ArtifactMetadata {
@@ -142,20 +238,23 @@ function toMetadata(input: {
     title: input.title,
     contentHash: hashArtifactBody(input.body),
     ...(input.requiredKey ? { requiredKey: input.requiredKey } : {}),
+    ...(input.projectArtifactKind ? { projectArtifactKind: input.projectArtifactKind } : {}),
   };
 }
 
 function toManifestEntry(row: ProjectArtifact): ArtifactManifestEntry {
   const hash = artifactHash(row);
+  const kind = resolveProjectArtifactKind(row);
   return {
     id: row.id,
-    kind: row.metadata.requiredKey ?? "custom",
+    kind: row.metadata.requiredKey ?? kind ?? "custom",
     title: artifactTitle(row),
     name: row.name,
     type: row.type,
     format: artifactFormat(row.type),
     category: row.category,
     requiredKey: row.metadata.requiredKey ?? null,
+    projectArtifactKind: kind,
     version: "1.0.0",
     hash,
     scope: "project",
@@ -163,6 +262,8 @@ function toManifestEntry(row: ProjectArtifact): ArtifactManifestEntry {
     sourceFileName: row.name,
     updatedAt: row.updatedAt.toISOString(),
     resourceUri: "coznt://standards",
+    fileName: row.name,
+    slug: artifactSlug(row.name),
   };
 }
 
@@ -176,6 +277,7 @@ function auditShape(row: OrganizationArtifact | ProjectArtifact, scope: Artifact
     type: row.type,
     category: row.category,
     scope,
+    status: "status" in row ? row.status : undefined,
     contentHash: artifactHash(row),
     metadata: row.metadata,
   };
@@ -239,6 +341,72 @@ export async function listProjectArtifacts(projectId: string): Promise<ProjectAr
   });
 }
 
+export interface ProjectRequiredArtifactRows {
+  requirements: ProjectArtifact | null;
+  design: ProjectArtifact | null;
+}
+
+export async function getProjectRequiredArtifactRows(
+  organizationId: string,
+  projectId: string,
+): Promise<ProjectRequiredArtifactRows> {
+  const rows = await db.query.projectArtifacts.findMany({
+    where: effectiveProjectArtifactWhere(organizationId, projectId),
+    orderBy: [asc(projectArtifacts.createdAt), asc(projectArtifacts.name)],
+  });
+
+  const required: ProjectRequiredArtifactRows = {
+    requirements: null,
+    design: null,
+  };
+
+  for (const row of rows) {
+    const kind = resolveProjectArtifactKind(row);
+    if ((kind === "requirements" || kind === "design") && !required[kind]) {
+      required[kind] = row;
+    }
+  }
+
+  artifactLog.info("Resolved project lifecycle artifacts", {
+    projectId,
+    searchedArtifactKinds: ["requirements", "design"],
+    query:
+      "select * from project_artifacts where organization_id = ? and project_id = ? order by created_at asc, name asc",
+    recordsReturned: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      projectArtifactKind: row.metadata.projectArtifactKind ?? null,
+    })),
+    matchedRequirementsId: required.requirements?.id ?? null,
+    matchedDesignId: required.design?.id ?? null,
+    reason:
+      required.requirements || required.design
+        ? "Matched by explicit projectArtifactKind or exact legacy lifecycle identity."
+        : "No current lifecycle artifact records matched this project.",
+  });
+
+  return required;
+}
+
+export async function getProjectArtifactsReadiness(
+  organizationId: string,
+  projectId: string,
+): Promise<{
+  requiredComplete: boolean;
+  missingRequired: Array<"requirements" | "design">;
+  presentRequired: Array<"requirements" | "design">;
+}> {
+  const requiredRows = await getProjectRequiredArtifactRows(organizationId, projectId);
+  const required = ["requirements", "design"] as const;
+  const missingRequired = required.filter((kind) => !requiredRows[kind]);
+  return {
+    requiredComplete: missingRequired.length === 0,
+    missingRequired,
+    presentRequired: required.filter((kind) => Boolean(requiredRows[kind])),
+  };
+}
+
 export async function getOrganizationArtifactsReadiness(organizationId?: string): Promise<{
   requiredComplete: boolean;
   missingRequired: RequiredOrganizationArtifactKey[];
@@ -278,10 +446,7 @@ export async function getProjectArtifactsManifest(
   const [readiness, rows] = await Promise.all([
     getOrganizationArtifactsReadiness(organizationId),
     db.query.projectArtifacts.findMany({
-      where: and(
-        eq(projectArtifacts.organizationId, organizationId),
-        eq(projectArtifacts.projectId, projectId),
-      ),
+      where: effectiveProjectArtifactWhere(organizationId, projectId),
       orderBy: [asc(projectArtifacts.name)],
     }),
   ]);
@@ -302,22 +467,32 @@ export async function getProjectArtifactsBundle(
 ): Promise<ArtifactsBundle> {
   const manifest = await getProjectArtifactsManifest(organizationId, projectId);
   const allowed = names && names.length > 0 ? new Set(names) : null;
-  const byName = new Map(manifest.artifacts.map((entry) => [entry.name, entry]));
+  const aliases = new Map<string, ArtifactManifestEntry>();
+  for (const entry of manifest.artifacts) {
+    aliases.set(entry.name, entry);
+    aliases.set(entry.sourceFileName ?? entry.name, entry);
+    aliases.set(entry.fileName, entry);
+    aliases.set(entry.slug, entry);
+  }
   if (allowed) {
     for (const name of allowed) {
-      if (!byName.has(name)) throw new Error(`Unknown artifact name: ${name}`);
+      if (!aliases.has(name)) throw new Error(`Unknown artifact name: ${name}`);
     }
   }
 
   const rows = await db.query.projectArtifacts.findMany({
-    where: and(
-      eq(projectArtifacts.organizationId, organizationId),
-      eq(projectArtifacts.projectId, projectId),
-    ),
+    where: effectiveProjectArtifactWhere(organizationId, projectId),
   });
   const bodyById = new Map(rows.map((row) => [row.id, row.body]));
   const entries = manifest.artifacts
-    .filter((entry) => !allowed || allowed.has(entry.name))
+    .filter(
+      (entry) =>
+        !allowed ||
+        allowed.has(entry.name) ||
+        allowed.has(entry.sourceFileName ?? entry.name) ||
+        allowed.has(entry.fileName) ||
+        allowed.has(entry.slug),
+    )
     .map((entry) => ({
       ...entry,
       content: bodyById.get(entry.sourceArtifactId) ?? "",
@@ -335,10 +510,7 @@ export async function buildProjectArtifactsPromptBlock(
 ): Promise<string> {
   await assertRequiredOrganizationArtifactsPresent(organizationId);
   const rows = await db.query.projectArtifacts.findMany({
-    where: and(
-      eq(projectArtifacts.organizationId, organizationId),
-      eq(projectArtifacts.projectId, projectId),
-    ),
+    where: effectiveProjectArtifactWhere(organizationId, projectId),
     orderBy: [asc(projectArtifacts.name)],
   });
   if (rows.length === 0) return "";
@@ -463,6 +635,8 @@ export async function upsertOrganizationArtifact(
 export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): Promise<ProjectArtifact> {
   const ctx = await getActionContext();
 
+  const requestedCreatedVia = input.createdVia;
+  const requestedStatus = input.status;
   const parsed = artifactInputSchema.extend({ projectId: z.string().min(1) }).parse(input);
   assertProjectArtifactWriteAllowed(ctx, parsed.projectId, "Changing project artifacts");
   const project = await db.query.projects.findFirst({
@@ -471,28 +645,61 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
   });
   if (!project) throw new Error(`Project ${parsed.projectId} not found in this organization.`);
 
+  const requirementsValidation = validateProjectArtifactBody({
+    artifactKind: parsed.projectArtifactKind,
+    body: parsed.body,
+  });
+  if (!requirementsValidation.ok) {
+    throw new Error(
+      `Artifact is missing required section(s): ${requirementsValidation.missingSections.join(", ")}.`,
+    );
+  }
+
+  const existing = await findExistingProjectArtifactForUpsert({
+    organizationId: ctx.organizationId,
+    projectId: parsed.projectId,
+    id: parsed.id,
+    name: parsed.name,
+    projectArtifactKind: parsed.projectArtifactKind,
+    status: parsed.status,
+  });
+
+  const targetLifecycleArtifact = resolveLifecycleArtifactKey({
+    name: parsed.name,
+    projectArtifactKind: parsed.projectArtifactKind,
+  });
+  if (targetLifecycleArtifact) {
+    const lifecycleArtifacts = await getProjectRequiredArtifactRows(
+      ctx.organizationId,
+      parsed.projectId,
+    );
+    const validationError = resolveProjectLifecycleArtifactValidation({
+      target: targetLifecycleArtifact,
+      isCreate: !(parsed.id ?? existing?.id),
+      hasRequirements:
+        Boolean(lifecycleArtifacts.requirements) &&
+        lifecycleArtifacts.requirements?.id !== (parsed.id ?? existing?.id),
+      hasDesign:
+        Boolean(lifecycleArtifacts.design) &&
+        lifecycleArtifacts.design?.id !== (parsed.id ?? existing?.id),
+      targetArtifactName: parsed.name,
+    });
+    if (validationError) throw new ProjectArtifactDependencyError(validationError);
+  }
+
   const metadata = toMetadata({
     title: parsed.title,
     requiredKey: parsed.requiredKey,
+    projectArtifactKind: parsed.projectArtifactKind,
     body: parsed.body,
   });
-  const existing = parsed.id
-    ? await db.query.projectArtifacts.findFirst({
-        where: and(
-          eq(projectArtifacts.organizationId, ctx.organizationId),
-          eq(projectArtifacts.projectId, parsed.projectId),
-          eq(projectArtifacts.id, parsed.id),
-        ),
-      })
-    : await db.query.projectArtifacts.findFirst({
-        where: and(
-          eq(projectArtifacts.organizationId, ctx.organizationId),
-          eq(projectArtifacts.projectId, parsed.projectId),
-          eq(projectArtifacts.name, parsed.name),
-        ),
-      });
-
   if (existing) {
+    if (existing.status === "approved" && requestedStatus === "pending") {
+      return existing;
+    }
+
+    const nextStatus = requestedStatus ?? existing.status;
+    const nextCreatedVia = requestedCreatedVia ?? existing.createdVia;
     const [row] = await db
       .update(projectArtifacts)
       .set({
@@ -501,7 +708,8 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
         summary: parsed.summary ?? null,
         type: parsed.type,
         category: parsed.category ?? null,
-        createdVia: parsed.createdVia,
+        createdVia: nextCreatedVia,
+        status: nextStatus,
         metadata,
         creatorId: ctx.userId,
         creatorName: ctx.user.name,
@@ -534,6 +742,7 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
       type: parsed.type,
       category: parsed.category ?? null,
       createdVia: parsed.createdVia,
+      status: parsed.status,
       metadata,
       creatorId: ctx.userId,
       creatorName: ctx.user.name,
@@ -550,6 +759,74 @@ export async function upsertProjectArtifact(input: UpsertProjectArtifactInput): 
     invokedVia: "artifacts:upsert-project",
   });
   return row;
+}
+
+async function findExistingProjectArtifactForUpsert(input: {
+  organizationId: string;
+  projectId: string;
+  id?: string;
+  name: string;
+  projectArtifactKind?: ProjectArtifactKind | null;
+  status?: ProjectArtifactStatus;
+}): Promise<ProjectArtifact | undefined> {
+  if (input.id) {
+    return db.query.projectArtifacts.findFirst({
+      where: and(
+        eq(projectArtifacts.organizationId, input.organizationId),
+        eq(projectArtifacts.projectId, input.projectId),
+        eq(projectArtifacts.id, input.id),
+      ),
+    });
+  }
+
+  if (isRequiredProjectArtifactKind(input.projectArtifactKind)) {
+    if (input.status === "pending") {
+      const pendingRequiredRows = await db.query.projectArtifacts.findMany({
+        where: and(
+          eq(projectArtifacts.organizationId, input.organizationId),
+          eq(projectArtifacts.projectId, input.projectId),
+          eq(projectArtifacts.status, "pending"),
+        ),
+        orderBy: [asc(projectArtifacts.updatedAt)],
+      });
+      const pendingRequired = pendingRequiredRows.find(
+        (row) => resolveProjectArtifactKind(row) === input.projectArtifactKind,
+      );
+      if (pendingRequired) return pendingRequired;
+    }
+
+    const existingRequiredRows = await db.query.projectArtifacts.findMany({
+      where: and(
+        eq(projectArtifacts.organizationId, input.organizationId),
+        eq(projectArtifacts.projectId, input.projectId),
+      ),
+      orderBy: [asc(projectArtifacts.updatedAt)],
+    });
+    const existingRequired = existingRequiredRows.find(
+      (row) => resolveProjectArtifactKind(row) === input.projectArtifactKind,
+    );
+    if (existingRequired) return existingRequired;
+  }
+
+  if (input.status === "pending") {
+    const pendingByName = await db.query.projectArtifacts.findFirst({
+      where: and(
+        eq(projectArtifacts.organizationId, input.organizationId),
+        eq(projectArtifacts.projectId, input.projectId),
+        eq(projectArtifacts.status, "pending"),
+        eq(projectArtifacts.name, input.name),
+      ),
+    });
+    if (pendingByName) return pendingByName;
+  }
+
+  return db.query.projectArtifacts.findFirst({
+    where: and(
+      eq(projectArtifacts.organizationId, input.organizationId),
+      eq(projectArtifacts.projectId, input.projectId),
+      eq(projectArtifacts.name, input.name),
+    ),
+  });
 }
 
 export async function cloneOrganizationArtifactsToProject(
@@ -576,10 +853,25 @@ export async function cloneOrganizationArtifactsToProject(
     throw new Error("One or more organization artifacts were not found.");
   }
 
+  const existingProjectRows = await db.query.projectArtifacts.findMany({
+    where: and(
+      eq(projectArtifacts.organizationId, ctx.organizationId),
+      eq(projectArtifacts.projectId, projectId),
+    ),
+    columns: { metadata: true },
+  });
+  const existingSourceIds = new Set(
+    existingProjectRows
+      .map((row) => row.metadata.sourceOrganizationArtifactId)
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const rowsToClone = orgRows.filter((row) => !existingSourceIds.has(row.id));
+  if (rowsToClone.length === 0) return [];
+
   const inserted = await db
     .insert(projectArtifacts)
     .values(
-      orgRows.map((row) => ({
+      rowsToClone.map((row) => ({
         organizationId: ctx.organizationId,
         projectId,
         name: row.name,
@@ -588,6 +880,7 @@ export async function cloneOrganizationArtifactsToProject(
         type: row.type,
         category: row.category,
         createdVia,
+        status: "approved" as const,
         metadata: {
           ...row.metadata,
           sourceOrganizationArtifactId: row.id,
@@ -612,12 +905,49 @@ export async function cloneOrganizationArtifactsToProject(
         summary: `Cloned project artifact ${artifactTitle(row)}`,
         before: null,
         after: auditShape(row, "project"),
-        invokedVia: "project:create",
+        invokedVia:
+          createdVia === "MCP"
+            ? "mcp:setup-project-standards"
+            : "project:create",
       })),
     );
   }
 
   return inserted;
+}
+
+export async function updateProjectArtifactStatus(
+  id: string,
+  status: ProjectArtifactStatus,
+): Promise<ProjectArtifact> {
+  const ctx = await getActionContext();
+  const existing = await db.query.projectArtifacts.findFirst({
+    where: and(eq(projectArtifacts.id, id), eq(projectArtifacts.organizationId, ctx.organizationId)),
+  });
+  if (!existing) throw new Error(`Project artifact ${id} not found.`);
+  assertProjectArtifactWriteAllowed(ctx, existing.projectId, "Reviewing project artifacts");
+
+  const [row] = await db
+    .update(projectArtifacts)
+    .set({
+      status,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(projectArtifacts.id, id), eq(projectArtifacts.organizationId, ctx.organizationId)))
+    .returning();
+
+  await auditArtifactMutation({
+    organizationId: ctx.organizationId,
+    actorId: ctx.userId,
+    actorName: ctx.user.name,
+    action: `artifact.project.${status}`,
+    entityId: row.id,
+    before: auditShape(existing, "project"),
+    after: auditShape(row, "project"),
+    summary: `Marked project artifact ${artifactTitle(row)} as ${status}`,
+    invokedVia: "artifacts:review-project",
+  });
+  return row;
 }
 
 export async function deleteOrganizationArtifact(id: string): Promise<void> {

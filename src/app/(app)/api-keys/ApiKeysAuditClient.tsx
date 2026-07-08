@@ -5,19 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import { mintApiKeyAction, revokeApiKeyAction } from "@/actions/integration/api-keys";
+import { revokeApiKeyAction } from "@/actions/integration/api-keys";
+import { MintApiKeyDialog } from "@/components/api-keys/MintApiKeyDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,11 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  API_KEY_ROLE_LABELS,
-  API_KEY_ROLE_OPTIONS,
-  type ApiKeyRole,
-} from "@/lib/auth/api-key-roles";
+import { API_KEY_ROLE_LABELS, type ApiKeyRole } from "@/lib/auth/api-key-roles";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -58,14 +46,9 @@ const ROLE_STYLES: Record<string, string> = {
   admin: "border-red-400/50 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300",
 };
 
-const ROLE_OPTION_STYLES: Record<ApiKeyRole, string> = {
-  member: "",
-  manager: "text-yellow-700 dark:text-yellow-300",
-  admin: "text-red-700 dark:text-red-300",
-};
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+
   return (
     <Button
       type="button"
@@ -150,16 +133,16 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
   const [mintOpen, setMintOpen] = useState(false);
 
-  const matches = (r: ApiKeyRow) => {
-    if (statusFilter !== "all" && r.status !== statusFilter) return false;
-    if (projectFilter !== "all" && r.projectId !== projectFilter) return false;
+  const matches = (row: ApiKeyRow) => {
+    if (statusFilter !== "all" && row.status !== statusFilter) return false;
+    if (projectFilter !== "all" && row.projectId !== projectFilter) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       if (
-        !r.name.toLowerCase().includes(q) &&
-        !r.prefix.toLowerCase().includes(q) &&
-        !r.projectName.toLowerCase().includes(q) &&
-        !(r.createdByEmail?.toLowerCase().includes(q) ?? false)
+        !row.name.toLowerCase().includes(q) &&
+        !row.prefix.toLowerCase().includes(q) &&
+        !row.projectName.toLowerCase().includes(q) &&
+        !(row.createdByEmail?.toLowerCase().includes(q) ?? false)
       ) {
         return false;
       }
@@ -169,12 +152,11 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
 
   const filteredGroups = useMemo(() => {
     return groups
-      .map((g) => ({ ...g, keys: g.keys.filter(matches) }))
-      .filter((g) => g.keys.length > 0);
+      .map((group) => ({ ...group, keys: group.keys.filter(matches) }))
+      .filter((group) => group.keys.length > 0);
   }, [groups, search, projectFilter, statusFilter]);
 
-  const visibleCount = filteredGroups.reduce((n, g) => n + g.keys.length, 0);
-  const hasFilter = search.trim() !== "" || projectFilter !== "all" || statusFilter !== "all";
+  const visibleCount = filteredGroups.reduce((count, group) => count + group.keys.length, 0);
 
   function toggleProject(id: string) {
     setCollapsedProjects((prev) => {
@@ -203,7 +185,7 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card/30 p-3">
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search name, prefix, project, or creator email"
@@ -218,17 +200,14 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All projects</SelectItem>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
+            {projects.map((project) => (
+              <SelectItem key={project.id} value={project.id}>
+                {project.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-        >
+        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -264,14 +243,12 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredGroups.map((g) => {
-            const groupId = g.projectId ?? "__orphaned__";
+          {filteredGroups.map((group) => {
+            const groupId = group.projectId ?? "__orphaned__";
             const collapsed = collapsedProjects.has(groupId);
+
             return (
-              <div
-                key={groupId}
-                className="overflow-hidden rounded-lg border bg-card/30"
-              >
+              <div key={groupId} className="overflow-hidden rounded-lg border bg-card/30">
                 <button
                   type="button"
                   onClick={() => toggleProject(groupId)}
@@ -284,30 +261,30 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                     <KeyRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                    {g.projectId ? (
+                    {group.projectId ? (
                       <Link
-                        href={`/projects/${g.projectId}/settings#api-keys`}
+                        href={`/projects/${group.projectId}/settings#api-keys`}
                         onClick={(e) => e.stopPropagation()}
                         className="truncate text-sm font-medium hover:underline"
                       >
-                        {g.projectName}
+                        {group.projectName}
                       </Link>
                     ) : (
                       <span className="inline-flex items-center gap-1 truncate text-sm font-medium text-amber-600">
                         <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
-                        {g.projectName}
+                        {group.projectName}
                       </span>
                     )}
-                    {g.projectSlug ? (
+                    {group.projectSlug ? (
                       <span className="font-mono text-[11px] text-muted-foreground">
-                        {g.projectSlug}
+                        {group.projectSlug}
                       </span>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                     <span>
-                      <span className="font-medium text-trend-up">{g.active}</span> active /{" "}
-                      {g.total} total
+                      <span className="font-medium text-trend-up">{group.active}</span> active /{" "}
+                      {group.total} total
                     </span>
                   </div>
                 </button>
@@ -326,44 +303,42 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
                       </tr>
                     </thead>
                     <tbody>
-                      {g.keys.map((k) => (
-                        <tr key={k.id} className="border-t">
-                          <td className="px-4 py-2">{k.name}</td>
-                          <td className="px-2 py-2 font-mono text-[11px]">{k.prefix}…</td>
+                      {group.keys.map((key) => (
+                        <tr key={key.id} className="border-t">
+                          <td className="px-4 py-2">{key.name}</td>
+                          <td className="px-2 py-2 font-mono text-[11px]">{key.prefix}...</td>
                           <td className="px-2 py-2">
                             <Badge
                               variant="outline"
                               className={cn(
                                 "px-1.5 py-0 font-mono text-[10px] uppercase",
-                                ROLE_STYLES[k.role] ?? ROLE_STYLES.member,
+                                ROLE_STYLES[key.role] ?? ROLE_STYLES.member,
                               )}
                             >
-                              {API_KEY_ROLE_LABELS[k.role as ApiKeyRole] ?? k.role}
+                              {API_KEY_ROLE_LABELS[key.role as ApiKeyRole] ?? key.role}
                             </Badge>
                           </td>
-                          <td className={cn("px-2 py-2 text-xs", STATUS_STYLES[k.status])}>
-                            {STATUS_LABEL[k.status]}
+                          <td className={cn("px-2 py-2 text-xs", STATUS_STYLES[key.status])}>
+                            {STATUS_LABEL[key.status]}
                           </td>
                           <td
                             className="px-2 py-2 text-xs text-muted-foreground"
-                            title={formatTimestamp(k.lastUsedAt)}
+                            title={formatTimestamp(key.lastUsedAt)}
                           >
-                            {formatRelative(k.lastUsedAt)}
+                            {formatRelative(key.lastUsedAt)}
                           </td>
                           <td className="px-2 py-2 text-xs text-muted-foreground">
-                            {k.createdByName ?? k.createdByEmail ?? "—"}
+                            {key.createdByName ?? key.createdByEmail ?? "-"}
                           </td>
                           <td className="px-2 py-2 text-xs text-muted-foreground">
-                            {k.expiresAt
-                              ? new Date(k.expiresAt).toLocaleDateString()
-                              : "never"}
+                            {key.expiresAt ? new Date(key.expiresAt).toLocaleDateString() : "never"}
                           </td>
                           <td className="px-4 py-2 text-right">
-                            {k.status === "active" ? (
+                            {key.status === "active" ? (
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleRevoke(k.id)}
+                                onClick={() => handleRevoke(key.id)}
                                 disabled={pending}
                                 className="h-7 text-[11px]"
                               >
@@ -382,7 +357,7 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
         </div>
       )}
 
-      <MintKeyDialog
+      <MintApiKeyDialog
         open={mintOpen}
         onOpenChange={setMintOpen}
         projects={projects}
@@ -390,206 +365,5 @@ export function ApiKeysAuditClient({ kpis, groups, rows, projects, canCreateApiK
         canCreateApiKeys={canCreateApiKeys}
       />
     </div>
-  );
-}
-
-function MintKeyDialog({
-  open,
-  onOpenChange,
-  projects,
-  defaultProjectId,
-  canCreateApiKeys,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  projects: ProjectOption[];
-  defaultProjectId: string;
-  canCreateApiKeys: boolean;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [name, setName] = useState("");
-  const [projectId, setProjectId] = useState(defaultProjectId);
-  const [role, setRole] = useState<ApiKeyRole>("member");
-  const [expiresInDays, setExpiresInDays] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
-
-  function reset() {
-    setName("");
-    setRole("member");
-    setExpiresInDays("");
-    setError(null);
-    setRevealedPlaintext(null);
-  }
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    if (!name.trim()) {
-      setError("Name is required");
-      return;
-    }
-    if (!projectId) {
-      setError("Pick a project");
-      return;
-    }
-    const days = expiresInDays.trim() ? Number(expiresInDays) : null;
-    if (days !== null && (!Number.isFinite(days) || days <= 0)) {
-      setError("Expiration must be a positive number of days");
-      return;
-    }
-    const expiresAt = days ? new Date(Date.now() + days * 86_400_000) : null;
-    startTransition(async () => {
-      try {
-        const result = await mintApiKeyAction({ name: name.trim(), projectId, role, expiresAt });
-        setRevealedPlaintext(result.plaintext);
-        setName("");
-        setRole("member");
-        setExpiresInDays("");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to mint key");
-      }
-    });
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset();
-        onOpenChange(v);
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Mint API key</DialogTitle>
-          <DialogDescription>
-            Owner-controlled minting. For day-to-day key creation, prefer the project&apos;s Settings
-            tab — that&apos;s also where developers will look.
-          </DialogDescription>
-        </DialogHeader>
-
-        {revealedPlaintext ? (
-          <div className="space-y-3 rounded border border-amber-300 bg-amber-50 p-4 text-sm dark:bg-amber-950/40">
-            <div className="font-medium text-amber-900 dark:text-amber-200">
-              Save this key now — it will not be shown again.
-            </div>
-            <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-xs dark:bg-background">
-              {revealedPlaintext}
-            </pre>
-            <div className="flex items-center justify-end gap-2">
-              <CopyButton text={revealedPlaintext} />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setRevealedPlaintext(null);
-                  setName("");
-                  setRole("member");
-                  setExpiresInDays("");
-                  setError(null);
-                }}
-              >
-                Mint another
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-                Done
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="mint-name">Name</Label>
-              <Input
-                id="mint-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. cursor-laptop"
-                disabled={pending || !canCreateApiKeys}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="mint-project">Project</Label>
-              <Select
-                value={projectId}
-                onValueChange={setProjectId}
-                disabled={pending || !canCreateApiKeys}
-              >
-                <SelectTrigger id="mint-project">
-                  <SelectValue placeholder="Select a project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                      <span className="ml-2 font-mono text-[11px] text-muted-foreground">
-                        {p.slug}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="mint-expiry">Expires in (days)</Label>
-              <Input
-                id="mint-expiry"
-                type="number"
-                min="1"
-                value={expiresInDays}
-                onChange={(e) => setExpiresInDays(e.target.value)}
-                placeholder="never"
-                disabled={pending || !canCreateApiKeys}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="mint-role">Role</Label>
-              <Select
-                value={role}
-                onValueChange={(value) => setRole(value as ApiKeyRole)}
-                disabled={pending || !canCreateApiKeys}
-              >
-                <SelectTrigger id="mint-role">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {API_KEY_ROLE_OPTIONS.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      className={ROLE_OPTION_STYLES[option.value]}
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {!canCreateApiKeys ? (
-              <div className="text-sm text-muted-foreground">
-                Only project owners can mint API keys and assign roles.
-              </div>
-            ) : null}
-            {error ? <div className="text-sm text-destructive">{error}</div> : null}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={pending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={pending || !canCreateApiKeys}>
-                {pending ? "Minting…" : "Mint key"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }

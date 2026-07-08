@@ -160,6 +160,58 @@ describe("coznt sync", () => {
     expect(lock.kind).toBe("coding_standards");
   });
 
+  it("uses sourceFileName fallback for standards sync filenames", async () => {
+    const jsonContent = '{ "name": "demo" }';
+    const jsonHash = sha256(jsonContent);
+    const manifest = { choreographies: [], manifestHash: "deadbeef" };
+    const standardsManifest = {
+      standards: [
+        {
+          sourceFileName: "requirements.json",
+          version: "1.0.0",
+          hash: jsonHash,
+          title: "Project Requirements",
+          kind: "requirements",
+          scope: "project",
+          type: ".json",
+          format: "json",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      missingRequired: [],
+      requiredComplete: true,
+      manifestHash: "standards-hash",
+    };
+    const standardsBundle = {
+      ...standardsManifest,
+      standards: [
+        {
+          ...standardsManifest.standards[0],
+          content: jsonContent,
+        },
+      ],
+    };
+    global.fetch = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/standards/sync")) {
+        return new Response(JSON.stringify(standardsBundle), { status: 200 });
+      }
+      if (url.includes("/standards")) {
+        return new Response(JSON.stringify(standardsManifest), { status: 200 });
+      }
+      if (url.includes("/choreographies")) {
+        return new Response(JSON.stringify(manifest), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const code = await runSync({});
+    expect(code).toBe(0);
+
+    expect(existsSync(join(tmpRoot, ".coznt/artifacts/requirements.json"))).toBe(true);
+    expect(existsSync(join(tmpRoot, ".coznt/artifacts/undefined.md"))).toBe(false);
+  });
+
   it("no-op when local lock matches remote hash", async () => {
     const manifest = {
       choreographies: [

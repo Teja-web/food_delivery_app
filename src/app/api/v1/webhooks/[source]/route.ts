@@ -232,18 +232,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ source:
         : null;
     const installationId = installation?.id != null ? String(installation.id) : null;
 
-    // App deliveries: resolve via installation.id. Repo/org-level webhooks
-    // (no App installed): fall back to repository.full_name against
-    // adapter_bindings so the integrator just needs a binding row, not an App.
+    const repo =
+      payload.repository && typeof payload.repository === "object"
+        ? (payload.repository as { full_name?: string; html_url?: string })
+        : null;
+    const fullName = typeof repo?.full_name === "string" ? repo.full_name : null;
+
+    // App deliveries: prefer installation.id, but fall back to the repo
+    // binding when the app install has not been written into adapter config.
+    // Repo/org-level webhooks also resolve through repository.full_name.
     let orgId: string | null = null;
     if (installationId) {
       orgId = await resolveOrgFromInstallation(installationId);
-    } else {
-      const repo =
-        payload.repository && typeof payload.repository === "object"
-          ? (payload.repository as { full_name?: string; html_url?: string })
-          : null;
-      const fullName = typeof repo?.full_name === "string" ? repo.full_name : null;
+    }
+    if (!orgId) {
       if (fullName) {
         const host = hostFromHtmlUrl(repo?.html_url) ?? "github.com";
         orgId = await resolveOrgFromRepo(fullName, host);

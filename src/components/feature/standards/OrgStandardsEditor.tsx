@@ -35,7 +35,7 @@ type RequiredStandardKind =
   | "brand_guidelines"
   | "architecture_principles";
 type StandardKind = RequiredStandardKind | "custom";
-type StandardFormat = "markdown" | "text";
+type StandardFormat = "markdown" | "text" | "html" | "json";
 
 export interface OrgStandardEditorItem {
   id: string;
@@ -83,7 +83,7 @@ const REQUIRED_DEFS: Array<Pick<RequiredStandardDraft, "kind" | "title">> = [
   },
 ];
 
-const FILE_ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
+const FILE_ACCEPT = ".md,.markdown,.txt,.html,.json,text/markdown,text/plain,text/html,application/json";
 
 function emptyCustomDraft(): CustomStandardDraft {
   return {
@@ -95,11 +95,18 @@ function emptyCustomDraft(): CustomStandardDraft {
 }
 
 function inferFormat(fileName: string): StandardFormat {
-  return fileName.toLowerCase().endsWith(".txt") ? "text" : "markdown";
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".txt")) return "text";
+  if (lower.endsWith(".html")) return "html";
+  if (lower.endsWith(".json")) return "json";
+  return "markdown";
 }
 
-function fileTypeForFormat(format: StandardFormat): ".md" | ".txt" {
-  return format === "text" ? ".txt" : ".md";
+function fileTypeForFormat(format: StandardFormat): ".md" | ".txt" | ".html" | ".json" {
+  if (format === "text") return ".txt";
+  if (format === "html") return ".html";
+  if (format === "json") return ".json";
+  return ".md";
 }
 
 function isAcceptedTextFile(file: File): boolean {
@@ -108,8 +115,12 @@ function isAcceptedTextFile(file: File): boolean {
     lower.endsWith(".md") ||
     lower.endsWith(".markdown") ||
     lower.endsWith(".txt") ||
+    lower.endsWith(".html") ||
+    lower.endsWith(".json") ||
     file.type === "text/plain" ||
     file.type === "text/markdown" ||
+    file.type === "text/html" ||
+    file.type === "application/json" ||
     file.type === ""
   );
 }
@@ -217,7 +228,13 @@ function statusLabel(body: string): "Ready" | "Missing" {
 
 function acceptsEditableFileName(fileName: string): boolean {
   const lower = fileName.toLowerCase().trim();
-  return lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt");
+  return (
+    lower.endsWith(".md") ||
+    lower.endsWith(".markdown") ||
+    lower.endsWith(".txt") ||
+    lower.endsWith(".html") ||
+    lower.endsWith(".json")
+  );
 }
 
 function StandardStatus({ body }: { body: string }) {
@@ -444,7 +461,7 @@ export function OrgStandardsEditor({
   ) {
     if (!file) return;
     if (!isAcceptedTextFile(file)) {
-      setErrors([`${file.name} is not a Markdown or text file.`]);
+      setErrors([`${file.name} is not a Markdown, text, HTML, or JSON file.`]);
       return;
     }
     const body = await file.text();
@@ -535,7 +552,7 @@ export function OrgStandardsEditor({
     });
     if (invalidCustomFileName?.sourceFileName) {
       setErrors([
-        `${invalidCustomFileName.sourceFileName} must end with .md, .markdown, or .txt.`,
+        `${invalidCustomFileName.sourceFileName} must end with .md, .markdown, .txt, .html, or .json.`,
       ]);
       return;
     }
@@ -818,7 +835,7 @@ export function OrgStandardsEditor({
           ) : (
             <div className="mt-3 rounded-sm border border-dashed bg-background p-3 text-sm text-muted-foreground">
               {selectedHasFile ? (
-                "Use Edit to view or update the text body. Use Replace to upload a new Markdown or text file."
+                "Use Edit to view or update the text body. Use Replace to upload a new Markdown, text, HTML, or JSON file."
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span>No file has been uploaded for this standard yet.</span>

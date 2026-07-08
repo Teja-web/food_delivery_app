@@ -35,6 +35,7 @@ import {
 import { classify, summarize, type Classification } from "../lib/diff";
 import {
   classifyStandards,
+  standardEntryName,
   summarizeStandards,
   type StandardClassification,
 } from "../lib/standard-diff";
@@ -348,10 +349,11 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
     }
   }
   for (const entry of standardsBundle.standards) {
+    const name = standardEntryName(entry);
     const computed = sha256(entry.content);
     if (computed !== entry.hash) {
       console.error(
-        `Hash mismatch on artifact/${entry.name}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
+        `Hash mismatch on artifact/${name}: computed ${computed} != manifest ${entry.hash}. Aborting; no files written.`,
       );
       return 1;
     }
@@ -372,8 +374,9 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
   }
 
   for (const entry of standardsBundle.standards) {
-    writeLocalStandard(repoRoot, entry.name, entry.content);
-    writeStandardLock(repoRoot, entry.name, {
+    const name = standardEntryName(entry);
+    writeLocalStandard(repoRoot, name, entry.content);
+    writeStandardLock(repoRoot, name, {
       hash: entry.hash,
       version: entry.version,
       syncedAt: now,
@@ -382,7 +385,7 @@ export async function runSync(options: SyncOptions = {}): Promise<number> {
       type: entry.type,
     });
     console.log(
-      `  [write] .coznt/artifacts/${entry.name} (v${entry.version}, scope=${entry.scope})`,
+      `  [write] .coznt/artifacts/${name} (v${entry.version}, scope=${entry.scope})`,
     );
   }
 

@@ -3,11 +3,17 @@ import type { ReactNode } from "react";
 
 import { getProject } from "@/actions/project/projects";
 import type { Project } from "@/db/schema/project";
+import { resolveProjectArtifactKind } from "@/lib/artifacts/project-artifact-templates";
 import { listProjectArtifacts } from "@/operations/artifacts";
 import { getProjectCockpitCounts } from "@/operations/project/cockpit-counts";
 
 import { ProjectShell } from "./ProjectShell";
 import { serializeCockpitProject } from "./serialize";
+
+function stageArtifactKind(row: Awaited<ReturnType<typeof listProjectArtifacts>>[number]) {
+  const kind = resolveProjectArtifactKind(row);
+  return kind === "requirements" || kind === "design" ? kind : null;
+}
 
 export default async function ProjectLayout({
   params,
@@ -25,18 +31,26 @@ export default async function ProjectLayout({
     listProjectArtifacts(id),
   ]);
 
-  const stageArtifacts = artifactRows
-    .filter((artifact) => ["requirements.md", "design.md"].includes(artifact.name.toLowerCase()))
-    .map((artifact) => ({
-      id: artifact.id,
-      name: artifact.name,
-      title:
-        typeof artifact.metadata.title === "string" && artifact.metadata.title.trim()
-          ? artifact.metadata.title
-          : artifact.name,
-      body: artifact.body,
-      type: artifact.type,
-    }));
+  const stageArtifacts = artifactRows.flatMap((artifact) => {
+    const kind = stageArtifactKind(artifact);
+    if (!kind) return [];
+    return [
+      {
+        id: artifact.id,
+        name: artifact.name,
+        sourceFileName: artifact.name,
+        title:
+          typeof artifact.metadata.title === "string" && artifact.metadata.title.trim()
+            ? artifact.metadata.title
+            : kind === "requirements"
+              ? "Project Requirements"
+              : "Project Design",
+        body: artifact.body,
+        type: artifact.type,
+        projectArtifactKind: kind,
+      },
+    ];
+  });
 
   return (
     <ProjectShell project={serializeCockpitProject(project)} counts={counts} stageArtifacts={stageArtifacts}>

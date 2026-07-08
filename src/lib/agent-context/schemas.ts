@@ -53,6 +53,7 @@ export const McpStandardsSchema = z.object({
       kind: z.string(),
       name: z.string(),
       title: z.string(),
+      projectArtifactKind: z.enum(["requirements", "design", "custom"]).nullable().optional(),
       scope: z.enum(["org", "project"]),
       version: z.string(),
       hash: z.string(),

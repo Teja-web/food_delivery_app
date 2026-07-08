@@ -3,8 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 
-import { ARTIFACT_FILE_TYPES, REQUIRED_ORGANIZATION_ARTIFACT_KEYS } from "@/db/schema/artifact";
-import { deleteProjectArtifact, upsertProjectArtifact } from "@/operations/artifacts";
+import {
+  ARTIFACT_FILE_TYPES,
+  PROJECT_ARTIFACT_KINDS,
+  PROJECT_ARTIFACT_STATUSES,
+  REQUIRED_ORGANIZATION_ARTIFACT_KEYS,
+} from "@/db/schema/artifact";
+import {
+  deleteProjectArtifact,
+  updateProjectArtifactStatus,
+  upsertProjectArtifact,
+} from "@/operations/artifacts";
 
 const projectStandardPayloadSchema = z.object({
   id: z.string().uuid().optional(),
@@ -15,6 +24,7 @@ const projectStandardPayloadSchema = z.object({
   sourceFileName: z.string().min(1, "File name is required."),
   category: z.string().optional().nullable(),
   requiredKey: z.enum(REQUIRED_ORGANIZATION_ARTIFACT_KEYS).optional().nullable(),
+  projectArtifactKind: z.enum(PROJECT_ARTIFACT_KINDS).optional().nullable(),
 });
 
 export type SaveProjectStandardResult =
@@ -39,7 +49,8 @@ export async function saveProjectStandardAction(
       type: parsed.data.type,
       category: parsed.data.category ?? null,
       requiredKey: parsed.data.requiredKey ?? null,
-      createdVia: "upload",
+      projectArtifactKind: parsed.data.projectArtifactKind ?? null,
+      createdVia: parsed.data.id ? undefined : "upload",
     });
     revalidatePath(`/projects/${parsed.data.projectId}/standards`);
     revalidatePath(`/projects/${parsed.data.projectId}/overview`);
@@ -67,6 +78,36 @@ export async function deleteProjectStandardAction(
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Could not delete project standard.",
+    };
+  }
+}
+
+const reviewProjectStandardSchema = z.object({
+  projectId: z.string().min(1),
+  artifactId: z.string().uuid(),
+  status: z.enum(PROJECT_ARTIFACT_STATUSES).refine((status) => status !== "pending", {
+    message: "Review status must be approved or rejected.",
+  }),
+});
+
+export async function reviewProjectStandardAction(
+  input: z.input<typeof reviewProjectStandardSchema>,
+): Promise<SaveProjectStandardResult> {
+  const parsed = reviewProjectStandardSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid review." };
+  }
+
+  try {
+    await updateProjectArtifactStatus(parsed.data.artifactId, parsed.data.status);
+    revalidatePath(`/projects/${parsed.data.projectId}/standards`);
+    revalidatePath(`/projects/${parsed.data.projectId}/overview`);
+    revalidatePath(`/projects/${parsed.data.projectId}`);
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Could not review project standard.",
     };
   }
 }

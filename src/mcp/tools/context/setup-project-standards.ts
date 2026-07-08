@@ -3,7 +3,9 @@
  *
  * Project-scoped setup gate before assigned work starts. The caller either
  * copies existing org artifacts into project_artifacts or provides exclusive
- * Requirements + Design files/bodies for this project.
+ * Requirements + Design files/bodies for this project. Existing Requirements
+ * and Design are left unchanged. Prefer upsert_project_artifacts for custom
+ * project-owned artifact edits.
  */
 
 import { readFile } from "node:fs/promises";
@@ -14,11 +16,15 @@ import { z } from "zod";
 import { CozntClient } from "../../client";
 import { bumpToolCall, getSessionProject } from "../../session";
 
+const ARTIFACT_FILE_TYPES = [".md", ".txt", ".html", ".json"] as const;
+type ArtifactFileType = (typeof ARTIFACT_FILE_TYPES)[number];
+
 const projectStandardInput = z.object({
   title: z.string().optional(),
   body: z.string().optional(),
   filePath: z.string().optional(),
   sourceFileName: z.string().optional(),
+  type: z.enum(ARTIFACT_FILE_TYPES).optional(),
 });
 
 export const setupProjectStandardsInput = z.object({
@@ -36,21 +42,25 @@ export const setupProjectStandardsInput = z.object({
     .describe("Optional extra project-standard files. Each item can provide body or filePath."),
   requirements: projectStandardInput
     .optional()
-    .describe("Project-exclusive Requirements. Provide body or filePath when useOrganizationDefaults=false."),
+    .describe("Project-exclusive Requirements. Created only when missing and useOrganizationDefaults=false."),
   design: projectStandardInput
     .optional()
-    .describe("Project-exclusive Design. Provide body or filePath when useOrganizationDefaults=false."),
+    .describe("Project-exclusive Design. Created only when missing and useOrganizationDefaults=false."),
 });
 
 export type SetupProjectStandardsInput = z.infer<typeof setupProjectStandardsInput>;
 
-function inferType(fileName: string): ".md" | ".txt" {
-  return fileName.toLowerCase().endsWith(".txt") ? ".txt" : ".md";
+function inferType(fileName: string): ArtifactFileType {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".txt")) return ".txt";
+  if (lower.endsWith(".html")) return ".html";
+  if (lower.endsWith(".json")) return ".json";
+  return ".md";
 }
 
 function defaultFileName(
   kind: "requirements" | "design" | "additional",
-  type: ".md" | ".txt",
+  type: ArtifactFileType,
 ): string {
   if (kind === "requirements") return `requirements${type}`;
   if (kind === "design") return `design${type}`;
@@ -63,7 +73,7 @@ async function resolveStandardBody(
 ): Promise<{
   title?: string;
   body: string;
-  type: ".md" | ".txt";
+  type: ArtifactFileType;
   sourceFileName: string;
 }> {
   if (!input) {
@@ -74,11 +84,12 @@ async function resolveStandardBody(
   }
 
   const fileNameFromPath = input.filePath ? basename(input.filePath) : null;
+  const explicitType = input.type;
   const sourceFileName =
     input.sourceFileName?.trim() ||
     fileNameFromPath ||
-    defaultFileName(kind, ".md");
-  const type = inferType(sourceFileName);
+    defaultFileName(kind, explicitType ?? ".md");
+  const type = explicitType ?? inferType(sourceFileName);
   const body = input.filePath ? await readFile(input.filePath, "utf8") : input.body ?? "";
   if (!body.trim()) {
     const label = kind === "design" ? "Design" : kind === "requirements" ? "Requirements" : "Additional artifact";
