@@ -8,13 +8,11 @@
 
 import { z } from "zod/v4";
 
-import { ARTIFACT_FILE_TYPES } from "@/db/schema/artifact";
+import { ARTIFACT_FILE_TYPES, type ArtifactFileType } from "@/db/schema/artifact";
 import { handleApi } from "@/lib/auth/api-key";
 import { httpError, requireProjectScope } from "@/lib/auth/scope";
 import {
   cloneOrganizationArtifactsToProject,
-  hasExistingDesignMarkdownArtifact,
-  hasExistingRequirementsMarkdownArtifact,
   getOrganizationArtifactsReadiness,
   getProjectArtifactsManifest,
   getProjectRequiredArtifactRows,
@@ -52,11 +50,6 @@ function defaultTitle(kind: "requirements" | "design", inputTitle?: string): str
   return kind === "requirements" ? "Project Requirements" : "Project Design";
 }
 
-const REQUIREMENTS_EXISTS_MESSAGE = "requirements.md already exists.\nNo changes were made.";
-const DESIGN_EXISTS_MESSAGE = "design.md already exists.\n\nNo changes were made.";
-const REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE =
-  "Cannot create design.md because requirements.md does not exist.\n\nPlease create requirements.md first.";
-
 function titleFromFileName(fileName: string): string {
   return fileName
     .replace(/\.[^.]+$/, "")
@@ -66,20 +59,44 @@ function titleFromFileName(fileName: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase()) || "Project Artifact";
 }
 
+function typeFromFileName(fileName: string): ArtifactFileType | null {
+  const lower = fileName.trim().toLowerCase();
+  return ARTIFACT_FILE_TYPES.find((type) => lower.endsWith(type)) ?? null;
+}
+
+function reservedRequiredKindFromName(fileName: string): "requirements" | "design" | null {
+  const base = fileName
+    .trim()
+    .toLowerCase()
+    .replace(/\.[^.]+$/, "");
+  if (base === "requirements" || base === "design") return base;
+  return null;
+}
+
+function resolveUploadType(artifact: ProjectUpload): ArtifactFileType {
+  return typeFromFileName(artifact.sourceFileName) ?? artifact.type;
+}
+
 async function upsertAdditionalProjectArtifacts(
   projectId: string,
   artifacts: ProjectUpload[],
 ): Promise<void> {
   for (const artifact of artifacts) {
+    const type = resolveUploadType(artifact);
+    const requiredKind = reservedRequiredKindFromName(artifact.sourceFileName);
     await upsertProjectArtifact({
       projectId,
-      title: artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
+      title:
+        requiredKind
+          ? defaultTitle(requiredKind, artifact.title)
+          : artifact.title?.trim() || titleFromFileName(artifact.sourceFileName),
       name: artifact.sourceFileName,
       body: artifact.body,
-      type: artifact.type,
-      category: "project-standard",
-      projectArtifactKind: "custom",
+      type,
+      category: requiredKind ? "project-exclusive" : "project-standard",
+      projectArtifactKind: requiredKind ?? "custom",
       createdVia: "MCP",
+      status: "pending",
     });
   }
 }
@@ -94,15 +111,17 @@ async function upsertRequiredProjectArtifactIfMissing(
     return;
   }
 
+  const type = resolveUploadType(artifact);
   const row = await upsertProjectArtifact({
     projectId,
     title: defaultTitle(kind, artifact.title),
     name: artifact.sourceFileName,
     body: artifact.body,
-    type: artifact.type,
+    type,
     category: "project-exclusive",
     projectArtifactKind: kind,
     createdVia: "MCP",
+    status: "pending",
   });
   existingRequired[kind] = row;
 }
@@ -117,32 +136,6 @@ export async function POST(
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       throw httpError(400, "Invalid body", parsed.error.issues);
-    }
-
-    if (!parsed.data.useOrganizationDefaults) {
-      const requestedDesignName = parsed.data.design.sourceFileName.trim().toLowerCase();
-      const requestedDesignType = parsed.data.design.type.toLowerCase();
-      const requestedRequirementsName = parsed.data.requirements.sourceFileName.trim().toLowerCase();
-      const requestedRequirementsType = parsed.data.requirements.type.toLowerCase();
-      const [hasRequirements, hasDesign] = await Promise.all([
-        hasExistingRequirementsMarkdownArtifact(ctx.organizationId, project.id),
-        hasExistingDesignMarkdownArtifact(ctx.organizationId, project.id),
-      ]);
-
-      if (requestedDesignName === "design.md" && requestedDesignType === ".md") {
-        if (!hasRequirements) {
-          throw httpError(409, REQUIREMENTS_MISSING_FOR_DESIGN_MESSAGE);
-        }
-        if (hasDesign) {
-          throw httpError(409, DESIGN_EXISTS_MESSAGE);
-        }
-      }
-
-      if (requestedRequirementsName === "requirements.md" && requestedRequirementsType === ".md") {
-        if (hasRequirements) {
-          throw httpError(409, REQUIREMENTS_EXISTS_MESSAGE);
-        }
-      }
     }
 
     if (parsed.data.useOrganizationDefaults) {
@@ -191,7 +184,7 @@ export async function POST(
       standards: manifest.standards,
       total: manifest.standards.length,
       manifestHash: manifest.manifestHash,
-      next: "Run get_project_standards or coznt sync before starting assigned work.",
+      next: "Artifacts submitted for approval. After approval, run get_project_standards or coznt sync before starting assigned work.",
     };
   });
 }

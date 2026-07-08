@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { getProject } from "@/actions/project/projects";
 import type { Project } from "@/db/schema/project";
+import { resolveProjectArtifactKind } from "@/lib/artifacts/project-artifact-templates";
 import { listProjectArtifacts } from "@/operations/artifacts";
 import { getProjectCockpitCounts } from "@/operations/project/cockpit-counts";
 
@@ -10,17 +11,8 @@ import { ProjectShell } from "./ProjectShell";
 import { serializeCockpitProject } from "./serialize";
 
 function stageArtifactKind(row: Awaited<ReturnType<typeof listProjectArtifacts>>[number]) {
-  const explicit = row.metadata.projectArtifactKind;
-  if (explicit === "requirements" || explicit === "design") return explicit;
-
-  const title =
-    typeof row.metadata.title === "string" ? row.metadata.title.toLowerCase() : "";
-  const name = row.name.toLowerCase();
-  if (row.category === "project-exclusive") {
-    if (title.includes("requirement") || name.includes("requirement")) return "requirements";
-    if (title.includes("design") || name.includes("design")) return "design";
-  }
-  return null;
+  const kind = resolveProjectArtifactKind(row);
+  return kind === "requirements" || kind === "design" ? kind : null;
 }
 
 export default async function ProjectLayout({
@@ -45,12 +37,17 @@ export default async function ProjectLayout({
     return [
       {
         id: artifact.id,
-        name: kind === "requirements" ? "requirements.md" : "design.md",
+        name: artifact.name,
         sourceFileName: artifact.name,
         title:
-          kind === "requirements" ? "Project Requirements" : "Project Design",
+          typeof artifact.metadata.title === "string" && artifact.metadata.title.trim()
+            ? artifact.metadata.title
+            : kind === "requirements"
+              ? "Project Requirements"
+              : "Project Design",
         body: artifact.body,
         type: artifact.type,
+        projectArtifactKind: kind,
       },
     ];
   });

@@ -48,6 +48,17 @@ function fileNameFromTitle(value: string, type: ArtifactFileType): string {
   return `${base || "artifact"}${type}`;
 }
 
+function typeFromFileName(fileName: string | null | undefined): ArtifactFileType | null {
+  const lower = fileName?.trim().toLowerCase() ?? "";
+  return ARTIFACT_FILE_TYPES.find((type) => lower.endsWith(type)) ?? null;
+}
+
+function resolveArtifactType(
+  artifact: z.infer<typeof projectArtifactUploadSchema>,
+): ArtifactFileType {
+  return typeFromFileName(artifact.sourceFileName) ?? artifact.type;
+}
+
 function titleFromFileName(fileName: string): string {
   return fileName
     .replace(/\.[^.]+$/, "")
@@ -61,37 +72,61 @@ function defaultRequiredFileName(kind: "requirements" | "design", type: Artifact
   return kind === "requirements" ? `requirements${type}` : `design${type}`;
 }
 
+function reservedRequiredKindFromName(fileName: string): "requirements" | "design" | null {
+  const base = fileName
+    .trim()
+    .toLowerCase()
+    .replace(/\.[^.]+$/, "");
+  if (base === "requirements" || base === "design") return base;
+  return null;
+}
+
 function normalizeRequiredArtifact(
   kind: "requirements" | "design",
   artifact: z.infer<typeof projectArtifactUploadSchema>,
 ) {
+  const type = resolveArtifactType(artifact);
   const title =
     artifact.title?.trim() ||
     (kind === "requirements" ? "Project Requirements" : "Project Design");
-  const name = artifact.sourceFileName?.trim() || defaultRequiredFileName(kind, artifact.type);
+  const name = artifact.sourceFileName?.trim() || defaultRequiredFileName(kind, type);
   return {
     title,
     name,
     body: artifact.body,
-    type: artifact.type,
+    type,
     category: "project-exclusive",
     projectArtifactKind: kind,
   } as const;
 }
 
 function normalizeCustomArtifact(artifact: z.infer<typeof projectArtifactUploadSchema>) {
+  const type = resolveArtifactType(artifact);
   const title =
     artifact.title?.trim() ||
     (artifact.sourceFileName ? titleFromFileName(artifact.sourceFileName) : "");
   if (!title) {
     throw httpError(400, "Custom project artifacts require a title or sourceFileName.");
   }
-  const name = artifact.sourceFileName?.trim() || fileNameFromTitle(title, artifact.type);
+  const name = artifact.sourceFileName?.trim() || fileNameFromTitle(title, type);
+  const requiredKind = reservedRequiredKindFromName(name);
+  if (requiredKind) {
+    return {
+      title:
+        artifact.title?.trim() ||
+        (requiredKind === "requirements" ? "Project Requirements" : "Project Design"),
+      name,
+      body: artifact.body,
+      type,
+      category: "project-exclusive",
+      projectArtifactKind: requiredKind,
+    } as const;
+  }
   return {
     title,
     name,
     body: artifact.body,
-    type: artifact.type,
+    type,
     category: artifact.category ?? "project-standard",
     projectArtifactKind: "custom",
   } as const;
@@ -140,7 +175,7 @@ export async function POST(
     const existingRequired = await getProjectRequiredArtifactRows(ctx.organizationId, project.id);
     const rows: UpsertedProjectArtifact[] = [];
     const skipped: Array<{
-      projectArtifactKind: "requirements" | "design";
+      projectArtifactKind: "requirements" | "design" | "custom";
       existingId: string;
       name: string;
       reason: "already_exists";
@@ -171,7 +206,17 @@ export async function POST(
         category: artifact.category,
         projectArtifactKind: artifact.projectArtifactKind,
         createdVia: "MCP",
+        status: "pending",
       });
+      if (row.status === "approved") {
+        skipped.push({
+          projectArtifactKind: artifact.projectArtifactKind,
+          existingId: row.id,
+          name: row.name,
+          reason: "already_exists",
+        });
+        continue;
+      }
       if (
         artifact.projectArtifactKind === "requirements" ||
         artifact.projectArtifactKind === "design"
@@ -192,13 +237,14 @@ export async function POST(
         type: row.type,
         projectArtifactKind: row.metadata.projectArtifactKind ?? "custom",
         createdVia: row.createdVia,
+        status: row.status,
         updatedAt: row.updatedAt.toISOString(),
       })),
       skipped,
       required: readiness,
       next: readiness.requiredComplete
-        ? "Requirements and Design are configured. You can now call get_assigned_work."
-        : `Still missing required project artifact(s): ${readiness.missingRequired.join(", ")}.`,
+        ? "Artifacts submitted. Approved artifacts are already available; pending artifacts must be approved before sync/use."
+        : `Artifacts submitted for approval. Still missing approved required project artifact(s): ${readiness.missingRequired.join(", ")}.`,
     };
   });
 }

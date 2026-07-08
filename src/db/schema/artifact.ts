@@ -52,6 +52,9 @@ export type ArtifactFileType = (typeof ARTIFACT_FILE_TYPES)[number];
 export const PROJECT_ARTIFACT_CREATED_VIA = ["MCP", "upload"] as const;
 export type ProjectArtifactCreatedVia = (typeof PROJECT_ARTIFACT_CREATED_VIA)[number];
 
+export const PROJECT_ARTIFACT_STATUSES = ["pending", "approved", "rejected"] as const;
+export type ProjectArtifactStatus = (typeof PROJECT_ARTIFACT_STATUSES)[number];
+
 export const PROJECT_ARTIFACT_KINDS = ["requirements", "design", "custom"] as const;
 export type ProjectArtifactKind = (typeof PROJECT_ARTIFACT_KINDS)[number];
 
@@ -109,6 +112,7 @@ export const projectArtifacts = cozntSchema.table(
     type: text().$type<ArtifactFileType>().notNull(),
     category: text(),
     createdVia: text("created_via").$type<ProjectArtifactCreatedVia>().notNull(),
+    status: text().$type<ProjectArtifactStatus>().notNull().default("approved"),
     metadata: jsonb().$type<ArtifactMetadata>().notNull().default(sql`'{}'::jsonb`),
     creatorId: text("creator_id"),
     creatorName: text("creator_name"),
@@ -118,6 +122,7 @@ export const projectArtifacts = cozntSchema.table(
   (table) => [
     index("project_artifacts_org_idx").on(table.organizationId),
     index("project_artifacts_project_idx").on(table.projectId),
+    index("project_artifacts_status_idx").on(table.organizationId, table.projectId, table.status),
     index("project_artifacts_type_idx").on(table.type),
     index("project_artifacts_category_idx").on(table.organizationId, table.projectId, table.category),
     index("project_artifacts_fts_idx").using(

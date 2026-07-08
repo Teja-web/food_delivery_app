@@ -9,6 +9,7 @@ import { rules } from "@/db/schema/rule";
 import { skills } from "@/db/schema/skill/skill";
 import { getSkillAutonomy, LEVEL_BLURBS, type LevelName } from "@/operations/skill/skill-autonomy";
 import { getProjectArtifactsManifest } from "@/operations/artifacts";
+import { resolveProjectArtifactKind } from "@/lib/artifacts/project-artifact-templates";
 
 import type {
   McpProjectArtifacts,
@@ -91,26 +92,40 @@ function resolveCurrentStageFromArtifacts(
     projectArtifactKind?: string | null;
   }>,
 ): string {
-  const hasRequirements = artifacts.some((artifact) => {
-    const title = artifact.title.toLowerCase();
-    const name = artifact.name.toLowerCase();
-    return (
-      artifact.projectArtifactKind === "requirements" ||
-      (artifact.category === "project-exclusive" &&
-        (title.includes("requirement") || name.includes("requirement")))
-    );
-  });
+  const hasRequirements = artifacts.some(
+    (artifact) =>
+      resolveProjectArtifactKind({
+        name: artifact.name,
+        category: artifact.category,
+        metadata: {
+          title: artifact.title,
+          projectArtifactKind:
+            artifact.projectArtifactKind === "requirements" ||
+            artifact.projectArtifactKind === "design" ||
+            artifact.projectArtifactKind === "custom"
+              ? artifact.projectArtifactKind
+              : undefined,
+        },
+      }) === "requirements",
+  );
   if (!hasRequirements) return REQUIREMENTS_STAGE_MESSAGE;
 
-  const hasDesign = artifacts.some((artifact) => {
-    const title = artifact.title.toLowerCase();
-    const name = artifact.name.toLowerCase();
-    return (
-      artifact.projectArtifactKind === "design" ||
-      (artifact.category === "project-exclusive" &&
-        (title.includes("design") || name.includes("design")))
-    );
-  });
+  const hasDesign = artifacts.some(
+    (artifact) =>
+      resolveProjectArtifactKind({
+        name: artifact.name,
+        category: artifact.category,
+        metadata: {
+          title: artifact.title,
+          projectArtifactKind:
+            artifact.projectArtifactKind === "requirements" ||
+            artifact.projectArtifactKind === "design" ||
+            artifact.projectArtifactKind === "custom"
+              ? artifact.projectArtifactKind
+              : undefined,
+        },
+      }) === "design",
+  );
   if (!hasDesign) return DESIGN_STAGE_MESSAGE;
   return DEVELOPMENT_STAGE_MESSAGE;
 }

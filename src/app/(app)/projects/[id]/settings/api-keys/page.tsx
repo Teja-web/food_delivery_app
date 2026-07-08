@@ -47,6 +47,8 @@ export default async function ApiKeysSettingsPage({
   return (
     <ProjectApiKeysSection
       projectId={id}
+      projectName={project.name}
+      projectSlug={project.slug}
       initialKeys={apiKeys.map(serializeApiKey)}
       canCreateApiKeys={currentUser.role === "owner"}
     />

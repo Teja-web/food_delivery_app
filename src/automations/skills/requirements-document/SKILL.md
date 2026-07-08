@@ -1,112 +1,145 @@
 ---
 name: requirements-document
-description: Consolidate every approved requirement (`story` and/or `feature` plans) into a single Requirements Specification Document for stakeholder review and audit trail. Use when: "consolidate the requirements", "requirements doc", "spec for stakeholders", "baseline before design". Voice triggers (speech-to-text aliases): "requirements document", "spec document", "consolidated requirements".
+description: Create the project's Requirements artifact using the canonical 6-section structure. Ask only for missing information, never invent content, then save through upsert_project_artifacts.
 version: 1
 plan_kind: story
 tags: [platform, requirements, documentation, sdlc]
 allowed-tools:
   - mcp__coznt__get_my_context
-  - mcp__coznt__get_requirements
-  - mcp__coznt__invoke_skill
-  - mcp__coznt__upsert_plan
-  - mcp__coznt__submit_for_approval
+  - mcp__coznt__get_project_standards
+  - mcp__coznt__upsert_project_artifacts
 coznt:
   version: 1.0.0
   triggers:
-    - User mentions "requirements document", "requirements spec", or "consolidate requirements"
-    - End of REQUIREMENTS phase, all requirements approved, advancing to DESIGN
-    - Stakeholder review needs a single artifact spanning all approved requirements
-    - Audit trail prep for a regulated cycle
+    - User asks to create a requirements artifact or requirements document
+    - Project is in the Requirements phase and the requirements artifact is missing
+    - Stakeholders need the first formal requirements baseline for the project
   required_verbs:
     - get_my_context
-    - get_requirements
-    - invoke_skill
-    - upsert_plan
-    - submit_for_approval
+    - upsert_project_artifacts
   min_autonomy: propose
 ---
 
-# Requirements Document Generator
+# Requirements Document Workflow
 
-Roll up every approved `story` (and optionally `feature`) into one Requirements Specification Document. LLM drafting runs server-side via `invoke_skill`.
+Follow this skill manually. Do not use `invoke_skill` for this workflow because the process is interactive and must pause for user answers when information is missing.
 
-## When to use
+## Goal
 
-- End of REQUIREMENTS phase, after all candidate requirements have been approved.
-- Stakeholders need a single document spanning all approved requirements.
-- Audit cycle needs a baseline artifact.
+Create one project Requirements artifact in `project_artifacts` using the existing artifact flow. The document must be complete before saving.
 
-## When NOT to use
+## Required structure
 
-- **Project is mid-requirements with active drafts.** Refuse — premature; the doc would be a snapshot of unfinished work.
-- **Fewer than 3 approved requirements.** Probably too early; suggest the user finalize at least a handful before consolidating.
-- **The user wants a per-requirement deep-dive.** Different shape; tell them to open the individual plan via `get_plans { id }`.
-- **Project past the design phase.** Use `dev-summary-generator` or `release-notes-generator` instead; the requirements doc is a phase-end artifact.
+Always generate the artifact with exactly these sections:
 
-## Steps
+```md
+# Requirements Document
+
+## 1. Project Overview
+### 1.1 Purpose
+### 1.2 Problem Statement
+### 1.3 Goals
+
+## 2. Scope
+### 2.1 In Scope
+### 2.2 Out of Scope
+
+## 3. Users and Roles
+
+## 4. Functional Requirements
+
+## 5. Non-Functional Requirements and Acceptance Criteria
+
+## 6. Open Questions
+### 6.1 What file format should be used for the requirements document (.md, .html, .txt, or .json)?
+### 6.2 What font, heading sizes, and content text size should be used in the Word version?
+```
+
+## Workflow
 
 ### 1. Load context
-Call `get_my_context`. Confirm phase is `requirements` or `design`.
 
-### 2. Gather approved requirements
-Call:
-- `get_requirements { kind: "story", status: "approved" }`
-- `get_requirements { kind: "feature", status: "approved" }` — combine if the project uses both
+Call `get_my_context`.
 
-If the combined count is 0 or 1, refuse — there's nothing to consolidate.
+If the current stage is not Requirements or Design, still honor the request, but do not assume a requirements artifact already exists unless the project artifact record proves it.
 
-### 3. Ask the user for stakeholder context
-Coznt cannot infer these:
-- Document version (default `1.0`)
-- Target stakeholders (eng leads, regulatory, business sponsor)
-- Compliance regime, if any (SOC 2 / HIPAA / FedRAMP / none)
+### 2. Check for an existing Requirements artifact
 
-### 4. Invoke the server-side skill
-Call `invoke_skill` with:
-```
-slug: "requirements-document"
-input: {
-  projectId,
-  approvedStories,
-  approvedFeatures,
-  documentVersion,
-  stakeholders,
-  complianceRegime
-}
-```
-Server returns `{ markdown, confidence, coverageGaps }` — `coverageGaps` lists requirement themes that have no approved plan.
+Use the project artifact metadata returned by coznt. Treat a Requirements artifact as existing only when the current project has a real `project_artifacts` record whose `projectArtifactKind` is `requirements` or whose legacy identity is exactly the requirements lifecycle artifact.
 
-### 5. Surface coverage gaps
-If `coverageGaps.length > 0`, flag to the user before filing: "These themes have no approved requirement: [...]". Don't auto-file with known gaps unless user confirms.
+If a valid current Requirements artifact already exists:
+- stop
+- tell the user it already exists
+- do not regenerate it unless the user explicitly asks to update it
 
-### 6. Route based on confidence
-- `confidence >= 0.7` and gaps acknowledged → present to user.
-- `confidence < 0.7` or gaps not acknowledged → `submit_for_approval`.
+### 3. Inspect required information
 
-### 7. File the document
-Call `upsert_plan`:
-```
-upsert_plan {
-  kind: "story",                                           // requirements-doc kind canonical to story bucket
-  slug: "requirements-doc-<project-slug>-v<version>",
-  title: "Requirements Specification — <Project Name> v<version>",
-  body: <generated markdown>,
-  changeNote: "Consolidates N approved requirements at end of REQUIREMENTS phase"
-}
-```
+Check whether each required section has enough user-provided information:
+
+- `1.1 Purpose`
+- `1.2 Problem Statement`
+- `1.3 Goals`
+- `2.1 In Scope`
+- `2.2 Out of Scope`
+- `3. Users and Roles`
+- `4. Functional Requirements`
+- `5. Non-Functional Requirements and Acceptance Criteria`
+- `6.1` file format question
+- `6.2` Word formatting question
+
+### 4. Ask only the missing questions
+
+Rules:
+
+- ask only for sections that are missing
+- wait for the user's answers before continuing
+- do not invent, infer, or hallucinate missing information
+- if some sections are already known, do not ask for them again
+- keep questions short and grouped only when it helps the user answer efficiently
+
+### 5. Generate the artifact body
+
+Once every required section has enough information, write the document in the exact structure above.
+
+Rules:
+
+- preserve the numbered structure
+- keep `6.1` and `6.2` as open questions unless the user explicitly answered them
+- do not omit any required section
+- do not save a partial draft
+
+### 6. Save through the existing artifact flow
+
+Call `upsert_project_artifacts` and save the Requirements artifact through the existing project artifact path.
+
+Requirements for the save call:
+
+- use the developer-selected artifact configuration values dynamically
+- do not hardcode the artifact name
+- do not hardcode the file type
+- do not hardcode a database table name
+- keep the artifact in the existing `project_artifacts` storage flow
+- preserve the existing version/update behavior for the project
+
+The payload must identify the artifact as the Requirements lifecycle artifact by kind, and must send the generated document body as the artifact content.
+
+### 7. Final validation before save
+
+Before saving, verify the body contains all of these sections:
+
+- `1. Project Overview`
+- `2. Scope`
+- `3. Users and Roles`
+- `4. Functional Requirements`
+- `5. Non-Functional Requirements and Acceptance Criteria`
+- `6. Open Questions`
+
+If any required section is missing, stop and ask for the missing information instead of saving.
 
 ## Constraints
 
-- **Status `approved` on every cited requirement.** Drafts must NOT appear in the consolidated doc.
-- **Coverage gaps must be visible.** Never silently omit a theme; surface as "Open" in the doc and `coverageGaps` to the user.
-- **No invented stakeholders.** Use names from the project entity or what the user pastes; don't fabricate.
-- **One skill = one decision tree.** If the user asks you to also generate the test plan, stop — `test-plan-generator` is a separate invocation.
-
-## Failure modes
-
-| Symptom | Likely cause | Action |
-|---|---|---|
-| Combined approved count < 2 | Too early in the phase | Refuse; tell user how many approved requirements exist |
-| `coverageGaps` non-empty | Themes mentioned but never planned | Surface to user; require explicit ack before filing |
-| `invoke_skill` returns `denied_below_autonomy` | Skill autonomy below `propose` | `submit_for_approval` with the assembled input |
-| User wants to include `draft` plans | Premature consolidation | Refuse; tell them to advance plans to `approved` first |
+- Never create arbitrary requirements content.
+- Never silently skip missing sections.
+- Never store a partial Requirements artifact.
+- Never bypass `upsert_project_artifacts`.
+- Reuse the existing artifact storage architecture.
