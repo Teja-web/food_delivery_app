@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coznt.dev/schemas/choreography-frontmatter.json",
+  "title": "Coznt Choreography Frontmatter",
+  "description": "YAML frontmatter contract for a CHOREOGRAPHY.md file pushed to a developer's repo. Matches Claude Code's native skill schema (name, description, optional allowed-tools) with coznt-specific extensions under the `coznt` namespace.",
+  "type": "object",
+  "required": ["name", "description", "coznt"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-facing name. Surfaces in Claude Code's skill picker."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Short description shown to the AI on every turn so it can decide whether to invoke. Include trigger language ('Use when...')."
+    },
+    "allowed-tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional Claude-Code-style tool allowlist. Coznt does not enforce this; it's a hint for the host editor."
+    },
+    "coznt": {
+      "type": "object",
+      "required": ["version", "required_verbs"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semantic version of this choreography. Bump major on breaking workflow changes."
+        },
+        "triggers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Free-form prose triggers describing when the AI should reach for this choreography. Read by the AI on session start."
+        },
+        "required_verbs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "MCP verbs this choreography references. Linter asserts each one exists in src/mcp/server.ts."
+        },
+        "min_autonomy": {
+          "type": "string",
+          "enum": ["observe", "propose", "merge", "lead"],
+          "description": "Advisory minimum autonomy label (observe, propose, merge, lead). Server enforces ground truth; this is for the AI to self-check before invoking."
+        }
+      }
+    }
+  }
+}
