@@ -1,1 +1,0 @@
-export { executeSQLQuery } from "./executor";
