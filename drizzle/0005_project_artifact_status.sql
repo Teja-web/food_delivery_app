@@ -1,0 +1,2 @@
+ALTER TABLE "coznt"."project_artifacts" ADD COLUMN "status" text DEFAULT 'approved' NOT NULL;--> statement-breakpoint
+CREATE INDEX "project_artifacts_status_idx" ON "coznt"."project_artifacts" USING btree ("organization_id","project_id","status");

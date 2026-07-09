@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780724944381,
+      "tag": "0000_sudden_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780906398311,
+      "tag": "0001_young_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782887256766,
+      "tag": "0002_lonely_the_watchers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782970795720,
+      "tag": "0003_replace_standards_with_artifacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783063948541,
+      "tag": "0004_project_tasks_rename",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783422036325,
+      "tag": "0005_project_artifact_status",
+      "breakpoints": true
+    }
+  ]
+}

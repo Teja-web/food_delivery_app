@@ -1,0 +1,78 @@
+/**
+ * prompt-hook:pack — bundle scripts/hook-src/*.mjs as an npx-runnable tarball.
+ *
+ * Pipeline:
+ *   1. Read version from root package.json.
+ *   2. Stage the three .mjs files + a slim package.json into dist/prompt-hook/.
+ *   3. `npm pack` to produce coznt-prompt-hook-<version>.tgz.
+ *   4. Move into public/install/, and write version-pin pointer.
+ *
+ * The tarball's bin entry is coznt-prompt-hook → coznt-capture-prompt-hook.mjs.
+ * Claude Code invokes `npx -y <url>/install/coznt-prompt-hook/latest` and
+ * Node runs the bin directly on stdin from the hook event.
+ */
+
+import { spawnSync } from "node:child_process";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { deterministicPack } from "../lib/deterministic-pack";
+
+const repoRoot = resolve(import.meta.dirname, "..", "..");
+const rootPkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+  version: string;
+};
+const version = rootPkg.version;
+
+const distDir = join(repoRoot, "dist", "prompt-hook");
+const publicInstallDir = join(repoRoot, "public", "install");
+
+function run(cmd: string, args: string[], cwd: string): void {
+  const r = spawnSync(cmd, args, { cwd, stdio: "inherit" });
+  if (r.error) throw new Error(`${cmd} ${args.join(" ")} failed to start: ${r.error.message}`);
+  if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed`);
+}
+
+console.log(`[prompt-hook:pack] version ${version}`);
+
+rmSync(distDir, { recursive: true, force: true });
+mkdirSync(distDir, { recursive: true });
+
+const hookSrcDir = join(repoRoot, "scripts", "hook-src");
+for (const f of [
+  "coznt-prompt-quality.mjs",
+  "coznt-author-utils.mjs",
+  "coznt-capture-prompt-hook.mjs",
+]) {
+  cpSync(join(hookSrcDir, f), join(distDir, f));
+}
+
+writeFileSync(
+  join(distDir, "package.json"),
+  JSON.stringify(
+    {
+      name: "coznt-prompt-hook",
+      version,
+      description: "Coznt UserPromptSubmit hook — captures prompts, scores locally, can block.",
+      type: "module",
+      bin: { "coznt-prompt-hook": "./coznt-capture-prompt-hook.mjs" },
+      files: ["*.mjs"],
+      engines: { node: ">=20" },
+      private: false,
+    },
+    null,
+    2,
+  ) + "\n",
+);
+
+if (process.platform !== "win32") {
+  run("chmod", ["+x", "coznt-capture-prompt-hook.mjs"], distDir);
+}
+
+const tarballName = `coznt-prompt-hook-${version}.tgz`;
+const tarballDst = join(publicInstallDir, tarballName);
+mkdirSync(publicInstallDir, { recursive: true });
+
+console.log("[prompt-hook:pack] writing deterministic tarball…");
+await deterministicPack({ stageDir: distDir, tarballPath: tarballDst });
+console.log(`[prompt-hook:pack] → ${tarballDst}`);
+console.log("[prompt-hook:pack] done.");

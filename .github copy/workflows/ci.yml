@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  # Schema-drift gate runs independently — this is the load-bearing check
+  # introduced by the post-28feaee fix plan. Catches schema files changed
+  # without a corresponding committed migration.
+  #
+  # `drizzle-kit generate` only diffs schema.ts files against drizzle/meta.
+  # No DB connection is made; the placeholder DATABASE_URL exists only to
+  # satisfy drizzle.config.ts's `process.env.DATABASE_URL!` dereference.
+  schema-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate migration
+        env:
+          DATABASE_URL: postgresql://placeholder/_
+        run: pnpm db:generate
+      - name: Assert no uncommitted migration
+        run: |
+          if ! git diff --exit-code drizzle/; then
+            echo "::error::Schema files were changed without committing the migration."
+            echo "::error::Run 'pnpm db:generate' locally and commit the generated SQL alongside the schema change."
+            exit 1
+          fi
+
+  # Lint + typecheck + unit tests. Pre-existing type errors in the codebase
+  # may surface here; fix-it-forward.
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm test

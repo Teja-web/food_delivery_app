@@ -1,0 +1,1483 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coznt.dev/install/coznt-authoring-schema.json",
+  "title": "Coznt — `.agents/` authoring frontmatter",
+  "description": "Frontmatter shapes for `.agents/skills/*.md`, `.agents/rules/*.md`, and `.agents/plans/<kind>/*.md`. Generated from src/lib/authoring/schemas.ts.",
+  "$defs": {
+    "skillFrontmatter": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "requiredLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "riskClass": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "sensitivity": {
+          "type": "string",
+          "enum": [
+            "conservative",
+            "balanced",
+            "thorough"
+          ]
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "planKind": {
+                    "type": "string",
+                    "enum": [
+                      "epic",
+                      "feature",
+                      "story",
+                      "spec",
+                      "adr",
+                      "test_plan",
+                      "release_plan",
+                      "risk_register",
+                      "incident"
+                    ]
+                  },
+                  "transitionTo": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "in_review",
+                      "approved",
+                      "in_progress",
+                      "completed",
+                      "rejected",
+                      "changes_requested",
+                      "cancelled"
+                    ]
+                  }
+                },
+                "required": [
+                  "planKind",
+                  "transitionTo"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "webhook": {
+                    "type": "string",
+                    "enum": [
+                      "pr_opened",
+                      "pr_synchronize",
+                      "pr_closed",
+                      "issue_opened",
+                      "deployment_status"
+                    ]
+                  },
+                  "pathGlobs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "webhook"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "ruleFrontmatter": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warn",
+                "error"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "validator": {
+              "type": "string",
+              "const": "keyword-presence"
+            },
+            "appliesTo": {
+              "type": "object",
+              "properties": {
+                "planKinds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "epic",
+                      "feature",
+                      "story",
+                      "spec",
+                      "adr",
+                      "test_plan",
+                      "release_plan",
+                      "risk_register",
+                      "incident"
+                    ]
+                  }
+                },
+                "onTransition": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "config": {
+              "type": "object",
+              "properties": {
+                "requires": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "forbids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "caseSensitive": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "description",
+            "validator",
+            "appliesTo",
+            "config"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warn",
+                "error"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "validator": {
+              "type": "string",
+              "const": "action-policy"
+            },
+            "appliesTo": {
+              "type": "object",
+              "properties": {
+                "skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "config": {
+              "type": "object",
+              "properties": {
+                "blockedActions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tool": {
+                        "type": "string"
+                      },
+                      "pathGlob": {
+                        "type": "string"
+                      },
+                      "commandGlob": {
+                        "type": "string"
+                      },
+                      "minLevel": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "always": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "tool"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "blockedPaths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "requireTests": {
+                  "type": "boolean"
+                },
+                "maxFilesPerChange": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "maxLoc": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "minCoverage": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "description",
+            "validator",
+            "appliesTo",
+            "config"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warn",
+                "error"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "validator": {
+              "type": "string",
+              "const": "autonomy-threshold"
+            },
+            "appliesTo": {
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "config": {
+              "type": "object",
+              "properties": {
+                "actionKind": {
+                  "type": "string"
+                },
+                "changeRisk": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "critical"
+                  ]
+                },
+                "minLevel": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3
+                }
+              },
+              "required": [
+                "actionKind",
+                "changeRisk",
+                "minLevel"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "description",
+            "validator",
+            "config"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "planFrontmatter": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "spec"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "acceptanceCriteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "rolloutPlan": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string"
+                },
+                "apis": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "dataModel": {
+                  "type": "string"
+                },
+                "edgeCases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "adr"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "decision": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                },
+                "alternatives": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "alternativesConsidered": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "consequences": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "test_plan"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                "coverageTarget": {
+                  "type": "string"
+                },
+                "coverageGoal": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "strategy": {
+                  "type": "string"
+                },
+                "scenarios": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "testCases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "given": {
+                        "type": "string"
+                      },
+                      "when": {
+                        "type": "string"
+                      },
+                      "then": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "risk_register"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "risks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "likelihood": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      },
+                      "impact": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      },
+                      "mitigation": {
+                        "type": "string"
+                      },
+                      "owner": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "release_plan"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "targetDate": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "included": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "rolloutPlan": {
+                  "type": "string"
+                },
+                "rollbackPlan": {
+                  "type": "string"
+                },
+                "rolloutSteps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "goNoGoChecks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "epic"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string"
+                },
+                "successMetrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "targetQuarter": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "feature"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "userValue": {
+                  "type": "string"
+                },
+                "acceptanceCriteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "const": "story"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "enabler",
+                  "spike",
+                  "bug",
+                  "debt"
+                ]
+              }
+            },
+            "assignee": {
+              "type": "string"
+            },
+            "externalRef": {
+              "type": "string"
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "parent_of",
+                      "supersedes",
+                      "derived_from",
+                      "blocks",
+                      "relates_to",
+                      "causes",
+                      "references"
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parent": {
+              "type": "string"
+            },
+            "supersedes": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "type": "string"
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "details": {
+              "type": "object",
+              "properties": {
+                "asA": {
+                  "type": "string"
+                },
+                "iWant": {
+                  "type": "string"
+                },
+                "soThat": {
+                  "type": "string"
+                },
+                "acceptanceCriteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "slug",
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

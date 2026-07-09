@@ -1,0 +1,16 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: postgres.Dockerfile
+    command: postgres -c shared_preload_libraries=pg_cron -c cron.database_name=postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
