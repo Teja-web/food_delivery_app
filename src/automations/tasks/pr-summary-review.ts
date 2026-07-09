@@ -49,6 +49,7 @@ const TRIGGER_ACTIONS = new Set(["opened", "synchronize", "reopened", "edited", 
 const MAX_FILES = 80;
 const MAX_PATCH_CHARS_PER_FILE = 8_000;
 const MAX_TOTAL_PATCH_CHARS = 60_000;
+const MAX_SQL_MIGRATION_PATCH_CHARS = 1_500;
 
 export interface PrSummaryReviewTaskInput {
   organizationId: string;
@@ -89,10 +90,13 @@ export function preparePrSummaryDiff(files: PullRequestFileWithPatch[]): Prepare
   const prepared: PrSummaryPromptFile[] = [];
 
   for (const file of included) {
+    const policy = resolvePrSummaryDiffPolicy(file.filename);
     const rawPatch = file.patch ?? "";
     const remainingBudget = Math.max(0, MAX_TOTAL_PATCH_CHARS - totalPatchChars);
-    const patchBudget = Math.min(MAX_PATCH_CHARS_PER_FILE, remainingBudget);
-    const patch = rawPatch.slice(0, patchBudget);
+    const patchBudget = policy.includePatch
+      ? Math.min(policy.maxPatchChars ?? MAX_PATCH_CHARS_PER_FILE, remainingBudget)
+      : 0;
+    const patch = policy.includePatch ? rawPatch.slice(0, patchBudget) : "";
     totalPatchChars += patch.length;
     prepared.push({
       filename: file.filename,
@@ -100,6 +104,7 @@ export function preparePrSummaryDiff(files: PullRequestFileWithPatch[]): Prepare
       additions: file.additions,
       deletions: file.deletions,
       patch: patch || null,
+      patchOmittedReason: policy.includePatch ? null : policy.reason,
       previousFilename: file.previousFilename,
       truncatedPatch: rawPatch.length > patch.length,
     });
@@ -112,6 +117,36 @@ export function preparePrSummaryDiff(files: PullRequestFileWithPatch[]): Prepare
     truncatedFiles: files.length > prepared.length,
     totalPatchChars,
   };
+}
+
+export function resolvePrSummaryDiffPolicy(filename: string): {
+  includePatch: boolean;
+  reason?: string;
+  maxPatchChars?: number;
+} {
+  const path = filename.replace(/\\/g, "/").toLowerCase();
+
+  if (/^drizzle\/meta\/.*\.json$/.test(path)) {
+    return { includePatch: false, reason: "Drizzle ORM snapshot metadata is generated." };
+  }
+  if (/^drizzle\/[^/]+\.sql$/.test(path)) {
+    return {
+      includePatch: true,
+      maxPatchChars: MAX_SQL_MIGRATION_PATCH_CHARS,
+      reason: "SQL migration patch is capped.",
+    };
+  }
+  if (/^(?:\.next|dist|build|out|coverage)\//.test(path)) {
+    return { includePatch: false, reason: "Build or coverage output is generated." };
+  }
+  if (/(^|\/)(?:\.venv|venv|env|__pycache__|site-packages)\//.test(path) || /\.py[co]$/.test(path)) {
+    return { includePatch: false, reason: "Python dependency/cache output is generated." };
+  }
+  if (/(^|\/)(?:logs?\/|.*\.log$)/.test(path)) {
+    return { includePatch: false, reason: "Log output is generated runtime data." };
+  }
+
+  return { includePatch: true };
 }
 
 async function resolvePrSummaryInstallation(input: {

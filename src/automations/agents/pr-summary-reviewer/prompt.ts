@@ -20,6 +20,7 @@ export interface PrSummaryPromptFile {
   additions: number;
   deletions: number;
   patch?: string | null;
+  patchOmittedReason?: string | null;
   previousFilename?: string | null;
   truncatedPatch: boolean;
 }
@@ -83,13 +84,18 @@ function formatFile(file: PrSummaryPromptFile): string {
   const rename = file.previousFilename ? `\nprevious filename: ${file.previousFilename}` : "";
   const patch = file.patch?.trim()
     ? file.patch.trim()
-    : "(patch unavailable from GitHub API)";
-  const truncation = file.truncatedPatch ? "\npatch truncated: true" : "";
+    : file.patchOmittedReason
+      ? `(patch omitted: ${file.patchOmittedReason})`
+      : "(patch unavailable from GitHub API)";
+  const truncation = [
+    file.truncatedPatch ? "patch truncated: true" : "",
+    file.patchOmittedReason ? `patch omitted reason: ${file.patchOmittedReason}` : "",
+  ].filter(Boolean).join("\n");
   return [
     `### ${file.filename}`,
     `status: ${file.status}`,
     `additions: ${file.additions}`,
-    `deletions: ${file.deletions}${rename}${truncation}`,
+    `deletions: ${file.deletions}${rename}${truncation ? `\n${truncation}` : ""}`,
     "```diff",
     patch,
     "```",

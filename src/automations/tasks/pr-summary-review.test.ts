@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   preparePrSummaryDiff,
+  resolvePrSummaryDiffPolicy,
   shouldRunPrSummaryReview,
 } from "./pr-summary-review";
 import {
@@ -87,6 +88,58 @@ describe("preparePrSummaryDiff", () => {
     expect(diff.totalFiles).toBe(85);
     expect(diff.includedFiles).toBe(80);
     expect(diff.truncatedFiles).toBe(true);
+  });
+
+  it("omits noisy generated patches while preserving file metadata", () => {
+    const diff = preparePrSummaryDiff([
+      file({
+        filename: "drizzle/meta/0005_snapshot.json",
+        additions: 1000,
+        deletions: 500,
+        patch: "+large generated snapshot",
+      }),
+      file({
+        filename: "logs/app.log",
+        additions: 10,
+        deletions: 0,
+        patch: "+runtime log",
+      }),
+    ]);
+
+    expect(diff.totalPatchChars).toBe(0);
+    expect(diff.files[0]).toMatchObject({
+      filename: "drizzle/meta/0005_snapshot.json",
+      patch: null,
+      patchOmittedReason: expect.stringContaining("Drizzle ORM snapshot"),
+    });
+    expect(diff.files[1]).toMatchObject({
+      filename: "logs/app.log",
+      patch: null,
+      patchOmittedReason: expect.stringContaining("Log output"),
+    });
+  });
+
+  it("caps SQL migration patches to a small reviewable slice", () => {
+    const diff = preparePrSummaryDiff([
+      file({
+        filename: "drizzle/0005_project_artifact_status.sql",
+        patch: `+${"x".repeat(2_000)}`,
+      }),
+    ]);
+
+    expect(diff.files[0].patch).toHaveLength(1_500);
+    expect(diff.files[0].patchOmittedReason).toBeNull();
+    expect(diff.files[0].truncatedPatch).toBe(true);
+  });
+});
+
+describe("resolvePrSummaryDiffPolicy", () => {
+  it("classifies noisy generated stack areas", () => {
+    expect(resolvePrSummaryDiffPolicy("drizzle/meta/0000_snapshot.json").includePatch).toBe(false);
+    expect(resolvePrSummaryDiffPolicy(".next/server/app.js").includePatch).toBe(false);
+    expect(resolvePrSummaryDiffPolicy("venv/lib/python/site.py").includePatch).toBe(false);
+    expect(resolvePrSummaryDiffPolicy("server.log").includePatch).toBe(false);
+    expect(resolvePrSummaryDiffPolicy("src/app/page.tsx").includePatch).toBe(true);
   });
 });
 
