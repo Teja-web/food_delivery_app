@@ -192,7 +192,7 @@ describe("prSummaryPromptWithContext", () => {
 });
 
 describe("renderPrSummaryMarkdown", () => {
-  it("renders an idempotent CodeRabbit-style Coznt Cat summary comment", () => {
+  it("renders an idempotent Coznt Cat summary comment without extra template sections", () => {
     const diff = preparePrSummaryDiff([
       file({
         filename: "src/app/api/inventory/route.ts",
@@ -210,7 +210,15 @@ describe("renderPrSummaryMarkdown", () => {
       ownerRepo: "acme/scm",
       pullNumber: 42,
       prTitle: "Fix inventory API for PR #41",
-      prBody: "Fixes #4521 by adding safer stock movement validation.",
+      prBody: [
+        "## PR Author-generated Summary",
+        "",
+        "Fixes #4521 by adding safer stock movement validation.",
+        "",
+        "## CodeRabbit-generated Summary",
+        "",
+        "This generated text must not be copied into the author summary.",
+      ].join("\n"),
       headSha: "head",
       review: {
         summary: "Adds safer inventory validation and updates the UI table.",
@@ -231,21 +239,48 @@ describe("renderPrSummaryMarkdown", () => {
           },
         ],
         notableChanges: ["Adds backend validation.", "Updates frontend inventory state."],
-        limitations: [],
       },
       diff,
       issueComments: [],
       reviewComments: [],
+      llmUsage: {
+        modelId: "openai/gpt-oss-120b",
+        inputTokens: 1234,
+        outputTokens: 256,
+        totalTokens: 1490,
+        cachedInputTokens: null,
+        reasoningTokens: null,
+        cacheHit: false,
+        estimatedCostUsd: 0.000339,
+        pricing: {
+          inputUsdPer1M: 0.15,
+          cachedInputUsdPer1M: 0.075,
+          outputUsdPer1M: 0.60,
+          source: "static",
+        },
+      },
       generatedAt: new Date("2026-07-06T10:00:00Z"),
     });
 
     expect(markdown.startsWith(COZNT_CAT_SUMMARY_MARKER)).toBe(true);
     expect(markdown).toContain("## PR Author-generated Summary");
+    expect(markdown).toContain("Fixes #4521 by adding safer stock movement validation.");
+    expect(markdown).not.toContain("This generated text must not be copied");
     expect(markdown).toContain("## Coznt Cat-generated Summary");
     expect(markdown).toContain("| File(s) / Path(s) | Change Summary |");
+    expect(markdown).toContain("### LLM token usage and cost");
+    expect(markdown).toContain("| openai/gpt-oss-120b | 1,234 | 256 | 1,490 | $0.000339 |");
     expect(markdown).toContain("#4521 - Referenced in the PR title or description.");
-    expect(markdown).toContain("#41 - Referenced in the PR title or description.");
-    expect(markdown).toContain("- backend");
-    expect(markdown).toContain("- frontend");
+    expect(markdown).not.toContain("### Estimated code review effort");
+    expect(markdown).not.toContain("### Pre-merge checks");
+    expect(markdown).not.toContain("#### Failed checks");
+    expect(markdown).not.toContain("#### Passed checks");
+    expect(markdown).not.toContain("### Limitations");
+    expect(markdown).not.toContain("### Sequence diagram(s)");
+    expect(markdown).not.toContain("### Possibly related PRs");
+    expect(markdown).not.toContain("### Suggested labels");
+    expect(markdown).not.toContain("### Suggested reviewers");
+    expect(markdown).not.toContain("### Finishing Touches");
+    expect(markdown).not.toContain("### Review context read");
   });
 });

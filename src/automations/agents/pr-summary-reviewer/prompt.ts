@@ -9,8 +9,7 @@ Use only the PR title, description, file metadata, and patches provided. Do not 
 Produce a useful implementation summary for reviewers:
 - summarize what changed and why it appears to matter;
 - explain each changed file in plain engineering language;
-- call out notable changes only when supported by the diff;
-- use limitations for missing/truncated patches or uncertainty.
+- call out notable changes only when supported by the diff.
 
 Output STRICT JSON matching the provided schema. No prose outside JSON.`;
 
@@ -70,7 +69,7 @@ export function prSummaryPromptWithContext(input: PrSummaryPromptInput): string 
     prBody ? `## PR DESCRIPTION\n${prBody}` : "## PR DESCRIPTION\n(none provided)",
     `## BASE / HEAD\nbase: ${input.baseSha ?? "(unknown)"}\nhead: ${input.headSha ?? "(unknown)"}`,
     `## DIFF INPUT LIMITS\nfiles included: ${input.includedFiles}/${input.totalFiles}\npatch characters included: ${input.totalPatchChars}`,
-    truncationNotes.length > 0 ? `## LIMITATIONS TO PRESERVE\n${truncationNotes.join("\n")}` : "",
+    truncationNotes.length > 0 ? `## DIFF NOTES\n${truncationNotes.join("\n")}` : "",
     issueComments ? `## EXISTING PR CONVERSATION COMMENTS\n${issueComments}` : "",
     reviewComments ? `## EXISTING INLINE REVIEW COMMENTS\n${reviewComments}` : "",
     `## FILES\n${files || "(no file diffs available)"}`,

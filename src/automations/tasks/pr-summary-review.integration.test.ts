@@ -150,7 +150,22 @@ describe("runPrSummaryReviewTask", () => {
           },
         ],
         notableChanges: ["Adds inventory workflow."],
-        limitations: [],
+      },
+      usage: {
+        modelId: "gpt-4o-mini",
+        inputTokens: 1000,
+        outputTokens: 200,
+        totalTokens: 1200,
+        cachedInputTokens: null,
+        reasoningTokens: null,
+        cacheHit: false,
+        estimatedCostUsd: 0.00027,
+        pricing: {
+          inputUsdPer1M: 0.15,
+          cachedInputUsdPer1M: null,
+          outputUsdPer1M: 0.60,
+          source: "static",
+        },
       },
     });
 
@@ -193,6 +208,10 @@ describe("runPrSummaryReviewTask", () => {
           data: expect.objectContaining({
             pr: expect.objectContaining({ title: "Add inventory workflow" }),
             diff: expect.objectContaining({ totalFiles: 1, includedFiles: 1 }),
+            llmUsage: expect.objectContaining({
+              totalTokens: 1200,
+              estimatedCostUsd: 0.00027,
+            }),
             githubWriteback: expect.objectContaining({
               action: "created",
               commentId: 99,
@@ -243,7 +262,6 @@ describe("runPrSummaryReviewTask", () => {
           },
         ],
         notableChanges: ["Refreshes inventory workflow."],
-        limitations: [],
       },
     });
 
@@ -275,7 +293,6 @@ describe("runPrSummaryReviewTask", () => {
           },
         ],
         notableChanges: ["Adds inventory workflow."],
-        limitations: [],
       },
     });
 
@@ -332,7 +349,6 @@ describe("runPrSummaryReviewTask", () => {
           },
         ],
         notableChanges: ["Adds inventory workflow."],
-        limitations: [],
       },
     });
 
@@ -378,7 +394,6 @@ describe("runPrSummaryReviewTask", () => {
           },
         ],
         notableChanges: ["Adds inventory workflow."],
-        limitations: [],
       },
     });
 

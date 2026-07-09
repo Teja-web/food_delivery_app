@@ -37,7 +37,6 @@ export const prSummaryReviewSchema = z.object({
     )
     .max(80),
   notableChanges: z.array(z.string().min(5).max(300)).max(10),
-  limitations: z.array(z.string().min(5).max(300)).max(10),
 });
 
 export type PrSummaryReview = z.infer<typeof prSummaryReviewSchema>;

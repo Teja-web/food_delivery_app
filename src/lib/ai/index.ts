@@ -2,7 +2,12 @@
  * Coznt AI — simplified generate() wrapper.
  */
 
-import { generateText as aiGenerateText, Output, NoObjectGeneratedError } from "ai";
+import {
+  generateText as aiGenerateText,
+  Output,
+  NoObjectGeneratedError,
+  type LanguageModelUsage,
+} from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod/v4";
@@ -26,25 +31,166 @@ type OpenAIModelId = "gpt-4o" | "gpt-4o-mini";
 
 export type ModelId = GroqModelId | OpenAIModelId;
 
-const OPENAI_MODELS = new Set<string>(["gpt-4o", "gpt-4o-mini"]);
-const GROQ_MODELS = new Set<string>([
+export interface GenerateUsage {
+  modelId: ModelId;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  cachedInputTokens: number | null;
+  reasoningTokens: number | null;
+  cacheHit: boolean;
+  estimatedCostUsd: number | null;
+  pricing: {
+    inputUsdPer1M: number | null;
+    cachedInputUsdPer1M: number | null;
+    outputUsdPer1M: number | null;
+    source: "static" | "unavailable";
+  };
+}
+
+interface ModelPricing {
+  inputUsdPer1M: number;
+  outputUsdPer1M: number;
+  cachedInputUsdPer1M?: number;
+}
+
+const MODEL_PRICING_USD_PER_1M: Partial<Record<ModelId, ModelPricing>> = {
+  "openai/gpt-oss-20b": {
+    inputUsdPer1M: 0.075,
+    cachedInputUsdPer1M: 0.0375,
+    outputUsdPer1M: 0.30,
+  },
+  "openai/gpt-oss-120b": {
+    inputUsdPer1M: 0.15,
+    cachedInputUsdPer1M: 0.075,
+    outputUsdPer1M: 0.60,
+  },
+  "llama-3.1-8b-instant": {
+    inputUsdPer1M: 0.05,
+    outputUsdPer1M: 0.08,
+  },
+  "llama-3.3-70b-versatile": {
+    inputUsdPer1M: 0.59,
+    outputUsdPer1M: 0.79,
+  },
+  "gpt-4o-mini": {
+    inputUsdPer1M: 0.15,
+    outputUsdPer1M: 0.60,
+  },
+  "gpt-4o": {
+    inputUsdPer1M: 2.50,
+    outputUsdPer1M: 10.00,
+  },
+};
+
+const OPENAI_MODELS = new Set<ModelId>(["gpt-4o", "gpt-4o-mini"]);
+const GROQ_MODELS = new Set<ModelId>([
   "llama-3.1-8b-instant",
   "llama-3.3-70b-versatile",
   "meta-llama/llama-guard-4-12b",
   "openai/gpt-oss-20b",
   "openai/gpt-oss-120b",
 ]);
+const SUPPORTED_MODELS = new Set<ModelId>([
+  ...OPENAI_MODELS,
+  ...GROQ_MODELS,
+]);
 
-export const DEFAULT_MODEL: ModelId =
-  (process.env.DEFAULT_MODEL as ModelId) || "openai/gpt-oss-120b";
+function envModel(name: "DEFAULT_MODEL" | "SMALL_MODEL"): ModelId {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(
+      `Missing ${name}. Set ${name} in your environment to one of: ${[...SUPPORTED_MODELS].join(", ")}.`,
+    );
+  }
+  if (!SUPPORTED_MODELS.has(value as ModelId)) {
+    throw new Error(
+      `Unsupported ${name} "${value}". Use one of: ${[...SUPPORTED_MODELS].join(", ")}.`,
+    );
+  }
+  return value as ModelId;
+}
 
-export const SMALL_MODEL: ModelId =
-  (process.env.SMALL_MODEL as ModelId) || "openai/gpt-oss-120b";
+export const DEFAULT_MODEL: ModelId = envModel("DEFAULT_MODEL");
 
-export function getModelInstance(modelId: ModelId = DEFAULT_MODEL) {
+export const SMALL_MODEL: ModelId = envModel("SMALL_MODEL");
+
+export function getModelInstance(modelId: ModelId) {
   if (GROQ_MODELS.has(modelId)) return groq(modelId);
   if (OPENAI_MODELS.has(modelId)) return openai(modelId);
-  throw new Error(`Unknown model: ${modelId}`);
+  throw new Error(
+    `Unsupported model "${modelId}". Use one of: ${[...SUPPORTED_MODELS].join(", ")}.`,
+  );
+}
+
+function normalizeUsage(
+  modelId: ModelId,
+  usage: LanguageModelUsage | undefined,
+  cacheHit: boolean,
+): GenerateUsage {
+  const inputTokens = usage?.inputTokens ?? null;
+  const outputTokens = usage?.outputTokens ?? null;
+  const totalTokens = usage?.totalTokens ?? null;
+  const cachedInputTokens =
+    usage?.inputTokenDetails?.cacheReadTokens ??
+    usage?.cachedInputTokens ??
+    null;
+  const reasoningTokens =
+    usage?.outputTokenDetails?.reasoningTokens ??
+    usage?.reasoningTokens ??
+    null;
+  const pricing = MODEL_PRICING_USD_PER_1M[modelId] ?? null;
+
+  if (cacheHit) {
+    return {
+      modelId,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      cachedInputTokens,
+      reasoningTokens,
+      cacheHit,
+      estimatedCostUsd: 0,
+      pricing: {
+        inputUsdPer1M: pricing?.inputUsdPer1M ?? null,
+        cachedInputUsdPer1M: pricing?.cachedInputUsdPer1M ?? null,
+        outputUsdPer1M: pricing?.outputUsdPer1M ?? null,
+        source: pricing ? "static" : "unavailable",
+      },
+    };
+  }
+
+  const noCacheInputTokens =
+    usage?.inputTokenDetails?.noCacheTokens ??
+    (inputTokens != null && cachedInputTokens != null
+      ? Math.max(0, inputTokens - cachedInputTokens)
+      : inputTokens);
+  const cachedTokens = cachedInputTokens ?? 0;
+  const output = outputTokens ?? 0;
+  const estimatedCostUsd = pricing && noCacheInputTokens != null && outputTokens != null
+    ? (
+        (noCacheInputTokens * pricing.inputUsdPer1M) +
+        (cachedTokens * (pricing.cachedInputUsdPer1M ?? pricing.inputUsdPer1M)) +
+        (output * pricing.outputUsdPer1M)
+      ) / 1_000_000
+    : null;
+
+  return {
+    modelId,
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    cachedInputTokens,
+    reasoningTokens,
+    cacheHit,
+    estimatedCostUsd,
+    pricing: {
+      inputUsdPer1M: pricing?.inputUsdPer1M ?? null,
+      cachedInputUsdPer1M: pricing?.cachedInputUsdPer1M ?? null,
+      outputUsdPer1M: pricing?.outputUsdPer1M ?? null,
+      source: pricing ? "static" : "unavailable",
+    },
+  };
 }
 
 // -- Agent type -------------------------------------------------------
@@ -137,8 +283,8 @@ export async function generate<TSchema extends z.ZodType>(options: {
   cache?: boolean;
 }): Promise<
   TSchema extends z.ZodType
-    ? { text: string; object: z.infer<TSchema> }
-    : { text: string }
+    ? { text: string; object: z.infer<TSchema>; usage: GenerateUsage }
+    : { text: string; usage: GenerateUsage }
 > {
   const { agent, prompt, output, seed, cache = true } = options;
   const model = agent.model ?? DEFAULT_MODEL;
@@ -160,7 +306,7 @@ export async function generate<TSchema extends z.ZodType>(options: {
     const hit = promptCacheGet(cacheKey);
     if (hit) {
       // @ts-expect-error - conditional return
-      return { text: hit.text, object: hit.object };
+      return { text: hit.text, object: hit.object, usage: normalizeUsage(model, undefined, true) };
     }
   }
 
@@ -194,13 +340,14 @@ export async function generate<TSchema extends z.ZodType>(options: {
             `Agent "${agent.slug}" returned invalid output: ${parsed.error.message.slice(0, 200)}`,
           );
         }
+        const usage = normalizeUsage(model, result.totalUsage ?? result.usage, false);
         if (cacheKey) promptCacheSet(cacheKey, { text: result.text, object: parsed.data });
         // @ts-expect-error - conditional return
-        return { text: result.text, object: parsed.data };
+        return { text: result.text, object: parsed.data, usage };
       }
 
       // @ts-expect-error - conditional return
-      return { text: result.text };
+      return { text: result.text, usage: normalizeUsage(model, result.totalUsage ?? result.usage, false) };
     } catch (error: unknown) {
       lastError = error;
 
@@ -213,7 +360,7 @@ export async function generate<TSchema extends z.ZodType>(options: {
             const text = JSON.stringify(repaired);
             if (cacheKey) promptCacheSet(cacheKey, { text, object: parsed.data });
             // @ts-expect-error - conditional return
-            return { text, object: parsed.data };
+            return { text, object: parsed.data, usage: normalizeUsage(model, undefined, false) };
           }
         }
       }

@@ -91,6 +91,22 @@ vi.mock("@/lib/ai", async (importOriginal) => {
           ],
           recommendedGates: ["coverage", "security"],
         },
+        usage: {
+          modelId: "gpt-4o-mini",
+          inputTokens: 100,
+          outputTokens: 20,
+          totalTokens: 120,
+          cachedInputTokens: null,
+          reasoningTokens: null,
+          cacheHit: false,
+          estimatedCostUsd: 0.000027,
+          pricing: {
+            inputUsdPer1M: 0.15,
+            cachedInputUsdPer1M: null,
+            outputUsdPer1M: 0.60,
+            source: "static",
+          },
+        },
       };
     }),
   };

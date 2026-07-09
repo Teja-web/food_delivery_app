@@ -25,7 +25,7 @@ import {
   prSummaryPromptWithContext,
   type PrSummaryPromptFile,
 } from "@/automations/agents/pr-summary-reviewer/prompt";
-import { generate, DEFAULT_MODEL } from "@/lib/ai";
+import { generate, DEFAULT_MODEL, type GenerateUsage } from "@/lib/ai";
 import {
   createIssueComment,
   findInstallationForRepo,
@@ -261,7 +261,8 @@ export async function runPrSummaryReviewTask(
       ...diff,
     });
 
-    const { text, object } = await generate({
+    const modelId = prSummaryReviewerAgent.model ?? DEFAULT_MODEL;
+    const { text, object, usage } = await generate({
       agent: {
         ...prSummaryReviewerAgent,
         systemPrompt: artifactsPromptBlock
@@ -288,6 +289,7 @@ export async function runPrSummaryReviewTask(
           diff,
           issueComments,
           reviewComments,
+          llmUsage: usage,
           generatedAt: completedAt,
           webhookEventId: input.webhookEventId,
           prRef,
@@ -318,6 +320,7 @@ export async function runPrSummaryReviewTask(
         truncatedPatches: diff.files.filter((file) => file.truncatedPatch).map((file) => file.filename),
       },
       githubWriteback,
+      llmUsage: usage,
       generatedAt: completedAt.toISOString(),
     };
 
@@ -347,7 +350,7 @@ export async function runPrSummaryReviewTask(
         summary: object.summary.slice(0, 240),
         body: text,
         data: data as Record<string, unknown>,
-        modelId: prSummaryReviewerAgent.model ?? DEFAULT_MODEL,
+        modelId,
         lastRunId: runId,
         lastEvaluatedAt: completedAt,
         evaluationCount: 1,
@@ -358,7 +361,7 @@ export async function runPrSummaryReviewTask(
           summary: object.summary.slice(0, 240),
           body: text,
           data: data as Record<string, unknown>,
-          modelId: prSummaryReviewerAgent.model ?? DEFAULT_MODEL,
+          modelId,
           lastRunId: runId,
           lastEvaluatedAt: completedAt,
           updatedAt: completedAt,
@@ -477,6 +480,7 @@ async function writeGithubSummaryArtifacts(input: {
   diff: PreparedPrSummaryDiff;
   issueComments: PullRequestIssueComment[];
   reviewComments: PullRequestReviewComment[];
+  llmUsage?: GenerateUsage | null;
   generatedAt: Date;
   webhookEventId: string;
   prRef: string;
