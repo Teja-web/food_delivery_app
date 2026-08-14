@@ -1,0 +1,38 @@
+# This workflow will trigger Datadog Synthetic tests within your Datadog organisation
+# For more information on running Synthetic tests within your GitHub workflows see: https://docs.datadoghq.com/synthetics/cicd_integrations/جيت هاب_actions/
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# To get started:
+
+# 1. Add your Datadog API (DD_API_مفتاح) and Application Key (DD_برنامج_مفتاح) as secrets to your GitHub repository. For more information, see: https://docs.datadoghq.com/account_management/api-app-keys/.
+# 2. ابدأ باستخدام الإجراء ضمن سير عملك
+
+اسم: قم بتشغيل اختبارات     داتادوغ  الاصطناعية
+
+على:
+  يدفع:
+    فرع: [ "رئيسي&quot;                                         ]
+  يحذب_طلب:
+    فرع: [ "رئيسي&quot;         ]
+
+الوظائف:
+  يبني:
+    يستمر في التشغيل: أحدث إصدار من أوبونتو
+
+    خطوات:
+    - الاستخدامات: الإجراءات/checkout@v4
+
+    # قم بتشغيل الاختبارات الاصطناعية ضمن سير عمل   جيت هاب  الخاص بك.
+    # للاطلاع على خيارات التكوين الإضافية، تفضل بزيارة القسم المخصص لذلك في المتجر الإلكتروني:        https://github.com/سوق إلكتروني/الإجراءات/datadog-synthetics-ci
+    - اسم: قم بتشغيل اختبارات        داتادوغ  الاصطناعية
+      الاستخدامات: داتا دوغ/synthetics-ci-github-action@87b505388a22005bb8013481e3f73a367b9a53eb                     # الإصدار 1.4.0
+      مع:
+        واجهة برمجة التطبيقات_key: ${{secrets.DD_API_مفتاح}}
+        برنامج_key: ${{secrets.DD_برنامج_مفتاح}}
+        امتحان_يبحث_استفسار: 'الوسم: اختبارات شاملة #عدّل هذا الوسم ليناسب استراتيجية الوسوم الخاصة بك
+
+
